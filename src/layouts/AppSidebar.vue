@@ -15,7 +15,7 @@ import {
   Setting,
   User,
 } from '@element-plus/icons-vue'
-import { APP_TITLE, MENU_ITEMS } from '@/constants'
+import { MENU_ITEMS } from '@/constants'
 import { usePermission } from '@/composables/usePermission'
 
 defineProps<{
@@ -41,10 +41,6 @@ const visibleMenus = computed(() => MENU_ITEMS.filter((item) => hasRoutePermissi
 
 <template>
   <aside class="app-sidebar" :class="{ 'is-collapsed': collapsed }">
-    <div class="app-sidebar__logo">
-      <span v-if="!collapsed" class="app-sidebar__logo-text">{{ APP_TITLE }}</span>
-      <span v-else class="app-sidebar__logo-icon">闸</span>
-    </div>
     <el-menu
       :default-active="route.path"
       :collapse="collapsed"
@@ -68,7 +64,7 @@ const visibleMenus = computed(() => MENU_ITEMS.filter((item) => hasRoutePermissi
 .app-sidebar {
   width: var(--sider-width);
   height: 100%;
-  background: var(--color-bg-sidebar);
+  background: #ffffff;
   border-right: 1px solid var(--color-border);
   transition: width 0.3s;
   overflow: hidden;
@@ -77,40 +73,19 @@ const visibleMenus = computed(() => MENU_ITEMS.filter((item) => hasRoutePermissi
     width: 64px;
   }
 
-  &__logo {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: var(--header-height);
-    padding: 0 var(--spacing-md);
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  &__logo-text {
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    color: var(--color-primary);
-    text-align: center;
-    line-height: 1.4;
-  }
-
-  &__logo-icon {
-    font-size: var(--font-size-xl);
-    font-weight: 700;
-    color: var(--color-primary);
-  }
-
   :deep(.el-menu) {
     border-right: none;
   }
 
-  :deep(.el-menu-item.is-active) {
-    background: #e8f3ff !important;
-    color: var(--color-primary) !important;
-  }
+  :deep(.el-menu-item) {
+    &.is-active {
+      background: #e8f3ff !important;
+      color: var(--color-primary) !important;
+    }
 
-  :deep(.el-menu-item:hover) {
-    background: #f2f3f5 !important;
+    &:hover {
+      background: #f2f3f5 !important;
+    }
   }
 }
 </style>
