@@ -5,14 +5,62 @@
 import { ref, onMounted, onUnmounted, type Ref } from 'vue'
 import * as THREE from 'three'
 
-// ── 固定配色（正午蓝色调） ──
-const COLORS = {
-  skyTop: [0.18, 0.40, 0.72] as [number, number, number],
-  skyHorizon: [0.55, 0.68, 0.78] as [number, number, number],
-  waterDeep: [0.02, 0.10, 0.24] as [number, number, number],
-  waterSurface: [0.05, 0.19, 0.36] as [number, number, number],
-  specular: [1.0, 0.92, 0.78] as [number, number, number],
-  sunDir: [0.35, 0.65, 0.55] as [number, number, number],
+// ── 时段 ──
+type Period = 'dawn' | 'noon' | 'dusk' | 'night'
+
+interface PeriodColors {
+  skyTop: [number, number, number]
+  skyHorizon: [number, number, number]
+  waterDeep: [number, number, number]
+  waterSurface: [number, number, number]
+  specular: [number, number, number]
+  sunDir: [number, number, number]
+}
+
+const PERIODS: Record<Period, PeriodColors> = {
+  dawn: {
+    skyTop: [0.22, 0.28, 0.50],
+    skyHorizon: [0.65, 0.55, 0.58],
+    waterDeep: [0.02, 0.06, 0.16],
+    waterSurface: [0.06, 0.16, 0.30],
+    specular: [0.90, 0.65, 0.40],
+    sunDir: [0.5, 0.25, 0.7],
+  },
+  noon: {
+    skyTop: [0.18, 0.40, 0.72],
+    skyHorizon: [0.55, 0.68, 0.78],
+    waterDeep: [0.02, 0.10, 0.24],
+    waterSurface: [0.05, 0.19, 0.36],
+    specular: [1.0, 0.92, 0.78],
+    sunDir: [0.35, 0.65, 0.55],
+  },
+  dusk: {
+    skyTop: [0.15, 0.08, 0.25],
+    skyHorizon: [0.55, 0.28, 0.25],
+    waterDeep: [0.02, 0.04, 0.14],
+    waterSurface: [0.06, 0.09, 0.24],
+    specular: [0.90, 0.50, 0.28],
+    sunDir: [0.55, 0.20, 0.65],
+  },
+  night: {
+    skyTop: [0.03, 0.04, 0.12],
+    skyHorizon: [0.06, 0.07, 0.18],
+    waterDeep: [0.01, 0.03, 0.10],
+    waterSurface: [0.03, 0.06, 0.16],
+    specular: [0.40, 0.50, 0.75],
+    sunDir: [-0.2, 0.40, 0.7],
+  },
+}
+
+function getPeriod(h: number): Period {
+  if (h >= 5 && h < 8) return 'dawn'
+  if (h >= 8 && h < 17) return 'noon'
+  if (h >= 17 && h < 20) return 'dusk'
+  return 'night'
+}
+
+function lerp3(a: [number, number, number], b: [number, number, number], t: number): [number, number, number] {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
 }
 
 // ============================================================
@@ -210,6 +258,11 @@ export function useLoginScene(containerRef: Ref<HTMLElement | null>) {
   let animationId = 0
   let clock: THREE.Clock
 
+  let currentPeriod: Period
+  let targetPeriod: Period
+  let periodTransition = 1
+  let periodCheckTimer = 0
+
   function onResize() {
     if (!camera || !renderer) return
     camera.aspect = window.innerWidth / window.innerHeight
@@ -219,13 +272,48 @@ export function useLoginScene(containerRef: Ref<HTMLElement | null>) {
 
   function animate() {
     animationId = requestAnimationFrame(animate)
+    const dt = Math.min(clock.getDelta(), 0.1)
     const elapsed = clock.elapsedTime
 
+    // 相机固定
     camera.position.set(0, 2.2, 5)
     camera.lookAt(0, 1.2, -5)
 
+    // 时段
+    periodCheckTimer += dt
+    if (periodCheckTimer > 10) {
+      periodCheckTimer = 0
+      const np = getPeriod(new Date().getHours())
+      if (np !== targetPeriod) { targetPeriod = np; periodTransition = 0 }
+    }
+    if (periodTransition < 1) {
+      periodTransition = Math.min(1, periodTransition + dt * 0.35)
+      const a = PERIODS[currentPeriod]
+      const b = PERIODS[targetPeriod]
+      const t = periodTransition
+      const st = lerp3(a.skyTop, b.skyTop, t)
+      const sh = lerp3(a.skyHorizon, b.skyHorizon, t)
+      const wd = lerp3(a.waterDeep, b.waterDeep, t)
+      const ws = lerp3(a.waterSurface, b.waterSurface, t)
+      const sp = lerp3(a.specular, b.specular, t)
+      const sd = lerp3(a.sunDir, b.sunDir, t)
+
+      skyMat.uniforms.uSkyTop.value.set(st[0], st[1], st[2])
+      skyMat.uniforms.uSkyHorizon.value.set(sh[0], sh[1], sh[2])
+      skyMat.uniforms.uSunDir.value.set(sd[0], sd[1], sd[2])
+      waterMat.uniforms.uWaterDeep.value.set(wd[0], wd[1], wd[2])
+      waterMat.uniforms.uWaterSurface.value.set(ws[0], ws[1], ws[2])
+      waterMat.uniforms.uSpecular.value.set(sp[0], sp[1], sp[2])
+      waterMat.uniforms.uSunDir.value.set(sd[0], sd[1], sd[2])
+      waterMat.uniforms.uSkyTop.value.set(st[0], st[1], st[2])
+      waterMat.uniforms.uSkyHorizon.value.set(sh[0], sh[1], sh[2])
+
+      if (periodTransition >= 1) currentPeriod = targetPeriod
+    }
+
     waterMat.uniforms.uTime.value = elapsed
     waterMat.uniforms.uCameraPos.value.copy(camera.position)
+    skyMat.uniforms.uSunDir.value.copy(waterMat.uniforms.uSunDir.value)
 
     renderer.render(scene, camera)
   }
@@ -238,7 +326,9 @@ export function useLoginScene(containerRef: Ref<HTMLElement | null>) {
       if (!(c.getContext('webgl') || c.getContext('experimental-webgl'))) throw new Error()
     } catch { webglSupported.value = false; return }
 
-    const cl = COLORS
+    currentPeriod = getPeriod(new Date().getHours())
+    targetPeriod = currentPeriod
+    const cl = PERIODS[currentPeriod]
 
     scene = new THREE.Scene()
 
