@@ -1,6 +1,14 @@
 # 水利综合管理系统
 
-> 技术栈：Vue 3 + Vite + TypeScript + Element Plus + Pinia + Vue Router
+> 本项目为水利业务管理前后端协同开发系统
+> 技术栈：前端 Vue 3 + Vite + TypeScript + Element Plus + Pinia | 后端 Laravel
+
+## 开发流程
+1. 整理客户需求、绘制原型图
+2. 设计数据库表结构
+3. 编写接口文档、后端接口开发
+4. 前端页面开发与接口联调
+5. 系统整体测试
 
 ## 项目结构
 
