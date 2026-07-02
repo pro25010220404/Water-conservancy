@@ -4,7 +4,7 @@
 // ============================================================
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElForm, ElFormItem, ElInput, ElButton, ElMessage } from 'element-plus'
+import { ElInput, ElButton, ElCheckbox, ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { APP_TITLE } from '@/constants'
 import { useUserStore } from '@/stores/user'
@@ -17,6 +17,8 @@ const userStore = useUserStore()
 
 const username = ref('')
 const password = ref('')
+const rememberMe = ref(false)
+const autoLogin = ref(false)
 const loading = ref(false)
 
 const sceneContainer = ref<HTMLElement | null>(null)
@@ -52,65 +54,66 @@ async function handleLogin() {
 
 <template>
   <div class="login-page">
-    <!-- Three.js 背景 -->
     <div ref="sceneContainer" class="login-bg" :class="{ 'login-bg--fallback': !webglSupported }" />
 
-    <!-- 左侧品牌 -->
-    <div class="login-brand">
-      <p class="login-brand__overline">HYDROPOWER INTELLIGENT SYSTEM</p>
-      <h1 class="login-brand__title">{{ APP_TITLE }}</h1>
-      <p class="login-brand__desc">
-        基于深度强化学习与数字孪生的<br />水电站闸门智能调度平台
-      </p>
-    </div>
-
-    <!-- 登录表单 -->
     <div class="login-form">
       <div class="login-form__card">
-        <!-- Logo -->
-        <div class="login-form__logo">
-          <img :src="logoUrl" alt="logo" class="login-form__logo-img" />
-          <span class="login-form__logo-text">{{ APP_TITLE }}</span>
+        <div class="login-form__header">
+          <div class="login-form__logo-wrap">
+            <img :src="logoUrl" alt="logo" class="login-form__logo-img" />
+          </div>
+
+          <p class="login-form__overline">HYDROPOWER INTELLIGENT SYSTEM</p>
+          <h1 class="login-form__brand-title">{{ APP_TITLE }}</h1>
+          <p class="login-form__brand-desc">
+            基于深度强化学习与数字孪生的<br />水电站闸门智能调度平台
+          </p>
+          <p class="login-form__greeting">{{ greeting }}，欢迎回来</p>
         </div>
 
-        <p class="login-form__greeting">{{ greeting }}，欢迎回来</p>
-
-        <el-form @submit.prevent="handleLogin">
-          <el-form-item>
+        <div class="login-form__body">
+          <div class="login-field">
+            <div class="login-field__icon">
+              <el-icon><User /></el-icon>
+            </div>
             <el-input
               v-model="username"
-              placeholder="用户名"
+              placeholder="请输入用户名"
               size="large"
-              :prefix-icon="User"
-              class="dark-input"
+              class="login-field__input"
             />
-          </el-form-item>
+          </div>
 
-          <el-form-item>
+          <div class="login-field">
+            <div class="login-field__icon">
+              <el-icon><Lock /></el-icon>
+            </div>
             <el-input
               v-model="password"
               type="password"
-              placeholder="密码"
+              placeholder="请输入密码"
               size="large"
-              :prefix-icon="Lock"
               show-password
-              class="dark-input"
+              class="login-field__input"
               @keyup.enter="handleLogin"
             />
-          </el-form-item>
+          </div>
 
-          <el-form-item>
-            <el-button
-              type="primary"
-              size="large"
-              class="login-form__btn"
-              :loading="loading"
-              @click="handleLogin"
-            >
-              登 录
-            </el-button>
-          </el-form-item>
-        </el-form>
+          <div class="login-form__options">
+            <el-checkbox v-model="rememberMe" class="login-form__checkbox">记住密码</el-checkbox>
+            <el-checkbox v-model="autoLogin" class="login-form__checkbox">自动登录</el-checkbox>
+          </div>
+
+          <el-button
+            type="primary"
+            size="large"
+            class="login-form__btn"
+            :loading="loading"
+            @click="handleLogin"
+          >
+            登 录
+          </el-button>
+        </div>
       </div>
     </div>
   </div>
@@ -123,6 +126,8 @@ async function handleLogin() {
   height: 100vh;
   overflow: hidden;
   display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .login-bg {
@@ -135,161 +140,227 @@ async function handleLogin() {
   }
 }
 
-// ── 左侧品牌区 ──
-.login-brand {
-  position: relative;
-  z-index: 1;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 80px 64px;
-  pointer-events: none;
-  user-select: none;
-
-  &__overline {
-    font-family: 'SF Mono', 'Cascadia Code', monospace;
-    font-size: 11px;
-    letter-spacing: 4px;
-    color: rgba(255, 255, 255, 0.35);
-    text-transform: uppercase;
-    margin: 0 0 24px;
-  }
-
-  &__title {
-    font-size: 42px;
-    font-weight: 300;
-    color: #fff;
-    margin: 0 0 20px;
-    letter-spacing: 2px;
-    line-height: 1.2;
-  }
-
-  &__desc {
-    font-size: 15px;
-    color: rgba(255, 255, 255, 0.45);
-    line-height: 1.8;
-    margin: 0;
-  }
-}
-
-// ── 右侧表单 ──
 .login-form {
   position: relative;
   z-index: 1;
-  width: 480px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  margin-right: 56px;
+  width: 100%;
+  max-width: 540px;
+  padding: 24px;
 
   &__card {
     width: 100%;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.10);
-    border-radius: 18px;
-    padding: 44px 44px 52px;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 28px;
+    overflow: hidden;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: 0 32px 64px rgba(0, 0, 0, 0.3);
   }
 
-  &__logo {
+  &__header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 40px 28px;
+    text-align: center;
+  }
+
+  &__logo-wrap {
     display: flex;
     align-items: center;
-    gap: 14px;
-    margin-bottom: 36px;
+    justify-content: center;
+    width: 160px;
+    height: 160px;
+    margin-bottom: 20px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
   }
 
   &__logo-img {
-    width: 44px;
-    height: 44px;
+    width: 140px;
+    height: 140px;
     object-fit: contain;
+    filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.2));
   }
 
-  &__logo-text {
+  &__overline {
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: rgba(255, 255, 255, 0.35);
+    text-transform: uppercase;
+    margin: 0 0 12px;
+  }
+
+  &__brand-title {
+    margin: 0 0 12px;
     font-size: 22px;
-    font-weight: 500;
+    font-weight: 600;
     color: #fff;
     letter-spacing: 1px;
+    line-height: 1.4;
+  }
+
+  &__brand-desc {
+    margin: 0 0 20px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.45);
+    line-height: 1.7;
   }
 
   &__greeting {
-    font-size: 18px;
-    font-weight: 400;
-    color: rgba(255, 255, 255, 0.7);
-    margin: 0 0 32px;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  &__body {
+    padding: 8px 40px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  &__options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 32px;
+    padding: 4px 4px 0;
+  }
+
+  &__checkbox {
+    :deep(.el-checkbox__label) {
+      color: rgba(255, 255, 255, 0.65);
+      font-size: 14px;
+    }
+
+    :deep(.el-checkbox__inner) {
+      width: 16px;
+      height: 16px;
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
+      background: #1890ff;
+      border-color: #1890ff;
+    }
   }
 
   &__btn {
     width: 100%;
-    height: 48px;
-    font-size: 15px;
-    font-weight: 500;
-    letter-spacing: 3px;
-    border-radius: 10px;
-    margin-top: 4px;
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #fff;
-    transition: all 0.25s;
+    height: 54px;
+    margin-top: 32px;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 8px;
+    border-radius: 14px;
+    border: none;
+    background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+    box-shadow: 0 10px 28px rgba(24, 144, 255, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.18);
-      border-color: rgba(255, 255, 255, 0.3);
+      background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%);
+      box-shadow: 0 14px 32px rgba(24, 144, 255, 0.5);
+      transform: translateY(-2px);
+    }
+
+    &:active {
+      transform: translateY(0);
     }
   }
 }
 
-// ── 暗色输入框 ──
-:deep(.dark-input) {
-  .el-input__wrapper {
-    background: rgba(255, 255, 255, 0.04);
-    border: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 0;
-    box-shadow: none;
-    padding: 4px 0;
-    transition: border-color 0.25s;
+.login-field {
+  display: flex;
+  align-items: stretch;
+  height: 56px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s;
 
-    .el-input__inner {
-      color: #fff;
-      font-size: 16px;
+  &:focus-within {
+    border-color: rgba(24, 144, 255, 0.7);
+    box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.12);
+    background: rgba(255, 255, 255, 0.08);
+  }
 
-      &::placeholder {
-        color: rgba(255, 255, 255, 0.2);
+  &__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 26px;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  &__input {
+    flex: 1;
+    min-width: 0;
+
+    :deep(.el-input__wrapper) {
+      height: 56px;
+      padding: 0 16px;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      box-shadow: none !important;
+
+      .el-input__inner {
+        color: #fff;
+        font-size: 16px;
+
+        &::placeholder {
+          color: rgba(255, 255, 255, 0.3);
+        }
       }
     }
 
-    &:hover {
-      border-bottom-color: rgba(255, 255, 255, 0.25);
+    :deep(.el-input__suffix) {
+      color: rgba(255, 255, 255, 0.45);
+      font-size: 22px;
     }
-
-    &.is-focus {
-      border-bottom-color: rgba(255, 255, 255, 0.55);
-      box-shadow: none;
-    }
-  }
-
-  .el-input__prefix {
-    color: rgba(255, 255, 255, 0.25);
-    font-size: 18px;
-  }
-
-  .el-input__suffix {
-    color: rgba(255, 255, 255, 0.25);
   }
 }
 
-// ── 响应式 ──
-@media (max-width: 1023px) {
-  .login-brand { display: none; }
-  .login-form { width: 100%; margin: 0 auto; padding: 24px; }
-  .login-form__card { max-width: 400px; margin: 0 auto; padding: 40px 32px; }
-}
 @media (max-width: 767px) {
-  .login-bg { background: linear-gradient(170deg, #08121e 0%, #0f1e30 30%, #162c42 100%); }
-  .login-form__card { padding: 32px 24px; }
+  .login-bg {
+    background: linear-gradient(170deg, #08121e 0%, #0f1e30 30%, #162c42 100%);
+  }
+
+  .login-form {
+    padding: 16px;
+  }
+
+  .login-form__header {
+    padding: 32px 24px 24px;
+  }
+
+  .login-form__logo-wrap {
+    width: 140px;
+    height: 140px;
+  }
+
+  .login-form__logo-img {
+    width: 120px;
+    height: 120px;
+  }
+
+  .login-form__brand-title {
+    font-size: 20px;
+  }
+
+  .login-form__body {
+    padding: 8px 24px 36px;
+  }
 }
 </style>
