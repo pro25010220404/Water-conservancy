@@ -38,7 +38,7 @@ const collapsed = ref(false)
   }
 
   &__content {
-    background: #ffffff;
+    background: var(--color-bg-dark);
     padding: var(--spacing-lg);
     overflow-y: auto;
   }

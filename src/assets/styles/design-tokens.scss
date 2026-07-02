@@ -4,19 +4,29 @@
 // ============================================================
 
 // ---------- 品牌色 ----------
-$color-primary: #1677ff;
-$color-accent: #1677ff;
+$color-primary: #1890ff;
+$color-accent: #00d4ff;
 $color-secondary: #6b7280;
 $color-success: #22c55e;
 $color-warning: #f59e0b;
 $color-error: #ef4444;
 $color-info: #3b82f6;
 
-// ---------- 中性色（浅色主题） ----------
+// ---------- 布局色（暗蓝科技风 — 页眉 / 侧边栏） ----------
+$color-layout-blue: #0a1628;
+$color-layout-blue-header: #0d2137;
+$color-layout-blue-border: rgba(0, 212, 255, 0.18);
+$color-layout-blue-active: rgba(0, 212, 255, 0.12);
+$color-layout-blue-text: #e8f4ff;
+$color-layout-blue-text-secondary: rgba(232, 244, 255, 0.55);
+$color-layout-blue-brand: #00d4ff;
+$color-layout-blue-glow: rgba(0, 212, 255, 0.35);
+
+// ---------- 中性色（内容区浅色） ----------
 $color-bg: #ffffff;
-$color-bg-dark: #f5f7fa;
-$color-bg-panel: #ffffff;
-$color-bg-sidebar: #ffffff;
+$color-bg-dark: #f0f4f8;
+$color-bg-panel: #{$color-layout-blue-header};
+$color-bg-sidebar: #{$color-layout-blue};
 $color-text: #1d2129;
 $color-text-secondary: #6b7280;
 $color-text-disabled: #c0c4cc;

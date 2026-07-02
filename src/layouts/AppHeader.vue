@@ -78,14 +78,31 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .app-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: var(--header-height);
   padding: 0 var(--spacing-lg);
-  background: var(--color-bg-panel);
-  border-bottom: 1px solid var(--color-border);
-  box-shadow: var(--shadow-sm);
+  background: linear-gradient(90deg, #0a1628 0%, #0d2137 50%, #112a45 100%);
+  border-bottom: 1px solid var(--color-layout-blue-border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--color-layout-blue-glow) 50%,
+      transparent 100%
+    );
+    pointer-events: none;
+  }
 
   &__left {
     display: flex;
@@ -98,27 +115,30 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    border: none;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--color-layout-blue-border);
     border-radius: var(--border-radius-sm);
-    background: transparent;
-    color: var(--color-text);
+    background: rgba(0, 212, 255, 0.06);
+    color: var(--color-layout-blue-brand);
     cursor: pointer;
+    transition: all 0.2s;
 
     &:hover {
-      background: #f2f3f5;
-      color: var(--color-primary);
+      background: rgba(0, 212, 255, 0.14);
+      border-color: rgba(0, 212, 255, 0.4);
+      box-shadow: 0 0 12px rgba(0, 212, 255, 0.2);
     }
   }
 
   &__title {
     font-size: var(--font-size-lg);
     font-weight: 500;
-    color: var(--color-text);
+    color: var(--color-layout-blue-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    letter-spacing: 0.5px;
   }
 
   &__right {
@@ -128,9 +148,11 @@ onUnmounted(() => {
   }
 
   &__clock {
-    font-family: 'Roboto Mono', monospace;
+    font-family: 'Roboto Mono', 'SF Mono', monospace;
     font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
+    color: var(--color-layout-blue-brand);
+    opacity: 0.85;
+    letter-spacing: 0.5px;
   }
 
   &__user {
@@ -138,11 +160,24 @@ onUnmounted(() => {
     align-items: center;
     gap: var(--spacing-sm);
     cursor: pointer;
+    padding: 4px 8px 4px 4px;
+    border-radius: var(--border-radius-base);
+    transition: background 0.2s;
+
+    &:hover {
+      background: rgba(0, 212, 255, 0.08);
+    }
   }
 
   &__name {
     font-size: var(--font-size-sm);
-    color: var(--color-text);
+    color: var(--color-layout-blue-text);
+  }
+
+  :deep(.el-avatar) {
+    background: linear-gradient(135deg, #1890ff, #00d4ff);
+    color: #0a1628;
+    font-weight: 600;
   }
 }
 </style>
