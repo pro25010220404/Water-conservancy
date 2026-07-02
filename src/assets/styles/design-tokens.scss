@@ -1,0 +1,55 @@
+// ============================================================
+// 设计 Token — 全局 CSS 变量
+// 按《前端开发规范与最佳实践》1.3 节要求集中管理
+// ============================================================
+
+// ---------- 品牌色 ----------
+$color-primary: #1677ff;
+$color-accent: #1677ff;
+$color-secondary: #6b7280;
+$color-success: #22c55e;
+$color-warning: #f59e0b;
+$color-error: #ef4444;
+$color-info: #3b82f6;
+
+// ---------- 中性色（浅色主题） ----------
+$color-bg: #ffffff;
+$color-bg-dark: #f5f7fa;
+$color-bg-panel: #ffffff;
+$color-bg-sidebar: #ffffff;
+$color-text: #1d2129;
+$color-text-secondary: #6b7280;
+$color-text-disabled: #c0c4cc;
+$color-sidebar-text: #4e5969;
+$color-border: #e5e6eb;
+
+// ---------- 字体 ----------
+$font-size-xs: 12px;
+$font-size-sm: 13px;
+$font-size-base: 14px;
+$font-size-lg: 16px;
+$font-size-xl: 20px;
+
+// ---------- 间距 ----------
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 12px;
+$spacing-lg: 16px;
+$spacing-xl: 24px;
+
+// ---------- 圆角 ----------
+$border-radius-sm: 4px;
+$border-radius-base: 6px;
+$border-radius-lg: 8px;
+
+// ---------- 阴影 ----------
+$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+$shadow-base: 0 2px 8px rgba(0, 0, 0, 0.08);
+$shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
+
+// ---------- 布局 ----------
+$sider-width: 240px;
+$header-height: 56px;
+$footer-height: 48px;
+$content-min-width: 1200px;
+$content-max-width: 1440px;
