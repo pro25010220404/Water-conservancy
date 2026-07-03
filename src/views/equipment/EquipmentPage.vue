@@ -28,7 +28,10 @@ import {
 import { Search, Refresh, Download, Warning } from '@element-plus/icons-vue'
 import { EQUIPMENT_TYPE, EQUIPMENT_STATUS, EQUIPMENT_TYPE_OPTIONS, EQUIPMENT_STATUS_OPTIONS } from '@/constants'
 import { getEquipmentList, getEquipmentDetail, restartEquipment, updateEquipmentStatus } from '@/api/equipment'
+import { useOperationLog } from '@/composables/useOperationLog'
 import type { Equipment, EquipmentDetail } from '@/shared/types'
+
+const { record: recordLog } = useOperationLog()
 
 // ── 3. Props & Emits ──
 // (无)
@@ -182,6 +185,7 @@ async function handleRestart() {
   try {
     const res = await restartEquipment(selectedId.value, { reason: restartForm.value.reason })
     if (res.data.code === 0) {
+      recordLog('设备管理', '重启', `远程重启设备「${restartDeviceName.value}」`, 1)
       ElMessage.success('重启指令已下发')
       restartVisible.value = false
     }
@@ -203,6 +207,8 @@ async function handleStatusChange() {
   try {
     const res = await updateEquipmentStatus(selectedId.value, { status: newStatus.value as EquipmentDetail['status'] })
     if (res.data.code === 0) {
+      const label = EQUIPMENT_STATUS[newStatus.value]?.label ?? newStatus.value
+      recordLog('设备管理', '状态变更', `将设备状态变更为「${label}」`, 1)
       ElMessage.success('状态更新成功')
       statusVisible.value = false
       if (selectedId.value) {
@@ -250,6 +256,7 @@ function handleExport() {
     a.download = `设备台账_${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     window.URL.revokeObjectURL(url)
+    recordLog('设备管理', '导出', `导出了 ${rows.length} 条设备台账`, 1)
     ElMessage.success('导出成功')
   }).catch(() => { /* 取消 */ })
 }
