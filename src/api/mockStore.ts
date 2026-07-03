@@ -517,7 +517,7 @@ export const mockApi = {
   getFaultReviewList() { return delay(ok({ list: reviews, total: reviews.length, pageNum: 1, pageSize: 10 })) },
   getFaultReviewDetail(id: number) {
     const item = reviews.find((r) => r.id === id)
-    return item ? delay(ok(item)) : delay(Promise.reject(new Error('not found')))
+    return item ? delay(ok(item)) : Promise.reject(new Error('not found'))
   },
   submitFaultConclusion(id: number, conclusion: FaultReview['conclusion']) {
     const item = reviews.find((r) => r.id === id)

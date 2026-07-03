@@ -13,6 +13,7 @@ export function createWaterMaterial(options?: {
   specIntensity?: number
   /** 蓝色流体网格强度 */
   gridStrength?: number
+  reflectivity?: number
 }) {
   const color = options?.color ?? 0x1a5080
   const deepColor = options?.deepColor ?? 0x0a2540
