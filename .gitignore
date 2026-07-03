@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Cesium 3D 数字孪生（不提交）
+node_modules/cesium
+node_modules/vite-plugin-cesium
+src/views/simulation/SimulationPage.vue
+public/dam-generator.html
+public/models/
