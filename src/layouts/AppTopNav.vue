@@ -29,7 +29,6 @@ function navigate(path: string) {
 
 <template>
   <nav class="app-top-nav" aria-label="驾驶舱模块导航">
-    <span class="app-top-nav__label">智能调度</span>
     <div class="app-top-nav__inner">
       <button
         v-for="item in cockpitMenus"
@@ -55,17 +54,6 @@ function navigate(path: string) {
   padding: 10px var(--spacing-xl);
   background: transparent;
   border-bottom: 1px solid rgba(24, 144, 255, 0.08);
-
-  &__label {
-    flex-shrink: 0;
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    color: #64748b;
-    padding-left: 4px;
-    border-left: 3px solid #1890ff;
-    padding-left: 10px;
-  }
 
   &__inner {
     display: flex;

@@ -5,7 +5,6 @@ import {
   ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput,
   ElTimeline, ElTimelineItem, ElSlider, ElInputNumber, ElSelect, ElOption, ElTag,
 } from 'element-plus'
-import CockpitPageShell from '@/components/cockpit/CockpitPageShell.vue'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import ThreeDamScene from '@/components/cockpit/ThreeDamScene.vue'
 import TwinDamSchematic2D from '@/components/cockpit/TwinDamSchematic2D.vue'
