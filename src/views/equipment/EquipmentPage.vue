@@ -27,7 +27,7 @@ import {
 } from 'element-plus'
 import { Search, Refresh, Download, Warning } from '@element-plus/icons-vue'
 import { EQUIPMENT_TYPE, EQUIPMENT_STATUS, EQUIPMENT_TYPE_OPTIONS, EQUIPMENT_STATUS_OPTIONS } from '@/constants'
-import { getEquipmentList, getEquipmentDetail, restartEquipment, updateEquipmentStatus, exportEquipment } from '@/api/equipment'
+import { getEquipmentList, getEquipmentDetail, restartEquipment, updateEquipmentStatus } from '@/api/equipment'
 import type { Equipment, EquipmentDetail } from '@/shared/types'
 
 // ── 3. Props & Emits ──
@@ -216,23 +216,42 @@ async function handleStatusChange() {
 }
 
 /** 导出台账 */
-async function handleExport() {
-  try {
-    await ElMessageBox.confirm('确定导出当前筛选结果的设备台账？', '导出确认', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
+function handleExport() {
+  const rows = list.value
+  if (rows.length === 0) {
+    ElMessage.warning('没有可导出的数据'); return
+  }
+  ElMessageBox.confirm(`确定导出当前筛选结果的设备台账？（共 ${rows.length} 条）`, '导出确认', {
+    confirmButtonText: '导出 CSV',
+    cancelButtonText: '取消',
+  }).then(() => {
+    // BOM 解决中文乱码
+    const BOM = '﻿'
+    const headers = ['序号', '设备名称', '设备编号', '类型', '状态', '制造商', '型号', '健康评分', '所属水库', '最后在线']
+    const csv = [headers.join(',')]
+    rows.forEach((r, i) => {
+      csv.push([
+        i + 1,
+        `"${r.name}"`,
+        `"${r.code}"`,
+        typeLabelMap.value[r.type] ?? r.type,
+        EQUIPMENT_STATUS[r.status]?.label ?? r.status,
+        `"${r.manufacturer}"`,
+        `"${r.model}"`,
+        r.health_score,
+        `"${r.reservoir_name ?? '-'}"`,
+        r.last_online ?? '',
+      ].join(','))
     })
-    const res = await exportEquipment({
-      type: typeFilter.value || undefined,
-      status: statusFilter.value || undefined,
-    })
-    const blob = new Blob([res.data as BlobPart])
+    const blob = new Blob([BOM + csv.join('\n')], { type: 'text/csv;charset=utf-8' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url; a.download = `设备台账_${new Date().toISOString().slice(0, 10)}.xlsx`
-    a.click(); window.URL.revokeObjectURL(url)
+    a.href = url
+    a.download = `设备台账_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    window.URL.revokeObjectURL(url)
     ElMessage.success('导出成功')
-  } catch { /* 取消 */ }
+  }).catch(() => { /* 取消 */ })
 }
 
 // ── 8. 生命周期 ──
