@@ -288,8 +288,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <CockpitPageShell>
-    <div class="sim-page sim-page--twin sim-page--sky">
+  <div class="sim-page sim-page--twin sim-page--sky">
       <div class="sim-page__grid">
         <!-- 左栏：水情数据 -->
         <aside class="sim-page__col sim-page__col--left">
@@ -565,7 +564,6 @@ onUnmounted(() => {
         </ElForm>
       </ElDialog>
     </div>
-  </CockpitPageShell>
 </template>
 
 <style scoped lang="scss">
@@ -576,9 +574,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0;
-  min-height: calc(100vh - var(--header-height) - var(--tabs-height) - var(--spacing-lg) * 2);
-  height: calc(100vh - var(--header-height) - var(--tabs-height) - var(--spacing-lg) * 2);
-  margin: calc(-1 * var(--spacing-lg));
+  min-height: calc(100vh - var(--header-height) - var(--tabs-height));
+  height: calc(100vh - var(--header-height) - var(--tabs-height));
   padding: 12px var(--spacing-lg) var(--spacing-lg);
   color: #1e4976;
   overflow: hidden;
@@ -661,6 +658,7 @@ onUnmounted(() => {
       display: flex;
       flex-direction: column;
       padding: 8px 10px 10px;
+      @include hide-scrollbar;
     }
 
     :deep(.sim-tab-panel) {

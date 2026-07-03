@@ -50,6 +50,11 @@ export async function setSimulationGateOpening(opening: number): Promise<ApiResp
     body: JSON.stringify({ opening }),
   })
 }
+export async function emergencyStopSimulation(): Promise<ApiResponse<null>> {
+  return withMockFallback('/api/simulation/emergency-stop', () => mockApi.emergencyStopSimulation(), {
+    method: 'POST',
+  })
+}
 export async function getSimulationScenes(): Promise<ApiResponse<Array<{ scene: string; label: string; defaultParams: SimulationParams }>>> {
   return fetchMock('/api/simulation/scenes')
 }

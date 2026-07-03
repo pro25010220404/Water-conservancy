@@ -304,6 +304,7 @@ function formatDuration(sec: number) {
       font-size: $cockpit-font-base;
       color: $cockpit-text;
       min-width: 0;
+      @include hide-scrollbar;
     }
   }
 
@@ -319,6 +320,7 @@ function formatDuration(sec: number) {
     min-height: 0;
     overflow-y: auto;
     font-size: $cockpit-font-base;
+    @include hide-scrollbar;
   }
 
   :deep(.el-button) {

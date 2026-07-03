@@ -364,7 +364,23 @@ export const mockApi = {
     dispatchStatus.isExecuting = false
     dispatchStatus.mode = 'manual'
     dispatchStatus.autoLevel = 1
-    return delay(ok(null))
+    dispatchStatus.gateOpening = 0
+    if (simState.status === 'running') simState.status = 'paused'
+    stationLive.gateOpening = 0
+    simState.currentOpening = 0
+    return delay(ok({ stop_log_id: Date.now(), command_id: `estop-${Date.now()}` }))
+  },
+
+  /** 全局急停 — 调度 + 仿真联动，闸门归零 */
+  globalEmergencyStop() {
+    dispatchStatus.isExecuting = false
+    dispatchStatus.mode = 'manual'
+    dispatchStatus.autoLevel = 1
+    dispatchStatus.gateOpening = 0
+    if (simState.status === 'running') simState.status = 'paused'
+    stationLive.gateOpening = 0
+    simState.currentOpening = 0
+    return delay(ok({ stop_log_id: Date.now(), command_id: `estop-${Date.now()}` }))
   },
 
   changeMode(params: { mode: 'auto' | 'manual' }) {
@@ -470,6 +486,17 @@ export const mockApi = {
     stationLive.gateOpening = v
     simState.currentOpening = v
     dispatchStatus.gateOpening = v
+    return delay(ok(null))
+  },
+
+  emergencyStopSimulation() {
+    dispatchStatus.isExecuting = false
+    dispatchStatus.mode = 'manual'
+    dispatchStatus.autoLevel = 1
+    dispatchStatus.gateOpening = 0
+    if (simState.status === 'running') simState.status = 'paused'
+    stationLive.gateOpening = 0
+    simState.currentOpening = 0
     return delay(ok(null))
   },
 

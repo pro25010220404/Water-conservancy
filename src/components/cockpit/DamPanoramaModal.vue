@@ -23,6 +23,10 @@ const props = defineProps<{
   statusColor: string
   levelStatusColor: string
   levelStatusLabel: string
+  /** 调度方案预览 — 仅展示 3D，隐藏仿真控制 */
+  preview?: boolean
+  previewPlanName?: string
+  previewSafetyScore?: number
 }>()
 
 const emit = defineEmits<{
@@ -78,20 +82,55 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
         :class="{ 'sim-modal--running': simStatus.status === 'running' }"
         role="dialog"
         aria-modal="true"
-        aria-label="向家坝仿真推演"
+        aria-label="向家坝 BIM 预览"
       >
         <div class="sim-modal__backdrop" @click="emit('close')" />
 
         <div class="sim-modal__panel">
-          <!-- 左侧：仿真控制 -->
+          <!-- 左侧：仿真控制 / 方案预览 -->
           <aside class="sim-modal__sidebar">
             <div class="sim-modal__sidebar-head">
-              <h2>仿真推演</h2>
+              <h2>{{ preview ? '方案 BIM 预览' : '仿真推演' }}</h2>
               <span class="sim-modal__status" :style="{ color: statusColor }">
-                {{ statusLabel }}
+                {{ preview ? '调度预览' : statusLabel }}
               </span>
             </div>
 
+            <template v-if="preview">
+              <div class="sim-modal__scene-brief">
+                <h3>{{ previewPlanName || '当前方案' }}</h3>
+                <p>基于 AI 调度方案预览闸门开度与上下游水位效果</p>
+              </div>
+
+              <div class="sim-modal__kpis">
+                <div class="sim-modal__kpi">
+                  <small>方案开度</small>
+                  <strong>{{ gateOpening }}%</strong>
+                </div>
+                <div class="sim-modal__kpi">
+                  <small>预期上游水位</small>
+                  <strong :style="{ color: levelStatusColor }">{{ waterLevel.toFixed(2) }} m</strong>
+                  <em>{{ levelStatusLabel }}</em>
+                </div>
+                <div class="sim-modal__kpi">
+                  <small>下游尾水</small>
+                  <strong>{{ downstreamLevel.toFixed(2) }} m</strong>
+                </div>
+                <div class="sim-modal__kpi">
+                  <small>入库流量</small>
+                  <strong>{{ flowRate }} m³/s</strong>
+                </div>
+                <div v-if="previewSafetyScore != null" class="sim-modal__kpi">
+                  <small>安全评分</small>
+                  <strong :style="{ color: previewSafetyScore >= 90 ? '#22c55e' : '#f59e0b' }">
+                    {{ previewSafetyScore }}
+                  </strong>
+                </div>
+              </div>
+              <p class="sim-modal__hint">拖动旋转视角 · 滚轮缩放 · Esc 关闭</p>
+            </template>
+
+            <template v-else>
             <div class="sim-modal__scene-brief">
               <h3>{{ sceneInfo?.label }}</h3>
               <p>{{ sceneInfo?.description }}</p>
@@ -198,6 +237,7 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
               </ul>
             </div>
             <p v-else class="sim-modal__hint">点击「开始仿真」后，左侧实时显示运行数据。</p>
+            </template>
           </aside>
 
           <!-- 右侧：放大 3D 模型 -->
