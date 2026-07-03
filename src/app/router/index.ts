@@ -68,6 +68,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '调度决策' },
       },
       {
+        path: 'simulation',
+        name: 'Simulation',
+        component: () => import('@/views/simulation/SimulationPage.vue'),
+        meta: { title: '数字孪生' },
+      },
+      {
         path: 'equipment',
         name: 'Equipment',
         component: () => import('@/views/equipment/EquipmentPage.vue'),

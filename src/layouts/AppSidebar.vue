@@ -7,7 +7,7 @@ import { useRoute } from 'vue-router'
 import { ElMenu, ElMenuItem, ElSubMenu, ElIcon } from 'element-plus'
 import {
   Monitor, Ship, Switch, DataAnalysis, VideoCamera,
-  Clock, Warning, Operation, SetUp, Setting, User,
+  Clock, Warning, Operation, Cpu, SetUp, Setting, User,
 } from '@element-plus/icons-vue'
 import { APP_TITLE, MENU_ITEMS } from '@/constants'
 import { usePermission } from '@/composables/usePermission'
@@ -21,7 +21,7 @@ const { hasRoutePermission } = usePermission()
 
 const iconMap: Record<string, any> = {
   Monitor, Ship, Switch, DataAnalysis, VideoCamera,
-  Clock, Warning, Operation, SetUp, Setting, User,
+  Clock, Warning, Operation, Cpu, SetUp, Setting, User,
 }
 
 const visibleMenus = computed(() =>
