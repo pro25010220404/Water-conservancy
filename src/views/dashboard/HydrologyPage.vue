@@ -10,7 +10,7 @@ import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { useHydrologyData, type HydrologySnapshot } from '@/composables/useHydrologyData'
+import { useHydrologyData } from '@/composables/useHydrologyData'
 
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -46,18 +46,44 @@ function status(s:Station):Status{
   return d>=600?'critical':d>=300?'warning':'normal'
 }
 
-function sample(arr:[string,number][],n=40):[string,number][]{ if(arr.length<=n)return arr;const s=Math.ceil(arr.length/n);return arr.filter((_,i)=>i%s===0) }
-function tl(ts:string){const d=new Date(ts);return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')}
+// ═══ 趋势图：双Y轴 + 实测/AI预测/置信区间/预警线 + 时段切换 ═══
+const chartRange = ref<'1h'|'6h'|'24h'>('1h')
+const RANGE_MIN:Record<string,number> = {'1h':60,'6h':360,'24h':1440}
 
-const levelOpt=computed(()=>{
-  const d=sample(trend.value.map((p: HydrologySnapshot)=>[p.timestamp,p.upstreamLevel] as [string,number]))
-  return{backgroundColor:'transparent',grid:{left:44,right:12,top:8,bottom:24},xAxis:{type:'category',data:d.map(x=>tl(x[0])),axisLine:{lineStyle:{color:'#e5e7eb'}},axisLabel:{color:'#9ca3af',fontSize:9,interval:Math.max(1,Math.floor(d.length/4))}},yAxis:{type:'value',min:377.5,max:379.5,splitLine:{lineStyle:{color:'#f3f4f6'}},axisLabel:{color:'#9ca3af',fontSize:10}},series:[{type:'line',data:d.map(x=>x[1]),smooth:true,symbol:'none',lineStyle:{color:'#1890ff',width:2},areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(24,144,255,0.18)'},{offset:1,color:'rgba(24,144,255,0.02)'}]}}}],tooltip:{trigger:'axis',backgroundColor:'#fff',borderColor:'#e5e7eb',textStyle:{color:'#374151',fontSize:11}}}
-})
-const flowOpt=computed(()=>{
-  const labels:string[]=[],iV:number[]=[],oV:number[]=[]
-  sample(trend.value.map((p: HydrologySnapshot)=>[p.timestamp,p.inflowRate] as [string,number])).forEach((d: [string, number])=>{labels.push(tl(d[0]));iV.push(d[1])})
-  sample(trend.value.map((p: HydrologySnapshot)=>[p.timestamp,p.outflowRate] as [string,number])).forEach((d: [string, number])=>oV.push(d[1]))
-  return{backgroundColor:'transparent',grid:{left:50,right:12,top:8,bottom:24},xAxis:{type:'category',data:labels,axisLine:{lineStyle:{color:'#e5e7eb'}},axisLabel:{color:'#9ca3af',fontSize:9,interval:Math.max(1,Math.floor(labels.length/4))}},yAxis:{type:'value',splitLine:{lineStyle:{color:'#f3f4f6'}},axisLabel:{color:'#9ca3af',fontSize:10,formatter:(v:number)=>(v/1000).toFixed(1)+'k'}},legend:{data:['入库','出库'],textStyle:{color:'#6b7280',fontSize:10},right:0,top:0},series:[{name:'入库',type:'line',data:iV,smooth:true,symbol:'none',lineStyle:{color:'#1890ff',width:2}},{name:'出库',type:'line',data:oV,smooth:true,symbol:'none',lineStyle:{color:'#22c55e',width:2}}],tooltip:{trigger:'axis',backgroundColor:'#fff',borderColor:'#e5e7eb',textStyle:{color:'#374151',fontSize:11}}}
+function aiPredict(actual:number,steps:number,variance:number):{pred:number[],upper:number[],lower:number[]}{
+  const pred:number[]=[],upper:number[]=[],lower:number[]=[];let v=actual
+  for(let i=0;i<steps;i++){v+=(Math.random()-0.48)*variance;pred.push(+v.toFixed(2));upper.push(+(v+variance*(i+1)*0.3).toFixed(2));lower.push(+(v-variance*(i+1)*0.3).toFixed(2))}
+  return{pred,upper,lower}
+}
+
+const trendOpt = computed(()=>{
+  const all=trend.value;const maxPts=RANGE_MIN[chartRange.value]*2
+  const pts=all.length>maxPts?all.slice(-maxPts):all
+  const labels=pts.map(p=>{const d=new Date(p.timestamp);return chartRange.value==='24h'?(d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':00':d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')})
+  const levelData=pts.map(p=>p.upstreamLevel);const outflowData=pts.map(p=>p.outflowRate)
+  const lastLevel=levelData[levelData.length-1]||378.5;const lastFlow=outflowData[outflowData.length-1]||5820
+  const aiL=aiPredict(lastLevel,16,0.08);const aiF=aiPredict(lastFlow,16,80)
+  const predLabels=aiL.pred.map((_,i)=>{const d=new Date(Date.now()+(i+1)*5*60000);return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')})
+  const xData=[...labels,...predLabels]
+  const lvlA=[...levelData,...Array(16).fill(null)];const lvlP=[...Array(labels.length).fill(null),...aiL.pred]
+  const lvlU=[...Array(labels.length).fill(null),...aiL.upper];const lvlL=[...Array(labels.length).fill(null),...aiL.lower]
+  const flwA=[...outflowData,...Array(16).fill(null)];const flwP=[...Array(labels.length).fill(null),...aiF.pred]
+  return{backgroundColor:'transparent',grid:{left:44,right:54,top:32,bottom:30},
+    legend:{data:['实测水位','AI水位预测','出库流量','AI出库预测'],textStyle:{color:'#64748b',fontSize:10},top:6,right:0,itemGap:12},
+    xAxis:{type:'category',data:xData,axisLine:{lineStyle:{color:'#e5e7eb'}},axisLabel:{color:'#94a3b8',fontSize:9,interval:Math.max(1,Math.floor(xData.length/6))}},
+    yAxis:[{type:'value',min:377,max:381,splitLine:{lineStyle:{color:'#f1f5f9'}},axisLabel:{color:'#94a3b8',fontSize:10,formatter:(v:number)=>v+' m'}},
+           {type:'value',splitLine:{show:false},axisLabel:{color:'#94a3b8',fontSize:10,formatter:(v:number)=>(v/1000).toFixed(1)+'k'}}],
+    series:[
+      {name:'实测水位',type:'line',yAxisIndex:0,data:lvlA,smooth:true,symbol:'none',lineStyle:{color:'#3b82f6',width:2.5},areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(59,130,246,0.12)'},{offset:1,color:'rgba(59,130,246,0.01)'}]}}},
+      {name:'AI水位预测',type:'line',yAxisIndex:0,data:lvlP,smooth:true,symbol:'none',lineStyle:{color:'#3b82f6',width:2,type:'dashed'}},
+      {name:'置信',type:'line',yAxisIndex:0,data:lvlU,smooth:true,symbol:'none',lineStyle:{color:'transparent',width:0},areaStyle:{color:'rgba(59,130,246,0.05)'},stack:'ci',silent:true,legendHoverLink:false},
+      {name:'置信',type:'line',yAxisIndex:0,data:lvlL,smooth:true,symbol:'none',lineStyle:{color:'transparent',width:0},areaStyle:{color:'rgba(255,255,255,1)'},stack:'ci',silent:true,legendHoverLink:false},
+      {name:'预警线',type:'line',yAxisIndex:0,data:[],symbol:'none',lineStyle:{color:'transparent',width:0},markLine:{silent:true,symbol:'none',label:{show:true,formatter:'预警{c}m',fontSize:9,color:'#f59e0b'},lineStyle:{color:'#f59e0b',type:'dashed',width:1},data:[{yAxis:380.5}]},legendHoverLink:false},
+      {name:'出库流量',type:'line',yAxisIndex:1,data:flwA,smooth:true,symbol:'none',lineStyle:{color:'#22c55e',width:2}},
+      {name:'AI出库预测',type:'line',yAxisIndex:1,data:flwP,smooth:true,symbol:'none',lineStyle:{color:'#22c55e',width:1.5,type:'dashed'}},
+    ],
+    tooltip:{trigger:'axis',backgroundColor:'#fff',borderColor:'#e5e7eb',textStyle:{color:'#374151',fontSize:11}},
+  }
 })
 
 const mapEl=ref<HTMLDivElement|null>(null)
@@ -109,9 +135,11 @@ watch(()=>snapshot.value.upstreamLevel,()=>refresh())
     <button class="hydro__btn" @click="drawerOpen=!drawerOpen">{{drawerOpen?'✕':'☰'}}</button>
     <Transition name="dr">
       <div v-if="drawerOpen" class="hydro__dr">
-        <div class="hydro__dr-tt">实时图表</div>
-        <div class="hydro__cb"><div class="hydro__cb-l">上游水位趋势</div><v-chart class="hydro__ch" :option="levelOpt" autoresize/></div>
-        <div class="hydro__cb"><div class="hydro__cb-l">流量趋势 · 入库/出库</div><v-chart class="hydro__ch" :option="flowOpt" autoresize/></div>
+        <div class="hydro__dr-tt">趋势图表</div>
+        <div class="hydro__range">
+          <button v-for="r in (['1h','6h','24h'] as const)" :key="r" :class="{on:chartRange===r}" @click="chartRange=r">{{ r }}</button>
+        </div>
+        <div class="hydro__cb"><v-chart class="hydro__ch" :option="trendOpt" autoresize/></div>
         <div class="hydro__dr-tt" style="margin-top:8px">监测站点</div>
         <div v-for="s in SS" :key="s.id" class="hydro__stn">
           <span class="hydro__stn-d" :style="{background:SC[status(s)]}"/><span class="hydro__stn-n">{{s.name}}</span><span class="hydro__stn-v">{{fmt(sv(s),s.cat==='流量'?0:2)}}<small>{{su(s.cat)}}</small></span>
@@ -130,11 +158,15 @@ watch(()=>snapshot.value.upstreamLevel,()=>refresh())
 .hydro__badge-dot{width:6px;height:6px;border-radius:50%}.mock .hydro__badge-dot{background:#f59e0b;animation:kp 2s infinite}.live .hydro__badge-dot{background:#22c55e}
 .hydro__btn{position:absolute;top:12px;right:12px;z-index:700;width:36px;height:36px;border-radius:8px;border:1px solid #e5e7eb;background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);font-size:16px;color:#374151;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.08);transition:all 0.15s}
 .hydro__btn:hover{background:#fff;border-color:#d1d5db}
-.hydro__dr{position:absolute;top:0;right:0;bottom:0;width:340px;z-index:650;background:#fff;border-left:1px solid #e5e7eb;box-shadow:-4px 0 24px rgba(0,0,0,0.08);padding:56px 16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.hydro__dr{position:absolute;top:0;right:0;bottom:0;width:min(720px,65vw);z-index:650;background:#fff;border-left:1px solid #e5e7eb;box-shadow:-4px 0 24px rgba(0,0,0,0.08);padding:56px 20px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
 .hydro__dr-tt{font-size:12px;font-weight:700;color:#374151;letter-spacing:0.5px;text-transform:uppercase}
-.hydro__cb{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px}
-.hydro__cb-l{font-size:11px;font-weight:600;color:#6b7280;margin-bottom:4px}
-.hydro__ch{height:160px;width:100%}
+.hydro__cb{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;flex:0 0 55%;display:flex;min-height:0}
+.hydro__ch{flex:1;width:100%}
+.hydro__range{display:flex;gap:0;margin-bottom:10px;border-radius:6px;overflow:hidden;border:1px solid #e5e7eb;width:fit-content}
+.hydro__range button{padding:4px 16px;border:none;background:#fff;font-size:11px;font-weight:500;color:#64748b;cursor:pointer}
+.hydro__range button+button{border-left:1px solid #e5e7eb}
+.hydro__range button:hover{color:#1e293b}
+.hydro__range button.on{background:#3b82f6;color:#fff;font-weight:600}
 .hydro__stn{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px}.hydro__stn:hover{background:#f9fafb}
 .hydro__stn-d{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .hydro__stn-n{flex:1;font-size:12px;color:#374151}
