@@ -4,16 +4,10 @@
 // ============================================================
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMenu, ElMenuItem, ElIcon } from 'element-plus'
+import { ElMenu, ElMenuItem, ElSubMenu, ElIcon } from 'element-plus'
 import {
-  Monitor,
-  Clock,
-  Warning,
-  Operation,
-  Cpu,
-  SetUp,
-  Setting,
-  User,
+  Monitor, Ship, Switch, DataAnalysis, VideoCamera,
+  Clock, Warning, Operation, SetUp, Setting, User,
 } from '@element-plus/icons-vue'
 import { APP_TITLE, MENU_ITEMS } from '@/constants'
 import { usePermission } from '@/composables/usePermission'
@@ -25,18 +19,17 @@ defineProps<{
 const route = useRoute()
 const { hasRoutePermission } = usePermission()
 
-const iconMap = {
-  Monitor,
-  Clock,
-  Warning,
-  Operation,
-  Cpu,
-  SetUp,
-  Setting,
-  User,
+const iconMap: Record<string, any> = {
+  Monitor, Ship, Switch, DataAnalysis, VideoCamera,
+  Clock, Warning, Operation, SetUp, Setting, User,
 }
 
-const visibleMenus = computed(() => MENU_ITEMS.filter((item) => hasRoutePermission(item.path)))
+const visibleMenus = computed(() =>
+  MENU_ITEMS.filter((item) => {
+    if (item.children?.length) return item.children.some((c) => hasRoutePermission(c.path))
+    return hasRoutePermission(item.path)
+  }),
+)
 </script>
 
 <template>
@@ -54,12 +47,21 @@ const visibleMenus = computed(() => MENU_ITEMS.filter((item) => hasRoutePermissi
       active-text-color="var(--color-layout-blue-brand)"
       router
     >
-      <el-menu-item v-for="item in visibleMenus" :key="item.path" :index="item.path">
-        <el-icon>
-          <component :is="iconMap[item.icon as keyof typeof iconMap]" />
-        </el-icon>
-        <span>{{ item.title }}</span>
-      </el-menu-item>
+      <template v-for="item in visibleMenus" :key="item.path">
+        <el-sub-menu v-if="item.children?.length" :index="item.path">
+          <template #title>
+            <el-icon><component :is="iconMap[item.icon]" /></el-icon>
+            <span>{{ item.title }}</span>
+          </template>
+          <el-menu-item v-for="c in item.children" :key="c.path" :index="c.path">
+            <span>{{ c.title }}</span>
+          </el-menu-item>
+        </el-sub-menu>
+        <el-menu-item v-else :index="item.path">
+          <el-icon><component :is="iconMap[item.icon]" /></el-icon>
+          <span>{{ item.title }}</span>
+        </el-menu-item>
+      </template>
     </el-menu>
   </aside>
 </template>

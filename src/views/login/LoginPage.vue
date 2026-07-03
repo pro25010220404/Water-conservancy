@@ -2,7 +2,7 @@
 // ============================================================
 // 登录页
 // ============================================================
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElInput, ElButton, ElCheckbox, ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
@@ -24,15 +24,7 @@ const loading = ref(false)
 const sceneContainer = ref<HTMLElement | null>(null)
 const { webglSupported } = useLoginScene(sceneContainer)
 
-const greeting = computed(() => {
-  const h = new Date().getHours()
-  if (h >= 5 && h < 8) return '早上好'
-  if (h >= 8 && h < 12) return '上午好'
-  if (h >= 12 && h < 14) return '中午好'
-  if (h >= 14 && h < 17) return '下午好'
-  if (h >= 17 && h < 20) return '傍晚好'
-  return '晚上好'
-})
+const greeting = '欢迎回来'
 
 async function handleLogin() {
   if (!username.value || !password.value) {
@@ -68,7 +60,7 @@ async function handleLogin() {
           <p class="login-form__brand-desc">
             基于深度强化学习与数字孪生的<br />水电站闸门智能调度平台
           </p>
-          <p class="login-form__greeting">{{ greeting }}，欢迎回来</p>
+          <p class="login-form__greeting">{{ greeting }}</p>
         </div>
 
         <div class="login-form__body">

@@ -17,13 +17,37 @@ const routes: RouteRecordRaw[] = [
     path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
     meta: { requiresAuth: true },
-    redirect: '/dashboard',
+    redirect: '/dashboard/overview',
     children: [
       {
-        path: 'dashboard',
-        name: 'Dashboard',
+        path: 'dashboard/overview',
+        name: 'DashboardOverview',
         component: () => import('@/views/dashboard/DashboardPage.vue'),
-        meta: { title: '监控大屏' },
+        meta: { title: '综合概览' },
+      },
+      {
+        path: 'dashboard/hydrology',
+        name: 'Hydrology',
+        component: () => import('@/views/dashboard/HydrologyPage.vue'),
+        meta: { title: '水情监测' },
+      },
+      {
+        path: 'dashboard/gate',
+        name: 'Gate',
+        component: () => import('@/views/dashboard/GatePage.vue'),
+        meta: { title: '闸门检测' },
+      },
+      {
+        path: 'dashboard/power',
+        name: 'Power',
+        component: () => import('@/views/dashboard/PowerPage.vue'),
+        meta: { title: '发电检测' },
+      },
+      {
+        path: 'dashboard/security',
+        name: 'Security',
+        component: () => import('@/views/dashboard/SecurityPage.vue'),
+        meta: { title: '安防检测' },
       },
       {
         path: 'history',
@@ -42,12 +66,6 @@ const routes: RouteRecordRaw[] = [
         name: 'Dispatch',
         component: () => import('@/views/dispatch/DispatchPage.vue'),
         meta: { title: '调度决策' },
-      },
-      {
-        path: 'simulation',
-        name: 'Simulation',
-        component: () => import('@/views/simulation/SimulationPage.vue'),
-        meta: { title: '数字孪生' },
       },
       {
         path: 'equipment',
@@ -103,7 +121,7 @@ router.beforeEach((to, _from, next) => {
 
   // 已登录访问登录页：跳转首页
   if (to.name === 'Login' && isLoggedIn) {
-    next({ path: '/dashboard' })
+    next({ path: '/dashboard/overview' })
     return
   }
 
@@ -118,7 +136,7 @@ router.beforeEach((to, _from, next) => {
     const hasAccess = allowedRoles.some((role) => userStore.userInfo!.roles.includes(role))
     if (!hasAccess) {
       ElMessage.warning('您暂无该页面访问权限')
-      next({ path: '/dashboard' })
+      next({ path: '/dashboard/overview' })
       return
     }
   }
