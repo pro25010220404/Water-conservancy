@@ -66,24 +66,8 @@ const logModules = [
   { label: '个人中心', value: 'profile' },
 ]
 
-/** 记录一条本地操作日志 */
-function recordLog(module: string, type: string, description: string, result: number) {
-  try {
-    const raw = localStorage.getItem('operationLogs')
-    const list: OperationLog[] = raw ? JSON.parse(raw) : []
-    list.unshift({
-      id: Date.now(),
-      time: new Date().toLocaleString('zh-CN'),
-      module,
-      type,
-      description,
-      result,
-    })
-    // 保留最近 100 条
-    if (list.length > 100) list.length = 100
-    localStorage.setItem('operationLogs', JSON.stringify(list))
-  } catch { /* ignore */ }
-}
+import { useOperationLog } from '@/composables/useOperationLog'
+const { record: recordLog } = useOperationLog()
 
 // ── 6. Computed ──
 const strength = computed(() => checkPasswordStrength(pwdForm.value.new_password))

@@ -12,6 +12,7 @@ import {
 } from 'element-plus'
 import { Plus, Upload, Search, Refresh, Warning } from '@element-plus/icons-vue'
 import { FORM_RULES } from '@/constants/validation'
+import { useOperationLog } from '@/composables/useOperationLog'
 import {
   getThresholds, updateThreshold, getWeights, updateWeights,
   getModels, activateModel, rollbackModel, deployModel, uploadModel,
@@ -19,6 +20,8 @@ import {
   lockUser, unlockUser, deleteUser, deleteModel,
 } from '@/api/settings'
 import type { ThresholdRule, WeightConfig, ModelInfo, SystemUser } from '@/shared/types'
+
+const { record: recordLog } = useOperationLog()
 
 // ── 5. 响应式数据 ──
 const activeTab = ref('thresholds')
@@ -201,7 +204,7 @@ async function saveThreshold(id: number) {
   saveLoadingTab1.value = true
   try {
     const res = await updateThreshold(id, edit)
-    if (res.data.code === 0) { ElMessage.success('保存成功'); delete thresholdsEditing.value[id]; fetchThresholds() }
+    if (res.data.code === 0) { recordLog('系统设置', '修改阈值', `更新了${metricLabelMap[edit.metric] ?? edit.metric}告警阈值`, 1); ElMessage.success('保存成功'); delete thresholdsEditing.value[id]; fetchThresholds() }
   } finally { saveLoadingTab1.value = false }
 }
 
@@ -228,6 +231,7 @@ async function saveWeights() {
   try {
     await ElMessageBox.confirm('确定保存新的权重配置？保存后将实时推送至边缘端', '确认保存')
     await updateWeights({ ...weightForm.value })
+    recordLog('系统设置', '修改权重', `权重配置更新为发电${(weightForm.value.power_weight * 100).toFixed(0)}%/安全${(weightForm.value.safety_weight * 100).toFixed(0)}%/生态${(weightForm.value.ecology_weight * 100).toFixed(0)}%`, 1)
     ElMessage.success('权重已保存并推送至边缘端')
   } catch { /* 取消 */ }
   finally { saveLoadingTab2.value = false }
@@ -251,6 +255,7 @@ async function handleActivateModel(id: number) {
   try {
     await ElMessageBox.confirm('确定激活该模型？激活后旧版本将被标记为废弃', '确认激活')
     await activateModel(id)
+    recordLog('系统设置', '激活模型', `激活了模型 ID:${id}`, 1)
     ElMessage.success('模型已激活'); fetchModels()
   } catch { /* 取消 */ }
 }
@@ -259,6 +264,7 @@ async function handleRollbackModel(id: number) {
   try {
     await ElMessageBox.confirm('确定回滚到上一个版本？', '确认回滚')
     await rollbackModel(id)
+    recordLog('系统设置', '回滚模型', `回滚了模型 ID:${id}`, 1)
     ElMessage.success('模型已回滚'); fetchModels()
   } catch { /* 取消 */ }
 }
@@ -269,6 +275,7 @@ async function handleDeployModel(id: number) {
     const nodeIds = ids.value.split(',').map((s: string) => Number(s.trim())).filter(Boolean)
     if (nodeIds.length === 0) { ElMessage.warning('请至少输入一个节点 ID'); return }
     await deployModel(id, { edge_node_ids: nodeIds })
+    recordLog('系统设置', '下发模型', `下发模型 ID:${id} 至 ${nodeIds.length} 个边缘节点`, 1)
     ElMessage.success('模型已开始下发'); fetchModels()
   } catch { /* 取消 */ }
 }
@@ -277,6 +284,7 @@ async function handleDeleteModel(id: number) {
   try {
     await ElMessageBox.confirm('确定删除该模型？已激活的模型不可删除', '删除确认', { type: 'warning' })
     await deleteModel(id)
+    recordLog('系统设置', '删除模型', `删除了模型 ID:${id}`, 1)
     ElMessage.success('模型已删除'); fetchModels()
   } catch { /* 取消 */ }
 }
@@ -312,6 +320,7 @@ async function submitUser() {
   try {
     if (userDialogMode.value === 'create') {
       await createUser(userForm.value)
+      recordLog('系统设置', '创建用户', `创建了新用户「${userForm.value.realname}」`, 1)
       ElMessage.success('用户创建成功')
     } else if (editingUserId.value) {
       await updateUser(editingUserId.value, userForm.value)
@@ -325,6 +334,7 @@ async function handleLock(row: SystemUser) {
   try {
     const reason = await ElMessageBox.prompt('请输入锁定原因', '锁定账号', { confirmButtonText: '确定', cancelButtonText: '取消' })
     await lockUser(row.id, { reason: reason.value || '管理员锁定' })
+    recordLog('系统设置', '锁定账号', `锁定了用户「${row.realname}」`, 1)
     ElMessage.success('账号已锁定'); fetchUsers()
   } catch { /* 取消 */ }
 }
@@ -333,6 +343,7 @@ async function handleUnlock(row: SystemUser) {
   try {
     await ElMessageBox.confirm(`确定解锁用户「${row.realname}」？`, '解锁确认')
     await unlockUser(row.id)
+    recordLog('系统设置', '解锁账号', `解锁了用户「${row.realname}」`, 1)
     ElMessage.success('账号已解锁'); fetchUsers()
   } catch { /* 取消 */ }
 }
@@ -341,6 +352,7 @@ async function handleResetPwd(row: SystemUser) {
   try {
     const pwd = await ElMessageBox.prompt('请输入新密码（留空则自动生成）', '重置密码', { confirmButtonText: '确定', cancelButtonText: '取消', inputType: 'text' })
     await resetUserPassword(row.id, pwd.value ? { new_password: pwd.value } : undefined)
+    recordLog('系统设置', '重置密码', `重置了用户「${row.realname}」的密码`, 1)
     ElMessage.success('密码重置成功'); fetchUsers()
   } catch { /* 取消 */ }
 }
@@ -348,7 +360,7 @@ async function handleResetPwd(row: SystemUser) {
 async function handleDelete(row: SystemUser) {
   try {
     await ElMessageBox.confirm(`确定删除用户「${row.realname}」？此操作不可撤销`, '删除确认', { type: 'warning' })
-    await deleteUser(row.id); ElMessage.success('用户已删除'); fetchUsers()
+    await deleteUser(row.id); recordLog('系统设置', '删除用户', `删除了用户「${row.realname}」`, 1); ElMessage.success('用户已删除'); fetchUsers()
   } catch { /* 取消 */ }
 }
 
@@ -392,9 +404,9 @@ onMounted(() => { fetchThresholds(); fetchWeights(); fetchModels(); fetchUsers()
               <span v-else>{{ (scope.row as ThresholdRule).critical_lower }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="防抖(秒)" width="100" align="center">
+          <el-table-column label="防抖(秒)" width="120" align="center">
             <template #default="scope">
-              <el-input-number v-if="thresholdsEditing[(scope.row as ThresholdRule).id]" v-model="thresholdsEditing[(scope.row as ThresholdRule).id].debounce_seconds" :min="10" :max="120" style="width:90px" />
+              <el-input-number v-if="thresholdsEditing[(scope.row as ThresholdRule).id]" v-model="thresholdsEditing[(scope.row as ThresholdRule).id].debounce_seconds" :min="10" :max="120" :step="5" controls-position="right" style="width:105px" />
               <span v-else>{{ (scope.row as ThresholdRule).debounce_seconds }}s</span>
             </template>
           </el-table-column>
