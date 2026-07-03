@@ -5,7 +5,6 @@ import {
   ElDialog, ElForm, ElFormItem, ElMessage, ElMessageBox, ElDescriptions, ElDescriptionsItem,
 } from 'element-plus'
 import { Search, Refresh, VideoPlay, VideoPause } from '@element-plus/icons-vue'
-import CockpitPageShell from '@/components/cockpit/CockpitPageShell.vue'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import { DEBOUNCE_DELAY, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '@/constants'
 import {
@@ -116,8 +115,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); if (debounceTimer) 
 </script>
 
 <template>
-  <CockpitPageShell>
-  <div class="cockpit-page alarm-page">
+  <div class="page alarm-page">
     <!-- 筛选区 -->
     <GlassPanel3D class="filter-panel">
       <div class="filter-grid">
@@ -220,7 +218,6 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); if (debounceTimer) 
       </ElDescriptions>
     </ElDialog>
   </div>
-  </CockpitPageShell>
 </template>
 
 <style scoped lang="scss">

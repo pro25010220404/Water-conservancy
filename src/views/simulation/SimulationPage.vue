@@ -5,7 +5,6 @@ import {
   ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput,
   ElTimeline, ElTimelineItem, ElSlider, ElInputNumber, ElSelect, ElOption, ElTag,
 } from 'element-plus'
-import CockpitPageShell from '@/components/cockpit/CockpitPageShell.vue'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import ThreeDamScene from '@/components/cockpit/ThreeDamScene.vue'
 import TwinFloatPanel from '@/components/cockpit/TwinFloatPanel.vue'
@@ -186,8 +185,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 </script>
 
 <template>
-  <CockpitPageShell>
-    <div class="sim-page sim-page--twin">
+    <div class="page sim-page sim-page--twin">
       <header class="sim-twin-header">
         <div class="sim-twin-header__title">向家坝水电站 · 数字孪生驾驶舱</div>
         <div class="sim-twin-header__meta">
@@ -340,7 +338,6 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
         </ElForm>
       </ElDialog>
     </div>
-  </CockpitPageShell>
 </template>
 
 <style scoped lang="scss">

@@ -1,47 +1,67 @@
 // ============================================================
-// 调度决策 — API 接口层
+// 调度决策 — API 接口层（字段对齐《总接口文档》§4）
 // ============================================================
+import http from './request'
 import type { ApiResponse, PageResult } from '@/shared/types'
 import type {
-  DispatchStatus, DecisionDetail, PredictionData, DispatchLog,
-  ExecuteParams, ModeChangeParams, AutoLevelChangeParams, IgnoreParams,
+  PredictionData, DecisionDetail, DispatchRecord,
+  GateAction, EmergencyStopLog,
+  ExecuteParams, EmergencyStopParams,
 } from '@/types/dispatch'
-import { mockApi } from './mockStore'
 
-async function fetchMock<T>(_url: string, _options?: RequestInit): Promise<ApiResponse<T>> {
-  throw new Error('API not ready')
+// ── §4.1 LSTM 预测数据 ──
+export function getPrediction(reservoir_id: number, predict_term: 1 | 2 | 3) {
+  return http.get<ApiResponse<PredictionData>>('/dispatch/predictions', {
+    params: { reservoir_id, predict_term },
+  })
 }
 
-export async function getDispatchStatus(): Promise<ApiResponse<DispatchStatus>> {
-  try { return fetchMock('/api/dispatch/status') } catch { return mockApi.getDispatchStatus() }
+// ── §4.2 AI 决策详情 ──
+export function getDecisionDetail(id: number) {
+  return http.get<ApiResponse<DecisionDetail>>(`/dispatch/decisions/${id}`)
 }
-export async function getDecisionDetail(): Promise<ApiResponse<DecisionDetail>> {
-  try { return fetchMock('/api/dispatch/decision') } catch { return mockApi.getDecisionDetail() }
+
+// ── §4.3 调度决策历史列表 ──
+export function getDecisions(params: {
+  page?: number; page_size?: number; reservoir_id?: number
+  decision_mode?: string; execution_status?: string
+  start_time?: string; end_time?: string
+}) {
+  return http.get<ApiResponse<PageResult<DispatchRecord>>>('/dispatch/decisions', { params })
 }
-export async function getPrediction(horizon: string): Promise<ApiResponse<PredictionData>> {
-  try { return fetchMock(`/api/dispatch/prediction?horizon=${horizon}`) } catch { return mockApi.getPrediction(horizon as '1h' | '3h' | '6h') }
+
+// ── §4.4 人工下发调度指令 ──
+export function executeDispatch(data: ExecuteParams) {
+  return http.post<ApiResponse<{ command_id: string }>>('/dispatch/execute', data)
 }
-export async function executeDispatch(params: ExecuteParams): Promise<ApiResponse<null>> {
-  try { return fetchMock('/api/dispatch/execute', { method: 'POST', body: JSON.stringify(params) }) } catch { return mockApi.executeDispatch(params) }
+
+// ── §4.5 指令全链路追踪 ──
+export function getCommandTrace(command_id: string) {
+  return http.get<ApiResponse<Record<string, unknown>>>(`/dispatch/commands/${command_id}/trace`)
 }
-export async function emergencyStop(): Promise<ApiResponse<null>> {
-  try { return fetchMock('/api/dispatch/emergency-stop', { method: 'POST' }) } catch { return mockApi.emergencyStop() }
+
+// ── §4.6 闸门动作历史 ──
+export function getGateActions(params: {
+  page?: number; page_size?: number; equipment_id?: number
+  action_type?: string; start_time?: string; end_time?: string
+}) {
+  return http.get<ApiResponse<PageResult<GateAction>>>('/dispatch/gate-actions', { params })
 }
-export async function changeMode(params: ModeChangeParams): Promise<ApiResponse<null>> {
-  try { return fetchMock('/api/dispatch/mode', { method: 'PUT', body: JSON.stringify(params) }) } catch { return mockApi.changeMode(params) }
+
+// ── §4.7 全局急停 ──
+export function emergencyStop(data: EmergencyStopParams) {
+  return http.post<ApiResponse<{ stop_log_id: number; command_id: string }>>('/dispatch/emergency-stop', data)
 }
-export async function changeAutoLevel(params: AutoLevelChangeParams): Promise<ApiResponse<null>> {
-  try { return fetchMock('/api/dispatch/auto-level', { method: 'PUT', body: JSON.stringify(params) }) } catch { return mockApi.changeAutoLevel(params) }
+
+// ── §4.8 恢复自动模式 ──
+export function recoverStop(id: number) {
+  return http.put<ApiResponse<null>>(`/dispatch/stop-recover/${id}`)
 }
-export async function acceptDecision(): Promise<ApiResponse<null>> {
-  try { return fetchMock('/api/dispatch/accept', { method: 'POST' }) } catch { return mockApi.acceptDecision() }
-}
-export async function ignoreDecision(params: IgnoreParams): Promise<ApiResponse<null>> {
-  try { return fetchMock('/api/dispatch/ignore', { method: 'POST', body: JSON.stringify(params) }) } catch { return mockApi.ignoreDecision() }
-}
-export async function getDispatchLogs(params: { pageNum: number; pageSize: number }): Promise<ApiResponse<PageResult<DispatchLog>>> {
-  try { return fetchMock(`/api/dispatch/logs?pageNum=${params.pageNum}&pageSize=${params.pageSize}`) } catch { return mockApi.getDispatchLogs() }
-}
-export async function getRiskLevel(): Promise<ApiResponse<{ level: 'low' | 'medium' | 'high'; diff: number; safeMin: number; safeMax: number }>> {
-  try { return fetchMock('/api/dispatch/risk') } catch { return mockApi.getRiskLevel() }
+
+// ── §4.9 急停日志列表 ──
+export function getEmergencyStops(params: {
+  page?: number; page_size?: number; reservoir_id?: number
+  start_time?: string; end_time?: string
+}) {
+  return http.get<ApiResponse<PageResult<EmergencyStopLog>>>('/dispatch/emergency-stops', { params })
 }

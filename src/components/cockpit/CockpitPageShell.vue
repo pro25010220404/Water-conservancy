@@ -5,8 +5,6 @@
 // ============================================================
 import { watch } from 'vue'
 import { useRoute } from 'vue-router'
-import AppTopNav from '@/layouts/AppTopNav.vue'
-import AppTabs from '@/layouts/AppTabs.vue'
 import { useTabsStore } from '@/stores/tabs'
 
 const route = useRoute()
@@ -22,10 +20,7 @@ watch(
 <template>
   <div class="cockpit-shell">
     <div class="cockpit-shell__bridge" aria-hidden="true" />
-    <div class="cockpit-shell__chrome">
-      <AppTopNav />
-      <AppTabs />
-    </div>
+    <div class="cockpit-shell__chrome" />
     <div class="cockpit-shell__body">
       <slot />
     </div>

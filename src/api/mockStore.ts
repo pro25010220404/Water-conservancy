@@ -3,7 +3,7 @@
 // ============================================================
 import type { AlarmRecord, AlarmExceedLog, AlarmFilterParams } from '@/types/alarm'
 import type {
-  DispatchStatus, DecisionDetail, PredictionData, DispatchLog, AutoLevel,
+  DispatchStatus, DecisionDetail, PredictionData, DispatchRecord,
 } from '@/types/dispatch'
 import type {
   SimulationRealtimeData, SimulationParams, AiModel, SimulationReport,
@@ -77,6 +77,8 @@ const exceedLogs: AlarmExceedLog[] = [
 ]
 
 // ---------- 调度 ----------
+type AutoLevel = 1 | 2 | 3
+
 let dispatchStatus: DispatchStatus = {
   mode: 'auto', autoLevel: 2 as AutoLevel,
   upstreamLevel: 380.65, downstreamLevel: 278.42, flowRate: 1920, gateOpening: 45,
@@ -84,9 +86,11 @@ let dispatchStatus: DispatchStatus = {
 }
 
 const decisionBase: DecisionDetail = {
-  recommendedOpening: 52, openingDirection: 'up', expectedLevel: 380.2, expectedFlowRate: 2100,
-  levelChange: -0.45, flowChange: 180, confidence: 87,
-  modelVersion: 'DQN-v2.3.1', inferenceMs: 128, createdAt: nowIso(0),
+  id: 1, trace_id: 'trace-001', reservoir_id: 1,
+  decision_time: nowIso(0), decision_mode: 'L2', risk_rank: 1,
+  upstream_level: 380.65, downstream_level: 278.42, inflow_rate: 1920, current_opening: 45,
+  lstm_predictions: { '1h': { level: 380.8, flow: 1950 }, '3h': { level: 381.1, flow: 2100 }, '6h': { level: 381.5, flow: 2300 } },
+  recommended_opening: 52, confidence: 87,
   factors: [
     { name: '当前水位', value: '380.65 m', direction: 'up', weight: 0.22 },
     { name: 'LSTM预测水位', value: '381.10 m', direction: 'up', weight: 0.25 },
@@ -95,17 +99,21 @@ const decisionBase: DecisionDetail = {
     { name: '防洪安全约束', value: '0.85 m', direction: 'down', weight: 0.13 },
     { name: '生态流量要求', value: '达标', direction: 'neutral', weight: 0.10 },
   ],
-  plans: [
-    { id: '推荐', opening: 52, expectedLevel: 380.2, power: 2850, safetyScore: 92, totalScore: 91, recommended: true },
-    { id: '保守', opening: 38, expectedLevel: 380.8, power: 2100, safetyScore: 96, totalScore: 85, recommended: false },
-    { id: '激进', opening: 65, expectedLevel: 379.6, power: 3200, safetyScore: 78, totalScore: 82, recommended: false },
+  alternatives: [
+    { id: '推荐', opening: 52, expectedLevel: 380.2, power: 2850, safetyScore: 92, totalScore: 91, recommended: true, confidence: 87 },
+    { id: '保守', opening: 38, expectedLevel: 380.8, power: 2100, safetyScore: 96, totalScore: 85, recommended: false, confidence: 72 },
+    { id: '激进', opening: 65, expectedLevel: 379.6, power: 3200, safetyScore: 78, totalScore: 82, recommended: false, confidence: 58 },
   ],
+  weights_used: { power_weight: 0.40, safety_weight: 0.35, ecology_weight: 0.25 },
+  reward_score: 0.87, physics_validation: null,
+  execution_status: 'pending', executed_opening: null, actual_level_after: null, actual_power_after: null,
+  created_at: nowIso(0),
 }
 
-const dispatchLogs: DispatchLog[] = [
-  { id: 1, mode: 'auto', action: 'AI自动调节闸门开度', targetOpening: 45, result: 'success', operatorId: 0, operatorName: '系统', decisionSnapshot: null, createdAt: nowIso(30) },
-  { id: 2, mode: 'manual', action: '人工干预开度调节', targetOpening: 42, result: 'success', operatorId: 1, operatorName: '张调度', decisionSnapshot: null, createdAt: nowIso(90) },
-  { id: 3, mode: 'auto', action: 'AI建议被采纳执行', targetOpening: 48, result: 'success', operatorId: 1, operatorName: '张调度', decisionSnapshot: decisionBase, createdAt: nowIso(180) },
+const dispatchRecords: DispatchRecord[] = [
+  { id: 1, decision_time: nowIso(30), decision_mode: 'L2', recommended_opening: 45, confidence: 85, risk_rank: 1, execution_status: 'executed', physics_validation: null },
+  { id: 2, decision_time: nowIso(90), decision_mode: 'L1', recommended_opening: 42, confidence: 72, risk_rank: 2, execution_status: 'executed', physics_validation: null },
+  { id: 3, decision_time: nowIso(180), decision_mode: 'L3', recommended_opening: 48, confidence: 91, risk_rank: 1, execution_status: 'executed', physics_validation: null },
 ]
 
 // ---------- 仿真 ----------
@@ -254,27 +262,30 @@ export const mockApi = {
   getDispatchStatus() { return delay(ok({ ...dispatchStatus })) },
 
   getDecisionDetail() {
-    return delay(ok({ ...decisionBase, factors: [...decisionBase.factors], plans: [...decisionBase.plans] }))
+    return delay(ok({ ...decisionBase, factors: [...decisionBase.factors], alternatives: [...decisionBase.alternatives] }))
   },
 
   getPrediction(horizon: '1h' | '3h' | '6h') {
+    const termMap = { '1h': 1 as const, '3h': 2 as const, '6h': 3 as const }
     const pts = horizon === '1h' ? 12 : horizon === '3h' ? 36 : 72
-    const waterLevels = Array.from({ length: pts }, (_, i) => ({
-      time: new Date(Date.now() + i * (horizon === '1h' ? 5 : horizon === '3h' ? 5 : 5) * 60000).toISOString(),
+    const now = Date.now()
+    const step = 5 * 60000
+    const water_seq = Array.from({ length: pts }, (_, i) => ({
+      time: new Date(now + i * step).toISOString(),
       value: +(380.65 + Math.sin(i * 0.2 + tick * 0.1) * 0.4 + i * 0.005).toFixed(2),
     }))
-    const flowRates = Array.from({ length: pts }, (_, i) => ({
-      time: waterLevels[i].time,
+    const flow_seq = Array.from({ length: pts }, (_, i) => ({
+      time: water_seq[i].time,
       value: Math.round(1920 + Math.sin(i * 0.15) * 150 + i * 2),
     }))
-    return delay(ok({ horizon, waterLevels, flowRates, updatedAt: nowIso(0) } as PredictionData))
+    return delay(ok({ id: 1, base_time: new Date(now).toISOString(), predict_term: termMap[horizon], water_seq, flow_seq, predict_accuracy: 94.2, created_at: new Date(now).toISOString() } as PredictionData))
   },
 
   executeDispatch(params: { targetOpening: number }) {
     dispatchStatus.gateOpening = params.targetOpening
     dispatchStatus.isExecuting = true
     setTimeout(() => { dispatchStatus.isExecuting = false }, 2000)
-    dispatchLogs.unshift({ id: Date.now(), mode: 'manual', action: '手动执行开度调节', targetOpening: params.targetOpening, result: 'success', operatorId: 1, operatorName: '当前用户', decisionSnapshot: null, createdAt: nowIso(0) })
+    dispatchRecords.unshift({ id: Date.now(), decision_time: nowIso(0), decision_mode: 'L1', recommended_opening: params.targetOpening, confidence: 100, risk_rank: 1, execution_status: 'executed', physics_validation: null })
     return delay(ok(null))
   },
 
@@ -296,15 +307,15 @@ export const mockApi = {
   },
 
   acceptDecision() {
-    dispatchStatus.gateOpening = decisionBase.recommendedOpening
-    dispatchLogs.unshift({ id: Date.now(), mode: 'auto', action: '采纳AI建议', targetOpening: decisionBase.recommendedOpening, result: 'success', operatorId: 1, operatorName: '当前用户', decisionSnapshot: decisionBase, createdAt: nowIso(0) })
+    dispatchStatus.gateOpening = decisionBase.recommended_opening
+    dispatchRecords.unshift({ id: Date.now(), decision_time: nowIso(0), decision_mode: 'L2', recommended_opening: decisionBase.recommended_opening, confidence: decisionBase.confidence, risk_rank: decisionBase.risk_rank, execution_status: 'executed', physics_validation: null })
     return delay(ok(null))
   },
 
   ignoreDecision() { return delay(ok(null)) },
 
   getDispatchLogs() {
-    return delay(ok({ list: dispatchLogs.slice(0, 20), total: dispatchLogs.length, pageNum: 1, pageSize: 20 }))
+    return delay(ok({ list: dispatchRecords.slice(0, 20), total: dispatchRecords.length, pageNum: 1, pageSize: 20 }))
   },
 
   getRiskLevel() {

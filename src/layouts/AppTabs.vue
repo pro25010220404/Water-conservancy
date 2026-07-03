@@ -103,11 +103,13 @@ onUnmounted(() => {
 @use '@/assets/styles/admin-glass.scss' as glass;
 
 .app-tabs {
-  position: relative;
-  z-index: 1;
-  height: var(--tabs-height);
-  padding: 0 var(--spacing-xl);
-  background: rgba(240, 247, 252, 0.6);
+  position: sticky;
+  top: var(--header-height);
+  z-index: 20;
+  height: var(--tabs-height, 44px);
+  padding: 0 var(--spacing-lg);
+  background: var(--color-bg-dark);
+  border-bottom: 1px solid var(--color-border);
   overflow: hidden;
 
   &__list {
