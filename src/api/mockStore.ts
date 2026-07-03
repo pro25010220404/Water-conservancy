@@ -195,7 +195,7 @@ function delay<T>(data: T, ms = 200): Promise<T> {
 }
 
 function ok<T>(data: T) {
-  return { code: 0, msg: 'success', data, success: true, trace_id: 'mock' }
+  return { code: 200, message: 'success', data }
 }
 
 // ---------- 导出 API 函数 ----------
@@ -359,7 +359,7 @@ export const mockApi = {
   uploadModel() { return delay(ok(models[0])) },
 
   startTraining() { return delay(ok({ taskId: `task-${Date.now()}` })) },
-  getTrainingProgress(taskId: string): Promise<{ code: number; msg: string; data: TrainingTask; success: boolean; trace_id: string }> {
+  getTrainingProgress(taskId: string): Promise<{ code: number; message: string; data: TrainingTask }> {
     const progress = Math.min(100, (tick % 20) * 5 + 20)
     return delay(ok({ taskId, modelId: 1, config: {}, progress, lossCurve: [{ epoch: 1, loss: 0.05 }], status: progress >= 100 ? 'completed' : 'running' }))
   },
