@@ -1,0 +1,389 @@
+// ============================================================
+// Mock 数据仓库 — 向家坝水电站实时模拟（后端就绪后移除）
+// ============================================================
+import type { AlarmRecord, AlarmExceedLog, AlarmFilterParams } from '@/types/alarm'
+import type {
+  DispatchStatus, DecisionDetail, PredictionData, DispatchLog, AutoLevel,
+} from '@/types/dispatch'
+import type {
+  SimulationRealtimeData, SimulationParams, AiModel, SimulationReport,
+  FaultReview, TrainingTask,
+} from '@/types/simulation'
+import { XIANGJIABA_HYDRO } from '@/constants/xiangjiaba'
+
+const STATION = '向家坝水电站'
+let tick = 0
+
+function nowIso(offsetMin = 0) {
+  return new Date(Date.now() - offsetMin * 60000).toISOString()
+}
+
+function jitter(base: number, range: number) {
+  return +(base + Math.sin(tick * 0.3) * range * 0.5 + (Math.random() - 0.5) * range * 0.3).toFixed(2)
+}
+
+// ---------- 告警 ----------
+const alarmStore: AlarmRecord[] = [
+  {
+    id: 1001, level: 'URGENT', type: 'HIGH_WATER', content: `${STATION}上游水位持续超限`,
+    threshold: 380.5, currentValue: 381.2, durationSec: 42, status: 'pending',
+    confirmedAt: null, confirmedBy: null, confirmedByName: null,
+    handledAt: null, handledBy: null, handledByName: null, remark: null,
+    createdAt: nowIso(15), pointName: '上游水文站', snapshot: { upstreamLevel: 381.2, downstreamLevel: 278.5, flowRate: 1850, gateOpening: 45, recordedAt: nowIso(15) },
+  },
+  {
+    id: 1002, level: 'IMPORTANT', type: 'FLOW_SPIKE', content: '入库流量突变，变化率超阈值',
+    threshold: 2000, currentValue: 2350, durationSec: 35, status: 'pending',
+    confirmedAt: null, confirmedBy: null, confirmedByName: null,
+    handledAt: null, handledBy: null, handledByName: null, remark: null,
+    createdAt: nowIso(28), pointName: '入库监测站', snapshot: { upstreamLevel: 380.8, downstreamLevel: 278.3, flowRate: 2350, gateOpening: 42, recordedAt: nowIso(28) },
+  },
+  {
+    id: 1003, level: 'IMPORTANT', type: 'DEVICE_OFFLINE', content: '3号闸门执行器通信中断',
+    threshold: 30, currentValue: 0, durationSec: 68, status: 'confirmed',
+    confirmedAt: nowIso(10), confirmedBy: 1, confirmedByName: '张调度',
+    handledAt: null, handledBy: null, handledByName: null, remark: null,
+    createdAt: nowIso(45), pointName: '3号闸门', snapshot: null,
+  },
+  {
+    id: 1004, level: 'NORMAL', type: 'LOW_WATER', content: '下游生态流量偏低预警',
+    threshold: 1200, currentValue: 1150, durationSec: 31, status: 'handled',
+    confirmedAt: nowIso(120), confirmedBy: 2, confirmedByName: '李运维',
+    handledAt: nowIso(90), handledBy: 2, handledByName: '李运维',
+    remark: '已调整3号闸门开度至55%，生态流量恢复达标。',
+    createdAt: nowIso(150), pointName: '下游生态站', snapshot: null,
+  },
+  {
+    id: 1005, level: 'NORMAL', type: 'EXEC_TIMEOUT', content: '5号闸门开度调节执行超时',
+    threshold: 60, currentValue: 85, durationSec: 32, status: 'handled',
+    confirmedAt: nowIso(200), confirmedBy: 1, confirmedByName: '张调度',
+    handledAt: nowIso(180), handledBy: 1, handledByName: '张调度',
+    remark: '现场检查液压系统，重启执行器后恢复正常。',
+    createdAt: nowIso(220), pointName: '5号闸门', snapshot: null,
+  },
+  {
+    id: 1006, level: 'URGENT', type: 'EXEC_FAIL', content: '1号闸门执行失败，需人工介入',
+    threshold: 0, currentValue: 1, durationSec: 45, status: 'pending',
+    confirmedAt: null, confirmedBy: null, confirmedByName: null,
+    handledAt: null, handledBy: null, handledByName: null, remark: null,
+    createdAt: nowIso(5), pointName: '1号闸门', snapshot: { upstreamLevel: 380.6, downstreamLevel: 278.4, flowRate: 1920, gateOpening: 38, recordedAt: nowIso(5) },
+  },
+]
+
+const exceedLogs: AlarmExceedLog[] = [
+  { id: 501, point: '上游水文站', type: 'HIGH_WATER', value: 380.8, threshold: 380.5, durationSec: 18, createdAt: nowIso(2) },
+  { id: 502, point: '入库监测站', type: 'FLOW_SPIKE', value: 2100, threshold: 2000, durationSec: 22, createdAt: nowIso(1) },
+  { id: 503, point: '下游生态站', type: 'LOW_WATER', value: 1180, threshold: 1200, durationSec: 15, createdAt: nowIso(0) },
+]
+
+// ---------- 调度 ----------
+let dispatchStatus: DispatchStatus = {
+  mode: 'auto', autoLevel: 2 as AutoLevel,
+  upstreamLevel: 380.65, downstreamLevel: 278.42, flowRate: 1920, gateOpening: 45,
+  lastDispatchAt: nowIso(30), isExecuting: false,
+}
+
+const decisionBase: DecisionDetail = {
+  recommendedOpening: 52, openingDirection: 'up', expectedLevel: 380.2, expectedFlowRate: 2100,
+  levelChange: -0.45, flowChange: 180, confidence: 87,
+  modelVersion: 'DQN-v2.3.1', inferenceMs: 128, createdAt: nowIso(0),
+  factors: [
+    { name: '当前水位', value: '380.65 m', direction: 'up', weight: 0.22 },
+    { name: 'LSTM预测水位', value: '381.10 m', direction: 'up', weight: 0.25 },
+    { name: '实时流量', value: '1920 m³/s', direction: 'up', weight: 0.18 },
+    { name: '闸门开度', value: '45%', direction: 'neutral', weight: 0.12 },
+    { name: '防洪安全约束', value: '0.85 m', direction: 'down', weight: 0.13 },
+    { name: '生态流量要求', value: '达标', direction: 'neutral', weight: 0.10 },
+  ],
+  plans: [
+    { id: '推荐', opening: 52, expectedLevel: 380.2, power: 2850, safetyScore: 92, totalScore: 91, recommended: true },
+    { id: '保守', opening: 38, expectedLevel: 380.8, power: 2100, safetyScore: 96, totalScore: 85, recommended: false },
+    { id: '激进', opening: 65, expectedLevel: 379.6, power: 3200, safetyScore: 78, totalScore: 82, recommended: false },
+  ],
+}
+
+const dispatchLogs: DispatchLog[] = [
+  { id: 1, mode: 'auto', action: 'AI自动调节闸门开度', targetOpening: 45, result: 'success', operatorId: 0, operatorName: '系统', decisionSnapshot: null, createdAt: nowIso(30) },
+  { id: 2, mode: 'manual', action: '人工干预开度调节', targetOpening: 42, result: 'success', operatorId: 1, operatorName: '张调度', decisionSnapshot: null, createdAt: nowIso(90) },
+  { id: 3, mode: 'auto', action: 'AI建议被采纳执行', targetOpening: 48, result: 'success', operatorId: 1, operatorName: '张调度', decisionSnapshot: decisionBase, createdAt: nowIso(180) },
+]
+
+// ---------- 仿真 ----------
+let simState: SimulationRealtimeData = {
+  status: 'idle', elapsedSec: 0,
+  currentLevel: XIANGJIABA_HYDRO.normalPoolLevel,
+  currentDownstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
+  currentFlow: XIANGJIABA_HYDRO.normalInflow, currentOpening: 0,
+  historyLevels: [], historyFlows: [],
+}
+
+let simParams: SimulationParams = {
+  scene: 'normal',
+  initialLevel: XIANGJIABA_HYDRO.normalPoolLevel,
+  inflowRate: XIANGJIABA_HYDRO.normalInflow,
+  durationMin: 60,
+}
+
+const models: AiModel[] = [
+  { id: 1, type: 'LSTM', version: 'v2.1.0', filePath: '/models/lstm_v210.pt', status: 'active', metrics: { mae: 0.042, rmse: 0.068, accuracy: 94.2 }, remark: '向家坝水位预测主模型', createdAt: nowIso(43200), activatedAt: nowIso(1440) },
+  { id: 2, type: 'DQN', version: 'v2.3.1', filePath: '/models/dqn_v231.pt', status: 'active', metrics: { mae: 0.035, accuracy: 91.8 }, remark: '闸门调度决策模型', createdAt: nowIso(21600), activatedAt: nowIso(720) },
+  { id: 3, type: 'LSTM', version: 'v2.0.5', filePath: '/models/lstm_v205.pt', status: 'inactive', metrics: { mae: 0.055, rmse: 0.082, accuracy: 89.5 }, remark: '上一版本', createdAt: nowIso(86400), activatedAt: null },
+]
+
+const reports: SimulationReport[] = [
+  { id: 1, runId: 101, scene: 'flood', params: { scene: 'flood', initialLevel: 380.2, inflowRate: 3500, durationMin: 120 }, summary: { maxLevel: 381.8, minLevel: 380.2, totalDischarge: 125000, estimatedPower: 28500 }, content: '', filePath: '/reports/r001.pdf', createdAt: nowIso(2880), operatorName: '王算法' },
+]
+
+const reviews: FaultReview[] = [
+  {
+    id: 1, alarmId: 1001, faultType: '高水位超限', impactScope: '上游库区、1-3号闸门',
+    reviewed: false, status: 'pending', createdAt: nowIso(1440),
+    timeline: [
+      { time: '09:12:05', event: '水位超限持续35s，触发紧急告警' },
+      { time: '09:12:40', event: '调度员确认告警' },
+      { time: '09:13:10', event: 'AI建议开度60%（置信度72%）' },
+      { time: '09:13:25', event: '调度员手动执行开度55%' },
+      { time: '09:14:00', event: '水位开始下降' },
+      { time: '09:18:30', event: '处置完成' },
+    ],
+    conclusion: null,
+  },
+  {
+    id: 2, alarmId: 1004, faultType: '生态流量不足', impactScope: '下游河道生态段',
+    reviewed: true, status: 'reviewed', createdAt: nowIso(4320),
+    timeline: [
+      { time: '14:20:00', event: '生态流量低于阈值，触发一般告警' },
+      { time: '14:25:30', event: '调整3号闸门开度' },
+      { time: '14:35:00', event: '生态流量恢复达标' },
+    ],
+    conclusion: { rootCause: '枯水期来水偏少，生态流量分配权重不足', improvements: '优化枯水期生态流量保障策略', responsibleDept: '调度中心', reviewedBy: '李运维', reviewedAt: nowIso(4000) },
+  },
+]
+
+// ---------- 实时 tick ----------
+setInterval(() => {
+  tick++
+  dispatchStatus.upstreamLevel = jitter(380.65, 0.15)
+  dispatchStatus.downstreamLevel = jitter(278.42, 0.08)
+  dispatchStatus.flowRate = Math.round(jitter(1920, 80))
+  decisionBase.confidence = Math.round(jitter(87, 3))
+  decisionBase.factors[0].value = `${dispatchStatus.upstreamLevel} m`
+  decisionBase.factors[2].value = `${dispatchStatus.flowRate} m³/s`
+
+  if (simState.status === 'running') {
+    simState.elapsedSec++
+    simState.currentLevel = +(simState.currentLevel + (simState.currentFlow - 1800) * 0.00001).toFixed(2)
+    simState.currentDownstreamLevel = +(XIANGJIABA_HYDRO.downstreamNormalLevel + (simState.currentFlow - 1800) * 0.00002).toFixed(2)
+    simState.currentFlow = Math.round(jitter(simParams.inflowRate, 100))
+    simState.historyLevels.push({ time: simState.elapsedSec, value: simState.currentLevel })
+    simState.historyFlows.push({ time: simState.elapsedSec, value: simState.currentFlow })
+    if (simState.historyLevels.length > 120) simState.historyLevels.shift()
+    if (simState.historyFlows.length > 120) simState.historyFlows.shift()
+  }
+}, 3000)
+
+function delay<T>(data: T, ms = 200): Promise<T> {
+  return new Promise((resolve) => setTimeout(() => resolve(data), ms))
+}
+
+function ok<T>(data: T) {
+  return { code: 200, message: 'success', data }
+}
+
+// ---------- 导出 API 函数 ----------
+export const mockApi = {
+  // 告警
+  getAlarmList(params: AlarmFilterParams) {
+    let list = [...alarmStore]
+    if (params.level) list = list.filter((a) => a.level === params.level)
+    if (params.status) list = list.filter((a) => a.status === params.status)
+    if (params.type) list = list.filter((a) => a.type === params.type)
+    if (params.keyword) {
+      const kw = params.keyword.toLowerCase()
+      list = list.filter((a) => a.content.includes(kw) || a.pointName.includes(kw))
+    }
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    const total = list.length
+    const start = (params.pageNum - 1) * params.pageSize
+    list = list.slice(start, start + params.pageSize)
+    const pendingCount = alarmStore.filter((a) => a.status === 'pending').length
+    return delay(ok({ list, total, pageNum: params.pageNum, pageSize: params.pageSize, pendingCount }))
+  },
+
+  getAlarmDetail(id: number) {
+    const item = alarmStore.find((a) => a.id === id)
+    if (!item) return delay(Promise.reject(new Error('not found')))
+    return delay(ok(item))
+  },
+
+  confirmAlarm(id: number) {
+    const item = alarmStore.find((a) => a.id === id)
+    if (item && item.status === 'pending') {
+      item.status = 'confirmed'
+      item.confirmedAt = nowIso(0)
+      item.confirmedBy = 1
+      item.confirmedByName = '当前用户'
+    }
+    return delay(ok(null))
+  },
+
+  handleAlarm(params: { id: number; remark: string }) {
+    const item = alarmStore.find((a) => a.id === params.id)
+    if (item && item.status !== 'handled') {
+      item.status = 'handled'
+      item.handledAt = nowIso(0)
+      item.handledBy = 1
+      item.handledByName = '当前用户'
+      item.remark = params.remark
+    }
+    return delay(ok(null))
+  },
+
+  getExceedLogs() {
+    return delay(ok({ list: exceedLogs, total: exceedLogs.length, pageNum: 1, pageSize: 20 }))
+  },
+
+  getAlarmStats() {
+    const today = alarmStore.length
+    const pending = alarmStore.filter((a) => a.status === 'pending').length
+    const handled = alarmStore.filter((a) => a.status === 'handled').length
+    return delay(ok({ today, pending, handled, falseAlarm: 1 }))
+  },
+
+  // 调度
+  getDispatchStatus() { return delay(ok({ ...dispatchStatus })) },
+
+  getDecisionDetail() {
+    return delay(ok({ ...decisionBase, factors: [...decisionBase.factors], plans: [...decisionBase.plans] }))
+  },
+
+  getPrediction(horizon: '1h' | '3h' | '6h') {
+    const pts = horizon === '1h' ? 12 : horizon === '3h' ? 36 : 72
+    const waterLevels = Array.from({ length: pts }, (_, i) => ({
+      time: new Date(Date.now() + i * (horizon === '1h' ? 5 : horizon === '3h' ? 5 : 5) * 60000).toISOString(),
+      value: +(380.65 + Math.sin(i * 0.2 + tick * 0.1) * 0.4 + i * 0.005).toFixed(2),
+    }))
+    const flowRates = Array.from({ length: pts }, (_, i) => ({
+      time: waterLevels[i].time,
+      value: Math.round(1920 + Math.sin(i * 0.15) * 150 + i * 2),
+    }))
+    return delay(ok({ horizon, waterLevels, flowRates, updatedAt: nowIso(0) } as PredictionData))
+  },
+
+  executeDispatch(params: { targetOpening: number }) {
+    dispatchStatus.gateOpening = params.targetOpening
+    dispatchStatus.isExecuting = true
+    setTimeout(() => { dispatchStatus.isExecuting = false }, 2000)
+    dispatchLogs.unshift({ id: Date.now(), mode: 'manual', action: '手动执行开度调节', targetOpening: params.targetOpening, result: 'success', operatorId: 1, operatorName: '当前用户', decisionSnapshot: null, createdAt: nowIso(0) })
+    return delay(ok(null))
+  },
+
+  emergencyStop() {
+    dispatchStatus.isExecuting = false
+    dispatchStatus.mode = 'manual'
+    dispatchStatus.autoLevel = 1
+    return delay(ok(null))
+  },
+
+  changeMode(params: { mode: 'auto' | 'manual' }) {
+    dispatchStatus.mode = params.mode
+    return delay(ok(null))
+  },
+
+  changeAutoLevel(params: { level: AutoLevel }) {
+    dispatchStatus.autoLevel = params.level
+    return delay(ok(null))
+  },
+
+  acceptDecision() {
+    dispatchStatus.gateOpening = decisionBase.recommendedOpening
+    dispatchLogs.unshift({ id: Date.now(), mode: 'auto', action: '采纳AI建议', targetOpening: decisionBase.recommendedOpening, result: 'success', operatorId: 1, operatorName: '当前用户', decisionSnapshot: decisionBase, createdAt: nowIso(0) })
+    return delay(ok(null))
+  },
+
+  ignoreDecision() { return delay(ok(null)) },
+
+  getDispatchLogs() {
+    return delay(ok({ list: dispatchLogs.slice(0, 20), total: dispatchLogs.length, pageNum: 1, pageSize: 20 }))
+  },
+
+  getRiskLevel() {
+    const safe = 380.0
+    const diff = Math.abs(dispatchStatus.upstreamLevel - safe)
+    if (diff <= 0.5) return delay(ok({ level: 'low' as const, diff, safeMin: safe - 0.5, safeMax: safe + 0.5 }))
+    if (diff <= 1.0) return delay(ok({ level: 'medium' as const, diff, safeMin: safe - 1, safeMax: safe + 1 }))
+    return delay(ok({ level: 'high' as const, diff, safeMin: safe - 1, safeMax: safe + 1 }))
+  },
+
+  // 仿真
+  getSimulationStatus() { return delay(ok({ ...simState, historyLevels: [...simState.historyLevels], historyFlows: [...simState.historyFlows] })) },
+
+  startSimulation(params: SimulationParams) {
+    simParams = { ...params }
+    simState = {
+      status: 'running', elapsedSec: 0,
+      currentLevel: params.initialLevel,
+      currentDownstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
+      currentFlow: params.inflowRate, currentOpening: 30,
+      historyLevels: [], historyFlows: [],
+    }
+    return delay(ok({ runId: Date.now() }))
+  },
+
+  pauseSimulation() { simState.status = 'paused'; return delay(ok(null)) },
+  resumeSimulation() { simState.status = 'running'; return delay(ok(null)) },
+  resetSimulation() {
+    simState = {
+      status: 'idle', elapsedSec: 0,
+      currentLevel: XIANGJIABA_HYDRO.normalPoolLevel,
+      currentDownstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
+      currentFlow: XIANGJIABA_HYDRO.normalInflow, currentOpening: 0,
+      historyLevels: [], historyFlows: [],
+    }
+    return delay(ok(null))
+  },
+
+  getModelList() { return delay(ok([...models])) },
+  activateModel(id: number) { models.forEach((m) => { m.status = m.id === id ? 'active' : 'inactive' }); return delay(ok(null)) },
+  uploadModel() { return delay(ok(models[0])) },
+
+  startTraining() { return delay(ok({ taskId: `task-${Date.now()}` })) },
+  getTrainingProgress(taskId: string): Promise<{ code: number; message: string; data: TrainingTask }> {
+    const progress = Math.min(100, (tick % 20) * 5 + 20)
+    return delay(ok({ taskId, modelId: 1, config: {}, progress, lossCurve: [{ epoch: 1, loss: 0.05 }], status: progress >= 100 ? 'completed' : 'running' }))
+  },
+
+  generateReport() { return delay(ok(reports[0])) },
+  getReportList() { return delay(ok({ list: reports, total: reports.length, pageNum: 1, pageSize: 10 })) },
+  downloadReport() { return delay(new Blob(['报告内容'], { type: 'text/plain' })) },
+
+  getFaultReviewList() { return delay(ok({ list: reviews, total: reviews.length, pageNum: 1, pageSize: 10 })) },
+  getFaultReviewDetail(id: number) {
+    const item = reviews.find((r) => r.id === id)
+    return item ? delay(ok(item)) : delay(Promise.reject(new Error('not found')))
+  },
+  submitFaultConclusion(id: number, conclusion: FaultReview['conclusion']) {
+    const item = reviews.find((r) => r.id === id)
+    if (item) { item.conclusion = conclusion; item.reviewed = true; item.status = 'reviewed' }
+    return delay(ok(null))
+  },
+  importToSimulation() { return delay(ok(simParams)) },
+  getSimulationRuns() { return delay(ok({ list: [{ id: 101, scene: 'flood' as const, params: simParams, status: 'finished' as const, summary: reports[0].summary, createdAt: nowIso(2880) }], total: 1, pageNum: 1, pageSize: 10 })) },
+
+  // 驾驶舱 KPI
+  getCockpitKpi() {
+    return delay(ok({
+      station: STATION,
+      upstreamLevel: dispatchStatus.upstreamLevel,
+      downstreamLevel: dispatchStatus.downstreamLevel,
+      flowRate: dispatchStatus.flowRate,
+      gateOpening: dispatchStatus.gateOpening,
+      power: Math.round(jitter(2850, 120)),
+      inspectionRate: Math.round(jitter(86.5, 2)),
+      assetHealth: Math.round(jitter(92, 3)),
+      workOrderDone: Math.round(jitter(78, 5)),
+      pendingTasks: Math.max(1, Math.round(jitter(5, 2))),
+      alarmSummary: { urgent: alarmStore.filter((a) => a.level === 'URGENT' && a.status === 'pending').length, important: alarmStore.filter((a) => a.level === 'IMPORTANT' && a.status === 'pending').length, normal: alarmStore.filter((a) => a.status === 'pending' && a.level === 'NORMAL').length },
+    }))
+  },
+}

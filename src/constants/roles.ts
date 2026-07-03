@@ -38,3 +38,6 @@ export const MENU_ITEMS: MenuItem[] = [
   { path: '/settings', title: '系统设置', icon: 'Setting' },
   { path: '/profile', title: '个人中心', icon: 'User' },
 ]
+
+/** 驾驶舱三页 — 横向快捷导航（不与侧边栏重复） */
+export const COCKPIT_MODULE_PATHS = ['/warning', '/dispatch', '/simulation'] as const

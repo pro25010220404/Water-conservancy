@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
+    "generate:dam": "node scripts/generate-dam-glb.mjs",
+    "process:hunyuan": "node scripts/fast-decimate-glb.mjs",
+    "inspect:hunyuan": "node scripts/inspect-glb-json.mjs public/models/hunyuan-raw.glb",
     "preview": "vite preview",
     "lint": "eslint src/ --ext .ts,.tsx,.vue --fix",
     "format": "prettier --write src/"

@@ -47,7 +47,7 @@ const routes: RouteRecordRaw[] = [
         path: 'simulation',
         name: 'Simulation',
         component: () => import('@/views/simulation/SimulationPage.vue'),
-        meta: { title: '数字孪生' },
+        meta: { title: '智慧水利数字孪生驾驶舱 - 向家坝水电站闸门智能调度系统', shortTitle: '数字孪生' },
       },
       {
         path: 'equipment',

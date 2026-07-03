@@ -1,0 +1,149 @@
+// ============================================================
+// 驾驶舱 — 浅蓝 / 白色主题
+// ============================================================
+
+$cockpit-bg: #eef6fc;
+$cockpit-panel: rgba(255, 255, 255, 0.92);
+$cockpit-border: rgba(24, 144, 255, 0.22);
+$cockpit-accent: #1890ff;
+$cockpit-cyan: #1890ff;
+$cockpit-text: #1e3a5f;
+$cockpit-text-dim: #64748b;
+$cockpit-glow: rgba(24, 144, 255, 0.12);
+
+// ---------- 驾驶舱字号阶梯（大屏展示） ----------
+$cockpit-font-xs: 13px;
+$cockpit-font-sm: 15px;
+$cockpit-font-base: 16px;
+$cockpit-font-md: 18px;
+$cockpit-font-lg: 20px;
+$cockpit-font-xl: 24px;
+$cockpit-font-2xl: 32px;
+$cockpit-font-3xl: 40px;
+
+@mixin cockpit-typography {
+  font-size: $cockpit-font-base;
+  line-height: 1.55;
+
+  :deep(.el-button) {
+    font-size: $cockpit-font-sm;
+  }
+
+  :deep(.el-button--small) {
+    font-size: $cockpit-font-sm;
+    padding: 8px 16px;
+  }
+
+  :deep(.el-input__inner),
+  :deep(.el-select__wrapper),
+  :deep(.el-form-item__label) {
+    font-size: $cockpit-font-sm;
+  }
+
+  :deep(.el-pagination),
+  :deep(.el-pagination button),
+  :deep(.el-pagination span) {
+    font-size: $cockpit-font-sm;
+  }
+
+  :deep(.el-descriptions__label),
+  :deep(.el-descriptions__content) {
+    font-size: $cockpit-font-sm;
+  }
+
+  :deep(.el-dialog__title) {
+    font-size: $cockpit-font-lg;
+    font-weight: 600;
+  }
+
+  :deep(.el-tag) {
+    font-size: $cockpit-font-sm;
+    height: auto;
+    padding: 4px 10px;
+  }
+
+  :deep(.el-timeline-item__content) {
+    font-size: $cockpit-font-sm;
+  }
+}
+
+@mixin cockpit-page-base {
+  position: relative;
+  min-height: 100%;
+  background: linear-gradient(165deg, #f7fbff 0%, #eef6fc 45%, #e3f0fa 100%);
+  color: $cockpit-text;
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 15% 20%, rgba(24, 144, 255, 0.06) 0%, transparent 45%),
+      radial-gradient(circle at 85% 75%, rgba(14, 165, 233, 0.05) 0%, transparent 40%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+@mixin glass-panel-3d {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.97) 0%, rgba(248, 252, 255, 0.94) 100%);
+  border: 1px solid rgba(24, 144, 255, 0.16);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 2px 16px rgba(24, 144, 255, 0.06),
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+
+  &:hover {
+    border-color: rgba(24, 144, 255, 0.28);
+    box-shadow:
+      0 6px 24px rgba(24, 144, 255, 0.1),
+      0 2px 6px rgba(15, 23, 42, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  }
+}
+
+@mixin hud-corner {
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-color: $cockpit-accent;
+    border-style: solid;
+    opacity: 0.45;
+  }
+
+  &::before {
+    top: -1px;
+    left: -1px;
+    border-width: 2px 0 0 2px;
+  }
+
+  &::after {
+    bottom: -1px;
+    right: -1px;
+    border-width: 0 2px 2px 0;
+  }
+}
+
+@mixin glow-text {
+  text-shadow: none;
+}
+
+@mixin data-value {
+  font-family: 'DIN Alternate', 'SF Mono', monospace;
+  font-weight: 700;
+  font-size: $cockpit-font-xl;
+  color: $cockpit-accent;
+}
