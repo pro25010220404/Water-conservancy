@@ -150,11 +150,13 @@ function addPier(
   mat: THREE.MeshStandardMaterial,
   x: number, y: number, z: number,
   w: number, h: number, d: number,
+  name?: string,
 ) {
   const geo = new THREE.BoxGeometry(w, h, d, 6, 16, 6)
   displaceConcreteSurface(geo, 0.8)
   const m = new THREE.Mesh(geo, mat.clone())
   m.position.set(x, y, z)
+  if (name) m.name = name
   m.castShadow = true
   m.receiveShadow = true
   group.add(m)
@@ -196,7 +198,8 @@ export function buildDamBody(envMap?: THREE.Texture | null): THREE.Group {
   // 泄洪闸墩立柱（参考第二张图多组垂直结构）
   const pierZs = [-18, -10.5, -3, 4.5, 12, 19.5]
   pierZs.forEach((z, i) => {
-    addPier(group, accentMat, 5.5, 14, z, 2.2, 26, 3.8)
+    const pierName = i < 5 ? `pier_${i + 1}` : undefined
+    addPier(group, accentMat, 5.5, 14, z, 2.2, 26, 3.8, pierName)
     if (i < pierZs.length - 1) {
       const midZ = (z + pierZs[i + 1]) / 2
       const bayName = `${i + 1}号闸门`

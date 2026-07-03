@@ -11,6 +11,8 @@ export type WeatherType =
   | 'storm'
   | 'fog_morning'
   | 'night'
+  | 'twin'
+  | 'panorama'
 
 export interface WeatherState {
   skyTop: THREE.Color
@@ -40,7 +42,7 @@ function w(
     skyMid: partial.skyMid ?? partial.skyTop.clone().lerp(partial.skyHorizon, 0.5),
     sunStrength: 1,
     cloudCover: 0.5,
-    rayStrength: 0.03,
+    rayStrength: 0,
     fogDensity: 0.003,
     ambientColor: new THREE.Color(0x1a3050),
     ambientIntensity: 0.38,
@@ -56,7 +58,7 @@ function w(
 }
 
 export const WEATHER_PRESETS: Record<WeatherType, WeatherState> = {
-  /** 黄昏多云 — 丁达尔金色光束（默认 cinematic） */
+  /** 黄昏多云（默认 cinematic） */
   cloudy_sunset: w({
     skyTop: new THREE.Color(0x0a0e14),
     skyMid: new THREE.Color(0x1a2438),
@@ -64,7 +66,6 @@ export const WEATHER_PRESETS: Record<WeatherType, WeatherState> = {
     sunColor: new THREE.Color(0xffcc77),
     sunStrength: 0.22,
     cloudCover: 0.72,
-    rayStrength: 0.04,
     fogColor: new THREE.Color(0x1a2838),
     fogDensity: 0.0028,
     ambientColor: new THREE.Color(0x1a2838),
@@ -84,7 +85,6 @@ export const WEATHER_PRESETS: Record<WeatherType, WeatherState> = {
     sunColor: new THREE.Color(0xffffee),
     sunStrength: 1.8,
     cloudCover: 0.15,
-    rayStrength: 0.12,
     fogColor: new THREE.Color(0xc8dff5),
     fogDensity: 0.0018,
     ambientColor: new THREE.Color(0x4488aa),
@@ -104,7 +104,6 @@ export const WEATHER_PRESETS: Record<WeatherType, WeatherState> = {
     sunColor: new THREE.Color(0x8899aa),
     sunStrength: 0.35,
     cloudCover: 0.88,
-    rayStrength: 0.05,
     fogColor: new THREE.Color(0x2a3848),
     fogDensity: 0.0045,
     ambientColor: new THREE.Color(0x2a3848),
@@ -124,7 +123,6 @@ export const WEATHER_PRESETS: Record<WeatherType, WeatherState> = {
     sunColor: new THREE.Color(0x668899),
     sunStrength: 0.2,
     cloudCover: 0.95,
-    rayStrength: 0.08,
     fogColor: new THREE.Color(0x0f1824),
     fogDensity: 0.0055,
     ambientColor: new THREE.Color(0x0f1824),
@@ -144,7 +142,6 @@ export const WEATHER_PRESETS: Record<WeatherType, WeatherState> = {
     sunColor: new THREE.Color(0xffeedd),
     sunStrength: 0.9,
     cloudCover: 0.55,
-    rayStrength: 0.35,
     fogColor: new THREE.Color(0xd0dce8),
     fogDensity: 0.006,
     ambientColor: new THREE.Color(0xb0c0d0),
@@ -164,7 +161,6 @@ export const WEATHER_PRESETS: Record<WeatherType, WeatherState> = {
     sunColor: new THREE.Color(0x4466aa),
     sunStrength: 0.08,
     cloudCover: 0.4,
-    rayStrength: 0.02,
     fogColor: new THREE.Color(0x0a1020),
     fogDensity: 0.0035,
     ambientColor: new THREE.Color(0x0a1020),
@@ -176,6 +172,47 @@ export const WEATHER_PRESETS: Record<WeatherType, WeatherState> = {
     exposure: 0.82,
     mistMultiplier: 0.8,
     sunDir: new THREE.Vector3(0.2, 0.08, 0.5),
+  }),
+  /** 数字孪生 — 白色简洁背景 */
+  twin: w({
+    skyTop: new THREE.Color(0xffffff),
+    skyMid: new THREE.Color(0xf7fbff),
+    skyHorizon: new THREE.Color(0xf0f6fc),
+    sunColor: new THREE.Color(0xfff5eb),
+    sunStrength: 0.85,
+    cloudCover: 0.06,
+    fogColor: new THREE.Color(0xf5f8fc),
+    fogDensity: 0,
+    ambientColor: new THREE.Color(0xe8eef4),
+    ambientIntensity: 0.72,
+    hemiSky: new THREE.Color(0xffffff),
+    hemiGround: new THREE.Color(0xe2e8f0),
+    hemiIntensity: 0.58,
+    sunLightIntensity: 0.92,
+    exposure: 1.06,
+    mistMultiplier: 0,
+    sunDir: new THREE.Vector3(-0.35, 0.55, 0.38).normalize(),
+  }),
+  /** 全景弹窗 — 电影级冷暖对冲 + 丁达尔体积光 */
+  panorama: w({
+    skyTop: new THREE.Color(0x8899aa),
+    skyMid: new THREE.Color(0xb8c4d0),
+    skyHorizon: new THREE.Color(0xd8e0e8),
+    sunColor: new THREE.Color(0xffd899),
+    sunStrength: 0.55,
+    cloudCover: 0.38,
+    rayStrength: 0.42,
+    fogColor: new THREE.Color(0xc8d4dc),
+    fogDensity: 0.0018,
+    ambientColor: new THREE.Color(0x8898a8),
+    ambientIntensity: 0.52,
+    hemiSky: new THREE.Color(0xb0c0d0),
+    hemiGround: new THREE.Color(0x5a7060),
+    hemiIntensity: 0.48,
+    sunLightIntensity: 1.05,
+    exposure: 0.94,
+    mistMultiplier: 1.4,
+    sunDir: new THREE.Vector3(-0.62, 0.28, 0.42).normalize(),
   }),
 }
 

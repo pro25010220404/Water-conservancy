@@ -42,12 +42,17 @@ export function createDischargeMaterial() {
         float foam = smoothstep(0.55, 0.95, streak + vNoise * 2.0);
         float edge = smoothstep(0.0, 0.25, vUv.x) * smoothstep(1.0, 0.75, vUv.x);
 
-        vec3 deep = vec3(0.65, 0.82, 0.98);
-        vec3 white = vec3(0.98, 0.99, 1.0);
-        vec3 col = mix(deep, white, foam * 0.92 + 0.08);
-        col += vec3(1.0, 0.92, 0.75) * foam * 0.15;
+        vec3 deep = vec3(0.55, 0.78, 0.95);
+        vec3 white = vec3(0.99, 0.99, 1.0);
+        vec3 foamCol = vec3(0.98, 0.96, 0.92);
+        vec3 col = mix(deep, white, foam * 0.94 + 0.06);
+        col = mix(col, foamCol, foam * 0.35);
+        col += vec3(1.0, 0.88, 0.55) * foam * 0.22 * (0.7 + 0.3 * sin(t * 0.5));
 
-        float alpha = (0.65 + foam * 0.35) * edge * uIntensity;
+        float splash = smoothstep(0.7, 1.0, vUv.y) * sin(vUv.x * 30.0 - t * 2.5) * 0.5 + 0.5;
+        col += vec3(1.0, 0.95, 0.85) * splash * 0.18 * uIntensity;
+
+        float alpha = (0.72 + foam * 0.28) * edge * uIntensity;
         gl_FragColor = vec4(col, alpha);
       }
     `,

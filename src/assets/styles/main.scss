@@ -52,6 +52,7 @@
 
   --sider-width: #{$sider-width};
   --header-height: #{$header-height};
+  --tabs-height: #{$tabs-height};
   --content-min-width: #{$content-min-width};
   --content-max-width: #{$content-max-width};
 }
@@ -91,4 +92,29 @@ body,
 
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+// ---------- 全局交互触感（按钮 / 链接） ----------
+.el-button:not(.is-disabled) {
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s ease !important;
+
+  &:hover {
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0) scale(0.97);
+    transition-duration: 0.08s !important;
+  }
+}
+
+.el-slider__button {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 6px rgba(24, 144, 255, 0.12);
+  }
 }

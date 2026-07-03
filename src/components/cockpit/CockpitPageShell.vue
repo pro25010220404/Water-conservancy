@@ -1,11 +1,10 @@
 <script setup lang="ts">
 // ============================================================
 // 驾驶舱页面壳 — 仅用于告警 / 调度 / 数字孪生
-// 内含：模块快捷导航 + 标签页（不影响 MainLayout 与其他页面）
+// 内含：标签页栏（顶栏下方）
 // ============================================================
 import { watch } from 'vue'
 import { useRoute } from 'vue-router'
-import AppTopNav from '@/layouts/AppTopNav.vue'
 import AppTabs from '@/layouts/AppTabs.vue'
 import { useTabsStore } from '@/stores/tabs'
 
@@ -23,7 +22,6 @@ watch(
   <div class="cockpit-shell">
     <div class="cockpit-shell__bridge" aria-hidden="true" />
     <div class="cockpit-shell__chrome">
-      <AppTopNav />
       <AppTabs />
     </div>
     <div class="cockpit-shell__body">
@@ -83,6 +81,7 @@ watch(
     padding: var(--spacing-lg);
     overflow: auto;
     @include cockpit-typography;
+    background: transparent;
   }
 }
 </style>

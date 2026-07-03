@@ -92,6 +92,114 @@ $cockpit-font-3xl: 40px;
   }
 }
 
+@mixin glass-panel-dark {
+  background: linear-gradient(145deg, rgba(8, 18, 32, 0.72) 0%, rgba(4, 12, 24, 0.68) 100%);
+  border: 1px solid rgba(56, 140, 255, 0.22);
+  border-radius: 12px;
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(100, 180, 255, 0.08),
+    inset 0 0 24px rgba(24, 100, 200, 0.06);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.25s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    border-color: rgba(80, 160, 255, 0.38);
+    box-shadow:
+      0 10px 36px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(120, 200, 255, 0.12),
+      0 0 20px rgba(24, 144, 255, 0.08);
+  }
+}
+
+@mixin neon-text-blue {
+  color: #b8dcff;
+  text-shadow: 0 0 8px rgba(56, 160, 255, 0.45), 0 0 18px rgba(24, 144, 255, 0.2);
+}
+
+@mixin glass-panel-cyber {
+  @include glass-panel-dark;
+  border-color: rgba(64, 180, 255, 0.28);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(120, 200, 255, 0.1),
+    inset 0 0 40px rgba(24, 120, 220, 0.08),
+    0 0 1px rgba(64, 200, 255, 0.5);
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(64, 180, 255, 0.03) 2px,
+      rgba(64, 180, 255, 0.03) 4px
+    );
+    pointer-events: none;
+    opacity: 0.6;
+  }
+}
+
+@mixin cockpit-twin-page {
+  position: relative;
+  min-height: 100%;
+  background: linear-gradient(165deg, #020408 0%, #040810 35%, #060a12 70%, #030610 100%);
+  color: #b8dcff;
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 18% 8%, rgba(255, 180, 80, 0.05) 0%, transparent 32%),
+      radial-gradient(circle at 82% 92%, rgba(24, 100, 220, 0.07) 0%, transparent 38%),
+      linear-gradient(rgba(64, 180, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(64, 180, 255, 0.02) 1px, transparent 1px);
+    background-size: auto, auto, 48px 48px, 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+@mixin cockpit-twin-page-light {
+  position: relative;
+  min-height: 100%;
+  background: linear-gradient(165deg, #dceefb 0%, #e8f4fc 35%, #eef6fc 70%, #f4f9ff 100%);
+  color: #1e4976;
+  overflow-x: hidden;
+  overflow-y: auto;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 12% 10%, rgba(24, 144, 255, 0.08) 0%, transparent 36%),
+      radial-gradient(circle at 88% 88%, rgba(56, 189, 248, 0.1) 0%, transparent 40%),
+      linear-gradient(rgba(24, 144, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(24, 144, 255, 0.04) 1px, transparent 1px);
+    background-size: auto, auto, 40px 40px, 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+}
+
 @mixin glass-panel-3d {
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.97) 0%, rgba(248, 252, 255, 0.94) 100%);
   border: 1px solid rgba(24, 144, 255, 0.16);
@@ -101,14 +209,63 @@ $cockpit-font-3xl: 40px;
     0 2px 16px rgba(24, 144, 255, 0.06),
     0 1px 2px rgba(15, 23, 42, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s ease,
+    border-color 0.25s ease;
 
   &:hover {
-    border-color: rgba(24, 144, 255, 0.28);
+    transform: translateY(-2px);
+    border-color: rgba(24, 144, 255, 0.32);
     box-shadow:
-      0 6px 24px rgba(24, 144, 255, 0.1),
-      0 2px 6px rgba(15, 23, 42, 0.05),
+      0 8px 28px rgba(24, 144, 255, 0.12),
+      0 2px 8px rgba(15, 23, 42, 0.06),
       inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  }
+
+  &:active {
+    transform: translateY(0) scale(0.995);
+    transition-duration: 0.1s;
+  }
+}
+
+/** 可点击控件 — 按钮、标签、列表项 */
+@mixin interactive-tactile($lift: -2px) {
+  cursor: pointer;
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
+
+  &:hover {
+    transform: translateY($lift);
+  }
+
+  &:active {
+    transform: translateY(0) scale(0.97);
+    transition-duration: 0.08s;
+  }
+}
+
+/** 数据块 / 卡片悬停 */
+@mixin interactive-card {
+  border-radius: 8px;
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.22s ease,
+    box-shadow 0.22s ease;
+
+  &:hover {
+    transform: translateY(-1px) scale(1.02);
+    background: rgba(24, 144, 255, 0.05);
+    box-shadow: 0 4px 16px rgba(24, 144, 255, 0.1);
+  }
+
+  &:active {
+    transform: scale(0.98);
+    transition-duration: 0.08s;
   }
 }
 

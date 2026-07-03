@@ -4,6 +4,7 @@
 import type { ApiResponse, PageResult } from '@/shared/types'
 import type {
   SimulationParams, SimulationRealtimeData, SimulationRun, SimulationReport,
+  SimulationStartPayload,
   AiModel, TrainingTask, TrainingConfig, FaultReview, FaultConclusion,
 } from '@/types/simulation'
 import { mockApi } from './mockStore'
@@ -12,69 +13,107 @@ async function fetchMock<T>(_url: string, _options?: RequestInit): Promise<ApiRe
   throw new Error('API not ready')
 }
 
-export async function startSimulation(params: SimulationParams): Promise<ApiResponse<{ runId: number }>> {
-  try { return fetchMock('/api/simulation/start', { method: 'POST', body: JSON.stringify(params) }) } catch { return mockApi.startSimulation(params) }
+/** 真实 API 未就绪时回退 Mock（必须 await，否则 catch 捕获不到 Promise 拒绝） */
+async function withMockFallback<T>(
+  url: string,
+  mockFn: () => Promise<ApiResponse<T>>,
+  options?: RequestInit,
+): Promise<ApiResponse<T>> {
+  try {
+    return await fetchMock<T>(url, options)
+  } catch {
+    return mockFn()
+  }
+}
+
+export async function startSimulation(params: SimulationStartPayload): Promise<ApiResponse<{ runId: number }>> {
+  return withMockFallback('/api/simulation/start', () => mockApi.startSimulation(params), {
+    method: 'POST',
+    body: JSON.stringify(params),
+  })
 }
 export async function pauseSimulation(): Promise<ApiResponse<null>> {
-  try { return fetchMock('/api/simulation/pause', { method: 'POST' }) } catch { return mockApi.pauseSimulation() }
+  return withMockFallback('/api/simulation/pause', () => mockApi.pauseSimulation(), { method: 'POST' })
 }
 export async function resumeSimulation(): Promise<ApiResponse<null>> {
-  try { return fetchMock('/api/simulation/resume', { method: 'POST' }) } catch { return mockApi.resumeSimulation() }
+  return withMockFallback('/api/simulation/resume', () => mockApi.resumeSimulation(), { method: 'POST' })
 }
 export async function resetSimulation(): Promise<ApiResponse<null>> {
-  try { return fetchMock('/api/simulation/reset', { method: 'POST' }) } catch { return mockApi.resetSimulation() }
+  return withMockFallback('/api/simulation/reset', () => mockApi.resetSimulation(), { method: 'POST' })
 }
 export async function getSimulationStatus(): Promise<ApiResponse<SimulationRealtimeData>> {
-  try { return fetchMock('/api/simulation/status') } catch { return mockApi.getSimulationStatus() }
+  return withMockFallback('/api/simulation/status', () => mockApi.getSimulationStatus())
+}
+export async function setSimulationGateOpening(opening: number): Promise<ApiResponse<null>> {
+  return withMockFallback('/api/simulation/gate', () => mockApi.setGateOpening(opening), {
+    method: 'PUT',
+    body: JSON.stringify({ opening }),
+  })
 }
 export async function getSimulationScenes(): Promise<ApiResponse<Array<{ scene: string; label: string; defaultParams: SimulationParams }>>> {
   return fetchMock('/api/simulation/scenes')
 }
 export async function getModelList(): Promise<ApiResponse<AiModel[]>> {
-  try { return fetchMock('/api/models') } catch { return mockApi.getModelList() }
+  return withMockFallback('/api/models', () => mockApi.getModelList())
 }
 export async function uploadModel(_formData: FormData): Promise<ApiResponse<AiModel>> {
-  try { return fetchMock('/api/models/upload', { method: 'POST' }) } catch { return mockApi.uploadModel() }
+  return withMockFallback('/api/models/upload', () => mockApi.uploadModel(), { method: 'POST' })
 }
 export async function activateModel(id: number): Promise<ApiResponse<null>> {
-  try { return fetchMock(`/api/models/${id}/activate`, { method: 'PUT' }) } catch { return mockApi.activateModel(id) }
+  return withMockFallback(`/api/models/${id}/activate`, () => mockApi.activateModel(id), { method: 'PUT' })
 }
 export async function startTraining(config: TrainingConfig & { modelId: number }): Promise<ApiResponse<{ taskId: string }>> {
-  try { return fetchMock('/api/models/train', { method: 'POST', body: JSON.stringify(config) }) } catch { return mockApi.startTraining() }
+  return withMockFallback('/api/models/train', () => mockApi.startTraining(), {
+    method: 'POST',
+    body: JSON.stringify(config),
+  })
 }
 export async function getTrainingProgress(taskId: string): Promise<ApiResponse<TrainingTask>> {
-  try { return fetchMock(`/api/models/train/${taskId}`) } catch { return mockApi.getTrainingProgress(taskId) }
+  return withMockFallback(`/api/models/train/${taskId}`, () => mockApi.getTrainingProgress(taskId))
 }
 export async function generateReport(runId: number): Promise<ApiResponse<SimulationReport>> {
-  try { return fetchMock('/api/simulation/report', { method: 'POST', body: JSON.stringify({ runId }) }) } catch { return mockApi.generateReport() }
+  return withMockFallback('/api/simulation/report', () => mockApi.generateReport(), {
+    method: 'POST',
+    body: JSON.stringify({ runId }),
+  })
 }
 export async function getReportList(params: { pageNum: number; pageSize: number; scene?: string }): Promise<ApiResponse<PageResult<SimulationReport>>> {
-  try {
-    const q = new URLSearchParams(Object.entries(params).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
-    return fetchMock(`/api/simulation/reports?${q}`)
-  } catch { return mockApi.getReportList() }
+  const q = new URLSearchParams(
+    Object.entries(params).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)]),
+  ).toString()
+  return withMockFallback(`/api/simulation/reports?${q}`, () => mockApi.getReportList())
 }
 export async function downloadReport(_id: number): Promise<Blob> {
-  try { throw new Error('API not ready') } catch { return mockApi.downloadReport() }
+  try {
+    throw new Error('API not ready')
+  } catch {
+    return mockApi.downloadReport()
+  }
 }
 export async function getFaultReviewList(params: { pageNum: number; pageSize: number; type?: string; startTime?: string; endTime?: string }): Promise<ApiResponse<PageResult<FaultReview>>> {
-  try {
-    const q = new URLSearchParams(Object.entries(params).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
-    return fetchMock(`/api/fault-review/list?${q}`)
-  } catch { return mockApi.getFaultReviewList() }
+  const q = new URLSearchParams(
+    Object.entries(params).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)]),
+  ).toString()
+  return withMockFallback(`/api/fault-review/list?${q}`, () => mockApi.getFaultReviewList())
 }
 export async function getFaultReviewDetail(id: number): Promise<ApiResponse<FaultReview>> {
-  try { return fetchMock(`/api/fault-review/${id}`) } catch { return mockApi.getFaultReviewDetail(id) }
+  return withMockFallback(`/api/fault-review/${id}`, () => mockApi.getFaultReviewDetail(id))
 }
 export async function submitFaultConclusion(id: number, conclusion: FaultConclusion): Promise<ApiResponse<null>> {
-  try { return fetchMock(`/api/fault-review/${id}`, { method: 'PUT', body: JSON.stringify(conclusion) }) } catch { return mockApi.submitFaultConclusion(id, conclusion) }
+  return withMockFallback(`/api/fault-review/${id}`, () => mockApi.submitFaultConclusion(id, conclusion), {
+    method: 'PUT',
+    body: JSON.stringify(conclusion),
+  })
 }
 export async function importToSimulation(id: number): Promise<ApiResponse<SimulationParams>> {
-  try { return fetchMock(`/api/fault-review/${id}/import-simulation`, { method: 'POST' }) } catch { return mockApi.importToSimulation() }
+  return withMockFallback(`/api/fault-review/${id}/import-simulation`, () => mockApi.importToSimulation(), { method: 'POST' })
 }
 export async function getSimulationRuns(params: { pageNum: number; pageSize: number }): Promise<ApiResponse<PageResult<SimulationRun>>> {
-  try { return fetchMock(`/api/simulation/runs?pageNum=${params.pageNum}&pageSize=${params.pageSize}`) } catch { return mockApi.getSimulationRuns() }
+  return withMockFallback(
+    `/api/simulation/runs?pageNum=${params.pageNum}&pageSize=${params.pageSize}`,
+    () => mockApi.getSimulationRuns(),
+  )
 }
 export async function getCockpitKpi(): Promise<ApiResponse<Record<string, unknown>>> {
-  try { return fetchMock('/api/cockpit/kpi') } catch { return mockApi.getCockpitKpi() }
+  return withMockFallback('/api/cockpit/kpi', () => mockApi.getCockpitKpi())
 }

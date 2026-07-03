@@ -3,6 +3,8 @@
 // 依据：《水电站闸门智能调度系统-详细需求报告》第四章
 // ============================================================
 import type { DictOption } from '@/shared/types'
+import type { SimulationScene } from '@/types/simulation'
+import { XIANGJIABA_HYDRO } from '@/constants/xiangjiaba'
 
 // ---------- 仿真场景 ----------
 export const SIMULATION_SCENE_MAP: Record<string, { label: string; description: string }> = {
@@ -11,6 +13,47 @@ export const SIMULATION_SCENE_MAP: Record<string, { label: string; description: 
   dry: { label: '枯水期', description: '低水位条件下的发电调度' },
   rainstorm: { label: '持续暴雨', description: '连续强降雨导致的极端来水场景' },
   custom: { label: '自定义', description: '手动设定初始参数' },
+}
+
+/** 各预设场景初始参数 — 基于向家坝公开水文特征 */
+export const SIMULATION_SCENE_PRESETS: Record<
+  SimulationScene,
+  { initialLevel: number; inflowRate: number; durationMin: number; gateOpening: number }
+> = {
+  normal: {
+    initialLevel: 380.38,
+    inflowRate: XIANGJIABA_HYDRO.normalInflow,
+    durationMin: 60,
+    gateOpening: 45,
+  },
+  flood: {
+    initialLevel: 380.65,
+    inflowRate: 3500,
+    durationMin: 120,
+    gateOpening: 55,
+  },
+  dry: {
+    initialLevel: 375.4,
+    inflowRate: 920,
+    durationMin: 90,
+    gateOpening: 32,
+  },
+  rainstorm: {
+    initialLevel: 381.2,
+    inflowRate: 4200,
+    durationMin: 180,
+    gateOpening: 62,
+  },
+  custom: {
+    initialLevel: XIANGJIABA_HYDRO.normalPoolLevel,
+    inflowRate: XIANGJIABA_HYDRO.normalInflow,
+    durationMin: 60,
+    gateOpening: 45,
+  },
+}
+
+export function getScenePreset(scene: SimulationScene) {
+  return { ...SIMULATION_SCENE_PRESETS[scene] }
 }
 
 export const SIMULATION_SCENE_OPTIONS = Object.entries(SIMULATION_SCENE_MAP).map(
@@ -61,8 +104,8 @@ export const DEFAULT_TRAINING_CONFIG = {
 
 // ---------- 仿真默认参数 ----------
 export const DEFAULT_SIMULATION_PARAMS = {
-  initialLevel: 3.5,
-  inflowRate: 10,
+  initialLevel: XIANGJIABA_HYDRO.normalPoolLevel,
+  inflowRate: XIANGJIABA_HYDRO.normalInflow,
   durationMin: 60,
 }
 
