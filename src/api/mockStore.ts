@@ -6,20 +6,52 @@ import type {
   DispatchStatus, DecisionDetail, PredictionData, DispatchRecord,
 } from '@/types/dispatch'
 import type {
-  SimulationRealtimeData, SimulationParams, AiModel, SimulationReport,
-  FaultReview, TrainingTask,
+  SimulationRealtimeData, SimulationParams, SimulationStartPayload,
+  SimulationSpeed, AiModel, SimulationReport, FaultReview, TrainingTask,
 } from '@/types/simulation'
 import { XIANGJIABA_HYDRO } from '@/constants/xiangjiaba'
+import {
+  createInitialTelemetry,
+  stepHydrology,
+  diurnalInflowOffset,
+  type StationTelemetry,
+} from '@/utils/xiangjiabaTelemetry'
 
 const STATION = '向家坝水电站'
 let tick = 0
+const TICK_SEC = 3
 
-function nowIso(offsetMin = 0) {
-  return new Date(Date.now() - offsetMin * 60000).toISOString()
-}
+/** 向家坝水文站实时遥测（调度 / 孪生共用） */
+let stationLive: StationTelemetry = createInitialTelemetry()
 
 function jitter(base: number, range: number) {
   return +(base + Math.sin(tick * 0.3) * range * 0.5 + (Math.random() - 0.5) * range * 0.3).toFixed(2)
+}
+
+function pushHistory() {
+  const t = simState.status === 'running' ? simState.elapsedSec : Math.floor(Date.now() / 1000) % 100000
+  simState.historyLevels.push({ time: t, value: simState.currentLevel })
+  simState.historyFlows.push({ time: t, value: simState.currentFlow })
+  if (simState.historyLevels.length > 180) simState.historyLevels.shift()
+  if (simState.historyFlows.length > 180) simState.historyFlows.shift()
+}
+
+function syncSimFromStation() {
+  simState.currentLevel = stationLive.upstreamLevel
+  simState.currentDownstreamLevel = stationLive.downstreamLevel
+  simState.currentFlow = stationLive.inflowRate
+  simState.currentOpening = stationLive.gateOpening
+}
+
+function syncDispatchFromStation() {
+  dispatchStatus.upstreamLevel = stationLive.upstreamLevel
+  dispatchStatus.downstreamLevel = stationLive.downstreamLevel
+  dispatchStatus.flowRate = stationLive.inflowRate
+  dispatchStatus.gateOpening = stationLive.gateOpening
+}
+
+function nowIso(offsetMin = 0) {
+  return new Date(Date.now() - offsetMin * 60000).toISOString()
 }
 
 // ---------- 告警 ----------
@@ -81,7 +113,10 @@ type AutoLevel = 1 | 2 | 3
 
 let dispatchStatus: DispatchStatus = {
   mode: 'auto', autoLevel: 2 as AutoLevel,
-  upstreamLevel: 380.65, downstreamLevel: 278.42, flowRate: 1920, gateOpening: 45,
+  upstreamLevel: stationLive.upstreamLevel,
+  downstreamLevel: stationLive.downstreamLevel,
+  flowRate: stationLive.inflowRate,
+  gateOpening: stationLive.gateOpening,
   lastDispatchAt: nowIso(30), isExecuting: false,
 }
 
@@ -119,10 +154,18 @@ const dispatchRecords: DispatchRecord[] = [
 // ---------- 仿真 ----------
 let simState: SimulationRealtimeData = {
   status: 'idle', elapsedSec: 0,
-  currentLevel: XIANGJIABA_HYDRO.normalPoolLevel,
-  currentDownstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
-  currentFlow: XIANGJIABA_HYDRO.normalInflow, currentOpening: 0,
+  currentLevel: stationLive.upstreamLevel,
+  currentDownstreamLevel: stationLive.downstreamLevel,
+  currentFlow: stationLive.inflowRate,
+  currentOpening: stationLive.gateOpening,
   historyLevels: [], historyFlows: [],
+}
+
+// 预填近期水位曲线，进入页面即可见动态趋势
+for (let i = 24; i >= 0; i--) {
+  const lv = +(stationLive.upstreamLevel - i * 0.012 + Math.sin(i * 0.4) * 0.025).toFixed(2)
+  simState.historyLevels.push({ time: i, value: lv })
+  simState.historyFlows.push({ time: i, value: stationLive.inflowRate + Math.sin(i * 0.3) * 30 })
 }
 
 let simParams: SimulationParams = {
@@ -131,6 +174,8 @@ let simParams: SimulationParams = {
   inflowRate: XIANGJIABA_HYDRO.normalInflow,
   durationMin: 60,
 }
+
+let simSpeed: SimulationSpeed = 1
 
 const models: AiModel[] = [
   { id: 1, type: 'LSTM', version: 'v2.1.0', filePath: '/models/lstm_v210.pt', status: 'active', metrics: { mae: 0.042, rmse: 0.068, accuracy: 94.2 }, remark: '向家坝水位预测主模型', createdAt: nowIso(43200), activatedAt: nowIso(1440) },
@@ -168,27 +213,50 @@ const reviews: FaultReview[] = [
   },
 ]
 
-// ---------- 实时 tick ----------
+// ---------- 实时 tick（向家坝水文站遥测 + 仿真联动） ----------
 setInterval(() => {
   tick++
-  dispatchStatus.upstreamLevel = jitter(380.65, 0.15)
-  dispatchStatus.downstreamLevel = jitter(278.42, 0.08)
-  dispatchStatus.flowRate = Math.round(jitter(1920, 80))
+  const hour = new Date().getHours()
   decisionBase.confidence = Math.round(jitter(87, 3))
-  decisionBase.factors[0].value = `${dispatchStatus.upstreamLevel} m`
-  decisionBase.factors[2].value = `${dispatchStatus.flowRate} m³/s`
 
   if (simState.status === 'running') {
-    simState.elapsedSec++
-    simState.currentLevel = +(simState.currentLevel + (simState.currentFlow - 1800) * 0.00001).toFixed(2)
-    simState.currentDownstreamLevel = +(XIANGJIABA_HYDRO.downstreamNormalLevel + (simState.currentFlow - 1800) * 0.00002).toFixed(2)
-    simState.currentFlow = Math.round(jitter(simParams.inflowRate, 100))
-    simState.historyLevels.push({ time: simState.elapsedSec, value: simState.currentLevel })
-    simState.historyFlows.push({ time: simState.elapsedSec, value: simState.currentFlow })
-    if (simState.historyLevels.length > 120) simState.historyLevels.shift()
-    if (simState.historyFlows.length > 120) simState.historyFlows.shift()
+    simState.elapsedSec += TICK_SEC * simSpeed
+    const targetInflow = simParams.inflowRate + diurnalInflowOffset(hour) * 0.25
+    stationLive = {
+      ...stationLive,
+      inflowRate: Math.round(targetInflow + (Math.random() - 0.5) * 40),
+      gateOpening: simState.currentOpening,
+      upstreamLevel: simState.currentLevel,
+      downstreamLevel: simState.currentDownstreamLevel,
+    }
+    stationLive = stepHydrology(stationLive, tick, TICK_SEC * simSpeed, 1 / 220000)
+    simState.currentLevel = stationLive.upstreamLevel
+    simState.currentDownstreamLevel = stationLive.downstreamLevel
+    simState.currentFlow = stationLive.inflowRate
+    pushHistory()
+    syncDispatchFromStation()
+    if (simState.elapsedSec >= simParams.durationMin * 60) {
+      simState.status = 'finished'
+    }
+  } else if (simState.status === 'paused') {
+    // 暂停：保持当前值，仅记录历史点
+    pushHistory()
+  } else {
+    // 待机：实时跟踪向家坝水文站（与调度页同源）
+    const targetInflow = XIANGJIABA_HYDRO.normalInflow + diurnalInflowOffset(hour)
+    stationLive = {
+      ...stationLive,
+      inflowRate: Math.round(targetInflow + (Math.random() - 0.5) * 35),
+    }
+    stationLive = stepHydrology(stationLive, tick, TICK_SEC)
+    syncSimFromStation()
+    syncDispatchFromStation()
+    pushHistory()
   }
-}, 3000)
+
+  decisionBase.factors[0].value = `${dispatchStatus.upstreamLevel} m`
+  decisionBase.factors[2].value = `${dispatchStatus.flowRate} m³/s`
+}, TICK_SEC * 1000)
 
 function delay<T>(data: T, ms = 200): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(data), ms))
@@ -282,7 +350,10 @@ export const mockApi = {
   },
 
   executeDispatch(params: { targetOpening: number }) {
-    dispatchStatus.gateOpening = params.targetOpening
+    const v = Math.max(0, Math.min(100, Math.round(params.targetOpening)))
+    dispatchStatus.gateOpening = v
+    stationLive.gateOpening = v
+    simState.currentOpening = v
     dispatchStatus.isExecuting = true
     setTimeout(() => { dispatchStatus.isExecuting = false }, 2000)
     dispatchRecords.unshift({ id: Date.now(), decision_time: nowIso(0), decision_mode: 'L1', recommended_opening: params.targetOpening, confidence: 100, risk_rank: 1, execution_status: 'executed', physics_validation: null })
@@ -293,7 +364,23 @@ export const mockApi = {
     dispatchStatus.isExecuting = false
     dispatchStatus.mode = 'manual'
     dispatchStatus.autoLevel = 1
-    return delay(ok(null))
+    dispatchStatus.gateOpening = 0
+    if (simState.status === 'running') simState.status = 'paused'
+    stationLive.gateOpening = 0
+    simState.currentOpening = 0
+    return delay(ok({ stop_log_id: Date.now(), command_id: `estop-${Date.now()}` }))
+  },
+
+  /** 全局急停 — 调度 + 仿真联动，闸门归零 */
+  globalEmergencyStop() {
+    dispatchStatus.isExecuting = false
+    dispatchStatus.mode = 'manual'
+    dispatchStatus.autoLevel = 1
+    dispatchStatus.gateOpening = 0
+    if (simState.status === 'running') simState.status = 'paused'
+    stationLive.gateOpening = 0
+    simState.currentOpening = 0
+    return delay(ok({ stop_log_id: Date.now(), command_id: `estop-${Date.now()}` }))
   },
 
   changeMode(params: { mode: 'auto' | 'manual' }) {
@@ -329,28 +416,87 @@ export const mockApi = {
   // 仿真
   getSimulationStatus() { return delay(ok({ ...simState, historyLevels: [...simState.historyLevels], historyFlows: [...simState.historyFlows] })) },
 
-  startSimulation(params: SimulationParams) {
-    simParams = { ...params }
-    simState = {
-      status: 'running', elapsedSec: 0,
-      currentLevel: params.initialLevel,
-      currentDownstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
-      currentFlow: params.inflowRate, currentOpening: 30,
-      historyLevels: [], historyFlows: [],
+  startSimulation(params: SimulationStartPayload) {
+    simParams = {
+      scene: params.scene,
+      initialLevel: params.initialLevel,
+      inflowRate: params.inflowRate,
+      durationMin: params.durationMin,
     }
+    simSpeed = params.speed ?? 1
+    const opening = Math.max(0, Math.min(100, Math.round(params.gateOpening ?? stationLive.gateOpening)))
+    stationLive = {
+      ...createInitialTelemetry(),
+      upstreamLevel: params.initialLevel,
+      inflowRate: params.inflowRate,
+      gateOpening: opening,
+    }
+    stationLive = stepHydrology(stationLive, tick, 1, 1 / 220000)
+    simState = {
+      status: 'running',
+      elapsedSec: 0,
+      currentLevel: stationLive.upstreamLevel,
+      currentDownstreamLevel: stationLive.downstreamLevel,
+      currentFlow: stationLive.inflowRate,
+      currentOpening: opening,
+      historyLevels: [{ time: 0, value: stationLive.upstreamLevel }],
+      historyFlows: [{ time: 0, value: stationLive.inflowRate }],
+    }
+    syncDispatchFromStation()
     return delay(ok({ runId: Date.now() }))
   },
 
-  pauseSimulation() { simState.status = 'paused'; return delay(ok(null)) },
-  resumeSimulation() { simState.status = 'running'; return delay(ok(null)) },
+  pauseSimulation() {
+    if (simState.status !== 'running') return delay(ok(null))
+    simState.status = 'paused'
+    return delay(ok(null))
+  },
+
+  resumeSimulation() {
+    if (simState.status !== 'paused') return delay(ok(null))
+    simState.status = 'running'
+    return delay(ok(null))
+  },
+
   resetSimulation() {
+    simSpeed = 1
+    stationLive = createInitialTelemetry()
     simState = {
-      status: 'idle', elapsedSec: 0,
-      currentLevel: XIANGJIABA_HYDRO.normalPoolLevel,
-      currentDownstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
-      currentFlow: XIANGJIABA_HYDRO.normalInflow, currentOpening: 0,
-      historyLevels: [], historyFlows: [],
+      status: 'idle',
+      elapsedSec: 0,
+      currentLevel: stationLive.upstreamLevel,
+      currentDownstreamLevel: stationLive.downstreamLevel,
+      currentFlow: stationLive.inflowRate,
+      currentOpening: stationLive.gateOpening,
+      historyLevels: [],
+      historyFlows: [],
     }
+    for (let i = 24; i >= 0; i--) {
+      const lv = +(stationLive.upstreamLevel - i * 0.012 + Math.sin(i * 0.4) * 0.025).toFixed(2)
+      simState.historyLevels.push({ time: i, value: lv })
+      simState.historyFlows.push({ time: i, value: stationLive.inflowRate + Math.sin(i * 0.3) * 30 })
+    }
+    syncDispatchFromStation()
+    return delay(ok(null))
+  },
+
+  /** 调节闸门开度 — 实时影响泄流量与水位 */
+  setGateOpening(opening: number) {
+    const v = Math.max(0, Math.min(100, Math.round(opening)))
+    stationLive.gateOpening = v
+    simState.currentOpening = v
+    dispatchStatus.gateOpening = v
+    return delay(ok(null))
+  },
+
+  emergencyStopSimulation() {
+    dispatchStatus.isExecuting = false
+    dispatchStatus.mode = 'manual'
+    dispatchStatus.autoLevel = 1
+    dispatchStatus.gateOpening = 0
+    if (simState.status === 'running') simState.status = 'paused'
+    stationLive.gateOpening = 0
+    simState.currentOpening = 0
     return delay(ok(null))
   },
 

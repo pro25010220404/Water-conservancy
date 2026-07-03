@@ -10,6 +10,10 @@ import { useTabsStore } from '@/stores/tabs'
 const route = useRoute()
 const tabsStore = useTabsStore()
 
+const { flushBelow = false } = defineProps<{
+  flushBelow?: boolean
+}>()
+
 const contextMenu = ref<{ visible: boolean; x: number; y: number; path: string }>({
   visible: false,
   x: 0,
@@ -61,7 +65,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-tabs">
+  <div class="app-tabs" :class="{ 'app-tabs--flush-below': flushBelow }">
     <div class="app-tabs__list">
       <div
         v-for="tab in tabsStore.tabs"
@@ -111,6 +115,12 @@ onUnmounted(() => {
   background: var(--color-bg-dark);
   border-bottom: 1px solid var(--color-border);
   overflow: hidden;
+
+  &--flush-below {
+    border-bottom: none;
+    background: linear-gradient(180deg, #f0f4f8 0%, #e8f2fa 100%);
+    box-shadow: none;
+  }
 
   &__list {
     display: flex;

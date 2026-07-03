@@ -16,6 +16,10 @@ import { LineChart } from 'echarts/charts'
 import { DataZoomComponent, GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
+import DamPanoramaModal from '@/components/cockpit/DamPanoramaModal.vue'
+import { getLevelStatus } from '@/constants/xiangjiaba'
+import { SIMULATION_STATUS_MAP } from '@/constants/simulation'
+import type { SimulationRealtimeData } from '@/types/simulation'
 
 use([LineChart, GridComponent, TooltipComponent, DataZoomComponent, CanvasRenderer])
 import {
@@ -24,7 +28,10 @@ import {
   OPENING_MIN, OPENING_MAX, OPENING_STEP,
 } from '@/constants/dispatch'
 import type { DecisionDetail, DispatchRecord, PredictionData } from '@/types/dispatch'
-import { getPrediction, executeDispatch, emergencyStop } from '@/api/dispatch'
+
+type PlanAlt = NonNullable<DecisionDetail['alternatives']>[number]
+
+import { getPrediction, executeDispatch } from '@/api/dispatch'
 import { useUserStore } from '@/stores/user'
 import { useOperationLog } from '@/composables/useOperationLog'
 
@@ -62,6 +69,8 @@ const ignoreVisible = ref(false)
 const ignoreReason = ref('')
 
 const showDataTable = ref(true)
+const panoramaVisible = ref(false)
+const previewPlan = ref<PlanAlt | null>(null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 // ── 6. Computed ──
@@ -174,6 +183,31 @@ function selectPlan(plan: { id: string; opening: number }) {
   selectedPlanId.value = plan.id
   targetOpening.value = plan.opening
 }
+
+function openPlanPanorama(plan: PlanAlt) {
+  selectPlan(plan)
+  previewPlan.value = plan
+  panoramaVisible.value = true
+}
+
+const panoramaWaterLevel = computed(() =>
+  previewPlan.value?.expectedLevel ?? latestDecision.value?.upstream_level ?? status.value.upstreamLevel,
+)
+const panoramaGateOpening = computed(() =>
+  previewPlan.value?.opening ?? targetOpening.value,
+)
+const panoramaLevelStatus = computed(() => getLevelStatus(panoramaWaterLevel.value))
+const panoramaSimStatus = computed<SimulationRealtimeData>(() => ({
+  status: 'idle',
+  elapsedSec: 0,
+  currentLevel: panoramaWaterLevel.value,
+  currentDownstreamLevel: status.value.downstreamLevel,
+  currentFlow: status.value.flowRate,
+  currentOpening: panoramaGateOpening.value,
+  historyLevels: [],
+  historyFlows: [],
+}))
+const panoramaStatusInfo = computed(() => SIMULATION_STATUS_MAP.idle)
 
 // ── 7. 方法 ──
 
@@ -350,16 +384,6 @@ async function handleExecute() {
   } catch { /* 取消 */ }
 }
 
-async function handleEmergencyStop() {
-  try {
-    await ElMessageBox.confirm('确认立即停止所有闸门执行？此操作不可逆', '紧急停止', { type: 'error' })
-    await emergencyStop({ reservoir_id: MOCK_RESERVOIR_ID, stop_reason: '人工触发急停' })
-    recordLog('调度决策', '急停', '触发紧急停止', 1)
-    status.value.mode = 'manual'; status.value.autoLevel = 1
-    ElMessage.success('急停已执行'); refreshAll()
-  } catch { /* 取消 */ }
-}
-
 function handleIgnore() {
   recordLog('调度决策', '忽略建议', `忽略AI建议，原因：${ignoreReason.value || '未填写'}`, 1)
   ElMessage.info('已忽略本次建议')
@@ -406,7 +430,7 @@ onUnmounted(() => {
       <div class="dispatch-left">
         <GlassPanel3D title="AI 决策详情">
           <template v-if="latestDecision">
-            <div class="decision-hero">
+            <div class="decision-hero decision-hero--clickable" @click="openPlanPanorama(activePlan ?? latestDecision.alternatives!.find(p => p.recommended) ?? latestDecision.alternatives![0])">
               <div>
                 <span class="lbl">推荐开度</span>
                 <span class="val">
@@ -417,6 +441,7 @@ onUnmounted(() => {
                   置信度 {{ latestDecision.confidence }}%
                   · 模式 {{ latestDecision.decision_mode }}
                   · 风险等级 {{ latestDecision.risk_rank }}
+                  · 点击预览 BIM
                 </span>
               </div>
             </div>
@@ -450,7 +475,7 @@ onUnmounted(() => {
                   v-for="p in latestDecision.alternatives" :key="p.id"
                   class="plan-card"
                   :class="{ 'plan-card--rec': p.recommended, 'plan-card--sel': selectedPlanId === p.id }"
-                  @click="selectPlan(p)"
+                  @click="openPlanPanorama(p)"
                 >
                   <div class="plan-card__head"><strong>{{ p.id }}</strong><span v-if="p.recommended" class="rec-tag">AI最优</span></div>
                   <div class="plan-card__grid">
@@ -545,7 +570,6 @@ onUnmounted(() => {
           <el-slider v-model="targetOpening" :min="OPENING_MIN" :max="OPENING_MAX" :step="OPENING_STEP" />
           <div class="manual-btns">
             <el-button type="primary" :disabled="targetOpening === status.gateOpening" @click="handleExecute">执行</el-button>
-            <el-button type="danger" class="stop-btn" @click="handleEmergencyStop">急停</el-button>
           </div>
         </GlassPanel3D>
 
@@ -623,6 +647,29 @@ onUnmounted(() => {
       </el-form-item>
       <template #footer><el-button @click="ignoreVisible = false">取消</el-button><el-button type="warning" @click="handleIgnore">确认忽略</el-button></template>
     </el-dialog>
+
+    <DamPanoramaModal
+      preview
+      :visible="panoramaVisible"
+      :water-level="panoramaWaterLevel"
+      :downstream-level="status.downstreamLevel"
+      :gate-opening="panoramaGateOpening"
+      :flow-rate="status.flowRate"
+      sim-scene="normal"
+      :sim-speed="1"
+      :sim-status="panoramaSimStatus"
+      :can-start="false"
+      :can-pause="false"
+      elapsed-label="—"
+      scene-label="常规调度"
+      :status-label="panoramaStatusInfo.label"
+      :status-color="panoramaStatusInfo.color"
+      :level-status-color="panoramaLevelStatus.color"
+      :level-status-label="panoramaLevelStatus.label"
+      :preview-plan-name="previewPlan?.id"
+      :preview-safety-score="previewPlan?.safetyScore"
+      @close="panoramaVisible = false"
+    />
   </div>
 </template>
 
@@ -695,6 +742,21 @@ onUnmounted(() => {
 
 .decision-hero {
   margin-bottom: 18px;
+
+  &--clickable {
+    padding: 12px 14px;
+    margin-left: -14px;
+    margin-right: -14px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s ease, box-shadow 0.2s ease;
+
+    &:hover {
+      background: rgba(24, 144, 255, 0.06);
+      box-shadow: inset 0 0 0 1px rgba(24, 144, 255, 0.12);
+    }
+  }
+
   .lbl { font-size: $cockpit-font-sm; color: $cockpit-text-dim; }
   .val {
     display: flex; align-items: center; gap: 8px;
@@ -725,6 +787,16 @@ onUnmounted(() => {
   &:hover:not(&--sel) { border-color: rgba(24,144,255,0.2); background: #f8fbff; }
   &__head { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: $cockpit-font-md; .rec-tag { font-size: $cockpit-font-xs; padding: 4px 10px; background: rgba(46,213,115,0.2); color: #2ed573; border-radius: 4px; } }
   &__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; small { display: block; font-size: $cockpit-font-xs; color: $cockpit-text-dim; } b { font-size: $cockpit-font-base; } }
+  &::after {
+    content: 'BIM 预览';
+    display: block;
+    margin-top: 8px;
+    font-size: $cockpit-font-xs;
+    color: $cockpit-accent;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  &:hover::after { opacity: 1; }
 }
 
 .conf-ring-wrap { position: relative; width: 120px; height: 120px; margin: 0 auto; .conf-ring { width: 100%; height: 100%; circle { transition: stroke-dasharray 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94), stroke 0.6s ease; } } .conf-val { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: $cockpit-font-xl; font-weight: 700; transition: color 0.6s ease; } }
@@ -762,7 +834,6 @@ onUnmounted(() => {
 
 .manual-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: $cockpit-font-base; strong { @include data-value; font-size: $cockpit-font-xl; } }
 .manual-btns { display: flex; gap: 10px; margin-top: 14px; }
-.stop-btn { animation: stop-pulse 2s infinite; }
 
 .log-scroll { max-height: 160px; overflow-y: auto; }
 .log-line { display: flex; gap: 10px; padding: 8px 0; font-size: $cockpit-font-sm; border-bottom: 1px solid rgba(15,23,42,0.06); gap: 12px; }
@@ -810,8 +881,6 @@ onUnmounted(() => {
   visibility: visible !important;
 }
 .chart-legend { display: flex; gap: 20px; margin-top: 10px; font-size: $cockpit-font-sm; color: $cockpit-text-dim; .leg { display: inline-block; width: 14px; height: 4px; margin-right: 6px; vertical-align: middle; &--pred { background: #1890ff; } .leg--safe { background: #22c55e; } .leg--warn { background: #ef4444; } } }
-
-@keyframes stop-pulse { 0%,100%{box-shadow:0 0 8px rgba(255,71,87,0.3)} 50%{box-shadow:0 0 24px rgba(255,71,87,0.7)} }
 
 :deep(.el-slider__bar) {
   background: linear-gradient(90deg, $cockpit-accent, #3b82f6);

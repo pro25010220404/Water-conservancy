@@ -1,13 +1,15 @@
 <script setup lang="ts">
 // ── 1. 外部依赖导入 ──
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import {
   ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput,
   ElTimeline, ElTimelineItem, ElSlider, ElInputNumber, ElSelect, ElOption, ElTag,
 } from 'element-plus'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import ThreeDamScene from '@/components/cockpit/ThreeDamScene.vue'
-import TwinFloatPanel from '@/components/cockpit/TwinFloatPanel.vue'
+import TwinDamSchematic2D from '@/components/cockpit/TwinDamSchematic2D.vue'
+import DamPanoramaModal from '@/components/cockpit/DamPanoramaModal.vue'
+import { useSmoothNumber } from '@/composables/useSmoothNumber'
 import SimulationTabPanel from './components/SimulationTabPanel.vue'
 import type {
   SimulationScene, SimulationSpeed, SimulationParams,
@@ -15,12 +17,13 @@ import type {
 } from '@/types/simulation'
 import { XIANGJIABA_HYDRO, getLevelStatus, levelGaugePercent } from '@/constants/xiangjiaba'
 import {
-  SIMULATION_SCENE_OPTIONS, SIMULATION_SCENE_MAP,
-  SIMULATION_STATUS_MAP, SPEED_OPTIONS, DEFAULT_SIMULATION_PARAMS, DEFAULT_TRAINING_CONFIG,
+  SIMULATION_SCENE_OPTIONS, SIMULATION_SCENE_MAP, getScenePreset,
+  SIMULATION_STATUS_MAP, SPEED_OPTIONS, DEFAULT_TRAINING_CONFIG,
   type SimulationTab,
 } from '@/constants/simulation'
 import {
   startSimulation, pauseSimulation, resumeSimulation, resetSimulation, getSimulationStatus,
+  setSimulationGateOpening,
   getModelList, activateModel, uploadModel, startTraining, generateReport, getReportList,
   getFaultReviewList, getFaultReviewDetail, importToSimulation,
 } from '@/api/simulation'
@@ -35,13 +38,27 @@ const simStatus = ref<SimulationRealtimeData>({
   historyLevels: [], historyFlows: [],
 })
 const simParams = reactive<SimulationParams>({
-  scene: 'normal', ...DEFAULT_SIMULATION_PARAMS,
-  initialLevel: XIANGJIABA_HYDRO.normalPoolLevel,
-  inflowRate: XIANGJIABA_HYDRO.normalInflow,
+  scene: 'normal',
+  ...getScenePreset('normal'),
 })
 const simScene = ref<SimulationScene>('normal')
 const simSpeed = ref<SimulationSpeed>(1)
 const gateOpening = ref(45)
+const gateLocalEdit = ref(false)
+let gateSyncTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(gateOpening, (v) => {
+  if (gateSyncTimer) clearTimeout(gateSyncTimer)
+  gateSyncTimer = setTimeout(() => {
+    setSimulationGateOpening(v).catch(() => { /* */ })
+  }, 400)
+})
+
+watch(() => simStatus.value.status, (status, prev) => {
+  if (status === 'finished' && prev === 'running') {
+    ElMessage.success(`仿真已完成 · 时长 ${simParams.durationMin} min`)
+  }
+})
 
 const models = ref<AiModel[]>([])
 const reports = ref<SimulationReport[]>([])
@@ -62,6 +79,8 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 const waterLevel = computed(() => simStatus.value.currentLevel)
 const downstreamLevel = computed(() => simStatus.value.currentDownstreamLevel)
 const flowRate = computed(() => simStatus.value.currentFlow)
+const smoothWaterLevel = useSmoothNumber(waterLevel, 1200)
+const smoothDownstreamLevel = useSmoothNumber(downstreamLevel, 1200)
 const levelStatus = computed(() => getLevelStatus(waterLevel.value))
 const gaugePct = computed(() => levelGaugePercent(waterLevel.value))
 const levelHistoryBars = computed(() => {
@@ -86,10 +105,36 @@ const elapsedLabel = computed(() => {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 })
 const statusInfo = computed(() => SIMULATION_STATUS_MAP[simStatus.value.status])
+const sceneLabel = computed(() => SIMULATION_SCENE_MAP[simScene.value]?.label ?? '')
+const simActive = computed(() =>
+  simStatus.value.status === 'running'
+  || simStatus.value.status === 'paused'
+  || simStatus.value.status === 'finished',
+)
+const canPause = computed(() =>
+  simStatus.value.status === 'running' || simStatus.value.status === 'paused',
+)
+const canStart = computed(() =>
+  simStatus.value.status === 'idle' || simStatus.value.status === 'finished',
+)
+/** 主视窗：2D 剖面示意 / 3D 场景 */
+const viewMode = ref<'2d' | '3d'>('3d')
+const panoramaVisible = ref(false)
+const mainSceneRef = ref<InstanceType<typeof ThreeDamScene> | null>(null)
+const panoramaRef = ref<InstanceType<typeof DamPanoramaModal> | null>(null)
+
+function openPanorama() {
+  if (viewMode.value === '3d') panoramaVisible.value = true
+}
 
 // ── 9. 方法函数 ──
 async function fetchSim() {
-  try { simStatus.value = (await getSimulationStatus()).data } catch { /* */ }
+  try {
+    simStatus.value = (await getSimulationStatus()).data
+    if (!gateLocalEdit.value) {
+      gateOpening.value = simStatus.value.currentOpening
+    }
+  } catch { /* */ }
 }
 async function fetchModels() {
   modelLoading.value = true
@@ -114,21 +159,75 @@ function onTabChange(tab: SimulationTab) {
   else if (tab === 'review') fetchReviews()
 }
 
+function applyScenePreset(scene: SimulationScene) {
+  const preset = getScenePreset(scene)
+  simParams.scene = scene
+  simParams.initialLevel = preset.initialLevel
+  simParams.inflowRate = preset.inflowRate
+  simParams.durationMin = preset.durationMin
+  if (simStatus.value.status === 'idle') {
+    gateOpening.value = preset.gateOpening
+  }
+}
+
 function onSceneChange(scene: SimulationScene) {
   simScene.value = scene
-  simParams.scene = scene
+  applyScenePreset(scene)
+}
+
+/** 主页面按钮：打开仿真弹窗（控制在弹窗左侧） */
+function handleOpenSimModal() {
+  viewMode.value = '3d'
+  panoramaVisible.value = true
 }
 
 async function handleStartSim() {
+  if (!canStart.value) return
   try {
-    await startSimulation({ ...simParams, scene: simScene.value })
-    ElMessage.success('仿真已启动')
-    fetchSim()
-  } catch { ElMessage.error('启动失败') }
+    await startSimulation({
+      ...simParams,
+      scene: simScene.value,
+      speed: simSpeed.value,
+      gateOpening: gateOpening.value,
+    })
+    ElMessage.success(`仿真已启动 · ${sceneLabel.value} · ${simSpeed.value}x 倍速`)
+    await fetchSim()
+    setTimeout(() => {
+      panoramaRef.value?.focusSimulationView()
+      mainSceneRef.value?.focusSimulationView()
+    }, 500)
+  } catch {
+    ElMessage.error('启动失败')
+  }
 }
-async function handlePauseSim() { try { await pauseSimulation(); fetchSim() } catch { /* */ } }
-async function handleResumeSim() { try { await resumeSimulation(); fetchSim() } catch { /* */ } }
-async function handleResetSim() { try { await resetSimulation(); fetchSim() } catch { /* */ } }
+
+async function handlePauseSim() {
+  if (!canPause.value) return
+  try {
+    if (simStatus.value.status === 'paused') {
+      await resumeSimulation()
+      ElMessage.success('仿真已继续')
+    } else {
+      await pauseSimulation()
+      ElMessage.info('仿真已暂停')
+    }
+    await fetchSim()
+  } catch {
+    ElMessage.error('操作失败')
+  }
+}
+
+async function handleResetSim() {
+  try {
+    await resetSimulation()
+    applyScenePreset(simScene.value)
+    await fetchSim()
+    mainSceneRef.value?.resetView()
+    ElMessage.success('仿真已重置')
+  } catch {
+    ElMessage.error('重置失败')
+  }
+}
 
 async function handleActivateModel(id: number) {
   try {
@@ -175,37 +274,25 @@ async function handleImportToSim(id: number) {
 
 // ── 8. 生命周期 ──
 onMounted(() => {
+  applyScenePreset(simScene.value)
   fetchSim()
   fetchModels()
   fetchReports()
   fetchReviews()
-  pollTimer = setInterval(fetchSim, 3000)
+  pollTimer = setInterval(fetchSim, 1000)
 })
-onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
+  if (gateSyncTimer) clearTimeout(gateSyncTimer)
+})
 </script>
 
 <template>
-    <div class="page sim-page sim-page--twin">
-      <header class="sim-twin-header">
-        <div class="sim-twin-header__title">向家坝水电站 · 数字孪生驾驶舱</div>
-        <div class="sim-twin-header__meta">
-          <span>{{ XIANGJIABA_HYDRO.river }} · {{ XIANGJIABA_HYDRO.name }}</span>
-          <ElTag size="small" :color="statusInfo?.color" effect="dark">{{ statusInfo?.label }}</ElTag>
-        </div>
-      </header>
-
-      <div class="sim-twin-stage">
-        <div class="sim-viewport sim-viewport--twin">
-          <ThreeDamScene
-            visual-mode="twin"
-            :water-level="waterLevel"
-            :downstream-level="downstreamLevel"
-            :gate-opening="gateOpening"
-            :flow-rate="flowRate"
-            :sim-scene="simScene"
-          />
-
-          <TwinFloatPanel title="关键指标概况" class="sim-twin-float sim-twin-float--left-top">
+  <div class="sim-page sim-page--twin sim-page--sky">
+      <div class="sim-page__grid">
+        <!-- 左栏：水情数据 -->
+        <aside class="sim-page__col sim-page__col--left">
+          <GlassPanel3D title="水情实时统计">
             <div class="twin-kpi-row">
               <div class="twin-kpi">
                 <div class="twin-kpi__ring" :style="{ '--pct': gaugePct + '%', '--c': levelStatus.color }">
@@ -235,9 +322,9 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
               <li><span>坝顶高程</span><b>{{ XIANGJIABA_HYDRO.crestElevation }} m</b></li>
               <li><span>下游尾水</span><b>{{ downstreamLevel.toFixed(2) }} m</b></li>
             </ul>
-          </TwinFloatPanel>
+          </GlassPanel3D>
 
-          <TwinFloatPanel title="历史水位趋势" class="sim-twin-float sim-twin-float--left-bottom">
+          <GlassPanel3D title="库区水位曲线" compact class="twin-chart-panel">
             <div class="twin-bars">
               <div
                 v-for="(bar, i) in levelHistoryBars"
@@ -247,23 +334,137 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
                 :title="bar.v.toFixed(2) + 'm'"
               />
             </div>
-          </TwinFloatPanel>
+          </GlassPanel3D>
+        </aside>
 
-          <TwinFloatPanel title="泄洪闸门监测" side="right" class="sim-twin-float sim-twin-float--right-top">
+        <!-- 中栏：2D/3D 主视窗 + 仿真控制 -->
+        <main class="sim-page__col sim-page__col--center">
+          <div
+            class="sim-viewport sim-viewport--twin"
+            :class="{ 'sim-viewport--2d': viewMode === '2d' }"
+            @dblclick="openPanorama"
+          >
+            <div v-if="viewMode === '3d'" class="sim-viewport__ctrl">
+              <button type="button" class="sim-viewport__btn" @click.stop="openPanorama">
+                全景 BIM
+              </button>
+            </div>
+            <div v-if="viewMode === '3d'" class="sim-viewport__fx" aria-hidden="true">
+              <div class="sim-viewport__scanlines" />
+              <div class="sim-viewport__particles" />
+              <div class="sim-viewport__data-beam sim-viewport__data-beam--left" />
+              <div class="sim-viewport__data-beam sim-viewport__data-beam--right" />
+            </div>
+            <div v-if="viewMode === '3d' && simActive && !panoramaVisible" class="sim-viewport__hud">
+              <span class="sim-viewport__hud-badge" :style="{ color: statusInfo?.color }">
+                {{ statusInfo?.label }} · {{ sceneLabel }}
+              </span>
+              <span>水位 <b :style="{ color: levelStatus.color }">{{ waterLevel.toFixed(2) }} m</b></span>
+              <span>开度 <b>{{ gateOpening }}%</b></span>
+              <span>仿真 <b>{{ elapsedLabel }}</b></span>
+              <span>倍速 <b>{{ simSpeed }}x</b></span>
+            </div>
+            <TwinDamSchematic2D
+              v-if="viewMode === '2d'"
+              :water-level="smoothWaterLevel"
+              :downstream-level="smoothDownstreamLevel"
+              :gate-opening="gateOpening"
+              :flow-rate="flowRate"
+            />
+            <ThreeDamScene
+              v-else
+              ref="mainSceneRef"
+              visual-mode="twin"
+              :water-level="smoothWaterLevel"
+              :downstream-level="smoothDownstreamLevel"
+              :gate-opening="gateOpening"
+              :flow-rate="flowRate"
+              :sim-scene="simScene"
+              :sim-running="simActive"
+            />
+          </div>
+
+          <div class="sim-toolbar">
+            <div class="sim-toolbar__view">
+              <button
+                type="button"
+                class="sim-toolbar__btn"
+                :class="{ 'is-active': viewMode === '2d' }"
+                @click="viewMode = '2d'"
+              >
+                2D 剖面
+              </button>
+              <button
+                type="button"
+                class="sim-toolbar__btn"
+                :class="{ 'is-active': viewMode === '3d' }"
+                @click="viewMode = '3d'"
+              >
+                3D 场景
+              </button>
+            </div>
+            <span class="sim-toolbar__sep" />
+            <label class="sim-toolbar__field">
+              <span>场景</span>
+              <select
+                class="sim-toolbar__select"
+                :value="simScene"
+                :disabled="!canStart"
+                @change="onSceneChange(($event.target as HTMLSelectElement).value as SimulationScene)"
+              >
+                <option v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :value="s.value">
+                  {{ s.label }}
+                </option>
+              </select>
+            </label>
+            <label class="sim-toolbar__field">
+              <span>倍速</span>
+              <select
+                v-model.number="simSpeed"
+                class="sim-toolbar__select"
+                :disabled="simStatus.status === 'running'"
+              >
+                <option v-for="s in SPEED_OPTIONS" :key="s.value" :value="s.value">
+                  {{ s.label }}
+                </option>
+              </select>
+            </label>
+            <span class="sim-toolbar__sep" />
+            <button type="button" class="sim-toolbar__btn sim-toolbar__btn--launch" @click="handleOpenSimModal">
+              开始仿真
+            </button>
+            <button type="button" class="sim-toolbar__btn" :disabled="!canPause" @click="handlePauseSim">
+              {{ simStatus.status === 'paused' ? '继续' : '暂停' }}
+            </button>
+            <button
+              type="button"
+              class="sim-toolbar__btn"
+              :disabled="simStatus.status === 'idle'"
+              @click="handleResetSim"
+            >
+              重置
+            </button>
+            <span class="sim-toolbar__time">仿真 {{ elapsedLabel }} · {{ statusInfo?.label }}</span>
+          </div>
+        </main>
+
+        <!-- 右栏：闸门监测 + 功能面板 -->
+        <aside class="sim-page__col sim-page__col--right">
+          <GlassPanel3D title="泄洪闸门监测" compact class="twin-gate-panel">
             <ul class="twin-gate-list">
               <li v-for="n in 5" :key="n">
-                <span>{{ n }} 号闸门</span>
-                <b :class="{ 'is-open': gateOpening > (n - 1) * 18 }">{{ gateOpening > (n - 1) * 18 ? '运行' : '待机' }}</b>
+                <span>{{ n }} 号表孔闸门</span>
+                <b class="is-open">{{ gateOpening }}% · 运行正常</b>
               </li>
             </ul>
-            <p class="twin-alert" :class="{ 'is-warn': waterLevel >= XIANGJIABA_HYDRO.warningLevel }">
-              {{ waterLevel >= XIANGJIABA_HYDRO.warningLevel ? '⚠ 水位超预警阈值 ' + XIANGJIABA_HYDRO.warningLevel + 'm' : '运行正常 · ' + levelStatus.label }}
+            <p class="twin-alert">
+              运行正常 · 同步泄洪 {{ gateOpening }}%
             </p>
-          </TwinFloatPanel>
+          </GlassPanel3D>
 
-          <TwinFloatPanel title="功能面板" side="right" class="sim-twin-float sim-twin-float--right-bottom">
+          <GlassPanel3D title="仿真控制" class="sim-func-panel">
             <SimulationTabPanel
-              :active-tab="activeTab"
+              active-tab="control"
               :sim-scene="simScene"
               :sim-status="simStatus"
               :models="models"
@@ -273,6 +474,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
               :report-loading="reportLoading"
               :review-loading="reviewLoading"
               compact
+              hide-tabs
               @tab-change="onTabChange"
               @activate="handleActivateModel"
               @upload="handleUploadModel"
@@ -281,51 +483,75 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
               @open-review="openReviewDetail"
               @import-review="handleImportToSim"
             />
-          </TwinFloatPanel>
-
-          <div class="sim-twin-toolbar">
-            <button type="button" class="sim-twin-toolbar__btn" @click="showParams = !showParams">参数</button>
-            <button type="button" class="sim-twin-toolbar__btn" :disabled="simStatus.status === 'running'" @click="handleStartSim">开始仿真</button>
-            <button type="button" class="sim-twin-toolbar__btn" :disabled="simStatus.status !== 'running'" @click="handlePauseSim">暂停</button>
-            <button type="button" class="sim-twin-toolbar__btn" :disabled="simStatus.status !== 'paused'" @click="handleResumeSim">继续</button>
-            <button type="button" class="sim-twin-toolbar__btn" @click="handleResetSim">重置</button>
-            <span class="sim-twin-toolbar__time">仿真 {{ elapsedLabel }}</span>
-          </div>
-
-          <aside v-if="showParams" class="sim-twin-drawer">
-            <GlassPanel3D title="仿真参数" large class="param-panel">
-              <div class="param-panel__status">
-                <ElTag size="small" :color="statusInfo?.color" effect="dark">{{ statusInfo?.label }}</ElTag>
-                <span>{{ SIMULATION_SCENE_MAP[simScene]?.label }}</span>
-              </div>
-              <ElForm label-position="top" class="param-form">
-                <ElFormItem label="预设场景" class="param-form__full">
-                  <ElSelect :model-value="simScene" @change="onSceneChange($event as SimulationScene)">
-                    <ElOption v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :label="s.label" :value="s.value" />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem label="初始水位 (m)">
-                  <ElInputNumber v-model="simParams.initialLevel" :min="370" :max="385" :step="0.1" controls-position="right" />
-                </ElFormItem>
-                <ElFormItem label="入库流量 (m³/s)">
-                  <ElInputNumber v-model="simParams.inflowRate" :min="500" :max="5000" :step="50" controls-position="right" />
-                </ElFormItem>
-                <ElFormItem label="仿真时长 (min)">
-                  <ElInputNumber v-model="simParams.durationMin" :min="10" :max="240" :step="10" controls-position="right" />
-                </ElFormItem>
-                <ElFormItem label="仿真倍速">
-                  <ElSelect v-model="simSpeed">
-                    <ElOption v-for="s in SPEED_OPTIONS" :key="s.value" :label="s.label" :value="s.value" />
-                  </ElSelect>
-                </ElFormItem>
-                <ElFormItem label="闸门开度 (%)" class="param-form__full">
-                  <ElSlider v-model="gateOpening" :min="0" :max="100" :step="1" show-input />
-                </ElFormItem>
-              </ElForm>
-            </GlassPanel3D>
-          </aside>
-        </div>
+          </GlassPanel3D>
+        </aside>
       </div>
+
+      <DamPanoramaModal
+        ref="panoramaRef"
+        :visible="panoramaVisible"
+        :water-level="smoothWaterLevel"
+        :downstream-level="smoothDownstreamLevel"
+        :gate-opening="gateOpening"
+        :flow-rate="flowRate"
+        :sim-scene="simScene"
+        :sim-speed="simSpeed"
+        :sim-status="simStatus"
+        :can-start="canStart"
+        :can-pause="canPause"
+        :elapsed-label="elapsedLabel"
+        :scene-label="sceneLabel"
+        :status-label="statusInfo?.label ?? '待机'"
+        :status-color="statusInfo?.color ?? '#6b7280'"
+        :level-status-color="levelStatus.color"
+        :level-status-label="levelStatus.label"
+        @close="panoramaVisible = false"
+        @start="handleStartSim"
+        @pause="handlePauseSim"
+        @reset="handleResetSim"
+        @update:sim-scene="onSceneChange"
+        @update:sim-speed="simSpeed = $event"
+        @update:gate-opening="gateOpening = $event"
+      />
+
+      <ElDialog v-model="showParams" title="仿真参数" width="440px" destroy-on-close>
+        <div class="param-panel__status">
+          <ElTag size="small" :color="statusInfo?.color">{{ statusInfo?.label }}</ElTag>
+          <span>{{ SIMULATION_SCENE_MAP[simScene]?.label }}</span>
+        </div>
+        <ElForm label-position="top" class="param-form">
+          <ElFormItem label="预设场景" class="param-form__full">
+            <ElSelect :model-value="simScene" @change="onSceneChange($event as SimulationScene)">
+              <ElOption v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :label="s.label" :value="s.value" />
+            </ElSelect>
+          </ElFormItem>
+          <ElFormItem label="初始水位 (m)">
+            <ElInputNumber v-model="simParams.initialLevel" :min="370" :max="385" :step="0.1" controls-position="right" />
+          </ElFormItem>
+          <ElFormItem label="入库流量 (m³/s)">
+            <ElInputNumber v-model="simParams.inflowRate" :min="500" :max="5000" :step="50" controls-position="right" />
+          </ElFormItem>
+          <ElFormItem label="仿真时长 (min)">
+            <ElInputNumber v-model="simParams.durationMin" :min="10" :max="240" :step="10" controls-position="right" />
+          </ElFormItem>
+          <ElFormItem label="仿真倍速">
+            <ElSelect v-model="simSpeed">
+              <ElOption v-for="s in SPEED_OPTIONS" :key="s.value" :label="s.label" :value="s.value" />
+            </ElSelect>
+          </ElFormItem>
+          <ElFormItem label="闸门开度 (%)" class="param-form__full">
+            <ElSlider
+              v-model="gateOpening"
+              :min="0"
+              :max="100"
+              :step="1"
+              show-input
+              @input="gateLocalEdit = true"
+              @change="gateLocalEdit = false"
+            />
+          </ElFormItem>
+        </ElForm>
+      </ElDialog>
 
       <ElDialog v-model="reviewDetailVisible" title="故障复盘详情" width="640px">
         <ElTimeline v-if="reviewDetail">
@@ -343,182 +569,453 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 <style scoped lang="scss">
 @use '@/assets/styles/cockpit.scss' as *;
 
-.sim-page--twin {
-  min-height: calc(100vh - var(--header-height) - 100px);
-  margin: calc(-1 * var(--spacing-lg));
-  padding: 0;
-  background: #050a14;
-  color: #dce8ff;
+.sim-page--twin.sim-page--sky {
+  @include cockpit-twin-page-light;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: calc(100vh - var(--header-height) - var(--tabs-height));
+  height: calc(100vh - var(--header-height) - var(--tabs-height));
+  padding: 12px var(--spacing-lg) var(--spacing-lg);
+  color: #1e4976;
+  overflow: hidden;
 
-  .sim-twin-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 20px;
-    background: linear-gradient(180deg, rgba(8, 20, 40, 0.95), rgba(5, 10, 20, 0.85));
-    border-bottom: 1px solid rgba(0, 180, 255, 0.3);
-    box-shadow: 0 4px 24px rgba(0, 80, 160, 0.15);
+  /* 三栏：左右约 24%，中间主视窗约 52% */
+  .sim-page__grid {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(300px, 24%) minmax(0, 1fr) minmax(300px, 24%);
+    gap: 12px;
+    align-items: stretch;
+  }
 
-    &__title {
-      font-size: 20px;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      color: #7efcff;
-      text-shadow: 0 0 20px rgba(0, 212, 255, 0.35);
+  .sim-page__col {
+    min-height: 0;
+    min-width: 0;
+    height: 100%;
+
+    &--left {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+
+      > :first-child { flex-shrink: 0; }
+
+      .twin-chart-panel {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+
+        :deep(.glass-panel__body) {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          padding-bottom: 14px;
+        }
+      }
     }
 
-    &__meta {
+    &--center {
       display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 13px;
-      color: rgba(180, 210, 240, 0.8);
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    &--right {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow: hidden;
+
+      .twin-gate-panel { flex-shrink: 0; }
     }
   }
 
-  .sim-twin-stage {
+  .sim-func-panel {
     flex: 1;
     min-height: 0;
-    height: calc(100vh - var(--header-height) - 160px);
-    padding: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    :deep(.glass-panel) {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    :deep(.glass-panel__body) {
+      flex: 1;
+      min-height: 0;
+      min-width: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      padding: 8px 10px 10px;
+      @include hide-scrollbar;
+    }
+
+    :deep(.sim-tab-panel) {
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    :deep(.scene-brief h4) {
+      color: #1890ff;
+      margin: 0 0 6px;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    :deep(.scene-brief p),
+    :deep(.summary-list dt),
+    :deep(.hint-text) {
+      color: #64748b;
+      font-size: 14px;
+    }
+
+    :deep(.summary-list dd) {
+      color: #1890ff;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    :deep(.sim-tab-panel__compact-body) {
+      color: #334155;
+      overflow-x: hidden;
+      font-size: 14px;
+    }
+
+    :deep(.history-block h5) {
+      color: #1e4976;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    :deep(.history-list) {
+      color: #475569;
+      font-size: 14px;
+    }
   }
 
   .sim-viewport--twin {
+    flex: 1;
+    min-height: 0;
     position: relative;
     width: 100%;
-    height: 100%;
-    min-height: 520px;
-    border: none;
-    border-radius: 0;
-    background: #050a14;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff 0%, #f7fbff 50%, #eef6fc 100%);
+    border: 1px solid rgba(24, 144, 255, 0.15);
+    box-shadow: 0 2px 12px rgba(24, 144, 255, 0.08);
+    overflow: hidden;
+    cursor: pointer;
+    transition:
+      transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.28s ease,
+      border-color 0.28s ease;
 
-    :deep(.three-scene) {
-      min-height: 100%;
-      height: 100%;
+    &:hover {
+      transform: translateY(-2px);
+      border-color: rgba(24, 144, 255, 0.35);
+      box-shadow:
+        0 8px 32px rgba(24, 144, 255, 0.15),
+        inset 0 0 40px rgba(24, 144, 255, 0.04);
     }
-  }
 
-  .sim-twin-float {
-    position: absolute;
-    z-index: 5;
-    width: 280px;
-    max-height: calc(50% - 24px);
+    &:active {
+      transform: translateY(0) scale(0.998);
+      transition-duration: 0.1s;
+    }
 
-    &--left-top { top: 16px; left: 16px; }
-    &--left-bottom { bottom: 72px; left: 16px; width: 280px; max-height: 200px; }
-    &--right-top { top: 16px; right: 16px; width: 260px; }
-    &--right-bottom {
-      top: 240px;
-      right: 16px;
-      width: 300px;
-      max-height: calc(100% - 320px);
-      overflow: hidden;
+    &__fx {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      pointer-events: none;
+    }
+
+    &__scanlines {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(64, 180, 255, 0.04) 3px,
+        rgba(64, 180, 255, 0.04) 4px
+      );
+      animation: holo-scan 8s linear infinite;
+    }
+
+    &__particles {
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(1px 1px at 20% 30%, rgba(100, 200, 255, 0.5), transparent),
+        radial-gradient(1px 1px at 60% 70%, rgba(100, 200, 255, 0.4), transparent),
+        radial-gradient(1px 1px at 80% 20%, rgba(255, 200, 100, 0.3), transparent),
+        radial-gradient(1px 1px at 40% 80%, rgba(100, 200, 255, 0.35), transparent);
+      background-size: 100% 100%;
+      animation: particle-drift 12s ease-in-out infinite;
+    }
+
+    &__data-beam {
+      position: absolute;
+      top: 20%;
+      bottom: 20%;
+      width: 2px;
+      background: linear-gradient(180deg, transparent, rgba(64, 200, 255, 0.6), transparent);
+      opacity: 0.5;
+      animation: data-beam 2.5s ease-in-out infinite;
+
+      &--left { left: 0; animation-delay: 0s; }
+      &--right { right: 0; animation-delay: 1.2s; }
+    }
+
+    &__hud {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 5;
       display: flex;
-      flex-direction: column;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px 16px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(24, 144, 255, 0.22);
+      backdrop-filter: blur(12px);
+      pointer-events: none;
+      font-size: 11px;
+      color: #64748b;
+      box-shadow: 0 2px 12px rgba(24, 144, 255, 0.1);
 
-      :deep(.twin-panel__body) {
-        padding: 8px 10px 10px;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-      }
+      b { color: #1e4976; font-weight: 700; }
+    }
+
+    &__hud-badge {
+      font-weight: 700;
+      padding-right: 12px;
+      border-right: 1px solid rgba(24, 144, 255, 0.15);
+    }
+
+    &.sim-viewport--2d {
+      background: linear-gradient(180deg, #f7fbff 0%, #eef6fc 100%);
+      border-color: rgba(24, 144, 255, 0.22);
+      box-shadow:
+        inset 0 0 40px rgba(24, 144, 255, 0.06),
+        0 4px 20px rgba(24, 144, 255, 0.08);
+    }
+
+    :deep(.three-scene),
+    :deep(.twin-2d) {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
     }
   }
 
-  .sim-twin-toolbar {
-    position: absolute;
-    bottom: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 6;
+  .sim-toolbar {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
     gap: 8px;
-    padding: 8px 16px;
-    background: rgba(6, 16, 32, 0.88);
-    border: 1px solid rgba(0, 180, 255, 0.4);
-    border-radius: 999px;
-    backdrop-filter: blur(12px);
-    pointer-events: auto;
+    padding: 10px 14px;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.92) 0%, rgba(232, 244, 252, 0.88) 100%);
+    border: 1px solid rgba(24, 144, 255, 0.2);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(24, 144, 255, 0.08);
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+
+    &:hover {
+      border-color: rgba(24, 144, 255, 0.28);
+      box-shadow: 0 6px 20px rgba(24, 144, 255, 0.1);
+    }
+
+    &__view {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    &__sep {
+      width: 1px;
+      height: 20px;
+      margin: 0 4px;
+      background: rgba(24, 144, 255, 0.2);
+    }
 
     &__btn {
-      padding: 6px 16px;
-      font-size: 12px;
+      padding: 7px 18px;
+      font-size: $cockpit-font-sm;
       font-weight: 600;
-      color: #7efcff;
-      background: rgba(0, 60, 100, 0.45);
-      border: 1px solid rgba(0, 180, 255, 0.35);
-      border-radius: 999px;
+      color: #1890ff;
+      background: rgba(230, 244, 255, 0.9);
+      border: 1px solid rgba(24, 144, 255, 0.25);
+      border-radius: 8px;
       cursor: pointer;
+      transition:
+        transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 0.2s ease,
+        background 0.2s ease,
+        border-color 0.2s ease;
 
-      &:hover:not(:disabled) { background: rgba(0, 100, 160, 0.55); }
-      &:disabled { opacity: 0.4; cursor: not-allowed; }
+      &:hover:not(:disabled) {
+        transform: translateY(-2px);
+        background: #e6f4ff;
+        border-color: rgba(24, 144, 255, 0.45);
+        box-shadow: 0 4px 14px rgba(24, 144, 255, 0.2);
+      }
+
+      &:active:not(:disabled) {
+        transform: translateY(0) scale(0.96);
+        transition-duration: 0.08s;
+      }
+
+      &:disabled { opacity: 0.45; cursor: not-allowed; }
+
+      &.is-active {
+        color: #fff;
+        background: linear-gradient(135deg, #1890ff, #096dd9);
+        border-color: transparent;
+        box-shadow: 0 0 16px rgba(24, 144, 255, 0.3);
+
+        &:hover:not(:disabled) {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 20px rgba(24, 144, 255, 0.4);
+        }
+      }
+
+      &--launch {
+        color: #fff;
+        background: linear-gradient(135deg, #1890ff, #096dd9);
+        border-color: transparent;
+        padding: 7px 22px;
+      }
     }
 
     &__time {
       margin-left: 8px;
-      font-size: 12px;
-      color: rgba(180, 210, 240, 0.75);
+      font-size: $cockpit-font-sm;
+      color: #64748b;
+    }
+
+    &__field {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: $cockpit-font-sm;
+      color: #64748b;
+
+      span { white-space: nowrap; }
+    }
+
+    &__select {
+      padding: 6px 10px;
+      font-size: $cockpit-font-sm;
+      font-weight: 600;
+      color: #1890ff;
+      background: rgba(230, 244, 255, 0.9);
+      border: 1px solid rgba(24, 144, 255, 0.25);
+      border-radius: 8px;
+      cursor: pointer;
+
+      &:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
     }
   }
+}
 
-  .sim-twin-drawer {
-    position: absolute;
-    top: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 7;
-    width: min(420px, 90vw);
-    pointer-events: auto;
-  }
+@keyframes holo-scan {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(4px); }
+}
+
+@keyframes particle-drift {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes data-beam {
+  0%, 100% { opacity: 0.25; transform: scaleY(0.85); }
+  50% { opacity: 0.7; transform: scaleY(1); }
+}
+
+@keyframes bar-shimmer {
+  0% { transform: translateY(100%); }
+  100% { transform: translateY(-100%); }
 }
 
 .twin-kpi-row {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .twin-kpi {
   flex: 1;
   text-align: center;
-  font-size: 10px;
-  color: rgba(160, 190, 220, 0.8);
+  font-size: $cockpit-font-xs;
+  color: #64748b;
+  padding: 6px 4px;
+  border-radius: 10px;
+  @include interactive-card;
+  cursor: pointer;
+
+  span { color: #1890ff; font-size: 11px; font-weight: 600; }
 
   &__ring {
-    width: 68px;
-    height: 68px;
-    margin: 0 auto 6px;
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 5px;
     border-radius: 50%;
-    background: conic-gradient(var(--c, #00d4ff) var(--pct), rgba(30, 50, 70, 0.8) 0);
+    background: conic-gradient(var(--c, #1890ff) var(--pct), #e2e8f0 0);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     position: relative;
-    box-shadow: 0 0 16px rgba(0, 180, 255, 0.2);
+    box-shadow: 0 0 12px rgba(24, 144, 255, 0.15);
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
 
     &::before {
       content: '';
       position: absolute;
-      inset: 6px;
+      inset: 5px;
       border-radius: 50%;
-      background: rgba(8, 18, 32, 0.92);
+      background: #fff;
+      border: 1px solid rgba(24, 144, 255, 0.12);
     }
 
-    b, small {
-      position: relative;
-      z-index: 1;
-      line-height: 1.1;
+    b, small { position: relative; z-index: 1; line-height: 1.1; }
+    b { font-size: 13px; color: #1e4976; }
+    small { font-size: 10px; color: #64748b; }
+
+    &--flow {
+      background: conic-gradient(#1890ff 65%, #e2e8f0 0);
     }
+    &--gate {
+      background: conic-gradient(#22c55e 45%, #e2e8f0 0);
+    }
+  }
 
-    b { font-size: 14px; color: #fff; }
-    small { font-size: 9px; color: rgba(180, 210, 240, 0.7); }
-
-    &--flow { background: conic-gradient(#1890ff 65%, rgba(30, 50, 70, 0.8) 0); }
-    &--gate { background: conic-gradient(#2ed573 45%, rgba(30, 50, 70, 0.8) 0); }
+  &:hover &__ring {
+    box-shadow: 0 0 20px rgba(24, 144, 255, 0.35);
+    transform: scale(1.06);
   }
 }
 
@@ -526,31 +1023,81 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 11px;
+  font-size: $cockpit-font-xs;
 
   li {
     display: flex;
     justify-content: space-between;
-    padding: 5px 0;
-    border-bottom: 1px dashed rgba(0, 140, 200, 0.15);
-    color: rgba(160, 190, 220, 0.75);
+    padding: 6px 8px;
+    margin: 0 -8px;
+    border-bottom: 1px dashed rgba(24, 144, 255, 0.12);
+    border-radius: 6px;
+    color: #64748b;
+    cursor: pointer;
+    transition:
+      transform 0.2s ease,
+      background 0.2s ease,
+      padding-left 0.2s ease;
 
-    b { color: #e8f4ff; font-weight: 700; }
+    &:hover {
+      transform: translateX(4px);
+      background: rgba(24, 144, 255, 0.06);
+      padding-left: 12px;
+    }
+
+    &:active {
+      transform: translateX(2px) scale(0.99);
+    }
+
+    b { color: #1890ff; font-weight: 700; }
   }
 }
 
 .twin-bars {
   display: flex;
   align-items: flex-end;
-  gap: 4px;
-  height: 100px;
+  gap: 5px;
+  flex: 1;
+  min-height: 120px;
+  height: 100%;
+  padding-top: 4px;
 
   &__item {
+    position: relative;
     flex: 1;
-    min-height: 8px;
-    background: linear-gradient(180deg, #00d4ff, #1a5080);
-    border-radius: 2px 2px 0 0;
-    opacity: 0.85;
+    min-height: 10px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #7dd3fc 0%, #1890ff 45%, #0ea5e9 100%);
+    border-radius: 3px 3px 0 0;
+    opacity: 0.92;
+    box-shadow: 0 0 8px rgba(24, 144, 255, 0.2);
+    cursor: pointer;
+    transition:
+      height 0.8s ease,
+      transform 0.22s ease,
+      box-shadow 0.22s ease,
+      opacity 0.22s ease;
+
+    &:hover {
+      transform: scaleY(1.04) scaleX(1.08);
+      transform-origin: bottom center;
+      opacity: 1;
+      box-shadow: 0 0 18px rgba(24, 144, 255, 0.45);
+      z-index: 1;
+    }
+
+    &:active {
+      transform: scaleY(0.98) scaleX(1.02);
+      transform-origin: bottom center;
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.35) 50%, transparent 100%);
+      animation: bar-shimmer 2.8s linear infinite;
+    }
   }
 }
 
@@ -558,20 +1105,35 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   margin: 0 0 10px;
   padding: 0;
   list-style: none;
-  font-size: 11px;
+  font-size: $cockpit-font-xs;
 
   li {
     display: flex;
     justify-content: space-between;
-    padding: 5px 0;
-    border-bottom: 1px solid rgba(0, 140, 200, 0.12);
-    color: rgba(180, 210, 240, 0.75);
+    padding: 6px 8px;
+    margin: 0 -8px;
+    border-bottom: 1px solid rgba(24, 144, 255, 0.1);
+    border-radius: 6px;
+    color: #64748b;
+    cursor: pointer;
+    transition:
+      transform 0.2s ease,
+      background 0.2s ease,
+      box-shadow 0.2s ease;
 
-    b {
-      color: rgba(160, 190, 220, 0.6);
+    &:hover {
+      transform: translateX(3px);
+      background: rgba(34, 197, 94, 0.06);
+      box-shadow: inset 3px 0 0 rgba(34, 197, 94, 0.5);
+    }
+
+    &:active {
+      transform: scale(0.99);
+    }
+
+    b.is-open {
+      color: #16a34a;
       font-weight: 600;
-
-      &.is-open { color: #2ed573; }
     }
   }
 }
@@ -579,16 +1141,17 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 .twin-alert {
   margin: 0;
   padding: 8px 10px;
-  font-size: 11px;
+  font-size: $cockpit-font-xs;
   border-radius: 6px;
-  background: rgba(0, 80, 60, 0.35);
-  border: 1px solid rgba(46, 213, 115, 0.35);
-  color: #aaf0c8;
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.22);
+  color: #16a34a;
+  cursor: default;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
 
-  &.is-warn {
-    background: rgba(80, 30, 0, 0.35);
-    border-color: rgba(255, 165, 2, 0.5);
-    color: #ffd59a;
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.15);
   }
 }
 
@@ -727,12 +1290,22 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   border-radius: 10px;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(24, 144, 255, 0.15);
-  transition: all 0.2s;
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
 
   &:hover:not(:disabled) {
+    transform: translateY(-2px);
     background: #e6f4ff;
     border-color: #1890ff;
-    box-shadow: 0 0 14px rgba(24, 144, 255, 0.28);
+    box-shadow: 0 6px 18px rgba(24, 144, 255, 0.28);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0) scale(0.96);
+    transition-duration: 0.08s;
   }
 
   &:disabled {

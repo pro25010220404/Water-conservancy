@@ -1,5 +1,5 @@
 // ============================================================
-// 电影级动态天光 — 多天气预设 + 丁达尔体积光
+// 电影级动态天光 — 多天气预设
 // ============================================================
 import * as THREE from 'three'
 import {
@@ -73,9 +73,10 @@ const SKY_FS = `
     sky += uSunColor * sun;
     sky += uSunColor * sunHalo * 0.2;
 
-    float ray = pow(sunDot, 3.5) * uRayStrength * (0.85 + 0.15 * sin(uTime * 0.35));
-    ray *= smoothstep(-0.05, 0.45, dir.y);
-    sky += uSunColor * ray * 0.25;
+    float ray = pow(sunDot, 2.8) * uRayStrength * (0.82 + 0.18 * sin(uTime * 0.28));
+    ray *= smoothstep(-0.08, 0.52, dir.y);
+    float rayBeam = fbm(dir.xz * 4.5 + uTime * 0.008) * 0.35 + 0.65;
+    sky += uSunColor * ray * rayBeam * 0.48;
 
     gl_FragColor = vec4(sky, 1.0);
   }

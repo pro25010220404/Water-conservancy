@@ -9,11 +9,18 @@ export function createWaterMaterial(options?: {
   opacity?: number
   envMap?: THREE.Texture | null
   waveScale?: number
+  /** 水面镜面高光强度，孪生场景宜 0.1~0.2 */
+  specIntensity?: number
+  /** 蓝色流体网格强度 */
+  gridStrength?: number
 }) {
   const color = options?.color ?? 0x1a5080
   const deepColor = options?.deepColor ?? 0x0a2540
   const opacity = options?.opacity ?? 0.9
   const waveScale = options?.waveScale ?? 0.38
+  const specIntensity = options?.specIntensity ?? 1.0
+  const reflectivity = options?.reflectivity ?? 0.72
+  const gridStrength = options?.gridStrength ?? 0
 
   const mat = new THREE.ShaderMaterial({
     uniforms: {
@@ -26,7 +33,9 @@ export function createWaterMaterial(options?: {
       uSunDirection: { value: new THREE.Vector3(0.55, 0.35, 0.42).normalize() },
       uSunColor: { value: new THREE.Color(0xffcc77) },
       uEnvMap: { value: options?.envMap ?? null },
-      uReflectivity: { value: 0.72 },
+      uReflectivity: { value: reflectivity },
+      uSpecIntensity: { value: specIntensity },
+      uGridStrength: { value: gridStrength },
     },
     vertexShader: `
       uniform float uTime;
@@ -74,6 +83,8 @@ export function createWaterMaterial(options?: {
       uniform float uTime;
       uniform samplerCube uEnvMap;
       uniform float uReflectivity;
+      uniform float uSpecIntensity;
+      uniform float uGridStrength;
       varying vec3 vWorldPos;
       varying vec3 vNormal;
       varying vec3 vViewDir;
@@ -92,7 +103,6 @@ export function createWaterMaterial(options?: {
 
         vec3 refractDir = refract(-V, N, 0.75);
         vec3 refrCol = textureCube(uEnvMap, refractDir).rgb * vec3(0.35, 0.55, 0.72);
-        col = mix(col, refrCol, (1.0 - fresnel) * 0.35 * hasEnv);
 
         float spec = pow(max(dot(reflect(-L, N), V), 0.0), 220.0);
         float spec2 = pow(max(dot(reflect(-L, N), V), 0.0), 42.0);
@@ -102,10 +112,31 @@ export function createWaterMaterial(options?: {
         caustic = caustic * 0.5 + 0.5;
 
         vec3 col = mix(uDeepColor, uColor, 0.42 + vWave * 0.14 + fresnel * 0.22);
+        col = mix(col, refrCol, (1.0 - fresnel) * 0.28 * hasEnv);
         col = mix(col, envRef * vec3(0.55, 0.72, 0.95), fresnel * uReflectivity * hasEnv);
-        col += uSunColor * spec * 2.2;
-        col += uSunColor * spec2 * 0.55;
-        col += uSunColor * sunBand * 0.18 * (0.85 + 0.15 * sin(uTime * 0.8 + vWorldPos.x * 0.3));
+        col += uSunColor * spec * 2.2 * uSpecIntensity;
+        col += uSunColor * spec2 * 0.55 * uSpecIntensity;
+        col += uSunColor * sunBand * 0.18 * uSpecIntensity * (0.85 + 0.15 * sin(uTime * 0.8 + vWorldPos.x * 0.3));
+
+        float sunStreak = pow(max(dot(reflect(-L, N), V), 0.0), 3.2);
+        col += uSunColor * sunStreak * 0.42 * uSpecIntensity * fresnel;
+
+        float sparkle = pow(max(
+          sin(vWorldPos.x * 9.0 + uTime * 1.8) *
+          sin(vWorldPos.z * 8.0 - uTime * 1.4), 0.0), 14.0);
+        col += uSunColor * sparkle * 0.32 * fresnel * uSpecIntensity;
+
+        vec2 sunXZ = normalize(vec2(L.x + 0.001, L.z + 0.001));
+        float longStripe = sin(dot(vWorldPos.xz, sunXZ) * 1.8 + uTime * 0.45) * 0.5 + 0.5;
+        longStripe = pow(longStripe, 5.0) * sunBand;
+        col += uSunColor * longStripe * 0.62 * uSpecIntensity;
+
+        float gridX = abs(fract(vWorldPos.x * 0.35) - 0.5);
+        float gridZ = abs(fract(vWorldPos.z * 0.35) - 0.5);
+        float grid = (1.0 - smoothstep(0.0, 0.06, gridX)) + (1.0 - smoothstep(0.0, 0.06, gridZ));
+        grid = min(grid, 1.0) * uGridStrength;
+        col += vec3(0.15, 0.45, 0.95) * grid * (0.6 + fresnel * 0.4);
+
         col += vec3(0.05, 0.25, 0.45) * caustic * 0.08;
 
         float foam = smoothstep(0.28, 0.52, vWave) * 0.12;

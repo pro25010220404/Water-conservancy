@@ -8,6 +8,10 @@ export const XIANGJIABA_HYDRO = {
   name: '向家坝水电站',
   /** 坝顶高程 */
   crestElevation: 384,
+  /** 地理区位（坝址位于川滇交界，主体在四川省宜宾市境内） */
+  locationLabel: '四川省宜宾市・向家坝水电站',
+  longitude: "104°23′",
+  latitude: "28°38′",
   /** 正常蓄水位 */
   normalPoolLevel: 380,
   /** 主汛期汛限水位（5–9 月） */

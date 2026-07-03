@@ -2,17 +2,21 @@
 // ============================================================
 // 主布局 — 侧边栏 + 顶栏 + 标签栏 + 内容区
 // ============================================================
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElContainer, ElAside, ElMain } from 'element-plus'
 import AppHeader from './AppHeader.vue'
 import AppSidebar from './AppSidebar.vue'
 import AppTabs from './AppTabs.vue'
+import GlobalEmergencyStop from '@/components/GlobalEmergencyStop.vue'
 import { useTabsStore } from '@/stores/tabs'
 
 const route = useRoute()
 const tabsStore = useTabsStore()
 const collapsed = ref(false)
+
+/** 数字孪生等全幅驾驶舱页：内容区与标签栏无缝衔接，去掉双层边距 */
+const isFlushPage = computed(() => route.path.startsWith('/simulation'))
 
 watch(
   () => route.path,
@@ -28,15 +32,18 @@ watch(
     </el-aside>
     <el-container direction="vertical" class="main-layout__body">
       <AppHeader :collapsed="collapsed" @toggle-collapse="collapsed = !collapsed" />
-      <AppTabs />
-      <el-main class="main-layout__content">
+      <AppTabs :flush-below="isFlushPage" />
+      <el-main class="main-layout__content" :class="{ 'main-layout__content--flush': isFlushPage }">
         <router-view />
       </el-main>
+      <GlobalEmergencyStop />
     </el-container>
   </el-container>
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/cockpit.scss' as *;
+
 .main-layout {
   height: 100vh;
 
@@ -60,6 +67,19 @@ watch(
     background: var(--color-bg-dark);
     padding: var(--spacing-lg);
     overflow-y: auto;
+    @include hide-scrollbar;
+
+    &--flush {
+      padding: 0;
+      overflow: hidden;
+      background: linear-gradient(
+        180deg,
+        #f0f4f8 0%,
+        #e8f2fa 6%,
+        #f0f7fc 18%,
+        #f7fbff 100%
+      );
+    }
   }
 }
 </style>

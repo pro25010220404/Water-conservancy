@@ -34,6 +34,12 @@ export interface SimulationParams {
   durationMin: number        // 仿真时长 min
 }
 
+/** 启动仿真时的完整载荷（含倍速、闸门开度） */
+export interface SimulationStartPayload extends SimulationParams {
+  speed?: SimulationSpeed
+  gateOpening?: number
+}
+
 // ---------- 仿真实时数据 ----------
 export interface SimulationRealtimeData {
   status: SimulationStatus

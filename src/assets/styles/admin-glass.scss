@@ -15,16 +15,23 @@
 }
 
 @mixin btn-hover-light {
-  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 
   &:hover:not(:disabled) {
+    transform: translateY(-1px);
     color: $color-primary !important;
     background: #e6f4ff !important;
     border-color: rgba(24, 144, 255, 0.35) !important;
-    box-shadow: 0 2px 10px rgba(24, 144, 255, 0.14);
+    box-shadow: 0 4px 14px rgba(24, 144, 255, 0.16);
   }
 
   &:active:not(:disabled) {
-    transform: scale(0.98);
+    transform: translateY(0) scale(0.97);
+    transition-duration: 0.08s;
   }
 }

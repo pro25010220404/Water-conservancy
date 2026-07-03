@@ -22,6 +22,8 @@ const props = defineProps<{
   reportLoading?: boolean
   reviewLoading?: boolean
   compact?: boolean
+  /** 顶部导航已展示 Tab 时隐藏面板内重复 Tab 栏 */
+  hideTabs?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -46,7 +48,7 @@ function formatDuration(sec: number) {
 
 <template>
   <div class="sim-tab-panel" :class="{ 'sim-tab-panel--compact': compact }">
-    <div class="sim-tab-panel__tabs">
+    <div v-if="!hideTabs" class="sim-tab-panel__tabs">
       <button
         v-for="t in SIMULATION_TABS"
         :key="t.value"
@@ -272,46 +274,37 @@ function formatDuration(sec: number) {
     background: rgba(255, 255, 255, 0.85);
     border: 1px solid rgba(24, 144, 255, 0.18);
     border-radius: 8px;
-    cursor: pointer;
+    @include interactive-tactile(-2px);
+
+    &:hover {
+      border-color: rgba(24, 144, 255, 0.35);
+      background: #f0f8ff;
+      box-shadow: 0 4px 12px rgba(24, 144, 255, 0.12);
+    }
 
     &.active {
       color: $cockpit-accent;
       background: #e6f4ff;
       border-color: $cockpit-accent;
+      box-shadow: 0 2px 10px rgba(24, 144, 255, 0.15);
     }
   }
 
   &--compact {
-    .sim-tab-panel__tab {
-      color: rgba(180, 210, 240, 0.75);
-      background: rgba(0, 40, 70, 0.5);
-      border-color: rgba(0, 180, 255, 0.25);
-
-      &.active {
-        color: #7efcff;
-        background: rgba(0, 80, 140, 0.55);
-        border-color: #00d4ff;
-      }
-    }
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 
     .sim-tab-panel__compact-body {
-      max-height: 220px;
+      flex: 1;
+      max-height: none;
+      overflow-x: hidden;
       overflow-y: auto;
-      font-size: 12px;
-      color: rgba(210, 230, 255, 0.9);
-    }
-
-    .scene-brief h4,
-    .summary-list dd,
-    .entity-list__main strong {
-      color: #e8f4ff;
-    }
-
-    .scene-brief p,
-    .summary-list dt,
-    .entity-list__meta,
-    .hint-text {
-      color: rgba(160, 190, 220, 0.75);
+      font-size: $cockpit-font-base;
+      color: $cockpit-text;
+      min-width: 0;
+      @include hide-scrollbar;
     }
   }
 
@@ -327,6 +320,7 @@ function formatDuration(sec: number) {
     min-height: 0;
     overflow-y: auto;
     font-size: $cockpit-font-base;
+    @include hide-scrollbar;
   }
 
   :deep(.el-button) {
@@ -335,11 +329,12 @@ function formatDuration(sec: number) {
 }
 
 .scene-brief {
-  margin-bottom: var(--spacing-md);
+  margin-bottom: 10px;
+  min-width: 0;
 
   h4 {
-    margin: 0 0 8px;
-    font-size: $cockpit-font-lg;
+    margin: 0 0 6px;
+    font-size: $cockpit-font-md;
     color: $cockpit-text;
   }
 
@@ -347,31 +342,60 @@ function formatDuration(sec: number) {
     margin: 0;
     font-size: $cockpit-font-base;
     color: $cockpit-text-dim;
-    line-height: 1.55;
+    line-height: 1.5;
+    word-break: break-word;
   }
 }
 
 .summary-list {
-  margin: 0 0 var(--spacing-md);
+  margin: 0 0 10px;
   padding: 0;
+  min-width: 0;
 
   &__row {
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    gap: 8px;
     padding: 10px 0;
+    margin: 0;
     border-bottom: 1px solid rgba(24, 144, 255, 0.1);
     font-size: $cockpit-font-base;
+    min-width: 0;
+
+    &:hover {
+      background: rgba(24, 144, 255, 0.04);
+    }
   }
 
-  dt { color: $cockpit-text-dim; }
-  dd { margin: 0; font-weight: 600; color: $cockpit-accent; @include data-value; font-size: $cockpit-font-lg; }
+  dt {
+    flex: 1;
+    min-width: 0;
+    color: $cockpit-text-dim;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  dd {
+    margin: 0;
+    flex-shrink: 0;
+    font-weight: 700;
+    color: $cockpit-accent;
+    font-size: $cockpit-font-md;
+    white-space: nowrap;
+  }
 }
 
-.history-block h5 {
-  margin: 0 0 10px;
-  font-size: $cockpit-font-sm;
-  color: $cockpit-text-dim;
-  font-weight: 600;
+.history-block {
+  min-width: 0;
+
+  h5 {
+    margin: 0 0 8px;
+    font-size: $cockpit-font-base;
+    color: $cockpit-text-dim;
+    font-weight: 700;
+  }
 }
 
 .history-list {
@@ -380,10 +404,15 @@ function formatDuration(sec: number) {
   list-style: none;
   font-size: $cockpit-font-base;
   color: $cockpit-text;
+  min-width: 0;
 
   li {
     padding: 6px 0;
+    margin: 0;
     border-bottom: 1px dashed rgba(24, 144, 255, 0.08);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
@@ -391,7 +420,8 @@ function formatDuration(sec: number) {
   margin: 0;
   font-size: $cockpit-font-base;
   color: $cockpit-text-dim;
-  line-height: 1.55;
+  line-height: 1.5;
+  word-break: break-word;
 }
 
 .panel-actions {
@@ -404,8 +434,25 @@ function formatDuration(sec: number) {
   list-style: none;
 
   &__item {
-    padding: 12px 0;
+    padding: 12px 10px;
+    margin: 0 -10px;
     border-bottom: 1px solid rgba(24, 144, 255, 0.1);
+    border-radius: 8px;
+    cursor: pointer;
+    transition:
+      transform 0.22s ease,
+      background 0.22s ease,
+      box-shadow 0.22s ease;
+
+    &:hover {
+      transform: translateY(-1px);
+      background: rgba(24, 144, 255, 0.04);
+      box-shadow: 0 4px 14px rgba(24, 144, 255, 0.08);
+    }
+
+    &:active {
+      transform: scale(0.99);
+    }
   }
 
   &__main {

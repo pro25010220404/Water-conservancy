@@ -191,6 +191,36 @@ export function loadDamModel(
   })
 }
 
+/** 数字孪生白底场景 — 加深坝体对比度，避免 PBR 反射与环境融为一体 */
+export function applyTwinLightBackgroundMaterials(root: THREE.Object3D) {
+  root.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+    mats.forEach((m) => {
+      if (!(m instanceof THREE.MeshStandardMaterial)) return
+      const isSteel = obj.name.startsWith(DAM_GATE_NAME_PREFIX)
+        || obj.name.includes('闸门')
+        || obj.name.startsWith('pier_')
+      if (isSteel) {
+        m.color.setHex(0x5a6a7a)
+        m.metalness = 0.52
+        m.roughness = 0.44
+        m.emissive.setHex(0x1890ff)
+        m.emissiveIntensity = 0.05
+      } else {
+        m.color.setHex(0x6e7884)
+        m.metalness = 0.1
+        m.roughness = 0.74
+        m.emissive.setHex(0x2a3540)
+        m.emissiveIntensity = 0.07
+      }
+      m.envMap = null
+      m.envMapIntensity = 0
+      m.needsUpdate = true
+    })
+  })
+}
+
 /** 混元/外部 GLB 坝体 — 提亮材质便于在暗色场景中辨认 */
 export function enhanceGltfDamVisibility(root: THREE.Object3D, envMap?: THREE.Texture | null) {
   root.traverse((obj) => {
@@ -255,19 +285,118 @@ export function rebakeDamPBR(root: THREE.Object3D, envMap?: THREE.Texture | null
   })
 }
 
-/** 数字孪生俯视视角（参考 EasyV / 水利驾驶舱） */
+/** 数字孪生俯视视角（库区侧 aerial，参考 EasyV p2） */
 export function getTwinAerialCamera(root: THREE.Object3D, heroCenter: THREE.Vector3) {
   const box = new THREE.Box3().setFromObject(root)
   const size = box.getSize(new THREE.Vector3())
   const center = box.getCenter(new THREE.Vector3())
+  const span = Math.max(size.x, size.y, size.z, 36)
   return {
     position: new THREE.Vector3(
-      center.x + Math.max(size.x, 40) * 0.95,
-      center.y + Math.max(size.y, 28) * 1.05,
-      center.z + Math.max(size.z, 20) * 1.15,
+      center.x - span * 0.52,
+      center.y + span * 0.92,
+      center.z - span * 1.05,
     ),
-    target: new THREE.Vector3(center.x, heroCenter.y + size.y * 0.28, center.z),
+    target: new THREE.Vector3(
+      center.x + span * 0.08,
+      heroCenter.y + size.y * 0.16,
+      center.z + span * 0.04,
+    ),
   }
+}
+
+/** 数字孪生 — 略俯水平视角，坝体约占画面纵向一半 */
+export function getTwinCinematicCamera(root: THREE.Object3D, heroCenter: THREE.Vector3) {
+  const box = new THREE.Box3().setFromObject(root)
+  const size = box.getSize(new THREE.Vector3())
+  const center = box.getCenter(new THREE.Vector3())
+  const span = Math.max(size.x, size.y, size.z, 32)
+  const dist = span * 2.9
+  return {
+    position: new THREE.Vector3(
+      center.x + dist * 0.4,
+      center.y + span * 0.68,
+      center.z + dist * 0.58,
+    ),
+    target: new THREE.Vector3(
+      center.x - span * 0.04,
+      heroCenter.y + size.y * 0.16,
+      center.z - span * 0.02,
+    ),
+  }
+}
+
+/** 仿真运行 — 近景聚焦坝体与闸门区域 */
+export function getSimulationFocusCamera(root: THREE.Object3D, heroCenter: THREE.Vector3) {
+  const box = new THREE.Box3().setFromObject(root)
+  const size = box.getSize(new THREE.Vector3())
+  const center = box.getCenter(new THREE.Vector3())
+  const span = Math.max(size.x, size.y, size.z, 32)
+  const dist = span * 1.75
+  return {
+    position: new THREE.Vector3(
+      center.x + dist * 0.36,
+      center.y + span * 0.38,
+      center.z + dist * 0.46,
+    ),
+    target: new THREE.Vector3(
+      center.x - span * 0.02,
+      heroCenter.y + size.y * 0.18,
+      center.z - span * 0.01,
+    ),
+  }
+}
+
+/** 全景弹窗 — 开阔远景，完整呈现坝体与上下游 */
+export function getPanoramaCamera(root: THREE.Object3D, heroCenter: THREE.Vector3) {
+  const box = new THREE.Box3().setFromObject(root)
+  const size = box.getSize(new THREE.Vector3())
+  const center = box.getCenter(new THREE.Vector3())
+  const span = Math.max(size.x, size.y, size.z, 32)
+  const dist = span * 3.6
+  return {
+    position: new THREE.Vector3(
+      center.x + dist * 0.52,
+      center.y + span * 0.55,
+      center.z + dist * 0.72,
+    ),
+    target: new THREE.Vector3(
+      center.x - span * 0.06,
+      heroCenter.y + size.y * 0.12,
+      center.z - span * 0.04,
+    ),
+  }
+}
+
+/** 全景弹窗 — 加深灰混凝土材质，强化厚重体量感 */
+export function applyPanoramaConcreteMaterial(root: THREE.Object3D, envMap?: THREE.Texture | null) {
+  const concreteTex = createConcreteTextures(2048)
+  root.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return
+    if (obj.name.startsWith('phWindow_')) return
+    const isPier = obj.name.startsWith('pier_')
+    const isGate = obj.name.startsWith(DAM_GATE_NAME_PREFIX) || obj.name.includes('闸门')
+    if (isGate) {
+      obj.material = new THREE.MeshStandardMaterial({
+        color: 0x6a7580,
+        roughness: 0.42,
+        metalness: 0.55,
+        envMap: envMap ?? null,
+        envMapIntensity: 0.88,
+      })
+    } else {
+      obj.material = new THREE.MeshStandardMaterial({
+        map: concreteTex.map,
+        normalMap: concreteTex.normalMap,
+        roughnessMap: concreteTex.roughnessMap,
+        color: isPier ? 0x4a5560 : 0x3d4850,
+        roughness: 0.88,
+        metalness: 0.06,
+        envMap: envMap ?? null,
+        envMapIntensity: 0.62,
+      })
+    }
+  })
 }
 
 /** 相机对准大坝主体（泄洪面） */

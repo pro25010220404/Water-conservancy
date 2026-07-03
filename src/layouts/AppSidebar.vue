@@ -116,7 +116,7 @@ const visibleMenus = computed(() =>
     margin: 4px 8px;
     border-radius: var(--border-radius-sm);
     color: var(--color-layout-blue-text-secondary);
-    transition: all 0.2s;
+    transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   :deep(.el-menu-item.is-active) {
@@ -130,6 +130,12 @@ const visibleMenus = computed(() =>
   :deep(.el-menu-item:hover) {
     background: rgba(0, 212, 255, 0.08) !important;
     color: var(--color-layout-blue-text) !important;
+    transform: translateX(3px);
+    box-shadow: 0 2px 12px rgba(0, 212, 255, 0.12);
+  }
+
+  :deep(.el-menu-item:active) {
+    transform: translateX(1px) scale(0.98);
   }
 }
 </style>
