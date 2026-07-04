@@ -3,6 +3,7 @@
 // ============================================================
 import { defineStore } from 'pinia'
 import { ref, nextTick } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import type { RouteLocationNormalized } from 'vue-router'
 import router from '@/app/router'
 
@@ -20,6 +21,9 @@ const HOME_TAB: TabItem = {
   affix: true,
 }
 
+/** 最多同时打开的标签数（含固定首页） */
+export const MAX_TABS = 8
+
 export const useTabsStore = defineStore('tabs', () => {
   const tabs = ref<TabItem[]>([{ ...HOME_TAB }])
   const viewAlive = ref(true)
@@ -28,15 +32,32 @@ export const useTabsStore = defineStore('tabs', () => {
     if (route.meta.requiresAuth === false || route.name === 'NotFound') return
 
     const path = route.path
-    const exists = tabs.value.find((t) => t.path === path)
-    if (!exists) {
-      tabs.value.push({
-        path,
-        title: (route.meta.shortTitle as string) || (route.meta.title as string) || path,
-        name: route.name as string | undefined,
-        affix: route.meta.affix as boolean | undefined,
-      })
+    const existsIdx = tabs.value.findIndex((t) => t.path === path)
+    if (existsIdx !== -1) {
+      const [existing] = tabs.value.splice(existsIdx, 1)
+      tabs.value.push(existing)
+      return
     }
+
+    if (tabs.value.length >= MAX_TABS) {
+      ElMessageBox.alert(
+        `标签栏最多同时打开 ${MAX_TABS} 个页面，请先关闭其他标签后再打开新页面。`,
+        '标签页已满',
+        { type: 'warning', confirmButtonText: '知道了' },
+      )
+      const fallback = tabs.value[tabs.value.length - 1]?.path ?? HOME_TAB.path
+      if (router.currentRoute.value.path !== fallback) {
+        router.replace(fallback)
+      }
+      return
+    }
+
+    tabs.value.push({
+      path,
+      title: (route.meta.shortTitle as string) || (route.meta.title as string) || path,
+      name: route.name as string | undefined,
+      affix: route.meta.affix as boolean | undefined,
+    })
   }
 
   function switchTab(path: string) {

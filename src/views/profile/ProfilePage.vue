@@ -206,12 +206,12 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
       <template #header>
         <div class="profile-card__header">
           <span>个人信息</span>
-          <el-button type="primary" size="small" @click="openInfoDialog">编辑</el-button>
+          <el-button type="primary" @click="openInfoDialog">编辑</el-button>
         </div>
       </template>
       <div class="profile-info">
         <div class="profile-info__avatar">
-          <el-avatar :size="80" style="background:linear-gradient(135deg, #1890ff, #00d4ff);color:#fff;font-size:32px;font-weight:600">
+          <el-avatar :size="96" style="background:linear-gradient(135deg, #1890ff, #00d4ff);color:#fff;font-size:38px;font-weight:600">
             {{ displayName.charAt(0) }}
           </el-avatar>
         </div>
@@ -227,7 +227,7 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
           <div class="profile-info__row">
             <span class="profile-info__label">角色</span>
             <span class="profile-info__value">
-              <el-tag size="small">{{ roleLabel || '未分配' }}</el-tag>
+              <el-tag>{{ roleLabel || '未分配' }}</el-tag>
             </span>
           </div>
           <div class="profile-info__row">
@@ -264,7 +264,7 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
     <el-card class="profile-card" shadow="never">
       <template #header><span>我的操作日志</span></template>
       <div class="profile-logs__filters">
-        <el-select v-model="logModuleFilter" placeholder="操作模块" clearable size="small" style="width:140px" @change="onLogFilterChange">
+        <el-select v-model="logModuleFilter" placeholder="操作模块" clearable style="width:160px" @change="onLogFilterChange">
           <el-option v-for="m in logModules" :key="m.value" :label="m.label" :value="m.value" />
         </el-select>
         <el-date-picker
@@ -273,19 +273,19 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
           range-separator="至"
           start-placeholder="开始日期"
           end-placeholder="结束日期"
-          size="small"
+          size="default"
           value-format="YYYY-MM-DD"
           @change="onLogFilterChange"
         />
       </div>
-      <el-table :data="logs" v-loading="logsLoading" size="small" style="width:100%;margin-top:12px">
-        <el-table-column prop="time" label="时间" width="170" />
-        <el-table-column prop="module" label="操作模块" width="100" />
-        <el-table-column prop="type" label="操作类型" width="120" />
-        <el-table-column prop="description" label="操作描述" min-width="200" show-overflow-tooltip />
-        <el-table-column label="操作结果" width="90">
+      <el-table :data="logs" v-loading="logsLoading" class="profile-logs-table" style="width:100%;margin-top:14px">
+        <el-table-column prop="time" label="时间" width="190" />
+        <el-table-column prop="module" label="操作模块" width="120" />
+        <el-table-column prop="type" label="操作类型" width="130" />
+        <el-table-column prop="description" label="操作描述" min-width="220" show-overflow-tooltip />
+        <el-table-column label="操作结果" width="100">
           <template #default="scope">
-            <el-tag :type="(scope.row as OperationLog).result === 1 ? 'success' : 'danger'" size="small">{{ (scope.row as OperationLog).result === 1 ? '成功' : '失败' }}</el-tag>
+            <el-tag :type="(scope.row as OperationLog).result === 1 ? 'success' : 'danger'">{{ (scope.row as OperationLog).result === 1 ? '成功' : '失败' }}</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -295,8 +295,8 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
         :total="logsTotal"
         layout="total, prev, pager, next"
         background
-        size="small"
-        style="margin-top:12px;justify-content:flex-end"
+        class="profile-logs-pagination"
+        style="margin-top:16px;justify-content:flex-end"
         @current-change="onLogPageChange"
       />
     </el-card>
@@ -371,18 +371,24 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
+  font-size: 16px;
 }
 
 .profile-card {
   :deep(.el-card__header) {
-    padding: var(--spacing-md) var(--spacing-lg);
+    padding: 18px 24px;
     font-weight: 600;
-    font-size: var(--font-size-lg);
+    font-size: 20px;
     border-bottom: 1px solid var(--color-border);
   }
 
   :deep(.el-card__body) {
-    padding: var(--spacing-lg);
+    padding: 22px 24px;
+  }
+
+  :deep(.el-button) {
+    font-size: 15px;
+    padding: 10px 18px;
   }
 }
 
@@ -412,20 +418,21 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
   &__row {
     display: flex;
     align-items: center;
-    padding-bottom: var(--spacing-sm);
+    padding: 12px 0;
     border-bottom: 1px solid var(--color-border);
   }
 
   &__label {
-    width: 80px;
+    width: 100px;
     flex-shrink: 0;
     color: var(--color-text-secondary);
-    font-size: var(--font-size-base);
+    font-size: 16px;
   }
 
   &__value {
-    font-size: var(--font-size-base);
+    font-size: 17px;
     color: var(--color-text);
+    font-weight: 500;
   }
 }
 
@@ -435,24 +442,57 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--spacing-md) 0;
+    padding: 16px 0;
   }
 
   &__info {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
   }
 
-  &__label { font-size: var(--font-size-base); color: var(--color-text); }
-  &__desc { font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+  &__label { font-size: 17px; font-weight: 600; color: var(--color-text); }
+  &__desc { font-size: 15px; color: var(--color-text-secondary); }
 }
 
 // 操作日志
 .profile-logs__filters {
   display: flex;
-  gap: var(--spacing-sm);
+  gap: 12px;
   flex-wrap: wrap;
+
+  :deep(.el-select),
+  :deep(.el-date-editor) {
+    font-size: 15px;
+  }
+}
+
+.profile-logs-table {
+  :deep(.el-table__header th.el-table__cell) {
+    font-size: 16px;
+    font-weight: 600;
+    padding: 14px 0;
+  }
+
+  :deep(.el-table__body td.el-table__cell) {
+    font-size: 16px;
+    padding: 14px 0;
+  }
+
+  :deep(.el-tag) {
+    font-size: 14px;
+    padding: 4px 10px;
+  }
+}
+
+.profile-logs-pagination {
+  :deep(.el-pagination__total) { font-size: 15px; }
+  :deep(.btn-prev), :deep(.btn-next), :deep(.el-pager li) {
+    min-width: 36px;
+    height: 36px;
+    line-height: 36px;
+    font-size: 15px;
+  }
 }
 
 // 密码强度

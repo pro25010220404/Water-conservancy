@@ -1,13 +1,12 @@
 <script setup lang="ts">
 // ============================================================
-// 顶栏 — Logo / 折叠 / 页面标题 / 用户信息
+// 顶栏 — Logo / 折叠 / 页面标题 / 时钟 / 急停
 // ============================================================
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { ElDropdown, ElDropdownMenu, ElDropdownItem, ElAvatar } from 'element-plus'
+import { useRoute } from 'vue-router'
 import { Expand, Fold } from '@element-plus/icons-vue'
 import { APP_TITLE } from '@/constants'
-import { useUserStore } from '@/stores/user'
+import GlobalEmergencyStop from '@/components/GlobalEmergencyStop.vue'
 
 defineProps<{
   collapsed: boolean
@@ -18,26 +17,16 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
-const router = useRouter()
-const userStore = useUserStore()
 
 const now = ref('')
 let timer: ReturnType<typeof setInterval> | null = null
 
 const pageTitle = computed(() => (route.meta.title as string) || APP_TITLE)
-const displayName = computed(
-  () => userStore.userInfo?.nickname || userStore.userInfo?.username || '未登录',
-)
 
 function updateClock() {
   const date = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   now.value = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
-}
-
-function handleLogout() {
-  userStore.logout()
-  router.push('/login')
 }
 
 onMounted(() => {
@@ -60,18 +49,7 @@ onUnmounted(() => {
     </div>
     <div class="app-header__right">
       <span class="app-header__clock">{{ now }}</span>
-      <el-dropdown trigger="click">
-        <div class="app-header__user">
-          <el-avatar :size="32">{{ displayName.charAt(0) }}</el-avatar>
-          <span class="app-header__name">{{ displayName }}</span>
-        </div>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item @click="router.push('/profile')">个人中心</el-dropdown-item>
-            <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
+      <GlobalEmergencyStop placement="header" />
     </div>
   </header>
 </template>
@@ -153,31 +131,6 @@ onUnmounted(() => {
     color: var(--color-layout-blue-brand);
     opacity: 0.85;
     letter-spacing: 0.5px;
-  }
-
-  &__user {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    cursor: pointer;
-    padding: 4px 8px 4px 4px;
-    border-radius: var(--border-radius-base);
-    transition: background 0.2s;
-
-    &:hover {
-      background: rgba(0, 212, 255, 0.08);
-    }
-  }
-
-  &__name {
-    font-size: var(--font-size-sm);
-    color: var(--color-layout-blue-text);
-  }
-
-  :deep(.el-avatar) {
-    background: linear-gradient(135deg, #1890ff, #00d4ff);
-    color: #0a1628;
-    font-weight: 600;
   }
 }
 </style>

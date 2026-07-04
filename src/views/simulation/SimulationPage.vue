@@ -292,7 +292,7 @@ onUnmounted(() => {
       <div class="sim-page__grid">
         <!-- 左栏：水情数据 -->
         <aside class="sim-page__col sim-page__col--left">
-          <GlassPanel3D title="水情实时统计">
+          <GlassPanel3D title="水情实时统计" large>
             <div class="twin-kpi-row">
               <div class="twin-kpi">
                 <div class="twin-kpi__ring" :style="{ '--pct': gaugePct + '%', '--c': levelStatus.color }">
@@ -324,7 +324,7 @@ onUnmounted(() => {
             </ul>
           </GlassPanel3D>
 
-          <GlassPanel3D title="库区水位曲线" compact class="twin-chart-panel">
+          <GlassPanel3D title="库区水位曲线" compact large class="twin-chart-panel">
             <div class="twin-bars">
               <div
                 v-for="(bar, i) in levelHistoryBars"
@@ -450,7 +450,7 @@ onUnmounted(() => {
 
         <!-- 右栏：闸门监测 + 功能面板 -->
         <aside class="sim-page__col sim-page__col--right">
-          <GlassPanel3D title="泄洪闸门监测" compact class="twin-gate-panel">
+          <GlassPanel3D title="泄洪闸门监测" compact large class="twin-gate-panel">
             <ul class="twin-gate-list">
               <li v-for="n in 5" :key="n">
                 <span>{{ n }} 号表孔闸门</span>
@@ -462,7 +462,7 @@ onUnmounted(() => {
             </p>
           </GlassPanel3D>
 
-          <GlassPanel3D title="功能面板" class="sim-func-panel">
+          <GlassPanel3D title="功能面板" large class="sim-func-panel">
             <SimulationTabPanel
               :active-tab="activeTab"
               :sim-scene="simScene"
@@ -578,6 +578,12 @@ onUnmounted(() => {
   padding: 12px var(--spacing-lg) var(--spacing-lg);
   color: #1e4976;
   overflow: hidden;
+  font-size: $cockpit-font-md;
+
+  :deep(.glass-panel__title) { font-size: 20px; }
+  :deep(.glass-panel__body) { font-size: 17px; }
+  :deep(.glass-panel__header) { padding: 16px 20px; }
+  :deep(.glass-panel__deco) { height: 20px; }
 
   /* 三栏：左右约 24%，中间主视窗约 52% */
   .sim-page__grid {
@@ -668,7 +674,7 @@ onUnmounted(() => {
     :deep(.scene-brief h4) {
       color: #1890ff;
       margin: 0 0 6px;
-      font-size: 16px;
+      font-size: 18px;
       font-weight: 700;
     }
 
@@ -676,31 +682,37 @@ onUnmounted(() => {
     :deep(.summary-list dt),
     :deep(.hint-text) {
       color: #64748b;
-      font-size: 14px;
+      font-size: 16px;
     }
 
     :deep(.summary-list dd) {
       color: #1890ff;
       font-weight: 700;
-      font-size: 16px;
+      font-size: 18px;
     }
 
     :deep(.sim-tab-panel__compact-body) {
       color: #334155;
       overflow-x: hidden;
-      font-size: 14px;
+      font-size: 16px;
     }
 
     :deep(.history-block h5) {
       color: #1e4976;
-      font-size: 14px;
+      font-size: 16px;
       font-weight: 700;
     }
 
     :deep(.history-list) {
       color: #475569;
-      font-size: 14px;
+      font-size: 16px;
     }
+
+    :deep(.sim-tab-panel__tab) { font-size: 16px; padding: 8px 14px; }
+    :deep(.entity-list__main strong) { font-size: 18px; }
+    :deep(.entity-list__meta),
+    :deep(.entity-list__desc) { font-size: 15px; }
+    :deep(.el-button) { font-size: 15px; }
   }
 
   .sim-viewport--twin {
@@ -794,11 +806,11 @@ onUnmounted(() => {
       border: 1px solid rgba(24, 144, 255, 0.22);
       backdrop-filter: blur(12px);
       pointer-events: none;
-      font-size: 11px;
+      font-size: 14px;
       color: #64748b;
       box-shadow: 0 2px 12px rgba(24, 144, 255, 0.1);
 
-      b { color: #1e4976; font-weight: 700; }
+      b { color: #1e4976; font-weight: 700; font-size: 16px; }
     }
 
     &__hud-badge {
@@ -856,8 +868,8 @@ onUnmounted(() => {
     }
 
     &__btn {
-      padding: 7px 18px;
-      font-size: $cockpit-font-sm;
+      padding: 9px 20px;
+      font-size: $cockpit-font-base;
       font-weight: 600;
       color: #1890ff;
       background: rgba(230, 244, 255, 0.9);
@@ -906,7 +918,7 @@ onUnmounted(() => {
 
     &__time {
       margin-left: 8px;
-      font-size: $cockpit-font-sm;
+      font-size: $cockpit-font-base;
       color: #64748b;
     }
 
@@ -914,15 +926,15 @@ onUnmounted(() => {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: $cockpit-font-sm;
+      font-size: $cockpit-font-base;
       color: #64748b;
 
       span { white-space: nowrap; }
     }
 
     &__select {
-      padding: 6px 10px;
-      font-size: $cockpit-font-sm;
+      padding: 8px 12px;
+      font-size: $cockpit-font-base;
       font-weight: 600;
       color: #1890ff;
       background: rgba(230, 244, 255, 0.9);
@@ -961,26 +973,26 @@ onUnmounted(() => {
 .twin-kpi-row {
   display: flex;
   justify-content: space-between;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .twin-kpi {
   flex: 1;
   text-align: center;
-  font-size: $cockpit-font-xs;
+  font-size: $cockpit-font-sm;
   color: #64748b;
-  padding: 6px 4px;
+  padding: 8px 6px;
   border-radius: 10px;
   @include interactive-card;
   cursor: pointer;
 
-  span { color: #1890ff; font-size: 11px; font-weight: 600; }
+  span { color: #1890ff; font-size: 15px; font-weight: 600; }
 
   &__ring {
-    width: 58px;
-    height: 58px;
-    margin: 0 auto 5px;
+    width: 76px;
+    height: 76px;
+    margin: 0 auto 8px;
     border-radius: 50%;
     background: conic-gradient(var(--c, #1890ff) var(--pct), #e2e8f0 0);
     display: flex;
@@ -994,15 +1006,15 @@ onUnmounted(() => {
     &::before {
       content: '';
       position: absolute;
-      inset: 5px;
+      inset: 6px;
       border-radius: 50%;
       background: #fff;
       border: 1px solid rgba(24, 144, 255, 0.12);
     }
 
     b, small { position: relative; z-index: 1; line-height: 1.1; }
-    b { font-size: 13px; color: #1e4976; }
-    small { font-size: 10px; color: #64748b; }
+    b { font-size: 18px; color: #1e4976; font-weight: 700; }
+    small { font-size: 13px; color: #64748b; }
 
     &--flow {
       background: conic-gradient(#1890ff 65%, #e2e8f0 0);
@@ -1022,12 +1034,13 @@ onUnmounted(() => {
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: $cockpit-font-xs;
+  font-size: $cockpit-font-base;
 
   li {
     display: flex;
     justify-content: space-between;
-    padding: 6px 8px;
+    align-items: center;
+    padding: 10px 10px;
     margin: 0 -8px;
     border-bottom: 1px dashed rgba(24, 144, 255, 0.12);
     border-radius: 6px;
@@ -1041,14 +1054,15 @@ onUnmounted(() => {
     &:hover {
       transform: translateX(4px);
       background: rgba(24, 144, 255, 0.06);
-      padding-left: 12px;
+      padding-left: 14px;
     }
 
     &:active {
       transform: translateX(2px) scale(0.99);
     }
 
-    b { color: #1890ff; font-weight: 700; }
+    span { font-size: 16px; }
+    b { color: #1890ff; font-weight: 700; font-size: 18px; }
   }
 }
 
@@ -1101,15 +1115,17 @@ onUnmounted(() => {
 }
 
 .twin-gate-list {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   padding: 0;
   list-style: none;
-  font-size: $cockpit-font-xs;
+  font-size: $cockpit-font-base;
 
   li {
     display: flex;
     justify-content: space-between;
-    padding: 6px 8px;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 10px;
     margin: 0 -8px;
     border-bottom: 1px solid rgba(24, 144, 255, 0.1);
     border-radius: 6px;
@@ -1119,6 +1135,8 @@ onUnmounted(() => {
       transform 0.2s ease,
       background 0.2s ease,
       box-shadow 0.2s ease;
+
+    span { font-size: 16px; }
 
     &:hover {
       transform: translateX(3px);
@@ -1132,15 +1150,17 @@ onUnmounted(() => {
 
     b.is-open {
       color: #16a34a;
-      font-weight: 600;
+      font-weight: 700;
+      font-size: 16px;
+      white-space: nowrap;
     }
   }
 }
 
 .twin-alert {
   margin: 0;
-  padding: 8px 10px;
-  font-size: $cockpit-font-xs;
+  padding: 10px 12px;
+  font-size: $cockpit-font-base;
   border-radius: 6px;
   background: rgba(34, 197, 94, 0.08);
   border: 1px solid rgba(34, 197, 94, 0.22);

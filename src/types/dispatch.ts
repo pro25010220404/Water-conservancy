@@ -84,6 +84,13 @@ export interface PredictionData {
 }
 
 // ---------- 调度记录（决策列表 §4.3）----------
+export interface DispatchRecordSnapshot {
+  factors: DecisionFactor[]
+  confidence: number
+  recommended_opening: number
+  plans: { id: string; opening: number; totalScore: number; recommended: boolean }[]
+}
+
 export interface DispatchRecord {
   id: number
   decision_time: string
@@ -93,6 +100,12 @@ export interface DispatchRecord {
   risk_rank: RiskRank
   execution_status: ExecutionStatus
   physics_validation: Record<string, unknown> | null
+  /** 动作描述 */
+  action?: string
+  /** 操作人 */
+  operator_name?: string
+  /** 决策快照（展开查看） */
+  snapshot?: DispatchRecordSnapshot
 }
 
 // ---------- 闸门动作历史（§4.6）----------
@@ -130,6 +143,7 @@ export interface DispatchStatus {
   gateOpening: number
   lastDispatchAt: string | null
   isExecuting: boolean
+  executingTarget: number | null
 }
 
 // ---------- 请求体类型 ----------
