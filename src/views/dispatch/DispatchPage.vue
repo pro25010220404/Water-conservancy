@@ -34,6 +34,7 @@ type PlanAlt = NonNullable<DecisionDetail['alternatives']>[number]
 import { getPrediction, executeDispatch } from '@/api/dispatch'
 import { useUserStore } from '@/stores/user'
 import { useOperationLog } from '@/composables/useOperationLog'
+import { fuzzyMatch } from '@/utils/fuzzyMatch'
 
 const userStore = useUserStore()
 const { record: recordLog } = useOperationLog()
@@ -69,6 +70,8 @@ const ignoreVisible = ref(false)
 const ignoreReason = ref('')
 
 const showDataTable = ref(true)
+const recordKeyword = ref('')
+const decisionDialogVisible = ref(false)
 const panoramaVisible = ref(false)
 const previewPlan = ref<PlanAlt | null>(null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -184,6 +187,10 @@ function selectPlan(plan: { id: string; opening: number }) {
   targetOpening.value = plan.opening
 }
 
+function openDecisionDialog() {
+  decisionDialogVisible.value = true
+}
+
 function openPlanPanorama(plan: PlanAlt) {
   selectPlan(plan)
   previewPlan.value = plan
@@ -208,6 +215,19 @@ const panoramaSimStatus = computed<SimulationRealtimeData>(() => ({
   historyFlows: [],
 }))
 const panoramaStatusInfo = computed(() => SIMULATION_STATUS_MAP.idle)
+
+const filteredRecords = computed(() => {
+  const kw = recordKeyword.value.trim()
+  if (!kw) return records.value
+  return records.value.filter((r) => fuzzyMatch(
+    kw,
+    r.decision_mode,
+    String(r.recommended_opening),
+    r.execution_status,
+    String(r.confidence),
+    r.decision_time,
+  ))
+})
 
 // ── 7. 方法 ──
 
@@ -368,7 +388,9 @@ async function handleAccept() {
     status.value.gateOpening = latestDecision.value.recommended_opening
     status.value.mode = 'auto'
     recordLog('调度决策', '采纳决策', `采纳AI建议，开度调整至 ${latestDecision.value.recommended_opening}%`, 1)
-    ElMessage.success('已采纳AI建议并下发指令'); refreshAll()
+    ElMessage.success('已采纳AI建议并下发指令')
+    decisionDialogVisible.value = false
+    refreshAll()
   } catch { recordLog('调度决策', '采纳决策', '采纳AI建议失败', 0); ElMessage.error('指令下发失败') }
 }
 
@@ -426,101 +448,37 @@ onUnmounted(() => {
 <template>
   <div class="page dispatch-page">
     <div class="dispatch-body">
-      <!-- ═══ 左侧：AI 决策 ═══ -->
-      <div class="dispatch-left">
-        <GlassPanel3D title="AI 决策详情">
-          <template v-if="latestDecision">
-            <div class="decision-hero decision-hero--clickable" @click="openPlanPanorama(activePlan ?? latestDecision.alternatives!.find(p => p.recommended) ?? latestDecision.alternatives![0])">
-              <div>
-                <span class="lbl">推荐开度</span>
-                <span class="val">
-                  <span class="direction-icon">{{ latestDecision.recommended_opening > (latestDecision.current_opening ?? 45) ? '↑' : latestDecision.recommended_opening < (latestDecision.current_opening ?? 45) ? '↓' : '→' }}</span>
-                  {{ latestDecision.recommended_opening }}%
-                </span>
-                <span class="expect">
-                  置信度 {{ latestDecision.confidence }}%
-                  · 模式 {{ latestDecision.decision_mode }}
-                  · 风险等级 {{ latestDecision.risk_rank }}
-                  · 点击预览 BIM
-                </span>
-              </div>
-            </div>
+      <!-- AI 决策入口（点击弹窗查看完整详情） -->
+      <GlassPanel3D
+        v-if="latestDecision"
+        class="ai-entry"
+        title="AI 决策"
+        compact
+        @click="openDecisionDialog"
+      >
+        <div class="ai-entry__body">
+          <div class="ai-entry__main">
+            <span class="lbl">推荐开度</span>
+            <span class="val">
+              <span class="direction-icon">{{ latestDecision.recommended_opening > (latestDecision.current_opening ?? 45) ? '↑' : latestDecision.recommended_opening < (latestDecision.current_opening ?? 45) ? '↓' : '→' }}</span>
+              {{ latestDecision.recommended_opening }}%
+            </span>
+            <span class="expect">
+              置信度 {{ latestDecision.confidence }}%
+              · 模式 {{ latestDecision.decision_mode }}
+              · 风险等级 {{ latestDecision.risk_rank }}
+            </span>
+          </div>
+          <div class="ai-entry__actions" @click.stop>
+            <el-button type="primary" @click="openDecisionDialog">查看 AI 决策详情</el-button>
+            <el-button @click="openPlanPanorama(activePlan ?? latestDecision.alternatives!.find(p => p.recommended) ?? latestDecision.alternatives![0])">预览 BIM</el-button>
+            <el-button type="success" :icon="CircleCheck" @click="handleAccept">采纳建议</el-button>
+          </div>
+        </div>
+      </GlassPanel3D>
 
-            <!-- 影响因素 -->
-            <div class="section">
-              <h4>影响因素</h4>
-              <div class="factor-bars">
-                <div v-for="f in latestDecision.factors" :key="f.name" class="factor-row">
-                  <span class="fname">{{ f.name }}</span>
-                  <div class="fbar">
-                    <div class="fbar__fill"
-                      :style="{ width: ((activePlan?.factorImpacts?.[f.name]?.weight ?? f.weight) * 100) + '%' }" />
-                  </div>
-                  <span class="fval" :style="{ color: activePlan?.factorImpacts?.[f.name] ? '#1890ff' : 'inherit' }">
-                    {{ activePlan?.factorImpacts?.[f.name]?.value ?? f.value }}
-                  </span>
-                  <span class="fdir" :style="{ color: (activePlan?.factorImpacts?.[f.name] ? FACTOR_DIRECTION_MAP[activePlan!.factorImpacts![f.name].direction] : FACTOR_DIRECTION_MAP[f.direction])?.color }">
-                    {{ activePlan?.factorImpacts?.[f.name] ? FACTOR_DIRECTION_MAP[activePlan!.factorImpacts![f.name].direction]?.icon : FACTOR_DIRECTION_MAP[f.direction]?.icon }}
-                  </span>
-                  <span class="fwt">{{ ((activePlan?.factorImpacts?.[f.name]?.weight ?? f.weight) * 100).toFixed(0) }}%</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 方案对比 -->
-            <div class="section">
-              <h4>方案对比</h4>
-              <div class="plan-cards">
-                <div
-                  v-for="p in latestDecision.alternatives" :key="p.id"
-                  class="plan-card"
-                  :class="{ 'plan-card--rec': p.recommended, 'plan-card--sel': selectedPlanId === p.id }"
-                  @click="openPlanPanorama(p)"
-                >
-                  <div class="plan-card__head"><strong>{{ p.id }}</strong><span v-if="p.recommended" class="rec-tag">AI最优</span></div>
-                  <div class="plan-card__grid">
-                    <div><small>开度</small><b>{{ p.opening }}%</b></div>
-                    <div><small>水位</small><b>{{ p.expectedLevel }}m</b></div>
-                    <div><small>发电量</small><b>{{ p.power }}kW</b></div>
-                    <div><small>安全</small><b :style="{ color: p.safetyScore >= 90 ? '#2ed573' : '#ffa502' }">{{ p.safetyScore }}</b></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 置信度 -->
-            <div class="section conf-section">
-              <h4>置信度</h4>
-              <div class="conf-ring-wrap">
-                <svg viewBox="0 0 120 120" class="conf-ring">
-                  <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10" />
-                  <circle cx="60" cy="60" r="50" fill="none"
-                    :stroke="getConfidenceColor(activePlan?.confidence ?? latestDecision.confidence)"
-                    stroke-width="10"
-                    :stroke-dasharray="`${((activePlan?.confidence ?? latestDecision.confidence) / 100) * 314.16} 314.16`"
-                    stroke-linecap="round" transform="rotate(-90 60 60)" />
-                </svg>
-                <span class="conf-val" :style="{ color: getConfidenceColor(activePlan?.confidence ?? latestDecision.confidence) }">
-                  {{ activePlan?.confidence ?? latestDecision.confidence }}%
-                </span>
-              </div>
-              <p class="conf-desc">
-                当前方案：{{ activePlan?.id ?? '—' }}
-                · 综合评分 {{ activePlan?.totalScore ?? latestDecision.reward_score ?? '-' }}
-              </p>
-              <p v-if="(activePlan?.confidence ?? latestDecision.confidence) < 80" class="conf-warn">置信度偏低，建议人工复核后再执行</p>
-            </div>
-
-            <div class="decision-btns">
-              <el-button type="primary" :icon="CircleCheck" @click="handleAccept">采纳建议</el-button>
-              <el-button :icon="CircleClose" @click="ignoreVisible = true">忽略</el-button>
-            </div>
-          </template>
-        </GlassPanel3D>
-      </div>
-
-      <!-- ═══ 右侧 ═══ -->
-      <div class="dispatch-right">
+      <!-- 主区域：风险 / 手控 / 记录 -->
+      <div class="dispatch-main">
         <GlassPanel3D title="三级风险与权限">
           <div class="risk-cards">
             <div
@@ -574,15 +532,18 @@ onUnmounted(() => {
         </GlassPanel3D>
 
         <GlassPanel3D title="调度记录" compact>
+          <div class="record-search">
+            <ElInput v-model="recordKeyword" placeholder="模糊搜索模式、开度、状态..." clearable size="small" />
+          </div>
           <div class="log-scroll">
-            <div v-for="log in records.slice(0, 8)" :key="log.id" class="log-line">
+            <div v-for="log in filteredRecords.slice(0, 8)" :key="log.id" class="log-line">
               <span class="log-time">{{ log.decision_time?.replace('T', ' ').substring(5, 16) ?? '-' }}</span>
               <span class="log-action">开度 {{ log.recommended_opening }}% · {{ log.decision_mode }}</span>
               <span :style="{ color: log.execution_status === 'executed' ? '#22c55e' : log.execution_status === 'failed' ? '#ef4444' : '#f59e0b' }">
                 {{ log.execution_status === 'executed' ? '已执行' : log.execution_status === 'failed' ? '失败' : log.execution_status === 'rejected' ? '已拒绝' : '待执行' }}
               </span>
             </div>
-            <div v-if="records.length === 0" class="log-empty">暂无调度记录</div>
+            <div v-if="filteredRecords.length === 0" class="log-empty">暂无匹配的调度记录</div>
           </div>
         </GlassPanel3D>
       </div>
@@ -635,6 +596,100 @@ onUnmounted(() => {
     </div>
 
     <!-- ═══ 弹窗 ═══ -->
+    <el-dialog
+      v-model="decisionDialogVisible"
+      title="AI 决策详情"
+      width="920px"
+      top="5vh"
+      class="decision-dialog"
+      destroy-on-close
+    >
+      <div v-if="latestDecision" class="decision-dialog__body">
+        <div class="decision-hero decision-hero--clickable" @click="openPlanPanorama(activePlan ?? latestDecision.alternatives!.find(p => p.recommended) ?? latestDecision.alternatives![0])">
+          <div>
+            <span class="lbl">推荐开度</span>
+            <span class="val">
+              <span class="direction-icon">{{ latestDecision.recommended_opening > (latestDecision.current_opening ?? 45) ? '↑' : latestDecision.recommended_opening < (latestDecision.current_opening ?? 45) ? '↓' : '→' }}</span>
+              {{ latestDecision.recommended_opening }}%
+            </span>
+            <span class="expect">
+              置信度 {{ latestDecision.confidence }}%
+              · 模式 {{ latestDecision.decision_mode }}
+              · 风险等级 {{ latestDecision.risk_rank }}
+              · 点击预览 BIM
+            </span>
+          </div>
+        </div>
+
+        <div class="section">
+          <h4>影响因素</h4>
+          <div class="factor-bars">
+            <div v-for="f in latestDecision.factors" :key="f.name" class="factor-row">
+              <span class="fname">{{ f.name }}</span>
+              <div class="fbar">
+                <div class="fbar__fill"
+                  :style="{ width: ((activePlan?.factorImpacts?.[f.name]?.weight ?? f.weight) * 100) + '%' }" />
+              </div>
+              <span class="fval" :style="{ color: activePlan?.factorImpacts?.[f.name] ? '#1890ff' : 'inherit' }">
+                {{ activePlan?.factorImpacts?.[f.name]?.value ?? f.value }}
+              </span>
+              <span class="fdir" :style="{ color: (activePlan?.factorImpacts?.[f.name] ? FACTOR_DIRECTION_MAP[activePlan!.factorImpacts![f.name].direction] : FACTOR_DIRECTION_MAP[f.direction])?.color }">
+                {{ activePlan?.factorImpacts?.[f.name] ? FACTOR_DIRECTION_MAP[activePlan!.factorImpacts![f.name].direction]?.icon : FACTOR_DIRECTION_MAP[f.direction]?.icon }}
+              </span>
+              <span class="fwt">{{ ((activePlan?.factorImpacts?.[f.name]?.weight ?? f.weight) * 100).toFixed(0) }}%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h4>方案对比</h4>
+          <div class="plan-cards">
+            <div
+              v-for="p in latestDecision.alternatives" :key="p.id"
+              class="plan-card"
+              :class="{ 'plan-card--rec': p.recommended, 'plan-card--sel': selectedPlanId === p.id }"
+              @click="selectPlan(p)"
+            >
+              <div class="plan-card__head"><strong>{{ p.id }}</strong><span v-if="p.recommended" class="rec-tag">AI最优</span></div>
+              <div class="plan-card__grid">
+                <div><small>开度</small><b>{{ p.opening }}%</b></div>
+                <div><small>水位</small><b>{{ p.expectedLevel }}m</b></div>
+                <div><small>发电量</small><b>{{ p.power }}kW</b></div>
+                <div><small>安全</small><b :style="{ color: p.safetyScore >= 90 ? '#2ed573' : '#ffa502' }">{{ p.safetyScore }}</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section conf-section">
+          <h4>置信度</h4>
+          <div class="conf-ring-wrap">
+            <svg viewBox="0 0 120 120" class="conf-ring">
+              <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10" />
+              <circle cx="60" cy="60" r="50" fill="none"
+                :stroke="getConfidenceColor(activePlan?.confidence ?? latestDecision.confidence)"
+                stroke-width="10"
+                :stroke-dasharray="`${((activePlan?.confidence ?? latestDecision.confidence) / 100) * 314.16} 314.16`"
+                stroke-linecap="round" transform="rotate(-90 60 60)" />
+            </svg>
+            <span class="conf-val" :style="{ color: getConfidenceColor(activePlan?.confidence ?? latestDecision.confidence) }">
+              {{ activePlan?.confidence ?? latestDecision.confidence }}%
+            </span>
+          </div>
+          <p class="conf-desc">
+            当前方案：{{ activePlan?.id ?? '—' }}
+            · 综合评分 {{ activePlan?.totalScore ?? latestDecision.reward_score ?? '-' }}
+          </p>
+          <p v-if="(activePlan?.confidence ?? latestDecision.confidence) < 80" class="conf-warn">置信度偏低，建议人工复核后再执行</p>
+        </div>
+      </div>
+      <template #footer>
+        <el-button :icon="CircleClose" @click="ignoreVisible = true">忽略</el-button>
+        <el-button @click="decisionDialogVisible = false">关闭</el-button>
+        <el-button type="primary" :icon="CircleCheck" @click="handleAccept">采纳建议</el-button>
+      </template>
+    </el-dialog>
+
     <el-dialog v-model="levelDialogVisible" title="变更自动执行权限" width="460px">
       <p>确认切换为：<strong>{{ AUTO_LEVEL_OPTIONS.find(l => l.value === pendingLevel)?.label }}</strong></p>
       <p style="color:#64748b;font-size:13px">{{ AUTO_LEVEL_OPTIONS.find(l => l.value === pendingLevel)?.description }}</p>
@@ -662,7 +717,7 @@ onUnmounted(() => {
       :can-pause="false"
       elapsed-label="—"
       scene-label="常规调度"
-      :status-label="panoramaStatusInfo.label"
+      :status-label="panoramaStatusInfo.label ?? ''"
       :status-color="panoramaStatusInfo.color ?? '#6b7280'"
       :level-status-color="panoramaLevelStatus.color"
       :level-status-label="panoramaLevelStatus.label"
@@ -686,58 +741,63 @@ onUnmounted(() => {
 }
 
 .dispatch-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 420px;
-  gap: 16px;
-  height: clamp(460px, calc(100vh - 150px), 620px);
-  min-height: 0;
-  padding: 0 16px;
-  overflow: hidden;
-  align-items: stretch;
-}
-
-.dispatch-left,
-.dispatch-right {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   min-height: 0;
+  padding: 0 16px;
 }
 
-.dispatch-left {
-  overflow: hidden;
+.ai-entry {
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(24, 144, 255, 0.12);
+  }
+
+  &__body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  &__main {
+    flex: 1;
+    min-width: 240px;
+
+    .lbl { font-size: $cockpit-font-sm; color: $cockpit-text-dim; }
+    .val {
+      display: flex; align-items: center; gap: 8px;
+      font-size: $cockpit-font-2xl; color: $cockpit-cyan;
+      @include data-value;
+    }
+    .direction-icon { font-size: 22px; }
+    .expect { display: block; font-size: $cockpit-font-sm; color: $cockpit-text-dim; margin-top: 4px; }
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
 }
 
-.dispatch-left > :deep(.glass-panel) {
-  flex: 1;
+.dispatch-main {
+  display: grid;
+  grid-template-columns: 1fr 280px 300px;
+  gap: 16px;
   min-height: 0;
-  overflow: hidden;
+  align-items: start;
 }
 
-.dispatch-left > :deep(.glass-panel .glass-panel__body) {
-  height: calc(100% - 53px);
-  overflow-y: auto;
-}
-
-.dispatch-right {
-  height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 6px;
-  overscroll-behavior: contain;
-}
-
-.dispatch-right::-webkit-scrollbar {
-  width: 6px;
-}
-
-.dispatch-right::-webkit-scrollbar-thumb {
-  background: rgba(24,144,255,0.28);
-  border-radius: 999px;
-}
-
-.dispatch-right::-webkit-scrollbar-track {
-  background: transparent;
+@media (max-width: 1200px) {
+  .dispatch-main {
+    grid-template-columns: 1fr;
+  }
 }
 
 .decision-hero {
@@ -836,6 +896,7 @@ onUnmounted(() => {
 .manual-btns { display: flex; gap: 10px; margin-top: 14px; }
 
 .log-scroll { max-height: 160px; overflow-y: auto; }
+.record-search { margin-bottom: 10px; }
 .log-line { display: flex; gap: 10px; padding: 8px 0; font-size: $cockpit-font-sm; border-bottom: 1px solid rgba(15,23,42,0.06); gap: 12px; }
 .log-time { color: $cockpit-text-dim; font-family: 'SF Mono', monospace; flex-shrink: 0; }
 .log-action { flex: 1; color: var(--color-text); }
@@ -892,4 +953,14 @@ onUnmounted(() => {
 }
 :deep(.el-select .el-input__wrapper), :deep(.el-input__wrapper) { background: #ffffff; border-color: rgba(24,144,255,0.2); }
 :deep(.el-input__inner) { color: $cockpit-text; }
+
+:deep(.decision-dialog .el-dialog__body) {
+  max-height: calc(85vh - 120px);
+  overflow-y: auto;
+  padding-top: 8px;
+}
+
+.decision-dialog__body {
+  padding-right: 4px;
+}
 </style>

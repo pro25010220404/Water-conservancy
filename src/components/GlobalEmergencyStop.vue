@@ -39,7 +39,7 @@ async function handleClick() {
 <style scoped lang="scss">
 .global-estop {
   position: fixed;
-  right: 28px;
+  left: 28px;
   bottom: 28px;
   z-index: 3000;
   width: 76px;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import {
   ElSelect, ElOption, ElInput, ElButton, ElPagination,
   ElDialog, ElForm, ElFormItem, ElMessage, ElMessageBox, ElDescriptions, ElDescriptionsItem,
@@ -8,19 +8,19 @@ import { Search, Refresh, VideoPlay, VideoPause } from '@element-plus/icons-vue'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import { DEBOUNCE_DELAY, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '@/constants'
 import {
-  ALARM_LEVEL_MAP, ALARM_TYPE_MAP, ALARM_STATUS_MAP,
-  ALARM_LEVEL_OPTIONS, ALARM_TYPE_OPTIONS, ALARM_STATUS_OPTIONS,
+  ALARM_LEVEL_MAP, ALARM_TYPE_MAP, ALARM_STATUS_MAP, ALARM_DEVICE_TYPE_MAP,
+  ALARM_LEVEL_OPTIONS, ALARM_TYPE_OPTIONS, ALARM_STATUS_OPTIONS, ALARM_DEVICE_TYPE_OPTIONS,
   TIME_RANGE_OPTIONS, getAlarmActions, REMARK_MIN_LENGTH, REMARK_MAX_LENGTH,
   DEFAULT_EXCEED_WINDOW_SEC,
 } from '@/constants/alarm'
-import type { AlarmRecord, AlarmFilterParams, AlarmExceedLog } from '@/types/alarm'
+import type { AlarmRecord, AlarmFilterParams, AlarmExceedLog, AlarmStatsResult } from '@/types/alarm'
 import { getAlarmList, getAlarmDetail, confirmAlarm, handleAlarm, getAlarmExceedLogs, getAlarmStats } from '@/api/warning'
 import { useAlarmNotify, pendingAlarmCount } from '@/composables/useAlarmNotify'
 
 const { soundEnabled, toggleSound } = useAlarmNotify()
 
 const filter = reactive<AlarmFilterParams>({
-  level: undefined, status: undefined, type: undefined,
+  level: undefined, status: undefined, type: undefined, deviceType: undefined,
   startTime: undefined, endTime: undefined, keyword: '',
   pageNum: 1, pageSize: DEFAULT_PAGE_SIZE,
 })
@@ -29,7 +29,15 @@ const list = ref<AlarmRecord[]>([])
 const total = ref(0)
 const loading = ref(false)
 const exceedLogs = ref<AlarmExceedLog[]>([])
-const stats = ref({ today: 0, pending: 0, handled: 0, falseAlarm: 0 })
+const stats = ref<AlarmStatsResult>({
+  today: 0, pending: 0, handled: 0, falseAlarm: 0,
+  levelDistribution: { URGENT: 0, IMPORTANT: 0, NORMAL: 0 },
+})
+
+const levelChartMax = computed(() => {
+  const d = stats.value.levelDistribution
+  return Math.max(d.URGENT, d.IMPORTANT, d.NORMAL, 1)
+})
 
 const confirmVisible = ref(false)
 const confirmRow = ref<AlarmRecord | null>(null)
@@ -53,21 +61,25 @@ async function fetchList() {
 }
 async function fetchExtras() {
   try {
-    const [logsRes, statsRes] = await Promise.all([getAlarmExceedLogs({}), getAlarmStats()])
+    const [logsRes, statsRes] = await Promise.all([
+      getAlarmExceedLogs({ keyword: filter.keyword || undefined }),
+      getAlarmStats(),
+    ])
     exceedLogs.value = logsRes.data.list
     stats.value = statsRes.data
   } catch { /* */ }
 }
 
-function handleFilterChange() { filter.pageNum = 1; fetchList() }
+function handleFilterChange() { filter.pageNum = 1; fetchList(); fetchExtras() }
 function handleKeywordInput() {
   if (debounceTimer) clearTimeout(debounceTimer)
   debounceTimer = setTimeout(handleFilterChange, DEBOUNCE_DELAY)
 }
 function handleReset() {
   filter.level = undefined; filter.status = undefined; filter.type = undefined
+  filter.deviceType = undefined
   filter.startTime = undefined; filter.endTime = undefined; filter.keyword = ''
-  filter.pageNum = 1; timePreset.value = ''; fetchList()
+  filter.pageNum = 1; timePreset.value = ''; fetchList(); fetchExtras()
 }
 function handleTimePreset(val: string) {
   const now = new Date()
@@ -122,9 +134,9 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); if (debounceTimer) 
         <div class="filter-item"><label>告警等级</label><ElSelect v-model="filter.level" placeholder="全部" clearable @change="handleFilterChange"><ElOption v-for="o in ALARM_LEVEL_OPTIONS" :key="String(o.value)" :label="o.label" :value="o.value" /></ElSelect></div>
         <div class="filter-item"><label>告警类型</label><ElSelect v-model="filter.type" placeholder="全部" clearable @change="handleFilterChange"><ElOption v-for="o in ALARM_TYPE_OPTIONS" :key="String(o.value)" :label="o.label" :value="o.value" /></ElSelect></div>
         <div class="filter-item"><label>时间范围</label><ElSelect v-model="timePreset" placeholder="全部" clearable @change="handleTimePreset"><ElOption v-for="o in TIME_RANGE_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></ElSelect></div>
-        <div class="filter-item"><label>设备类型</label><ElSelect placeholder="全部" clearable><ElOption label="闸门" value="gate" /><ElOption label="水文站" value="hydro" /><ElOption label="传感器" value="sensor" /></ElSelect></div>
+        <div class="filter-item"><label>设备类型</label><ElSelect v-model="filter.deviceType" placeholder="全部" clearable @change="handleFilterChange"><ElOption v-for="o in ALARM_DEVICE_TYPE_OPTIONS" :key="String(o.value)" :label="o.label" :value="o.value" /></ElSelect></div>
         <div class="filter-item"><label>处理状态</label><ElSelect v-model="filter.status" placeholder="全部" clearable @change="handleFilterChange"><ElOption v-for="o in ALARM_STATUS_OPTIONS" :key="String(o.value)" :label="o.label" :value="o.value" /></ElSelect></div>
-        <div class="filter-item filter-item--wide"><label>关键词</label><ElInput v-model="filter.keyword" placeholder="搜索告警内容、监测点位..." clearable :prefix-icon="Search" @input="handleKeywordInput" @clear="handleFilterChange" /></div>
+        <div class="filter-item filter-item--wide"><label>关键词</label><ElInput v-model="filter.keyword" placeholder="模糊搜索告警内容、监测点位、类型..." clearable :prefix-icon="Search" @input="handleKeywordInput" @clear="handleFilterChange" /></div>
         <div class="filter-actions">
           <ElButton type="primary" :icon="Search" @click="handleFilterChange">查询</ElButton>
           <ElButton :icon="Refresh" @click="handleReset">重置</ElButton>
@@ -141,6 +153,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); if (debounceTimer) 
           <div class="table-3d__head">
             <span>告警ID</span><span>告警时间</span><span>等级</span><span>类型</span><span>关联设备</span><span>告警内容</span><span>持续时长</span><span>状态</span><span>操作</span>
           </div>
+          <div v-if="list.length === 0 && !loading" class="table-empty">暂无符合条件的告警记录</div>
           <div v-for="row in list" :key="row.id" class="table-3d__row">
             <span>{{ row.id }}</span>
             <span class="mono">{{ row.createdAt.replace('T', ' ').substring(0, 19) }}</span>
@@ -191,7 +204,20 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); if (debounceTimer) 
         <div class="stat-card"><span class="stat-card__val" :style="{ color: s.c }">{{ s.v }}</span><span class="stat-card__lbl">{{ s.l }}</span></div>
       </GlassPanel3D>
       <GlassPanel3D title="告警等级分布" compact class="stat-chart">
-        <div class="ring-stats"><div class="ring-item"><div class="ring-bar ring-bar--r" /><span>紧急</span></div><div class="ring-item"><div class="ring-bar ring-bar--o" /><span>重要</span></div><div class="ring-item"><div class="ring-bar ring-bar--y" /><span>一般</span></div></div>
+        <div class="ring-stats">
+          <div class="ring-item">
+            <div class="ring-bar ring-bar--r" :style="{ height: (stats.levelDistribution.URGENT / levelChartMax * 48) + 'px' }" />
+            <span>紧急 {{ stats.levelDistribution.URGENT }}</span>
+          </div>
+          <div class="ring-item">
+            <div class="ring-bar ring-bar--o" :style="{ height: (stats.levelDistribution.IMPORTANT / levelChartMax * 48) + 'px' }" />
+            <span>重要 {{ stats.levelDistribution.IMPORTANT }}</span>
+          </div>
+          <div class="ring-item">
+            <div class="ring-bar ring-bar--y" :style="{ height: (stats.levelDistribution.NORMAL / levelChartMax * 48) + 'px' }" />
+            <span>一般 {{ stats.levelDistribution.NORMAL }}</span>
+          </div>
+        </div>
       </GlassPanel3D>
     </div>
 
@@ -206,15 +232,36 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); if (debounceTimer) 
     </ElDialog>
 
     <ElDialog v-model="handleVisible" title="处置告警" width="540px">
+      <ElDescriptions v-if="handleRow" :column="1" border size="small" class="handle-preview">
+        <ElDescriptionsItem label="告警内容">{{ handleRow.content }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="监测点位">{{ handleRow.pointName }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="当前值/阈值">{{ handleRow.currentValue }} / {{ handleRow.threshold }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="持续时长">{{ handleRow.durationSec }}s（≥{{ DEFAULT_EXCEED_WINDOW_SEC }}s 正式告警）</ElDescriptionsItem>
+      </ElDescriptions>
       <ElForm label-position="top"><ElFormItem label="处置措施" required><ElInput v-model="remark" type="textarea" :rows="4" :placeholder="`处置措施（${REMARK_MIN_LENGTH}~${REMARK_MAX_LENGTH}字）`" :maxlength="REMARK_MAX_LENGTH" show-word-limit /></ElFormItem></ElForm>
       <template #footer><ElButton @click="handleVisible=false">取消</ElButton><ElButton type="primary" @click="submitHandle">提交处置</ElButton></template>
     </ElDialog>
 
-    <ElDialog v-model="detailVisible" title="告警详情" width="500px">
+    <ElDialog v-model="detailVisible" title="告警详情" width="560px">
       <ElDescriptions v-if="detailRow" :column="1" border size="small">
         <ElDescriptionsItem label="编号">{{ detailRow.id }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="等级"><span class="level-badge" :class="levelClass(detailRow.level)">{{ ALARM_LEVEL_MAP[detailRow.level]?.label }}</span></ElDescriptionsItem>
+        <ElDescriptionsItem label="类型">{{ ALARM_TYPE_MAP[detailRow.type]?.label }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="设备类型">{{ ALARM_DEVICE_TYPE_MAP[detailRow.deviceType]?.label }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="监测点位">{{ detailRow.pointName }}</ElDescriptionsItem>
         <ElDescriptionsItem label="内容">{{ detailRow.content }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="当前值/阈值">{{ detailRow.currentValue }} / {{ detailRow.threshold }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="持续时长">{{ detailRow.durationSec }}s</ElDescriptionsItem>
+        <ElDescriptionsItem label="状态"><span class="status-dot" :class="statusClass(detailRow.status)" />{{ ALARM_STATUS_MAP[detailRow.status]?.label }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="告警时间">{{ detailRow.createdAt.replace('T', ' ').substring(0, 19) }}</ElDescriptionsItem>
+        <ElDescriptionsItem v-if="detailRow.confirmedByName" label="确认人">{{ detailRow.confirmedByName }} · {{ detailRow.confirmedAt?.replace('T', ' ').substring(0, 19) }}</ElDescriptionsItem>
+        <ElDescriptionsItem v-if="detailRow.handledByName" label="处置人">{{ detailRow.handledByName }} · {{ detailRow.handledAt?.replace('T', ' ').substring(0, 19) }}</ElDescriptionsItem>
+        <ElDescriptionsItem v-if="detailRow.isFalseAlarm" label="误告警">是</ElDescriptionsItem>
         <ElDescriptionsItem v-if="detailRow.remark" label="处置备注">{{ detailRow.remark }}</ElDescriptionsItem>
+        <template v-if="detailRow.snapshot">
+          <ElDescriptionsItem label="快照水位">上游 {{ detailRow.snapshot.upstreamLevel }} m / 下游 {{ detailRow.snapshot.downstreamLevel }} m</ElDescriptionsItem>
+          <ElDescriptionsItem label="快照流量/开度">{{ detailRow.snapshot.flowRate }} m³/s · 开度 {{ detailRow.snapshot.gateOpening }}%</ElDescriptionsItem>
+        </template>
       </ElDescriptions>
     </ElDialog>
   </div>
@@ -226,7 +273,12 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); if (debounceTimer) 
 .alarm-page { @include cockpit-page-base; display: flex; flex-direction: column; gap: 14px; padding: 0 0 16px; font-size: $cockpit-font-base; }
 .filter-panel { margin: 0 16px; }
 .filter-grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; padding: 4px; }
-.filter-item { display: flex; flex-direction: column; gap: 6px; label { font-size: $cockpit-font-sm; color: $cockpit-text-dim; font-weight: 500; } &--wide { flex: 1; min-width: 200px; } }
+.filter-item {
+  display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; min-width: 120px;
+  label { font-size: $cockpit-font-sm; color: $cockpit-text-dim; font-weight: 500; }
+  :deep(.el-select), :deep(.el-input) { width: 100%; }
+  &--wide { flex: 1 1 300px; min-width: 300px; }
+}
 .filter-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .pending-badge { font-size: $cockpit-font-sm; color: $cockpit-text-dim; strong { color: #ff4757; font-size: $cockpit-font-xl; margin-left: 6px; } }
 .main-area { display: grid; grid-template-columns: 1fr 300px; gap: 14px; padding: 0 16px; flex: 1; min-height: 0; }
@@ -242,6 +294,8 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); if (debounceTimer) 
 .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; &.pending { background: #ff4757; animation: pulse 1.5s infinite; } &.confirmed { background: #ffa502; } &.handled { background: #2ed573; } }
 .act-btn { padding: 6px 14px; font-size: $cockpit-font-sm; border: 1px solid rgba(24,144,255,0.3); border-radius: 6px; background: #e6f4ff; color: $cockpit-accent; cursor: pointer; margin-right: 6px; &--link { border-color: rgba(15,23,42,0.12); background: #fff; color: $cockpit-text-dim; } }
 .table-footer { padding-top: 14px; display: flex; justify-content: flex-end; }
+.table-empty { padding: 48px; text-align: center; color: $cockpit-text-dim; font-size: $cockpit-font-base; }
+.handle-preview { margin-bottom: 16px; }
 .rule-panel { font-size: $cockpit-font-base; }
 .rule-box { display: flex; gap: 12px; padding: 14px; border-radius: 8px; margin-bottom: 12px; &--formal { background: rgba(255,71,87,0.08); border: 1px solid rgba(255,71,87,0.2); } &--log { background: rgba(107,114,128,0.1); border: 1px solid rgba(107,114,128,0.2); } strong { display: block; margin-bottom: 6px; font-size: $cockpit-font-md; } p { font-size: $cockpit-font-sm; color: $cockpit-text-dim; margin: 0; line-height: 1.5; } }
 .rule-icon { font-size: 28px; }
