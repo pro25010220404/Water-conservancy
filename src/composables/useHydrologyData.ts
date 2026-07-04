@@ -41,7 +41,22 @@ function gen(prev: HydrologySnapshot | null): HydrologySnapshot {
   }
 }
 
-const MAX = 300
+const MAX = 5000
+const RETAIN_MS = 24 * 60 * 60 * 1000
+
+function seedTrend(): HydrologySnapshot[] {
+  const result: HydrologySnapshot[] = []
+  let prev: HydrologySnapshot | null = null
+  const now = Date.now()
+  const stepMs = 60_000
+  const totalMinutes = 24 * 60
+
+  for (let i = totalMinutes; i >= 0; i--) {
+    prev = gen(prev)
+    result.push({ ...prev, timestamp: new Date(now - i * stepMs).toISOString() })
+  }
+  return result
+}
 
 export function useHydrologyData(wsUrl?: string, iv = 2000) {
   const snapshot = ref<HydrologySnapshot>(gen(null))
@@ -50,11 +65,25 @@ export function useHydrologyData(wsUrl?: string, iv = 2000) {
   const useMock = ref(true)
   let timer: ReturnType<typeof setInterval> | null = null
 
-  function push(s: HydrologySnapshot) { snapshot.value = s; trend.value.push(s); if (trend.value.length > MAX) trend.value.shift() }
+  function push(s: HydrologySnapshot) {
+    snapshot.value = s
+    trend.value.push(s)
+    const cutoff = Date.now() - RETAIN_MS
+    while (trend.value.length > 0 && new Date(trend.value[0]!.timestamp).getTime() < cutoff) {
+      trend.value.shift()
+    }
+    if (trend.value.length > MAX) trend.value.shift()
+  }
 
   function startMock() {
+    if (trend.value.length === 0) {
+      const seeded = seedTrend()
+      trend.value = seeded
+      snapshot.value = seeded[seeded.length - 1]!
+    }
     timer = setInterval(() => push(gen(snapshot.value)), iv)
-    connected.value = true; useMock.value = true
+    connected.value = true
+    useMock.value = true
   }
   function stopMock() { if (timer) { clearInterval(timer); timer = null } }
 

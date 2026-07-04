@@ -114,39 +114,165 @@ const lineOpt = computed(() => ({
 </template>
 
 <style scoped lang="scss">
-.gp { height:calc(100vh - 56px); display:flex; flex-direction:column; background:#f5f6f8; overflow:hidden; }
+.gp {
+  height: calc(100vh - 56px);
+  display: flex;
+  flex-direction: column;
+  background: #f5f6f8;
+  overflow: hidden;
+}
 
 // KPI 数字条
-.kpis { display:flex; align-items:center; gap:16px; padding:16px 28px; background:#fff; border-bottom:1px solid #eef0f2; flex-shrink:0; }
-.kpis__label { font-size:13px; color:#8b9198; }
-.kpis__val { font-size:24px; font-weight:700; color:#1e293b; font-family:'SF Mono','Cascadia Code',monospace; small{font-size:12px;font-weight:400;color:#94a3b8;margin-left:2px;} }
-.kpis__sep { width:1px; height:28px; background:#eef0f2; }
-.kpis__badge { font-size:11px; font-weight:600; padding:3px 12px; border-radius:100px; }
+.kpis {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 28px;
+  background: #fff;
+  border-bottom: 1px solid #eef0f2;
+  flex-shrink: 0;
+}
+
+.kpis__label {
+  font-size: 13px;
+  color: #8b9198;
+}
+
+.kpis__val {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  font-family: 'SF Mono', 'Cascadia Code', monospace;
+
+  small {
+    margin-left: 2px;
+    font-size: 12px;
+    font-weight: 400;
+    color: #94a3b8;
+  }
+}
+
+.kpis__sep {
+  width: 1px;
+  height: 28px;
+  background: #eef0f2;
+}
+
+.kpis__badge {
+  padding: 3px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 100px;
+}
 
 // 主区域
-.main { flex:1; display:flex; flex-direction:column; gap:14px; padding:14px 24px; min-height:0; overflow-y:auto; }
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 24px;
+  min-height: 0;
+  overflow-y: auto;
+}
 
-.section { background:#fff; border:1px solid #eef0f2; border-radius:8px; padding:14px 18px; }
-.section__title { font-size:14px; font-weight:600; color:#374151; margin-bottom:10px; }
+.section {
+  padding: 16px 20px;
+  background: #fff;
+  border: 1px solid #eef0f2;
+  border-radius: 8px;
+}
 
-.chart-bar { height:200px; width:100%; }
-.chart-line { height:100%; width:100%; min-height:200px; }
+.section__title {
+  margin-bottom: 14px;
+  font-size: 17px;
+  font-weight: 600;
+  color: #1e293b;
+}
 
-.bottom { flex:1; display:flex; gap:14px; min-height:0; }
+.chart-bar {
+  width: 100%;
+  height: 200px;
+}
+
+.chart-line {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+}
+
+.bottom {
+  flex: 1;
+  display: flex;
+  gap: 14px;
+  min-height: 0;
+}
 
 // 表格
-.tbl { width:100%; border-collapse:collapse; font-size:13px;
-  th { text-align:left; padding:8px 10px; color:#8b9198; font-weight:500; font-size:11px; border-bottom:1px solid #eef0f2; }
-  td { padding:9px 10px; color:#475569; border-bottom:1px solid #f8f9fb;
-    small { color:#94a3b8; font-size:11px; } }
-  tbody tr:nth-child(even) td { background:#fafbfc; }
-  tbody tr:hover td { background:#f0f4ff; }
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 16px;
+
+  th {
+    padding: 11px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    color: #64748b;
+    border-bottom: 1px solid #eef0f2;
+  }
+
+  td {
+    padding: 12px 14px;
+    color: #334155;
+    line-height: 1.45;
+    border-bottom: 1px solid #f8f9fb;
+
+    small {
+      font-size: 13px;
+      color: #64748b;
+    }
+  }
+
+  tbody tr:nth-child(even) td {
+    background: #fafbfc;
+  }
+
+  tbody tr:hover td {
+    background: #f0f4ff;
+  }
 }
-.td-n { font-weight:600; color:#1e293b; }
-.td-v { font-weight:700; font-family:'SF Mono',monospace; color:#3b82f6; }
-tr.off td { color:#c0c4cc; .td-n{color:#94a3b8} .td-v{color:#c0c4cc} }
+
+.td-n {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.td-v {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: 'SF Mono', monospace;
+  color: #3b82f6;
+}
+
+tr.off td {
+  color: #c0c4cc;
+
+  .td-n {
+    color: #94a3b8;
+  }
+
+  .td-v {
+    color: #c0c4cc;
+  }
+}
 </style>
 
 <style lang="scss">
-.main-layout__content:has(.gp) { padding:0 !important; overflow:hidden !important; }
+.main-layout__content:has(.gp) {
+  padding: 0 !important;
+  overflow: hidden !important;
+}
 </style>

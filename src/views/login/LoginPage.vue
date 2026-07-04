@@ -128,7 +128,7 @@ async function handleLogin() {
   z-index: 0;
 
   &--fallback {
-    background: linear-gradient(170deg, #0f1a2e 0%, #162540 30%, #1a2f4a 100%);
+    background: var(--color-layout-gradient-login);
   }
 }
 
@@ -136,7 +136,7 @@ async function handleLogin() {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 540px;
+  max-width: 620px;
   padding: 24px;
 
   &__card {
@@ -154,7 +154,7 @@ async function handleLogin() {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 40px 40px 28px;
+    padding: 48px 44px 32px;
     text-align: center;
   }
 
@@ -162,32 +162,32 @@ async function handleLogin() {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 160px;
-    height: 160px;
-    margin-bottom: 20px;
+    width: 180px;
+    height: 180px;
+    margin-bottom: 24px;
     border-radius: 50%;
     background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
   }
 
   &__logo-img {
-    width: 140px;
-    height: 140px;
+    width: 160px;
+    height: 160px;
     object-fit: contain;
     filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.2));
   }
 
   &__overline {
     font-family: 'SF Mono', 'Cascadia Code', monospace;
-    font-size: 10px;
+    font-size: 14px;
     letter-spacing: 3px;
     color: rgba(255, 255, 255, 0.35);
     text-transform: uppercase;
-    margin: 0 0 12px;
+    margin: 0 0 14px;
   }
 
   &__brand-title {
-    margin: 0 0 12px;
-    font-size: 22px;
+    margin: 0 0 14px;
+    font-size: 36px;
     font-weight: 600;
     color: #fff;
     letter-spacing: 1px;
@@ -195,24 +195,24 @@ async function handleLogin() {
   }
 
   &__brand-desc {
-    margin: 0 0 20px;
-    font-size: 13px;
+    margin: 0 0 22px;
+    font-size: 18px;
     color: rgba(255, 255, 255, 0.45);
-    line-height: 1.7;
+    line-height: 1.8;
   }
 
   &__greeting {
     margin: 0;
-    font-size: 16px;
+    font-size: 24px;
     font-weight: 500;
     color: rgba(255, 255, 255, 0.75);
   }
 
   &__body {
-    padding: 8px 40px 48px;
+    padding: 8px 44px 52px;
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 28px;
   }
 
   &__options {
@@ -226,12 +226,12 @@ async function handleLogin() {
   &__checkbox {
     :deep(.el-checkbox__label) {
       color: rgba(255, 255, 255, 0.65);
-      font-size: 14px;
+      font-size: 18px;
     }
 
     :deep(.el-checkbox__inner) {
-      width: 16px;
-      height: 16px;
+      width: 20px;
+      height: 20px;
       background: rgba(255, 255, 255, 0.06);
       border-color: rgba(255, 255, 255, 0.25);
     }
@@ -244,12 +244,12 @@ async function handleLogin() {
 
   &__btn {
     width: 100%;
-    height: 54px;
-    margin-top: 32px;
-    font-size: 17px;
+    height: 64px;
+    margin-top: 36px;
+    font-size: 24px;
     font-weight: 600;
-    letter-spacing: 8px;
-    border-radius: 14px;
+    letter-spacing: 10px;
+    border-radius: 16px;
     border: none;
     background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
     box-shadow: 0 10px 28px rgba(24, 144, 255, 0.4);
@@ -270,10 +270,10 @@ async function handleLogin() {
 .login-field {
   display: flex;
   align-items: stretch;
-  height: 56px;
+  height: 66px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s;
 
@@ -287,10 +287,10 @@ async function handleLogin() {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 56px;
+    width: 66px;
     flex-shrink: 0;
     color: rgba(255, 255, 255, 0.5);
-    font-size: 26px;
+    font-size: 30px;
     border-right: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
   }
@@ -300,8 +300,8 @@ async function handleLogin() {
     min-width: 0;
 
     :deep(.el-input__wrapper) {
-      height: 56px;
-      padding: 0 16px;
+      height: 66px;
+      padding: 0 18px;
       background: transparent;
       border: none;
       border-radius: 0;
@@ -309,17 +309,18 @@ async function handleLogin() {
 
       .el-input__inner {
         color: #fff;
-        font-size: 16px;
+        font-size: 20px;
 
         &::placeholder {
           color: rgba(255, 255, 255, 0.3);
+          font-size: 18px;
         }
       }
     }
 
     :deep(.el-input__suffix) {
       color: rgba(255, 255, 255, 0.45);
-      font-size: 22px;
+      font-size: 24px;
     }
   }
 }
@@ -334,25 +335,25 @@ async function handleLogin() {
   }
 
   .login-form__header {
-    padding: 32px 24px 24px;
+    padding: 36px 24px 28px;
   }
 
   .login-form__logo-wrap {
-    width: 140px;
-    height: 140px;
+    width: 150px;
+    height: 150px;
   }
 
   .login-form__logo-img {
-    width: 120px;
-    height: 120px;
+    width: 130px;
+    height: 130px;
   }
 
   .login-form__brand-title {
-    font-size: 20px;
+    font-size: 28px;
   }
 
   .login-form__body {
-    padding: 8px 24px 36px;
+    padding: 8px 24px 40px;
   }
 }
 </style>

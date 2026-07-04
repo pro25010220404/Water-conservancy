@@ -84,25 +84,8 @@ onUnmounted(() => {
   justify-content: space-between;
   height: var(--header-height);
   padding: 0 var(--spacing-lg);
-  background: linear-gradient(90deg, #0a1628 0%, #0d2137 50%, #112a45 100%);
-  border-bottom: 1px solid var(--color-layout-blue-border);
+  background: var(--color-layout-gradient-header);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-
-  &::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      var(--color-layout-blue-glow) 50%,
-      transparent 100%
-    );
-    pointer-events: none;
-  }
 
   &__left {
     display: flex;
@@ -119,15 +102,15 @@ onUnmounted(() => {
     height: 34px;
     border: 1px solid var(--color-layout-blue-border);
     border-radius: var(--border-radius-sm);
-    background: rgba(0, 212, 255, 0.06);
+    background: rgba(255, 255, 255, 0.1);
     color: var(--color-layout-blue-brand);
     cursor: pointer;
     transition: all 0.2s;
 
     &:hover {
-      background: rgba(0, 212, 255, 0.14);
-      border-color: rgba(0, 212, 255, 0.4);
-      box-shadow: 0 0 12px rgba(0, 212, 255, 0.2);
+      background: rgba(255, 255, 255, 0.18);
+      border-color: rgba(255, 255, 255, 0.35);
+      box-shadow: 0 0 14px rgba(110, 179, 255, 0.25);
     }
   }
 
@@ -151,7 +134,6 @@ onUnmounted(() => {
     font-family: 'Roboto Mono', 'SF Mono', monospace;
     font-size: var(--font-size-sm);
     color: var(--color-layout-blue-brand);
-    opacity: 0.85;
     letter-spacing: 0.5px;
   }
 
@@ -165,7 +147,7 @@ onUnmounted(() => {
     transition: background 0.2s;
 
     &:hover {
-      background: rgba(0, 212, 255, 0.08);
+      background: rgba(255, 255, 255, 0.08);
     }
   }
 
@@ -175,9 +157,10 @@ onUnmounted(() => {
   }
 
   :deep(.el-avatar) {
-    background: linear-gradient(135deg, #1890ff, #00d4ff);
-    color: #0a1628;
+    background: linear-gradient(135deg, #2e66b8, #4a90d9);
+    color: #fff;
     font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.25);
   }
 }
 </style>

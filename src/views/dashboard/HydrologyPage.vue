@@ -48,7 +48,34 @@ function status(s:Station):Status{
 
 // ═══ 趋势图：双Y轴 + 实测/AI预测/置信区间/预警线 + 时段切换 ═══
 const chartRange = ref<'1h'|'6h'|'24h'>('1h')
-const RANGE_MIN:Record<string,number> = {'1h':60,'6h':360,'24h':1440}
+const RANGE_HOURS: Record<'1h'|'6h'|'24h', number> = { '1h': 1, '6h': 6, '24h': 24 }
+const CHART_RANGES = [
+  { value: '1h' as const, label: '一小时' },
+  { value: '6h' as const, label: '六小时' },
+  { value: '24h' as const, label: '二十四小时' },
+]
+
+type TrendPoint = (typeof trend.value)[number]
+
+function filterTrendPoints(all: readonly TrendPoint[], range: '1h'|'6h'|'24h') {
+  const cutoff = Date.now() - RANGE_HOURS[range] * 3600_000
+  let pts = all.filter(p => new Date(p.timestamp).getTime() >= cutoff)
+  if (!pts.length) pts = [...all]
+
+  const maxDisplay = range === '1h' ? 48 : range === '6h' ? 72 : 96
+  if (pts.length <= maxDisplay) return pts
+
+  const step = Math.ceil(pts.length / maxDisplay)
+  return pts.filter((_, i) => i % step === 0 || i === pts.length - 1)
+}
+
+function formatAxisLabel(ts: string, range: '1h'|'6h'|'24h') {
+  const d = new Date(ts)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  if (range === '24h') return `${d.getMonth() + 1}/${d.getDate()} ${hh}:00`
+  return `${hh}:${mm}`
+}
 
 function aiPredict(actual:number,steps:number,variance:number):{pred:number[],upper:number[],lower:number[]}{
   const pred:number[]=[],upper:number[]=[],lower:number[]=[];let v=actual
@@ -57,32 +84,47 @@ function aiPredict(actual:number,steps:number,variance:number):{pred:number[],up
 }
 
 const trendOpt = computed(()=>{
-  const all=trend.value;const maxPts=RANGE_MIN[chartRange.value]*2
-  const pts=all.length>maxPts?all.slice(-maxPts):all
-  const labels=pts.map(p=>{const d=new Date(p.timestamp);return chartRange.value==='24h'?(d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':00':d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')})
-  const levelData=pts.map(p=>p.upstreamLevel);const outflowData=pts.map(p=>p.outflowRate)
-  const lastLevel=levelData[levelData.length-1]||378.5;const lastFlow=outflowData[outflowData.length-1]||5820
-  const aiL=aiPredict(lastLevel,16,0.08);const aiF=aiPredict(lastFlow,16,80)
-  const predLabels=aiL.pred.map((_,i)=>{const d=new Date(Date.now()+(i+1)*5*60000);return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0')})
-  const xData=[...labels,...predLabels]
-  const lvlA=[...levelData,...Array(16).fill(null)];const lvlP=[...Array(labels.length).fill(null),...aiL.pred]
-  const lvlU=[...Array(labels.length).fill(null),...aiL.upper];const lvlL=[...Array(labels.length).fill(null),...aiL.lower]
-  const flwA=[...outflowData,...Array(16).fill(null)];const flwP=[...Array(labels.length).fill(null),...aiF.pred]
-  return{backgroundColor:'transparent',grid:{left:44,right:54,top:32,bottom:30},
-    legend:{data:['实测水位','AI水位预测','出库流量','AI出库预测'],textStyle:{color:'#64748b',fontSize:10},top:6,right:0,itemGap:12},
-    xAxis:{type:'category',data:xData,axisLine:{lineStyle:{color:'#e5e7eb'}},axisLabel:{color:'#94a3b8',fontSize:9,interval:Math.max(1,Math.floor(xData.length/6))}},
-    yAxis:[{type:'value',min:377,max:381,splitLine:{lineStyle:{color:'#f1f5f9'}},axisLabel:{color:'#94a3b8',fontSize:10,formatter:(v:number)=>v+' m'}},
-           {type:'value',splitLine:{show:false},axisLabel:{color:'#94a3b8',fontSize:10,formatter:(v:number)=>(v/1000).toFixed(1)+'k'}}],
+  const range = chartRange.value
+  const pts = filterTrendPoints(trend.value, range)
+  const labels = pts.map(p => formatAxisLabel(p.timestamp, range))
+  const levelData = pts.map(p => p.upstreamLevel)
+  const outflowData = pts.map(p => p.outflowRate)
+  const lastLevel = levelData[levelData.length - 1] || 378.5
+  const lastFlow = outflowData[outflowData.length - 1] || 5820
+  const aiL = aiPredict(lastLevel, 16, 0.08)
+  const aiF = aiPredict(lastFlow, 16, 80)
+  const predLabels = aiL.pred.map((_, i) => {
+    const d = new Date(Date.now() + (i + 1) * 5 * 60000)
+    return formatAxisLabel(d.toISOString(), range)
+  })
+  const xData = [...labels, ...predLabels]
+  const lvlA = [...levelData, ...Array(16).fill(null)]
+  const lvlP = [...Array(labels.length).fill(null), ...aiL.pred]
+  const lvlU = [...Array(labels.length).fill(null), ...aiL.upper]
+  const lvlL = [...Array(labels.length).fill(null), ...aiL.lower]
+  const flwA = [...outflowData, ...Array(16).fill(null)]
+  const flwP = [...Array(labels.length).fill(null), ...aiF.pred]
+
+  const lvlMin = Math.min(...levelData, 377.5)
+  const lvlMax = Math.max(...levelData, 380.5)
+  const flowMin = Math.min(...outflowData, 5000)
+  const flowMax = Math.max(...outflowData, 7000)
+
+  return{backgroundColor:'transparent',grid:{left:52,right:62,top:44,bottom:36},
+    legend:{data:['实测水位','AI水位预测','出库流量','AI出库预测'],textStyle:{color:'#475569',fontSize:14},top:4,right:0,itemGap:16,itemWidth:18,itemHeight:10},
+    xAxis:{type:'category',data:xData,axisLine:{lineStyle:{color:'#e5e7eb'}},axisLabel:{color:'#64748b',fontSize:13,interval:Math.max(1,Math.floor(labels.length/5))}},
+    yAxis:[{type:'value',min:+(lvlMin - 0.3).toFixed(1),max:+(lvlMax + 0.3).toFixed(1),splitLine:{lineStyle:{color:'#f1f5f9'}},axisLabel:{color:'#64748b',fontSize:13,formatter:(v:number)=>v+' m'}},
+           {type:'value',min:Math.floor(flowMin - 200),max:Math.ceil(flowMax + 200),splitLine:{show:false},axisLabel:{color:'#64748b',fontSize:13,formatter:(v:number)=>(v/1000).toFixed(1)+'k'}}],
     series:[
       {name:'实测水位',type:'line',yAxisIndex:0,data:lvlA,smooth:true,symbol:'none',lineStyle:{color:'#3b82f6',width:2.5},areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(59,130,246,0.12)'},{offset:1,color:'rgba(59,130,246,0.01)'}]}}},
       {name:'AI水位预测',type:'line',yAxisIndex:0,data:lvlP,smooth:true,symbol:'none',lineStyle:{color:'#3b82f6',width:2,type:'dashed'}},
       {name:'置信',type:'line',yAxisIndex:0,data:lvlU,smooth:true,symbol:'none',lineStyle:{color:'transparent',width:0},areaStyle:{color:'rgba(59,130,246,0.05)'},stack:'ci',silent:true,legendHoverLink:false},
       {name:'置信',type:'line',yAxisIndex:0,data:lvlL,smooth:true,symbol:'none',lineStyle:{color:'transparent',width:0},areaStyle:{color:'rgba(255,255,255,1)'},stack:'ci',silent:true,legendHoverLink:false},
-      {name:'预警线',type:'line',yAxisIndex:0,data:[],symbol:'none',lineStyle:{color:'transparent',width:0},markLine:{silent:true,symbol:'none',label:{show:true,formatter:'预警{c}m',fontSize:9,color:'#f59e0b'},lineStyle:{color:'#f59e0b',type:'dashed',width:1},data:[{yAxis:380.5}]},legendHoverLink:false},
+      {name:'预警线',type:'line',yAxisIndex:0,data:[],symbol:'none',lineStyle:{color:'transparent',width:0},markLine:{silent:true,symbol:'none',label:{show:true,formatter:'预警{c}m',fontSize:12,color:'#f59e0b'},lineStyle:{color:'#f59e0b',type:'dashed',width:1},data:[{yAxis:380.5}]},legendHoverLink:false},
       {name:'出库流量',type:'line',yAxisIndex:1,data:flwA,smooth:true,symbol:'none',lineStyle:{color:'#22c55e',width:2}},
       {name:'AI出库预测',type:'line',yAxisIndex:1,data:flwP,smooth:true,symbol:'none',lineStyle:{color:'#22c55e',width:1.5,type:'dashed'}},
     ],
-    tooltip:{trigger:'axis',backgroundColor:'#fff',borderColor:'#e5e7eb',textStyle:{color:'#374151',fontSize:11}},
+    tooltip:{trigger:'axis',backgroundColor:'#fff',borderColor:'#e5e7eb',textStyle:{color:'#1e293b',fontSize:14},padding:[10,14]},
   }
 })
 
@@ -137,12 +179,25 @@ watch(()=>snapshot.value.upstreamLevel,()=>refresh())
       <div v-if="drawerOpen" class="hydro__dr">
         <div class="hydro__dr-tt">趋势图表</div>
         <div class="hydro__range">
-          <button v-for="r in (['1h','6h','24h'] as const)" :key="r" :class="{on:chartRange===r}" @click="chartRange=r">{{ r }}</button>
+          <button
+            v-for="r in CHART_RANGES"
+            :key="r.value"
+            type="button"
+            class="hydro__range-btn"
+            :class="{ on: chartRange === r.value }"
+            @click="chartRange = r.value"
+          >
+            {{ r.label }}
+          </button>
         </div>
-        <div class="hydro__cb"><v-chart class="hydro__ch" :option="trendOpt" autoresize/></div>
-        <div class="hydro__dr-tt" style="margin-top:8px">监测站点</div>
+        <div class="hydro__cb">
+          <v-chart class="hydro__ch" :option="trendOpt" autoresize />
+        </div>
+        <div class="hydro__dr-tt hydro__dr-tt--spaced">监测站点</div>
         <div v-for="s in SS" :key="s.id" class="hydro__stn">
-          <span class="hydro__stn-d" :style="{background:SC[status(s)]}"/><span class="hydro__stn-n">{{s.name}}</span><span class="hydro__stn-v">{{fmt(sv(s),s.cat==='流量'?0:2)}}<small>{{su(s.cat)}}</small></span>
+          <span class="hydro__stn-d" :style="{ background: SC[status(s)] }" />
+          <span class="hydro__stn-n">{{ s.name }}</span>
+          <span class="hydro__stn-v">{{ fmt(sv(s), s.cat === '流量' ? 0 : 2) }}<small>{{ su(s.cat) }}</small></span>
         </div>
       </div>
     </Transition>
@@ -150,34 +205,292 @@ watch(()=>snapshot.value.upstreamLevel,()=>refresh())
 </template>
 
 <style scoped lang="scss">
-.hydro{width:100%;height:calc(100vh - 56px);position:relative;overflow:hidden;background:#e8ecf0}
-.hydro__map{width:100%;height:100%}
-.hydro__top{position:absolute;top:12px;left:12px;z-index:600;display:flex;align-items:center;gap:10px}
-.hydro__badge{display:flex;align-items:center;gap:5px;font-size:10px;padding:4px 10px;border-radius:12px;background:rgba(255,255,255,0.9);border:1px solid #e5e7eb;color:#6b7280;backdrop-filter:blur(8px)}
-.hydro__badge.mock{border-color:#fde68a;background:rgba(255,251,235,0.9)}.hydro__badge.live{border-color:#bbf7d0;background:rgba(240,253,244,0.9)}
-.hydro__badge-dot{width:6px;height:6px;border-radius:50%}.mock .hydro__badge-dot{background:#f59e0b;animation:kp 2s infinite}.live .hydro__badge-dot{background:#22c55e}
-.hydro__btn{position:absolute;top:12px;right:12px;z-index:700;width:36px;height:36px;border-radius:8px;border:1px solid #e5e7eb;background:rgba(255,255,255,0.9);backdrop-filter:blur(8px);font-size:16px;color:#374151;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.08);transition:all 0.15s}
-.hydro__btn:hover{background:#fff;border-color:#d1d5db}
-.hydro__dr{position:absolute;top:0;right:0;bottom:0;width:min(720px,65vw);z-index:650;background:#fff;border-left:1px solid #e5e7eb;box-shadow:-4px 0 24px rgba(0,0,0,0.08);padding:56px 20px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
-.hydro__dr-tt{font-size:12px;font-weight:700;color:#374151;letter-spacing:0.5px;text-transform:uppercase}
-.hydro__cb{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;flex:0 0 55%;display:flex;min-height:0}
-.hydro__ch{flex:1;width:100%}
-.hydro__range{display:flex;gap:0;margin-bottom:10px;border-radius:6px;overflow:hidden;border:1px solid #e5e7eb;width:fit-content}
-.hydro__range button{padding:4px 16px;border:none;background:#fff;font-size:11px;font-weight:500;color:#64748b;cursor:pointer}
-.hydro__range button+button{border-left:1px solid #e5e7eb}
-.hydro__range button:hover{color:#1e293b}
-.hydro__range button.on{background:#3b82f6;color:#fff;font-weight:600}
-.hydro__stn{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px}.hydro__stn:hover{background:#f9fafb}
-.hydro__stn-d{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.hydro__stn-n{flex:1;font-size:12px;color:#374151}
-.hydro__stn-v{font-size:13px;font-weight:700;color:#1f2937}.hydro__stn-v small{font-size:10px;font-weight:400;color:#9ca3af;margin-left:2px}
-.kpi{padding:6px 14px;background:rgba(255,255,255,0.88);border:1px solid rgba(0,0,0,0.06);border-radius:8px;backdrop-filter:blur(8px);display:flex;flex-direction:column;align-items:center;gap:2px;box-shadow:0 1px 4px rgba(0,0,0,0.04)}
-.kpi__l{font-size:10px;font-weight:500;color:#9ca3af;text-transform:uppercase;letter-spacing:0.3px}
-.kpi__v{font-size:16px;font-weight:700;color:#1f2937;line-height:1.2}.kpi__v small{font-size:10px;font-weight:400;color:#9ca3af;margin-left:2px}.kpi__v.warn{color:#d97706}
-.dr-enter-active,.dr-leave-active{transition:transform 0.25s ease}
-.dr-enter-from,.dr-leave-to{transform:translateX(100%)}
-@keyframes kp{0%,100%{opacity:1}50%{opacity:0.3}}
-@keyframes sp{0%,100%{opacity:1}50%{opacity:0.4}}
+.hydro {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 56px);
+  overflow: hidden;
+  background: #e8ecf0;
+}
+
+.hydro__map {
+  width: 100%;
+  height: 100%;
+}
+
+.hydro__top {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hydro__badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 10px;
+  color: #6b7280;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+
+  &.mock {
+    color: inherit;
+    background: rgba(255, 251, 235, 0.9);
+    border-color: #fde68a;
+  }
+
+  &.live {
+    background: rgba(240, 253, 244, 0.9);
+    border-color: #bbf7d0;
+  }
+}
+
+.hydro__badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.mock .hydro__badge-dot {
+  background: #f59e0b;
+  animation: kp 2s infinite;
+}
+
+.live .hydro__badge-dot {
+  background: #22c55e;
+}
+
+.hydro__btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  color: #374151;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    background: #fff;
+    border-color: #d1d5db;
+  }
+}
+
+.hydro__dr {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 650;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(720px, 65vw);
+  padding: 56px 20px 24px;
+  overflow-y: auto;
+  background: #fff;
+  border-left: 1px solid #e5e7eb;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.08);
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+
+    &:hover {
+      background: #9ca3af;
+    }
+  }
+}
+
+.hydro__dr-tt {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1e293b;
+
+  &--spaced {
+    margin-top: 6px;
+  }
+}
+
+.hydro__cb {
+  padding: 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.hydro__ch {
+  width: 100%;
+  height: 340px;
+}
+
+.hydro__range {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.hydro__range-btn {
+  flex: 1;
+  padding: 7px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: #1e293b;
+    background: #f1f5f9;
+    border-color: #d1d5db;
+  }
+
+  &.on {
+    font-weight: 600;
+    color: #fff;
+    background: #3b82f6;
+    border-color: #3b82f6;
+    box-shadow: 0 1px 4px rgba(59, 130, 246, 0.3);
+  }
+}
+
+.hydro__stn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px;
+  border-radius: 6px;
+
+  &:hover {
+    background: #f9fafb;
+  }
+}
+
+.hydro__stn-d {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hydro__stn-n {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.hydro__stn-v {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+
+  small {
+    margin-left: 3px;
+    font-size: 14px;
+    font-weight: 400;
+    color: #64748b;
+  }
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  backdrop-filter: blur(8px);
+}
+
+.kpi__l {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  letter-spacing: 0.3px;
+}
+
+.kpi__v {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #1f2937;
+
+  small {
+    margin-left: 3px;
+    font-size: 12px;
+    font-weight: 400;
+    color: #64748b;
+  }
+
+  &.warn {
+    color: #d97706;
+  }
+}
+
+.dr-enter-active,
+.dr-leave-active {
+  transition: transform 0.25s ease;
+}
+
+.dr-enter-from,
+.dr-leave-to {
+  transform: translateX(100%);
+}
+
+@keyframes kp {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes sp {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
 </style>
 
 <style lang="scss">

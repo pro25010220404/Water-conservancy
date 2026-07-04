@@ -258,11 +258,6 @@ export function useLoginScene(containerRef: Ref<HTMLElement | null>) {
   let animationId = 0
   let clock: THREE.Clock
 
-  let currentPeriod: Period
-  let targetPeriod: Period
-  let periodTransition = 1
-  let periodCheckTimer = 0
-
   function onResize() {
     if (!camera || !renderer) return
     camera.aspect = window.innerWidth / window.innerHeight
@@ -272,44 +267,12 @@ export function useLoginScene(containerRef: Ref<HTMLElement | null>) {
 
   function animate() {
     animationId = requestAnimationFrame(animate)
-    const dt = Math.min(clock.getDelta(), 0.1)
+    clock.getDelta() // 必须调用以触发 Clock 的 autoStart，否则 elapsedTime 异常
     const elapsed = clock.elapsedTime
 
     // 相机固定
     camera.position.set(0, 2.2, 5)
     camera.lookAt(0, 1.2, -5)
-
-    // 时段
-    periodCheckTimer += dt
-    if (periodCheckTimer > 10) {
-      periodCheckTimer = 0
-      const np = getPeriod(new Date().getHours())
-      if (np !== targetPeriod) { targetPeriod = np; periodTransition = 0 }
-    }
-    if (periodTransition < 1) {
-      periodTransition = Math.min(1, periodTransition + dt * 0.35)
-      const a = PERIODS[currentPeriod]
-      const b = PERIODS[targetPeriod]
-      const t = periodTransition
-      const st = lerp3(a.skyTop, b.skyTop, t)
-      const sh = lerp3(a.skyHorizon, b.skyHorizon, t)
-      const wd = lerp3(a.waterDeep, b.waterDeep, t)
-      const ws = lerp3(a.waterSurface, b.waterSurface, t)
-      const sp = lerp3(a.specular, b.specular, t)
-      const sd = lerp3(a.sunDir, b.sunDir, t)
-
-      skyMat.uniforms.uSkyTop.value.set(st[0], st[1], st[2])
-      skyMat.uniforms.uSkyHorizon.value.set(sh[0], sh[1], sh[2])
-      skyMat.uniforms.uSunDir.value.set(sd[0], sd[1], sd[2])
-      waterMat.uniforms.uWaterDeep.value.set(wd[0], wd[1], wd[2])
-      waterMat.uniforms.uWaterSurface.value.set(ws[0], ws[1], ws[2])
-      waterMat.uniforms.uSpecular.value.set(sp[0], sp[1], sp[2])
-      waterMat.uniforms.uSunDir.value.set(sd[0], sd[1], sd[2])
-      waterMat.uniforms.uSkyTop.value.set(st[0], st[1], st[2])
-      waterMat.uniforms.uSkyHorizon.value.set(sh[0], sh[1], sh[2])
-
-      if (periodTransition >= 1) currentPeriod = targetPeriod
-    }
 
     waterMat.uniforms.uTime.value = elapsed
     waterMat.uniforms.uCameraPos.value.copy(camera.position)
@@ -326,9 +289,7 @@ export function useLoginScene(containerRef: Ref<HTMLElement | null>) {
       if (!(c.getContext('webgl') || c.getContext('experimental-webgl'))) throw new Error()
     } catch { webglSupported.value = false; return }
 
-    currentPeriod = getPeriod(new Date().getHours())
-    targetPeriod = currentPeriod
-    const cl = PERIODS[currentPeriod]
+    const cl = PERIODS.noon
 
     scene = new THREE.Scene()
 

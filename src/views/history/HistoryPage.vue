@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ElIcon } from 'element-plus'
+import { DataAnalysis, VideoPlay, VideoPause, Close } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, MarkLineComponent, MarkPointComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { isReplaying } from '@/composables/useReplayMode'
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, MarkLineComponent, MarkPointComponent, CanvasRenderer])
 
 // ═══ 主题 ═══
@@ -13,23 +16,23 @@ watch(darkMode, v => localStorage.setItem('history-theme', v ? 'dark' : 'light')
 
 // ═══ 离线检测 ═══
 const isOnline = ref(navigator.onLine)
-onMounted(() => { window.addEventListener('online', ()=>isOnline.value=true); window.addEventListener('offline', ()=>isOnline.value=false) })
+onMounted(() => { window.addEventListener('online', () => isOnline.value = true); window.addEventListener('offline', () => isOnline.value = false) })
 
 // ═══ 筛选 ═══
 const dateRange = ref({ start: '', end: '' })
 const selectedMetrics = ref<string[]>(['upstreamLevel', 'flowRate'])
-const granularity = ref<'raw'|'5min'|'hour'|'day'>('5min')
+const granularity = ref<'raw' | '5min' | 'hour' | 'day'>('5min')
 const metricOptions = [
-  { value:'upstreamLevel', label:'上游水位', unit:'m', color:'#3b82f6' },
-  { value:'downstreamLevel', label:'下游水位', unit:'m', color:'#06b6d4' },
-  { value:'inflowRate', label:'入库流量', unit:'m³/s', color:'#8b5cf6' },
-  { value:'outflowRate', label:'出库流量', unit:'m³/s', color:'#22c55e' },
-  { value:'gateOpening', label:'闸门开度', unit:'%', color:'#f59e0b' },
-  { value:'powerOutput', label:'发电功率', unit:'MW', color:'#ef4444' },
+  { value: 'upstreamLevel', label: '上游水位', unit: 'm', color: '#3b82f6' },
+  { value: 'downstreamLevel', label: '下游水位', unit: 'm', color: '#06b6d4' },
+  { value: 'inflowRate', label: '入库流量', unit: 'm³/s', color: '#8b5cf6' },
+  { value: 'outflowRate', label: '出库流量', unit: 'm³/s', color: '#22c55e' },
+  { value: 'gateOpening', label: '闸门开度', unit: '%', color: '#f59e0b' },
+  { value: 'powerOutput', label: '发电功率', unit: 'MW', color: '#ef4444' },
 ]
 const granularityOptions = [
-  { value:'raw', label:'原始' }, { value:'5min', label:'5分钟' },
-  { value:'hour', label:'小时' }, { value:'day', label:'日' },
+  { value: 'raw', label: '原始' }, { value: '5min', label: '5分钟' },
+  { value: 'hour', label: '小时' }, { value: 'day', label: '日' },
 ]
 const queried = ref(false)
 
@@ -43,23 +46,22 @@ const chartZoom = ref<[number, number] | null>(null)
 function generateMock() {
   const now = Date.now()
   const arr = []
-  for (let i = 96; i >= 0; i--) { // 只生成96个点，每15分钟一个 = 24小时
+  for (let i = 96; i >= 0; i--) {
     const t = now - i * 15 * 60000
     arr.push({
       time: t, label: new Date(t).toLocaleString('zh-CN'),
-      upstreamLevel: +(378.5 + Math.sin(i/8)*1.2).toFixed(2),
-      downstreamLevel: +(269.2 + Math.sin(i/12)*0.2).toFixed(2),
-      inflowRate: Math.round(6350 + Math.sin(i/6)*800),
-      outflowRate: Math.round(5820 + Math.sin(i/6)*700),
-      gateOpening: +(34 + Math.sin(i/4)*15).toFixed(1),
-      powerOutput: Math.round(680 + Math.sin(i/5)*15),
+      upstreamLevel: +(378.5 + Math.sin(i / 8) * 1.2).toFixed(2),
+      downstreamLevel: +(269.2 + Math.sin(i / 12) * 0.2).toFixed(2),
+      inflowRate: Math.round(6350 + Math.sin(i / 6) * 800),
+      outflowRate: Math.round(5820 + Math.sin(i / 6) * 700),
+      gateOpening: +(34 + Math.sin(i / 4) * 15).toFixed(1),
+      powerOutput: Math.round(680 + Math.sin(i / 5) * 15),
       event: null as any,
     })
   }
-  // 加几个事件标记
-  arr[20].event = { type:'alarm', label:'水位超预警', color:'#ef4444' }
-  arr[45].event = { type:'dispatch', label:'闸门调度', color:'#3b82f6' }
-  arr[70].event = { type:'gate', label:'3#闸门动作', color:'#f59e0b' }
+  arr[20].event = { type: 'alarm', label: '水位超预警', color: '#ef4444' }
+  arr[45].event = { type: 'dispatch', label: '闸门调度', color: '#3b82f6' }
+  arr[70].event = { type: 'gate', label: '3#闸门动作', color: '#f59e0b' }
   allData.value = arr
 }
 
@@ -72,7 +74,7 @@ function applyFilters() {
   queried.value = true
 }
 function resetFilters() {
-  dateRange.value = { start:'', end:'' }
+  dateRange.value = { start: '', end: '' }
   selectedMetrics.value = ['upstreamLevel', 'flowRate']
   granularity.value = '5min'
   tableData.value = [...allData.value]
@@ -94,13 +96,95 @@ function onChartZoom(params: any) {
   if (params.batch?.[0]) {
     const z = params.batch[0]
     chartZoom.value = [z.start, z.end]
-    // 根据 zoom 范围过滤表格
     const startIdx = Math.floor(z.start / 100 * tableData.value.length)
     const endIdx = Math.floor(z.end / 100 * tableData.value.length)
     tableData.value = allData.value.slice(startIdx, endIdx + 1)
     tablePage.value = 1
   }
 }
+
+// ═══ 时光机回放 ═══
+const replayMode = ref(false)
+const replayTime = ref(0)
+const replayPlaying = ref(false)
+const replaySpeed = ref(1)
+let replayTimer: ReturnType<typeof setInterval> | null = null
+
+const replayTimeMin = computed(() => allData.value[0]?.time ?? 0)
+const replayTimeMax = computed(() => allData.value[allData.value.length - 1]?.time ?? 0)
+const replayTimeLabel = computed(() => new Date(replayTime.value).toLocaleString('zh-CN'))
+const replayProgress = computed(() => {
+  const span = replayTimeMax.value - replayTimeMin.value
+  return span > 0 ? ((replayTime.value - replayTimeMin.value) / span) * 100 : 0
+})
+
+// 快照：最接近 replayTime 的数据点
+const replaySnapshot = computed(() => {
+  const ts = replayTime.value
+  let best = allData.value[0]
+  let bestDiff = Infinity
+  for (const d of allData.value) {
+    const diff = Math.abs(d.time - ts)
+    if (diff < bestDiff) { bestDiff = diff; best = d }
+  }
+  return best
+})
+
+function enterReplay() {
+  replayMode.value = true
+  isReplaying.value = true
+  replayTime.value = allData.value[Math.floor(allData.value.length / 2)]?.time ?? Date.now()
+  replayPlaying.value = false
+  replaySpeed.value = 1
+}
+
+function exitReplay() {
+  stopReplayTimer()
+  replayMode.value = false
+  isReplaying.value = false
+  replayPlaying.value = false
+}
+
+function toggleReplayPlay() {
+  if (replayPlaying.value) {
+    stopReplayTimer()
+  } else {
+    startReplayTimer()
+  }
+}
+
+function startReplayTimer() {
+  replayPlaying.value = true
+  replayTimer = setInterval(() => {
+    const step = replaySpeed.value * 15 * 60000 // 每 100ms 推进 speed×15min
+    replayTime.value += step
+    if (replayTime.value >= replayTimeMax.value) {
+      replayTime.value = replayTimeMax.value
+      stopReplayTimer()
+    }
+  }, 100)
+}
+
+function stopReplayTimer() {
+  replayPlaying.value = false
+  if (replayTimer) { clearInterval(replayTimer); replayTimer = null }
+}
+
+function seekReplay(e: Event) {
+  const target = e.target as HTMLInputElement
+  replayTime.value = Number(target.value)
+}
+
+function jumpReplay(delta: number) {
+  const step = 5 * 15 * 60000 // 一次跳 5 个数据点
+  replayTime.value = Math.min(replayTimeMax.value, Math.max(replayTimeMin.value, replayTime.value + delta * step))
+}
+
+// 退出回放时清理
+onUnmounted(() => {
+  if (replayTimer) clearInterval(replayTimer)
+  if (replayMode.value) isReplaying.value = false
+})
 
 // ═══ 图表配置 ═══
 const chartOpt = computed(() => {
@@ -109,36 +193,57 @@ const chartOpt = computed(() => {
   const series: any[] = selectedMetrics.value.map(m => {
     const cfg = metricOptions.find(o => o.value === m)
     if (!cfg) return null
-    const s: any = { name: cfg.label, type:'line', data: data.map(d => [d.label, d[m]]), smooth:true, symbol:'none', lineStyle:{color:cfg.color, width:2} }
+    const s: any = { name: cfg.label, type: 'line', data: data.map(d => [d.label, d[m]]), smooth: true, symbol: 'none', lineStyle: { color: cfg.color, width: 2 } }
     if (m === 'upstreamLevel' || m === 'downstreamLevel') s.yAxisIndex = 0; else s.yAxisIndex = 1
     return s
   }).filter(Boolean)
+
   const events = data.filter(d => d.event)
   if (series.length > 0 && events.length > 0) {
-    series[0].markPoint = { data: events.map(d => ({ name:d.event.label, coord:[d.label, d.upstreamLevel], symbol:'pin', symbolSize:28, itemStyle:{color:d.event.color}, label:{show:true, fontSize:10} })) }
+    series[0].markPoint = {
+      data: events.map(d => ({ name: d.event.label, coord: [d.label, d.upstreamLevel], symbol: 'pin', symbolSize: 32, itemStyle: { color: d.event.color }, label: { show: true, fontSize: 12 } })),
+    }
   }
+
+  // 回放模式下添加 markLine 竖线
+  if (replayMode.value && replaySnapshot.value) {
+    const cursorLabel = replaySnapshot.value.label
+    series.forEach((s: any) => {
+      s.markLine = {
+        silent: true,
+        symbol: 'none',
+        lineStyle: { color: '#f59e0b', width: 2, type: 'dashed' },
+        data: [{ xAxis: cursorLabel }],
+        label: { show: false },
+      }
+    })
+  }
+
   return {
-    backgroundColor:'transparent', legend:{data:selectedMetrics.value.map(m=>metricLabel(m)),textStyle:{color:'#64748b',fontSize:11},top:0},
-    grid:{left:56,right:56,top:30,bottom:60},
-    tooltip:{trigger:'axis'}, animation:false,
-    xAxis:{type:'category',data:data.map(d=>d.label),axisLabel:{fontSize:9,interval:Math.max(1,Math.floor(data.length/6))}},
-    yAxis:[{type:'value',splitLine:{lineStyle:{color:'#f1f5f9'}},axisLabel:{fontSize:10}},{type:'value',splitLine:{show:false},axisLabel:{fontSize:10}}],
-    dataZoom:[{type:'slider',start:0,end:100,height:20,bottom:0}], series,
+    backgroundColor: 'transparent',
+    legend: { data: selectedMetrics.value.map(m => metricLabel(m)), textStyle: { color: '#64748b', fontSize: 14 }, top: 0 },
+    grid: { left: 56, right: 56, top: 36, bottom: 60 },
+    tooltip: { trigger: 'axis', textStyle: { fontSize: 14 } },
+    animation: !replayMode.value,
+    xAxis: { type: 'category', data: data.map(d => d.label), axisLabel: { fontSize: 12, interval: Math.max(1, Math.floor(data.length / 6)) } },
+    yAxis: [{ type: 'value', splitLine: { lineStyle: { color: '#f1f5f9' } }, axisLabel: { fontSize: 12 } }, { type: 'value', splitLine: { show: false }, axisLabel: { fontSize: 12 } }],
+    dataZoom: [{ type: 'slider', start: 0, end: 100, height: 24, bottom: 0, textStyle: { fontSize: 11 } }],
+    series,
   }
 })
 
 // ═══ 导出 ═══
 const exporting = ref(false)
-function doExport(format: 'csv'|'xlsx') {
+function doExport(format: 'csv' | 'xlsx') {
   exporting.value = true
   setTimeout(() => {
     const headers = ['时间', ...selectedMetrics.value.map(m => metricLabel(m))]
     const rows = tableData.value.map(d => [d.label, ...selectedMetrics.value.map(m => d[m])])
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
-    const blob = new Blob(['﻿' + csv], { type:'text/csv;charset=utf-8' })
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `历史数据_${new Date().toISOString().slice(0,10)}.${format === 'csv' ? 'csv' : 'csv'}`
+    a.download = `历史数据_${new Date().toISOString().slice(0, 10)}.${format === 'csv' ? 'csv' : 'csv'}`
     a.click()
     exporting.value = false
   }, 800)
@@ -148,8 +253,8 @@ function doExport(format: 'csv'|'xlsx') {
 const reportVisible = ref(false)
 const reportData = computed(() => {
   const data = tableData.value.length > 0 ? tableData.value : allData.value.slice(-100)
-  const calc = (key: string) => ({ max: Math.max(...data.map(d=>d[key])).toFixed(2), min: Math.min(...data.map(d=>d[key])).toFixed(2), avg: (data.reduce((s,d)=>s+d[key],0)/data.length).toFixed(2) })
-  return { upstreamLevel:calc('upstreamLevel'), inflowRate:calc('inflowRate'), powerOutput:calc('powerOutput'), gateOpening:calc('gateOpening'), anomalies: data.filter(d=>d.event).length, total: data.length }
+  const calc = (key: string) => ({ max: Math.max(...data.map(d => d[key])).toFixed(2), min: Math.min(...data.map(d => d[key])).toFixed(2), avg: (data.reduce((s, d) => s + d[key], 0) / data.length).toFixed(2) })
+  return { upstreamLevel: calc('upstreamLevel'), inflowRate: calc('inflowRate'), powerOutput: calc('powerOutput'), gateOpening: calc('gateOpening'), anomalies: data.filter(d => d.event).length, total: data.length }
 })
 
 generateMock()
@@ -157,38 +262,89 @@ tableData.value = [...allData.value]
 </script>
 
 <template>
-  <div class="hp" :class="{ dark: darkMode }">
+  <div class="hp" :class="{ dark: darkMode, 'hp--replaying': replayMode }">
     <!-- 筛选区 -->
     <div class="filter">
       <div class="filter__row">
         <label>日期范围</label>
-        <input type="datetime-local" v-model="dateRange.start" class="inp" />
+        <input type="datetime-local" v-model="dateRange.start" class="inp" :disabled="replayMode" />
         <span>—</span>
-        <input type="datetime-local" v-model="dateRange.end" class="inp" />
+        <input type="datetime-local" v-model="dateRange.end" class="inp" :disabled="replayMode" />
       </div>
       <div class="filter__row">
         <label>数据项</label>
         <div class="tags">
-          <span v-for="m in metricOptions" :key="m.value" class="tag" :class="{on:selectedMetrics.includes(m.value)}" @click="selectedMetrics.includes(m.value)?selectedMetrics=selectedMetrics.filter(x=>x!==m.value):selectedMetrics.push(m.value)" :style="{'--c':m.color}">{{ m.label }}</span>
+          <span v-for="m in metricOptions" :key="m.value" class="tag" :class="{ on: selectedMetrics.includes(m.value) }" @click="!replayMode && (selectedMetrics.includes(m.value) ? selectedMetrics = selectedMetrics.filter(x => x !== m.value) : selectedMetrics.push(m.value))" :style="{ '--c': m.color }">{{ m.label }}</span>
         </div>
       </div>
       <div class="filter__row">
         <label>粒度</label>
         <div class="tags">
-          <span v-for="g in granularityOptions" :key="g.value" class="tag" :class="{on:granularity===g.value}" @click="granularity=g.value as any">{{ g.label }}</span>
+          <span v-for="g in granularityOptions" :key="g.value" class="tag" :class="{ on: granularity === g.value }" @click="!replayMode && (granularity = g.value as any)">{{ g.label }}</span>
         </div>
       </div>
       <div class="filter__btns">
-        <button class="btn btn--q" @click="applyFilters" :disabled="!isOnline">查询</button>
-        <button class="btn" @click="resetFilters">重置</button>
-        <button class="btn" @click="darkMode=!darkMode">{{ darkMode ? '☀' : '☾' }}</button>
+        <button v-if="!replayMode" class="btn btn--replay" @click="enterReplay">
+          <el-icon><VideoPlay /></el-icon>
+          时光机回放
+        </button>
+        <button v-if="replayMode" class="btn btn--replay-exit" @click="exitReplay">
+          <el-icon><Close /></el-icon>
+          退出回放
+        </button>
+        <button class="btn btn--q" @click="applyFilters" :disabled="!isOnline || replayMode">查询</button>
+        <button class="btn" @click="resetFilters" :disabled="replayMode">重置</button>
+        <button class="btn" @click="darkMode = !darkMode">{{ darkMode ? '☀' : '☾' }}</button>
         <span v-if="!isOnline" class="offline">离线 · 查询导出已禁用</span>
+      </div>
+    </div>
+
+    <!-- 回放控制栏 -->
+    <div v-if="replayMode" class="replay-bar">
+      <div class="replay-bar__controls">
+        <button class="replay-btn" title="快退" @click="jumpReplay(-1)">⏮</button>
+        <button class="replay-btn replay-btn--play" @click="toggleReplayPlay">
+          {{ replayPlaying ? '⏸' : '▶' }}
+        </button>
+        <button class="replay-btn" title="快进" @click="jumpReplay(1)">⏭</button>
+        <span class="replay-bar__time">{{ replayTimeLabel }}</span>
+      </div>
+      <div class="replay-bar__speed">
+        <button
+          v-for="s in [1, 2, 5, 10]"
+          :key="s"
+          class="replay-speed-btn"
+          :class="{ active: replaySpeed === s }"
+          @click="replaySpeed = s"
+        >
+          {{ s }}x
+        </button>
+      </div>
+      <div class="replay-bar__slider">
+        <input
+          type="range"
+          class="replay-slider"
+          :min="replayTimeMin"
+          :max="replayTimeMax"
+          :value="replayTime"
+          @input="seekReplay"
+        />
+      </div>
+    </div>
+
+    <!-- 回放快照面板 -->
+    <div v-if="replayMode && replaySnapshot" class="replay-snapshot">
+      <div class="replay-snapshot__item" v-for="m in metricOptions" :key="m.value">
+        <span class="replay-snapshot__label">{{ m.label }}</span>
+        <span class="replay-snapshot__value" :style="{ color: m.color }">
+          {{ replaySnapshot[m.value] }} {{ m.unit }}
+        </span>
       </div>
     </div>
 
     <!-- 图表区 -->
     <div class="chart-wrap">
-      <v-chart class="chart" :option="chartOpt" autoresize @datazoom="onChartZoom" />
+      <v-chart class="chart" :class="{ 'chart--replay': replayMode }" :option="chartOpt" autoresize @datazoom="onChartZoom" />
     </div>
 
     <!-- 表格区 -->
@@ -196,29 +352,34 @@ tableData.value = [...allData.value]
       <div class="tbl__hd">
         <span>数据点 · {{ tableData.length }} 条</span>
         <div class="tbl__acts">
-          <button class="btn btn--sm" @click="doExport('csv')" :disabled="!isOnline || exporting">{{ exporting ? '导出中...' : 'CSV 导出' }}</button>
-          <button class="btn btn--sm" @click="reportVisible=true">📊 智能报告</button>
+          <button class="btn btn--sm" @click="doExport('csv')" :disabled="!isOnline || exporting || replayMode">{{ exporting ? '导出中...' : 'CSV 导出' }}</button>
+          <button class="btn btn--sm btn--with-icon" @click="reportVisible = true">
+            <el-icon><DataAnalysis /></el-icon>
+            智能报告
+          </button>
         </div>
       </div>
-      <table class="tbl">
-        <thead><tr><th>时间</th><th v-for="m in selectedMetrics" :key="m">{{ metricLabel(m) }}</th></tr></thead>
-        <tbody>
-          <tr v-for="d in pagedData" :key="d.time">
-            <td>{{ d.label }}</td>
-            <td v-for="m in selectedMetrics" :key="m">{{ d[m] }} {{ metricUnit(m) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="tbl__body">
+        <table class="tbl">
+          <thead><tr><th>时间</th><th v-for="m in selectedMetrics" :key="m">{{ metricLabel(m) }}</th></tr></thead>
+          <tbody>
+            <tr v-for="d in pagedData" :key="d.time" :class="{ 'tbl__row--replay-cursor': replayMode && replaySnapshot && d.time === replaySnapshot.time }">
+              <td>{{ d.label }}</td>
+              <td v-for="m in selectedMetrics" :key="m">{{ d[m] }} {{ metricUnit(m) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <div class="tbl__pg">
-        <button :disabled="tablePage<=1" @click="tablePage--">‹</button>
+        <button :disabled="tablePage <= 1" @click="tablePage--">‹</button>
         <span>{{ tablePage }} / {{ totalPages }}</span>
-        <button :disabled="tablePage>=totalPages" @click="tablePage++">›</button>
+        <button :disabled="tablePage >= totalPages" @click="tablePage++">›</button>
       </div>
     </div>
 
     <!-- 智能报告弹窗 -->
     <Transition name="fade">
-      <div v-if="reportVisible" class="modal" @click.self="reportVisible=false">
+      <div v-if="reportVisible" class="modal" @click.self="reportVisible = false">
         <div class="modal__box">
           <h2>智能分析报告</h2>
           <div class="rep">
@@ -229,7 +390,7 @@ tableData.value = [...allData.value]
             <div class="rep__item"><span>发电功率</span><b>最大 {{ reportData.powerOutput.max }}MW / 最小 {{ reportData.powerOutput.min }}MW / 平均 {{ reportData.powerOutput.avg }}MW</b></div>
             <div class="rep__item"><span>闸门开度</span><b>最大 {{ reportData.gateOpening.max }}% / 最小 {{ reportData.gateOpening.min }}% / 平均 {{ reportData.gateOpening.avg }}%</b></div>
           </div>
-          <button class="btn" @click="reportVisible=false">关闭</button>
+          <button class="btn" @click="reportVisible = false">关闭</button>
         </div>
       </div>
     </Transition>
@@ -237,67 +398,586 @@ tableData.value = [...allData.value]
 </template>
 
 <style scoped lang="scss">
-.hp { height:calc(100vh - 56px); display:flex; flex-direction:column; background:#f8f9fb; overflow:hidden; }
-.hp.dark { background:#0f172a; color:#e2e8f0; }
+.hp {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #f8f9fb;
+  transition: border-color 0.3s, box-shadow 0.3s;
 
-.filter { padding:16px 24px; background:var(--bg,#fff); border-bottom:1px solid var(--br,#eef0f2); flex-shrink:0; display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap }
-.dark .filter { --bg:#1e293b; --br:#334155 }
-.filter__row { display:flex; align-items:center; gap:8px }
-.filter__row label { font-size:11px; color:var(--tx,#94a3b8); text-transform:uppercase; font-weight:600; white-space:nowrap }
-.dark .filter__row label { --tx:#64748b }
-.inp { padding:5px 8px; border:1px solid #d1d5db; border-radius:5px; font-size:12px; background:#fff; color:#374151 }
-.dark .inp { background:#334155; border-color:#475569; color:#e2e8f0 }
-.tags { display:flex; gap:4px; flex-wrap:wrap }
-.tag { padding:3px 10px; border:1px solid #e5e7eb; border-radius:100px; font-size:11px; cursor:pointer; color:#64748b; background:#fff; transition:all 0.15s }
-.tag:hover { border-color:#93c5fd }
-.tag.on { background:var(--c); border-color:var(--c); color:#fff }
-.dark .tag { background:#334155; border-color:#475569; color:#94a3b8 }
-.dark .tag.on { background:var(--c); border-color:var(--c); color:#fff }
-.filter__btns { display:flex; gap:6px; align-items:center; margin-left:auto }
-.btn { padding:6px 14px; border:1px solid #d1d5db; background:#fff; border-radius:5px; font-size:12px; cursor:pointer; color:#64748b; font-weight:500 }
-.btn:hover:not(:disabled) { background:#f3f4f6 }
-.btn:disabled { opacity:0.4; cursor:not-allowed }
-.btn--q { background:#3b82f6; border-color:#3b82f6; color:#fff }
-.btn--q:hover:not(:disabled) { background:#2563eb }
-.btn--sm { padding:4px 10px; font-size:11px }
-.dark .btn { background:#334155; border-color:#475569; color:#94a3b8 }
-.dark .btn--q { background:#3b82f6; border-color:#3b82f6; color:#fff }
-.offline { font-size:11px; color:#ef4444; margin-left:4px }
+  &.dark {
+    background: #0f172a;
+    color: #e2e8f0;
+  }
 
-.chart-wrap { min-height:280px; padding:12px 24px; flex-shrink:0 }
-.chart { width:100%; height:280px }
+  // ── 琥珀色回放边框 ──
+  &--replaying {
+    border: 3px solid #f59e0b;
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+    animation: replay-glow 2s ease-in-out infinite;
+    border-radius: 0;
+  }
+}
 
-.tbl-wrap { flex:1; overflow:hidden; display:flex; flex-direction:column; margin:0 24px 16px; background:var(--bg,#fff); border:1px solid var(--br,#eef0f4); border-radius:10px }
-.dark .tbl-wrap { --bg:#1e293b; --br:#334155 }
-.tbl__hd { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid var(--br,#eef0f4); font-size:12px; color:#94a3b8 }
-.tbl__acts { display:flex; gap:6px }
-.tbl { width:100%; border-collapse:collapse; flex:1; overflow-y:auto; display:block }
-.tbl thead, .tbl tbody { display:table; width:100%; table-layout:fixed }
-.tbl th { text-align:left; padding:8px 14px; font-size:10px; color:#94a3b8; font-weight:500; text-transform:uppercase; letter-spacing:0.3px; border-bottom:1px solid var(--br,#f1f5f9) }
-.tbl td { padding:7px 14px; font-size:12px; color:var(--tx,#475569); border-bottom:1px solid #f8fafc; white-space:nowrap }
-.dark .tbl td { --tx:#94a3b8; border-color:#1e293b }
-.tbl tr:hover td { background:var(--hb,#fafbfc) }
-.dark .tbl tr:hover td { --hb:#283448 }
-.tbl__pg { display:flex; justify-content:center; align-items:center; gap:10px; padding:10px; border-top:1px solid var(--br,#eef0f4); font-size:12px; color:#64748b }
-.tbl__pg button { padding:4px 12px; border:1px solid #d1d5db; background:#fff; border-radius:4px; cursor:pointer; font-size:14px }
-.tbl__pg button:disabled { opacity:0.3; cursor:default }
-.dark .tbl__pg button { background:#334155; border-color:#475569; color:#e2e8f0 }
+@keyframes replay-glow {
+  0%, 100% { box-shadow: 0 0 16px rgba(245, 158, 11, 0.25); }
+  50% { box-shadow: 0 0 32px rgba(245, 158, 11, 0.55); }
+}
 
-.modal { position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:9999; display:flex; align-items:center; justify-content:center }
-.modal__box { background:#fff; border-radius:12px; padding:28px; width:520px; max-height:80vh; overflow-y:auto }
-.dark .modal__box { background:#1e293b; color:#e2e8f0 }
-.modal__box h2 { font-size:18px; font-weight:700; margin:0 0 20px }
-.rep { display:flex; flex-direction:column; gap:8px; margin-bottom:16px }
-.rep__item { padding:8px 12px; background:#f8fafc; border-radius:6px; display:flex; gap:10px; font-size:13px }
-.rep__item span { color:#94a3b8; font-weight:500; min-width:80px }
-.rep__item b { color:#1e293b; font-weight:600 }
-.dark .rep__item { background:#334155 }
-.dark .rep__item b { color:#e2e8f0 }
+// ── 回放控制栏 ──
+.replay-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 24px;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border-bottom: 2px solid #f59e0b;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
 
-.fade-enter-active, .fade-leave-active { transition:opacity 0.2s }
-.fade-enter-from, .fade-leave-to { opacity:0 }
+.dark .replay-bar {
+  background: linear-gradient(135deg, #1c1917 0%, #292010 100%);
+  border-color: #b45309;
+}
+
+.replay-bar__controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.replay-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: #92400e;
+  background: #fff;
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover { background: #fffbeb; color: #78350f; }
+
+  &--play {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+    background: #f59e0b;
+    color: #fff;
+    border-color: transparent;
+    border-radius: 50%;
+
+    &:hover { background: #d97706; color: #fff; }
+  }
+}
+
+.dark .replay-btn {
+  color: #fbbf24;
+  background: #292524;
+  border-color: #b45309;
+
+  &:hover { background: #3a2f1f; }
+
+  &--play {
+    background: #d97706;
+    color: #fff;
+    border-color: transparent;
+
+    &:hover { background: #b45309; }
+  }
+}
+
+.replay-bar__time {
+  margin-left: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'SF Mono', monospace;
+  color: #92400e;
+  min-width: 180px;
+}
+
+.dark .replay-bar__time {
+  color: #f59e0b;
+}
+
+.replay-bar__speed {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.replay-speed-btn {
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #92400e;
+  background: #fff;
+  border: 1px solid #fcd34d;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover { background: #fffbeb; }
+
+  &.active {
+    color: #fff;
+    background: #f59e0b;
+    border-color: #f59e0b;
+  }
+}
+
+.dark .replay-speed-btn {
+  color: #fbbf24;
+  background: #292524;
+  border-color: #78350f;
+
+  &.active {
+    color: #fff;
+    background: #d97706;
+    border-color: #d97706;
+  }
+}
+
+.replay-bar__slider {
+  flex: 1;
+  min-width: 160px;
+
+  .replay-slider {
+    width: 100%;
+    height: 6px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: linear-gradient(90deg, #fcd34d 0%, #f59e0b 100%);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+
+    &::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #f59e0b;
+      border: 3px solid #fff;
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.5);
+      cursor: pointer;
+      transition: transform 0.15s;
+
+      &:hover { transform: scale(1.2); }
+    }
+  }
+}
+
+// ── 回放快照面板 ──
+.replay-snapshot {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  padding: 10px 24px;
+  background: rgba(245, 158, 11, 0.06);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.15);
+  flex-shrink: 0;
+}
+
+.dark .replay-snapshot {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.replay-snapshot__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+}
+
+.replay-snapshot__label {
+  font-size: 12px;
+  color: #92400e;
+  font-weight: 500;
+}
+
+.dark .replay-snapshot__label {
+  color: #a16207;
+}
+
+.replay-snapshot__value {
+  font-size: 16px;
+  font-weight: 700;
+  font-family: 'SF Mono', monospace;
+}
+
+// ── 图表回放光标 ──
+.chart--replay {
+  border-left: 2px dashed #f59e0b;
+}
+
+// ── 表格回放行高亮 ──
+.tbl__row--replay-cursor {
+  background: rgba(245, 158, 11, 0.12) !important;
+
+  td {
+    font-weight: 600;
+  }
+}
+
+// ═══ 原有样式 ═══
+.filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+  padding: 18px 24px;
+  background: var(--bg, #fff);
+  border-bottom: 1px solid var(--br, #eef0f2);
+  flex-shrink: 0;
+}
+
+.dark .filter {
+  --bg: #1e293b;
+  --br: #334155;
+}
+
+.filter__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--tx, #64748b);
+    white-space: nowrap;
+  }
+
+  > span {
+    font-size: 14px;
+    color: #94a3b8;
+  }
+}
+
+.dark .filter__row label {
+  --tx: #94a3b8;
+}
+
+.inp {
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #374151;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+}
+
+.dark .inp {
+  color: #e2e8f0;
+  background: #334155;
+  border-color: #475569;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  padding: 7px 14px;
+  font-size: 14px;
+  color: #64748b;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover { border-color: #93c5fd; }
+
+  &.on {
+    color: #fff;
+    background: var(--c);
+    border-color: var(--c);
+  }
+}
+
+.dark .tag {
+  color: #94a3b8;
+  background: #334155;
+  border-color: #475569;
+
+  &.on {
+    color: #fff;
+    background: var(--c);
+    border-color: var(--c);
+  }
+}
+
+.filter__btns {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.btn {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) { background: #f3f4f6; }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+.btn--q {
+  color: #fff;
+  background: #3b82f6;
+  border-color: #3b82f6;
+
+  &:hover:not(:disabled) { background: #2563eb; }
+}
+
+.btn--replay {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #fff;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border-color: transparent;
+  font-weight: 600;
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  }
+}
+
+.btn--replay-exit {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #f59e0b;
+  font-weight: 600;
+
+  &:hover:not(:disabled) {
+    background: #fde68a;
+  }
+}
+
+.btn--sm {
+  padding: 7px 14px;
+  font-size: 14px;
+}
+
+.btn--with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  .el-icon { font-size: 16px; }
+}
+
+.dark .btn {
+  color: #94a3b8;
+  background: #334155;
+  border-color: #475569;
+}
+
+.dark .btn--q {
+  color: #fff;
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.offline {
+  margin-left: 4px;
+  font-size: 13px;
+  color: #ef4444;
+}
+
+.chart-wrap {
+  flex-shrink: 0;
+  padding: 12px 24px 8px;
+}
+
+.chart {
+  width: 100%;
+  height: 240px;
+}
+
+.tbl-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin: 0 24px 12px;
+  overflow: hidden;
+  background: var(--bg, #fff);
+  border: 1px solid var(--br, #eef0f4);
+  border-radius: 10px;
+}
+
+.dark .tbl-wrap {
+  --bg: #1e293b;
+  --br: #334155;
+}
+
+.tbl__hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  border-bottom: 1px solid var(--br, #eef0f4);
+}
+
+.dark .tbl__hd { color: #e2e8f0; }
+
+.tbl__acts { display: flex; gap: 8px; }
+
+.tbl__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+
+  th {
+    padding: 11px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    color: #64748b;
+    border-bottom: 1px solid var(--br, #f1f5f9);
+  }
+
+  td {
+    padding: 12px 14px;
+    font-size: 15px;
+    color: var(--tx, #334155);
+    line-height: 1.45;
+    white-space: nowrap;
+    border-bottom: 1px solid #f8fafc;
+  }
+
+  tr:hover td { background: var(--hb, #fafbfc); }
+}
+
+.dark .tbl td { --tx: #cbd5e1; border-color: #1e293b; }
+.dark .tbl tr:hover td { --hb: #283448; }
+
+.tbl__pg {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: #64748b;
+  background: var(--bg, #fff);
+  border-top: 1px solid var(--br, #eef0f4);
+
+  button {
+    padding: 6px 14px;
+    font-size: 16px;
+    cursor: pointer;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+
+    &:disabled { opacity: 0.3; cursor: default; }
+  }
+}
+
+.dark .tbl__pg button {
+  color: #e2e8f0;
+  background: #334155;
+  border-color: #475569;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.modal__box {
+  width: 560px;
+  max-height: 80vh;
+  padding: 28px;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 12px;
+
+  h2 { margin: 0 0 20px; font-size: 17px; font-weight: 600; color: #1e293b; }
+}
+
+.dark .modal__box {
+  color: #e2e8f0;
+  background: #1e293b;
+
+  h2 { color: #f1f5f9; }
+}
+
+.rep {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.rep__item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.45;
+  background: #f8fafc;
+  border-radius: 6px;
+
+  span { min-width: 88px; font-weight: 500; color: #64748b; }
+  b { font-weight: 600; color: #1e293b; }
+}
+
+.dark .rep__item { background: #334155; b { color: #e2e8f0; } }
+
+.fade-enter-active,
+.fade-leave-active { transition: opacity 0.2s; }
+.fade-enter-from,
+.fade-leave-to { opacity: 0; }
 </style>
 
 <style lang="scss">
-.main-layout__content:has(.hp) { padding:0 !important; overflow:hidden !important }
+.main-layout__content:has(.hp) {
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
 </style>

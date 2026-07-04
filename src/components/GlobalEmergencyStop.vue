@@ -2,6 +2,7 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { globalEmergencyStop } from '@/api/emergency'
 import { useOperationLog } from '@/composables/useOperationLog'
+import { isReplaying } from '@/composables/useReplayMode'
 
 const { record: recordLog } = useOperationLog()
 
@@ -24,8 +25,10 @@ async function handleClick() {
     <button
       type="button"
       class="global-estop"
-      title="全局紧急停止"
-      aria-label="全局紧急停止"
+      :class="{ 'global-estop--disabled': isReplaying }"
+      :title="isReplaying ? '回放中不可急停' : '全局紧急停止'"
+      :aria-label="isReplaying ? '回放中不可急停' : '全局紧急停止'"
+      :disabled="isReplaying"
       @click="handleClick"
     >
       急停
@@ -39,13 +42,13 @@ async function handleClick() {
   right: 28px;
   bottom: 28px;
   z-index: 3000;
-  width: 68px;
-  height: 68px;
+  width: 76px;
+  height: 76px;
   border: none;
   border-radius: 50%;
   background: linear-gradient(145deg, #ff4757, #e02020);
   color: #fff;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 800;
   letter-spacing: 0.06em;
   cursor: pointer;
@@ -61,10 +64,31 @@ async function handleClick() {
   &:active {
     transform: scale(0.94);
   }
+
+  &--disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    animation: none;
+    box-shadow: 0 2px 8px rgba(156, 163, 175, 0.35);
+
+    &:hover {
+      transform: none;
+      box-shadow: 0 2px 8px rgba(156, 163, 175, 0.35);
+    }
+
+    &:active {
+      transform: none;
+    }
+  }
 }
 
 @keyframes global-estop-pulse {
-  0%, 100% { box-shadow: 0 4px 16px rgba(255, 71, 87, 0.35); }
-  50% { box-shadow: 0 4px 32px rgba(255, 71, 87, 0.8); }
+  0%,
+  100% {
+    box-shadow: 0 4px 16px rgba(255, 71, 87, 0.35);
+  }
+  50% {
+    box-shadow: 0 4px 32px rgba(255, 71, 87, 0.8);
+  }
 }
 </style>
