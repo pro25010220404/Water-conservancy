@@ -6,6 +6,9 @@
 // ---------- 告警级别 ----------
 export type AlarmLevel = 'URGENT' | 'IMPORTANT' | 'NORMAL'
 
+// ---------- 设备类型（筛选） ----------
+export type AlarmDeviceType = 'gate' | 'hydro' | 'sensor'
+
 // ---------- 告警类型 ----------
 export type AlarmType =
   | 'HIGH_WATER'
@@ -38,6 +41,10 @@ export interface AlarmRecord {
   createdAt: string
   /** 监测点位名称 */
   pointName: string
+  /** 设备类型 */
+  deviceType: AlarmDeviceType
+  /** 是否误告警 */
+  isFalseAlarm?: boolean
   /** 触发时刻监测快照 */
   snapshot: AlarmSnapshot | null
 }
@@ -67,11 +74,20 @@ export interface AlarmFilterParams {
   level?: AlarmLevel
   status?: AlarmStatus
   type?: AlarmType
+  deviceType?: AlarmDeviceType
   startTime?: string
   endTime?: string
   keyword?: string
   pageNum: number
   pageSize: number
+}
+
+export interface AlarmStatsResult {
+  today: number
+  pending: number
+  handled: number
+  falseAlarm: number
+  levelDistribution: Record<AlarmLevel, number>
 }
 
 // ---------- 告警列表响应 ----------

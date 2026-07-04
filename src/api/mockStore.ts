@@ -1,7 +1,9 @@
 // ============================================================
 // Mock 数据仓库 — 向家坝水电站实时模拟（后端就绪后移除）
 // ============================================================
-import type { AlarmRecord, AlarmExceedLog, AlarmFilterParams } from '@/types/alarm'
+import type { AlarmRecord, AlarmExceedLog, AlarmFilterParams, AlarmStatsResult } from '@/types/alarm'
+import { ALARM_TYPE_MAP } from '@/constants/alarm'
+import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import type {
   DispatchStatus, DecisionDetail, PredictionData, DispatchRecord,
 } from '@/types/dispatch'
@@ -61,21 +63,23 @@ const alarmStore: AlarmRecord[] = [
     threshold: 380.5, currentValue: 381.2, durationSec: 42, status: 'pending',
     confirmedAt: null, confirmedBy: null, confirmedByName: null,
     handledAt: null, handledBy: null, handledByName: null, remark: null,
-    createdAt: nowIso(15), pointName: '上游水文站', snapshot: { upstreamLevel: 381.2, downstreamLevel: 278.5, flowRate: 1850, gateOpening: 45, recordedAt: nowIso(15) },
+    createdAt: nowIso(15), pointName: '上游水文站', deviceType: 'hydro',
+    snapshot: { upstreamLevel: 381.2, downstreamLevel: 278.5, flowRate: 1850, gateOpening: 45, recordedAt: nowIso(15) },
   },
   {
     id: 1002, level: 'IMPORTANT', type: 'FLOW_SPIKE', content: '入库流量突变，变化率超阈值',
     threshold: 2000, currentValue: 2350, durationSec: 35, status: 'pending',
     confirmedAt: null, confirmedBy: null, confirmedByName: null,
     handledAt: null, handledBy: null, handledByName: null, remark: null,
-    createdAt: nowIso(28), pointName: '入库监测站', snapshot: { upstreamLevel: 380.8, downstreamLevel: 278.3, flowRate: 2350, gateOpening: 42, recordedAt: nowIso(28) },
+    createdAt: nowIso(28), pointName: '入库监测站', deviceType: 'hydro',
+    snapshot: { upstreamLevel: 380.8, downstreamLevel: 278.3, flowRate: 2350, gateOpening: 42, recordedAt: nowIso(28) },
   },
   {
     id: 1003, level: 'IMPORTANT', type: 'DEVICE_OFFLINE', content: '3号闸门执行器通信中断',
     threshold: 30, currentValue: 0, durationSec: 68, status: 'confirmed',
     confirmedAt: nowIso(10), confirmedBy: 1, confirmedByName: '张调度',
     handledAt: null, handledBy: null, handledByName: null, remark: null,
-    createdAt: nowIso(45), pointName: '3号闸门', snapshot: null,
+    createdAt: nowIso(45), pointName: '3号闸门', deviceType: 'gate', snapshot: null,
   },
   {
     id: 1004, level: 'NORMAL', type: 'LOW_WATER', content: '下游生态流量偏低预警',
@@ -83,7 +87,7 @@ const alarmStore: AlarmRecord[] = [
     confirmedAt: nowIso(120), confirmedBy: 2, confirmedByName: '李运维',
     handledAt: nowIso(90), handledBy: 2, handledByName: '李运维',
     remark: '已调整3号闸门开度至55%，生态流量恢复达标。',
-    createdAt: nowIso(150), pointName: '下游生态站', snapshot: null,
+    createdAt: nowIso(150), pointName: '下游生态站', deviceType: 'hydro', snapshot: null,
   },
   {
     id: 1005, level: 'NORMAL', type: 'EXEC_TIMEOUT', content: '5号闸门开度调节执行超时',
@@ -91,14 +95,48 @@ const alarmStore: AlarmRecord[] = [
     confirmedAt: nowIso(200), confirmedBy: 1, confirmedByName: '张调度',
     handledAt: nowIso(180), handledBy: 1, handledByName: '张调度',
     remark: '现场检查液压系统，重启执行器后恢复正常。',
-    createdAt: nowIso(220), pointName: '5号闸门', snapshot: null,
+    createdAt: nowIso(220), pointName: '5号闸门', deviceType: 'gate', snapshot: null,
   },
   {
     id: 1006, level: 'URGENT', type: 'EXEC_FAIL', content: '1号闸门执行失败，需人工介入',
     threshold: 0, currentValue: 1, durationSec: 45, status: 'pending',
     confirmedAt: null, confirmedBy: null, confirmedByName: null,
     handledAt: null, handledBy: null, handledByName: null, remark: null,
-    createdAt: nowIso(5), pointName: '1号闸门', snapshot: { upstreamLevel: 380.6, downstreamLevel: 278.4, flowRate: 1920, gateOpening: 38, recordedAt: nowIso(5) },
+    createdAt: nowIso(5), pointName: '1号闸门', deviceType: 'gate',
+    snapshot: { upstreamLevel: 380.6, downstreamLevel: 278.4, flowRate: 1920, gateOpening: 38, recordedAt: nowIso(5) },
+  },
+  {
+    id: 1007, level: 'IMPORTANT', type: 'HIGH_WATER', content: '2号表孔水位传感器读数异常偏高',
+    threshold: 380.0, currentValue: 380.9, durationSec: 38, status: 'pending',
+    confirmedAt: null, confirmedBy: null, confirmedByName: null,
+    handledAt: null, handledBy: null, handledByName: null, remark: null,
+    createdAt: nowIso(8), pointName: '2号表孔传感器', deviceType: 'sensor',
+    snapshot: { upstreamLevel: 380.9, downstreamLevel: 278.2, flowRate: 1880, gateOpening: 40, recordedAt: nowIso(8) },
+  },
+  {
+    id: 1008, level: 'NORMAL', type: 'FLOW_SPIKE', content: '出库流量短时波动，疑似传感器噪声',
+    threshold: 1800, currentValue: 1950, durationSec: 33, status: 'handled',
+    confirmedAt: nowIso(60), confirmedBy: 2, confirmedByName: '李运维',
+    handledAt: nowIso(50), handledBy: 2, handledByName: '李运维',
+    remark: '经复核为传感器校准偏差，已标记误告警并完成校准。',
+    createdAt: nowIso(80), pointName: '出库流量传感器', deviceType: 'sensor',
+    isFalseAlarm: true, snapshot: null,
+  },
+  {
+    id: 1009, level: 'URGENT', type: 'HIGH_WATER', content: '向家坝库区水位逼近汛限，需调度关注',
+    threshold: 380.5, currentValue: 381.0, durationSec: 55, status: 'confirmed',
+    confirmedAt: nowIso(3), confirmedBy: 1, confirmedByName: '张调度',
+    handledAt: null, handledBy: null, handledByName: null, remark: null,
+    createdAt: nowIso(12), pointName: '库区水位监测站', deviceType: 'hydro',
+    snapshot: { upstreamLevel: 381.0, downstreamLevel: 278.6, flowRate: 2100, gateOpening: 48, recordedAt: nowIso(12) },
+  },
+  {
+    id: 1010, level: 'IMPORTANT', type: 'DEVICE_OFFLINE', content: '4号闸门位移传感器离线',
+    threshold: 0, currentValue: 0, durationSec: 40, status: 'handled',
+    confirmedAt: nowIso(300), confirmedBy: 1, confirmedByName: '张调度',
+    handledAt: nowIso(280), handledBy: 1, handledByName: '张调度',
+    remark: '更换通信模块后恢复在线，位移数据正常。',
+    createdAt: nowIso(320), pointName: '4号闸门', deviceType: 'gate', snapshot: null,
   },
 ]
 
@@ -106,6 +144,9 @@ const exceedLogs: AlarmExceedLog[] = [
   { id: 501, point: '上游水文站', type: 'HIGH_WATER', value: 380.8, threshold: 380.5, durationSec: 18, createdAt: nowIso(2) },
   { id: 502, point: '入库监测站', type: 'FLOW_SPIKE', value: 2100, threshold: 2000, durationSec: 22, createdAt: nowIso(1) },
   { id: 503, point: '下游生态站', type: 'LOW_WATER', value: 1180, threshold: 1200, durationSec: 15, createdAt: nowIso(0) },
+  { id: 504, point: '2号表孔传感器', type: 'HIGH_WATER', value: 380.6, threshold: 380.5, durationSec: 12, createdAt: nowIso(4) },
+  { id: 505, point: '出库流量传感器', type: 'FLOW_SPIKE', value: 2050, threshold: 2000, durationSec: 8, createdAt: nowIso(6) },
+  { id: 506, point: '1号闸门', type: 'EXEC_TIMEOUT', value: 72, threshold: 60, durationSec: 25, createdAt: nowIso(3) },
 ]
 
 // ---------- 调度 ----------
@@ -184,7 +225,24 @@ const models: AiModel[] = [
 ]
 
 const reports: SimulationReport[] = [
-  { id: 1, runId: 101, scene: 'flood', params: { scene: 'flood', initialLevel: 380.2, inflowRate: 3500, durationMin: 120 }, summary: { maxLevel: 381.8, minLevel: 380.2, totalDischarge: 125000, estimatedPower: 28500 }, content: '', filePath: '/reports/r001.pdf', createdAt: nowIso(2880), operatorName: '王算法' },
+  {
+    id: 1, runId: 101, scene: 'flood', params: { scene: 'flood', initialLevel: 380.2, inflowRate: 3500, durationMin: 120 },
+    summary: { maxLevel: 381.8, minLevel: 380.2, totalDischarge: 125000, estimatedPower: 28500 },
+    content: '洪水场景下闸门逐步加大开度，最高水位381.8m，未突破汛限。建议汛前预泄方案可提前30min启动。',
+    filePath: '/reports/r001.pdf', createdAt: nowIso(2880), operatorName: '王算法',
+  },
+  {
+    id: 2, runId: 102, scene: 'normal', params: { scene: 'normal', initialLevel: 379.8, inflowRate: 1850, durationMin: 60 },
+    summary: { maxLevel: 380.1, minLevel: 379.6, totalDischarge: 68000, estimatedPower: 15200 },
+    content: '常规调度仿真：开度45%时水位稳定在379.9m附近，发电效率最优。',
+    filePath: '/reports/r002.pdf', createdAt: nowIso(1440), operatorName: '张调度',
+  },
+  {
+    id: 3, runId: 103, scene: 'drought', params: { scene: 'drought', initialLevel: 378.5, inflowRate: 900, durationMin: 90 },
+    summary: { maxLevel: 378.8, minLevel: 378.2, totalDischarge: 32000, estimatedPower: 9800 },
+    content: '枯水期仿真：生态流量保障优先，最小下泄流量满足要求。',
+    filePath: '/reports/r003.pdf', createdAt: nowIso(720), operatorName: '李运维',
+  },
 ]
 
 const reviews: FaultReview[] = [
@@ -210,6 +268,27 @@ const reviews: FaultReview[] = [
       { time: '14:35:00', event: '生态流量恢复达标' },
     ],
     conclusion: { rootCause: '枯水期来水偏少，生态流量分配权重不足', improvements: '优化枯水期生态流量保障策略', responsibleDept: '调度中心', reviewedBy: '李运维', reviewedAt: nowIso(4000) },
+  },
+  {
+    id: 3, alarmId: 1006, faultType: '闸门执行失败', impactScope: '1号表孔闸门、泄洪通道',
+    reviewed: false, status: 'pending', createdAt: nowIso(480),
+    timeline: [
+      { time: '08:05:12', event: '1号闸门开度指令下发失败' },
+      { time: '08:05:57', event: '持续超限42s，触发紧急告警' },
+      { time: '08:06:20', event: '现场人员检查液压系统' },
+      { time: '08:12:00', event: '切换备用执行器，闸门恢复正常' },
+    ],
+    conclusion: null,
+  },
+  {
+    id: 4, alarmId: 1008, faultType: '传感器误报', impactScope: '出库流量监测',
+    reviewed: true, status: 'reviewed', createdAt: nowIso(960),
+    timeline: [
+      { time: '16:30:00', event: '出库流量传感器短时超限' },
+      { time: '16:30:33', event: '触发一般告警' },
+      { time: '16:35:00', event: '人工复核确认为校准偏差' },
+    ],
+    conclusion: { rootCause: '传感器零点漂移导致读数偏高', improvements: '纳入月度校准计划，增加交叉校验', responsibleDept: '设备管理', reviewedBy: '王算法', reviewedAt: nowIso(900) },
   },
 ]
 
@@ -266,18 +345,43 @@ function ok<T>(data: T) {
   return { code: 0, msg: 'success', data, success: true, trace_id: 'mock' }
 }
 
+function filterAlarms(params: AlarmFilterParams) {
+  let list = [...alarmStore]
+  if (params.level) list = list.filter((a) => a.level === params.level)
+  if (params.status) list = list.filter((a) => a.status === params.status)
+  if (params.type) list = list.filter((a) => a.type === params.type)
+  if (params.deviceType) list = list.filter((a) => a.deviceType === params.deviceType)
+  if (params.startTime) {
+    const start = new Date(params.startTime).getTime()
+    list = list.filter((a) => new Date(a.createdAt).getTime() >= start)
+  }
+  if (params.endTime) {
+    const end = new Date(params.endTime).getTime()
+    list = list.filter((a) => new Date(a.createdAt).getTime() <= end)
+  }
+  if (params.keyword) {
+    list = list.filter((a) => fuzzyMatch(
+      params.keyword!,
+      a.content,
+      a.pointName,
+      String(a.id),
+      ALARM_TYPE_MAP[a.type]?.label,
+    ))
+  }
+  return list
+}
+
+function todayStartMs() {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
 // ---------- 导出 API 函数 ----------
 export const mockApi = {
   // 告警
   getAlarmList(params: AlarmFilterParams) {
-    let list = [...alarmStore]
-    if (params.level) list = list.filter((a) => a.level === params.level)
-    if (params.status) list = list.filter((a) => a.status === params.status)
-    if (params.type) list = list.filter((a) => a.type === params.type)
-    if (params.keyword) {
-      const kw = params.keyword.toLowerCase()
-      list = list.filter((a) => a.content.includes(kw) || a.pointName.includes(kw))
-    }
+    let list = filterAlarms(params)
     list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     const total = list.length
     const start = (params.pageNum - 1) * params.pageSize
@@ -315,15 +419,34 @@ export const mockApi = {
     return delay(ok(null))
   },
 
-  getExceedLogs() {
-    return delay(ok({ list: exceedLogs, total: exceedLogs.length, pageNum: 1, pageSize: 20 }))
+  getExceedLogs(params?: { keyword?: string }) {
+    let list = [...exceedLogs]
+    if (params?.keyword) {
+      list = list.filter((log) => fuzzyMatch(
+        params.keyword!,
+        log.point,
+        ALARM_TYPE_MAP[log.type]?.label,
+        String(log.value),
+      ))
+    }
+    return delay(ok({ list, total: list.length, pageNum: 1, pageSize: 20 }))
   },
 
   getAlarmStats() {
-    const today = alarmStore.length
-    const pending = alarmStore.filter((a) => a.status === 'pending').length
-    const handled = alarmStore.filter((a) => a.status === 'handled').length
-    return delay(ok({ today, pending, handled, falseAlarm: 1 }))
+    const start = todayStartMs()
+    const todayList = alarmStore.filter((a) => new Date(a.createdAt).getTime() >= start)
+    const stats: AlarmStatsResult = {
+      today: todayList.length,
+      pending: alarmStore.filter((a) => a.status === 'pending').length,
+      handled: alarmStore.filter((a) => a.status === 'handled').length,
+      falseAlarm: alarmStore.filter((a) => a.isFalseAlarm).length,
+      levelDistribution: {
+        URGENT: alarmStore.filter((a) => a.level === 'URGENT').length,
+        IMPORTANT: alarmStore.filter((a) => a.level === 'IMPORTANT').length,
+        NORMAL: alarmStore.filter((a) => a.level === 'NORMAL').length,
+      },
+    }
+    return delay(ok(stats))
   },
 
   // 调度
@@ -401,8 +524,18 @@ export const mockApi = {
 
   ignoreDecision() { return delay(ok(null)) },
 
-  getDispatchLogs() {
-    return delay(ok({ list: dispatchRecords.slice(0, 20), total: dispatchRecords.length, pageNum: 1, pageSize: 20 }))
+  getDispatchLogs(params?: { keyword?: string }) {
+    let list = [...dispatchRecords]
+    if (params?.keyword) {
+      list = list.filter((r) => fuzzyMatch(
+        params.keyword!,
+        r.decision_mode,
+        String(r.recommended_opening),
+        r.execution_status,
+        String(r.confidence),
+      ))
+    }
+    return delay(ok({ list: list.slice(0, 20), total: list.length, pageNum: 1, pageSize: 20 }))
   },
 
   getRiskLevel() {
@@ -500,7 +633,13 @@ export const mockApi = {
     return delay(ok(null))
   },
 
-  getModelList() { return delay(ok([...models])) },
+  getModelList(params?: { keyword?: string }) {
+    let list = [...models]
+    if (params?.keyword) {
+      list = list.filter((m) => fuzzyMatch(params.keyword!, m.type, m.version, m.remark, m.status))
+    }
+    return delay(ok(list))
+  },
   activateModel(id: number) { models.forEach((m) => { m.status = m.id === id ? 'active' : 'inactive' }); return delay(ok(null)) },
   uploadModel() { return delay(ok(models[0])) },
 
@@ -511,10 +650,23 @@ export const mockApi = {
   },
 
   generateReport() { return delay(ok(reports[0])) },
-  getReportList() { return delay(ok({ list: reports, total: reports.length, pageNum: 1, pageSize: 10 })) },
+  getReportList(params?: { keyword?: string }) {
+    let list = [...reports]
+    if (params?.keyword) {
+      list = list.filter((r) => fuzzyMatch(params.keyword!, r.content, r.operatorName, r.scene, String(r.runId)))
+    }
+    return delay(ok({ list, total: list.length, pageNum: 1, pageSize: 10 }))
+  },
   downloadReport() { return delay(new Blob(['报告内容'], { type: 'text/plain' })) },
 
-  getFaultReviewList() { return delay(ok({ list: reviews, total: reviews.length, pageNum: 1, pageSize: 10 })) },
+  getFaultReviewList(params?: { keyword?: string; type?: string }) {
+    let list = [...reviews]
+    if (params?.type) list = list.filter((r) => r.faultType.includes(params.type!))
+    if (params?.keyword) {
+      list = list.filter((r) => fuzzyMatch(params.keyword!, r.faultType, r.impactScope, r.status))
+    }
+    return delay(ok({ list, total: list.length, pageNum: 1, pageSize: 10 }))
+  },
   getFaultReviewDetail(id: number) {
     const item = reviews.find((r) => r.id === id)
     return item ? delay(ok(item)) : delay(Promise.reject(new Error('not found')))

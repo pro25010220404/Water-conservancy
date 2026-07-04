@@ -34,6 +34,7 @@ type PlanAlt = NonNullable<DecisionDetail['alternatives']>[number]
 import { getPrediction, executeDispatch } from '@/api/dispatch'
 import { useUserStore } from '@/stores/user'
 import { useOperationLog } from '@/composables/useOperationLog'
+import { fuzzyMatch } from '@/utils/fuzzyMatch'
 
 const userStore = useUserStore()
 const { record: recordLog } = useOperationLog()
@@ -69,6 +70,7 @@ const ignoreVisible = ref(false)
 const ignoreReason = ref('')
 
 const showDataTable = ref(true)
+const recordKeyword = ref('')
 const panoramaVisible = ref(false)
 const previewPlan = ref<PlanAlt | null>(null)
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -208,6 +210,19 @@ const panoramaSimStatus = computed<SimulationRealtimeData>(() => ({
   historyFlows: [],
 }))
 const panoramaStatusInfo = computed(() => SIMULATION_STATUS_MAP.idle)
+
+const filteredRecords = computed(() => {
+  const kw = recordKeyword.value.trim()
+  if (!kw) return records.value
+  return records.value.filter((r) => fuzzyMatch(
+    kw,
+    r.decision_mode,
+    String(r.recommended_opening),
+    r.execution_status,
+    String(r.confidence),
+    r.decision_time,
+  ))
+})
 
 // ── 7. 方法 ──
 
@@ -574,15 +589,18 @@ onUnmounted(() => {
         </GlassPanel3D>
 
         <GlassPanel3D title="调度记录" compact>
+          <div class="record-search">
+            <ElInput v-model="recordKeyword" placeholder="模糊搜索模式、开度、状态..." clearable size="small" />
+          </div>
           <div class="log-scroll">
-            <div v-for="log in records.slice(0, 8)" :key="log.id" class="log-line">
+            <div v-for="log in filteredRecords.slice(0, 8)" :key="log.id" class="log-line">
               <span class="log-time">{{ log.decision_time?.replace('T', ' ').substring(5, 16) ?? '-' }}</span>
               <span class="log-action">开度 {{ log.recommended_opening }}% · {{ log.decision_mode }}</span>
               <span :style="{ color: log.execution_status === 'executed' ? '#22c55e' : log.execution_status === 'failed' ? '#ef4444' : '#f59e0b' }">
                 {{ log.execution_status === 'executed' ? '已执行' : log.execution_status === 'failed' ? '失败' : log.execution_status === 'rejected' ? '已拒绝' : '待执行' }}
               </span>
             </div>
-            <div v-if="records.length === 0" class="log-empty">暂无调度记录</div>
+            <div v-if="filteredRecords.length === 0" class="log-empty">暂无匹配的调度记录</div>
           </div>
         </GlassPanel3D>
       </div>
@@ -836,6 +854,7 @@ onUnmounted(() => {
 .manual-btns { display: flex; gap: 10px; margin-top: 14px; }
 
 .log-scroll { max-height: 160px; overflow-y: auto; }
+.record-search { margin-bottom: 10px; }
 .log-line { display: flex; gap: 10px; padding: 8px 0; font-size: $cockpit-font-sm; border-bottom: 1px solid rgba(15,23,42,0.06); gap: 12px; }
 .log-time { color: $cockpit-text-dim; font-family: 'SF Mono', monospace; flex-shrink: 0; }
 .log-action { flex: 1; color: var(--color-text); }

@@ -5,7 +5,7 @@ import { ElButton } from 'element-plus'
 const router = useRouter()
 
 function goHome() {
-  router.push('/dashboard')
+  router.push('/dashboard/overview')
 }
 </script>
 

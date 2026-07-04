@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
+    "build:dist": "node scripts/clean-dist.mjs && vite build && node scripts/organize-dist.mjs",
+    "clean:dist": "node scripts/clean-dist.mjs",
     "generate:dam": "node scripts/generate-dam-glb.mjs",
     "process:hunyuan": "node scripts/fast-decimate-glb.mjs",
     "inspect:hunyuan": "node scripts/inspect-glb-json.mjs public/models/hunyuan-raw.glb",

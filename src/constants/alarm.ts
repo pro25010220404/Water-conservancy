@@ -34,6 +34,15 @@ export const ALARM_STATUS_MAP: Record<string, DictOption> = {
 
 export const ALARM_STATUS_OPTIONS: DictOption[] = Object.values(ALARM_STATUS_MAP)
 
+// ---------- 设备类型 ----------
+export const ALARM_DEVICE_TYPE_MAP: Record<string, DictOption> = {
+  gate: { label: '闸门', value: 'gate' },
+  hydro: { label: '水文站', value: 'hydro' },
+  sensor: { label: '传感器', value: 'sensor' },
+}
+
+export const ALARM_DEVICE_TYPE_OPTIONS: DictOption[] = Object.values(ALARM_DEVICE_TYPE_MAP)
+
 // ---------- 告警列表操作按钮定义 ----------
 export interface AlarmAction {
   label: string
