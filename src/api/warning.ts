@@ -2,7 +2,7 @@
 // 告警管理 — API 接口层
 // ============================================================
 import type { ApiResponse, PageResult } from '@/shared/types'
-import type { AlarmRecord, AlarmFilterParams, AlarmExceedLog } from '@/types/alarm'
+import type { AlarmRecord, AlarmFilterParams, AlarmExceedLog, AlarmStatsResult } from '@/types/alarm'
 import { mockApi } from './mockStore'
 
 async function fetchMock<T>(_url: string, _options?: RequestInit): Promise<ApiResponse<T>> {
@@ -34,7 +34,9 @@ export async function getAlarmExceedLogs(params: Record<string, unknown>): Promi
   try {
     const query = new URLSearchParams(Object.entries(params).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
     return fetchMock(`/api/alarms/logs?${query}`)
-  } catch { return mockApi.getExceedLogs() }
+  } catch {
+    return mockApi.getExceedLogs({ keyword: params.keyword as string | undefined })
+  }
 }
 
 export async function getPendingAlarmCount(): Promise<ApiResponse<{ count: number }>> {
@@ -44,6 +46,6 @@ export async function getPendingAlarmCount(): Promise<ApiResponse<{ count: numbe
   }
 }
 
-export async function getAlarmStats(): Promise<ApiResponse<{ today: number; pending: number; handled: number; falseAlarm: number }>> {
+export async function getAlarmStats(): Promise<ApiResponse<AlarmStatsResult>> {
   try { return fetchMock('/api/alarms/stats') } catch { return mockApi.getAlarmStats() }
 }

@@ -462,9 +462,9 @@ onUnmounted(() => {
             </p>
           </GlassPanel3D>
 
-          <GlassPanel3D title="仿真控制" class="sim-func-panel">
+          <GlassPanel3D title="功能面板" class="sim-func-panel">
             <SimulationTabPanel
-              active-tab="control"
+              :active-tab="activeTab"
               :sim-scene="simScene"
               :sim-status="simStatus"
               :models="models"
@@ -474,7 +474,6 @@ onUnmounted(() => {
               :report-loading="reportLoading"
               :review-loading="reviewLoading"
               compact
-              hide-tabs
               @tab-change="onTabChange"
               @activate="handleActivateModel"
               @upload="handleUploadModel"

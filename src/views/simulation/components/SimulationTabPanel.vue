@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { ElButton, ElEmpty, ElTag } from 'element-plus'
+import { computed, ref } from 'vue'
+import { ElButton, ElEmpty, ElInput, ElTag } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
+import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import {
   SIMULATION_SCENE_MAP, MODEL_STATUS_MAP, REVIEW_STATUS_MAP, SIMULATION_TABS,
   type SimulationTab,
@@ -38,6 +40,24 @@ const emit = defineEmits<{
 
 const tabTitle = computed(() => SIMULATION_TABS.find((t) => t.value === props.activeTab)?.label ?? '')
 const sceneInfo = computed(() => SIMULATION_SCENE_MAP[props.simScene])
+const searchKeyword = ref('')
+
+const filteredModels = computed(() => {
+  const kw = searchKeyword.value.trim()
+  if (!kw || props.activeTab !== 'model') return props.models
+  return props.models.filter((m) => fuzzyMatch(kw, m.type, m.version, m.remark, m.status))
+})
+const filteredReports = computed(() => {
+  const kw = searchKeyword.value.trim()
+  if (!kw || props.activeTab !== 'report') return props.reports
+  return props.reports.filter((r) => fuzzyMatch(kw, r.content, r.operatorName, r.scene, String(r.runId)))
+})
+const filteredReviews = computed(() => {
+  const kw = searchKeyword.value.trim()
+  if (!kw || props.activeTab !== 'review') return props.reviews
+  return props.reviews.filter((r) => fuzzyMatch(kw, r.faultType, r.impactScope, r.status))
+})
+const showSearch = computed(() => props.activeTab !== 'control')
 
 function formatDuration(sec: number) {
   const m = Math.floor(sec / 60)
@@ -61,6 +81,15 @@ function formatDuration(sec: number) {
       </button>
     </div>
     <GlassPanel3D v-if="!compact" :title="tabTitle" large>
+      <div v-if="showSearch" class="panel-search">
+        <ElInput
+          v-model="searchKeyword"
+          placeholder="模糊搜索..."
+          clearable
+          size="small"
+          :prefix-icon="Search"
+        />
+      </div>
       <template v-if="activeTab === 'control'">
         <div class="scene-brief">
           <h4>{{ sceneInfo?.label }}</h4>
@@ -99,9 +128,9 @@ function formatDuration(sec: number) {
         <div class="panel-actions">
           <ElButton type="primary" @click="emit('upload')">导入模型</ElButton>
         </div>
-        <ElEmpty v-if="!models.length && !modelLoading" description="暂无模型，请先导入" />
+        <ElEmpty v-if="!filteredModels.length && !modelLoading" description="暂无模型，请先导入" />
         <ul v-else class="entity-list">
-          <li v-for="m in models" :key="m.id" class="entity-list__item">
+          <li v-for="m in filteredModels" :key="m.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ m.type }} {{ m.version }}</strong>
               <ElTag :color="MODEL_STATUS_MAP[m.status]?.color" effect="dark">
@@ -121,9 +150,9 @@ function formatDuration(sec: number) {
         <div class="panel-actions">
           <ElButton type="primary" @click="emit('generate')">生成报告</ElButton>
         </div>
-        <ElEmpty v-if="!reports.length && !reportLoading" description="暂无评估报告" />
+        <ElEmpty v-if="!filteredReports.length && !reportLoading" description="暂无评估报告" />
         <ul v-else class="entity-list">
-          <li v-for="r in reports" :key="r.id" class="entity-list__item">
+          <li v-for="r in filteredReports" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ SIMULATION_SCENE_MAP[r.scene]?.label ?? r.scene }}</strong>
               <span class="entity-list__tag">最高 {{ r.summary.maxLevel.toFixed(2) }} m</span>
@@ -135,9 +164,9 @@ function formatDuration(sec: number) {
       </template>
 
       <template v-else>
-        <ElEmpty v-if="!reviews.length && !reviewLoading" description="暂无故障复盘记录" />
+        <ElEmpty v-if="!filteredReviews.length && !reviewLoading" description="暂无故障复盘记录" />
         <ul v-else class="entity-list">
-          <li v-for="r in reviews" :key="r.id" class="entity-list__item">
+          <li v-for="r in filteredReviews" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ r.faultType }}</strong>
               <ElTag :color="REVIEW_STATUS_MAP[r.status]?.color" effect="dark">
@@ -154,6 +183,15 @@ function formatDuration(sec: number) {
       </template>
     </GlassPanel3D>
     <div v-else class="sim-tab-panel__compact-body">
+      <div v-if="showSearch" class="panel-search">
+        <ElInput
+          v-model="searchKeyword"
+          placeholder="模糊搜索..."
+          clearable
+          size="small"
+          :prefix-icon="Search"
+        />
+      </div>
       <template v-if="activeTab === 'control'">
         <div class="scene-brief">
           <h4>{{ sceneInfo?.label }}</h4>
@@ -192,9 +230,9 @@ function formatDuration(sec: number) {
         <div class="panel-actions">
           <ElButton type="primary" @click="emit('upload')">导入模型</ElButton>
         </div>
-        <ElEmpty v-if="!models.length && !modelLoading" description="暂无模型，请先导入" />
+        <ElEmpty v-if="!filteredModels.length && !modelLoading" description="暂无模型，请先导入" />
         <ul v-else class="entity-list">
-          <li v-for="m in models" :key="m.id" class="entity-list__item">
+          <li v-for="m in filteredModels" :key="m.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ m.type }} {{ m.version }}</strong>
               <ElTag :color="MODEL_STATUS_MAP[m.status]?.color" effect="dark">
@@ -214,9 +252,9 @@ function formatDuration(sec: number) {
         <div class="panel-actions">
           <ElButton type="primary" @click="emit('generate')">生成报告</ElButton>
         </div>
-        <ElEmpty v-if="!reports.length && !reportLoading" description="暂无评估报告" />
+        <ElEmpty v-if="!filteredReports.length && !reportLoading" description="暂无评估报告" />
         <ul v-else class="entity-list">
-          <li v-for="r in reports" :key="r.id" class="entity-list__item">
+          <li v-for="r in filteredReports" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ SIMULATION_SCENE_MAP[r.scene]?.label ?? r.scene }}</strong>
               <span class="entity-list__tag">最高 {{ r.summary.maxLevel.toFixed(2) }} m</span>
@@ -228,9 +266,9 @@ function formatDuration(sec: number) {
       </template>
 
       <template v-else>
-        <ElEmpty v-if="!reviews.length && !reviewLoading" description="暂无故障复盘记录" />
+        <ElEmpty v-if="!filteredReviews.length && !reviewLoading" description="暂无故障复盘记录" />
         <ul v-else class="entity-list">
-          <li v-for="r in reviews" :key="r.id" class="entity-list__item">
+          <li v-for="r in filteredReviews" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ r.faultType }}</strong>
               <ElTag :color="REVIEW_STATUS_MAP[r.status]?.color" effect="dark">
@@ -426,6 +464,10 @@ function formatDuration(sec: number) {
 
 .panel-actions {
   margin-bottom: var(--spacing-md);
+}
+
+.panel-search {
+  margin-bottom: 12px;
 }
 
 .entity-list {
