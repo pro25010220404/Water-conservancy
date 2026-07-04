@@ -2,12 +2,7 @@
 export const APP_TITLE = '水电站闸门智能调度系统'
 
 /** 用户角色 */
-export type UserRole =
-  | 'operator'
-  | 'dispatcher'
-  | 'manager'
-  | 'admin'
-  | 'algorithm_engineer'
+export type UserRole = 'operator' | 'dispatcher' | 'manager' | 'admin' | 'algorithm_engineer'
 
 /** 路由权限矩阵 */
 export const ROUTE_ROLES: Record<string, UserRole[]> = {
@@ -22,6 +17,12 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   '/simulation': ['manager', 'admin', 'algorithm_engineer'],
   '/equipment': ['operator', 'manager', 'admin'],
   '/settings': ['admin'],
+  '/settings/ai/metrics': ['admin', 'algorithm_engineer'],
+  '/settings/ai/compare': ['admin', 'algorithm_engineer'],
+  '/settings/physics-guard': ['admin'],
+  '/settings/physics-guard/history': ['admin'],
+  '/settings/gate-interlock': ['admin'],
+  '/settings/gate-interlock/logs': ['admin'],
   '/profile': ['operator', 'dispatcher', 'manager', 'admin', 'algorithm_engineer'],
 }
 

@@ -11,27 +11,29 @@ export const DISPATCH_MODE_MAP: Record<string, DictOption> = {
 }
 
 // ---------- 自动执行权限等级 ----------
-export const AUTO_LEVEL_MAP: Record<number, { label: string; description: string; color: string }> = {
-  1: {
-    label: 'L1 仅建议',
-    description: 'AI 只出建议，不自动下发至 PLC，须人工确认后执行',
-    color: '#3b82f6',
-  },
-  2: {
-    label: 'L2 半自动',
-    description: '置信度 ≥80% 且开度变化 ≤10% 时自动执行，否则降级为仅建议',
-    color: '#f59e0b',
-  },
-  3: {
-    label: 'L3 全自动',
-    description: 'AI 决策自动执行，异常时告警并等待人工介入',
-    color: '#ef4444',
-  },
-}
+export const AUTO_LEVEL_MAP: Record<number, { label: string; description: string; color: string }> =
+  {
+    1: {
+      label: 'L1 仅建议',
+      description: 'AI 只出建议，不自动下发至 PLC，须人工确认后执行',
+      color: '#3b82f6',
+    },
+    2: {
+      label: 'L2 半自动',
+      description: '置信度 ≥80% 且开度变化 ≤10% 时自动执行，否则降级为仅建议',
+      color: '#f59e0b',
+    },
+    3: {
+      label: 'L3 全自动',
+      description: 'AI 决策自动执行，异常时告警并等待人工介入',
+      color: '#ef4444',
+    },
+  }
 
-export const AUTO_LEVEL_OPTIONS = Object.entries(AUTO_LEVEL_MAP).map(
-  ([value, item]) => ({ ...item, value: Number(value) }),
-)
+export const AUTO_LEVEL_OPTIONS = Object.entries(AUTO_LEVEL_MAP).map(([value, item]) => ({
+  ...item,
+  value: Number(value),
+}))
 
 // ---------- 执行结果 ----------
 export const DISPATCH_RESULT_MAP: Record<string, DictOption> = {

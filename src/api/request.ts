@@ -1,7 +1,11 @@
 // ============================================================
 // Axios 请求封装 — 统一拦截器 / baseURL / 错误处理
 // ============================================================
-import axios, { type AxiosInstance, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
+import axios, {
+  type AxiosInstance,
+  type AxiosResponse,
+  type InternalAxiosRequestConfig,
+} from 'axios'
 import { ElMessage } from 'element-plus'
 
 const http: AxiosInstance = axios.create({

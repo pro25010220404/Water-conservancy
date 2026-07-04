@@ -63,15 +63,14 @@ export const FORM_RULES = {
   ],
   realname: [
     { required: true, message: '请输入姓名', trigger: 'blur' },
-    { min: REALNAME_RULE.min, max: REALNAME_RULE.max, message: REALNAME_RULE.message, trigger: 'blur' },
+    {
+      min: REALNAME_RULE.min,
+      max: REALNAME_RULE.max,
+      message: REALNAME_RULE.message,
+      trigger: 'blur',
+    },
   ],
-  phone: [
-    { pattern: PHONE_RULE.pattern, message: PHONE_RULE.message, trigger: 'blur' },
-  ],
-  email: [
-    { pattern: EMAIL_RULE.pattern, message: EMAIL_RULE.message, trigger: 'blur' },
-  ],
-  required: (label: string) => [
-    { required: true, message: `请输入${label}`, trigger: 'blur' },
-  ],
+  phone: [{ pattern: PHONE_RULE.pattern, message: PHONE_RULE.message, trigger: 'blur' }],
+  email: [{ pattern: EMAIL_RULE.pattern, message: EMAIL_RULE.message, trigger: 'blur' }],
+  required: (label: string) => [{ required: true, message: `请输入${label}`, trigger: 'blur' }],
 }

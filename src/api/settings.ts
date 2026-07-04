@@ -1,5 +1,6 @@
 // ============================================================
 // 系统设置 API
+// 按需求文档 5.10 节接口清单
 // ============================================================
 import http from './request'
 import type {
@@ -20,34 +21,48 @@ import type {
   LockUserParams,
   UnlockUserParams,
 } from '@/shared/types'
+import type { WeightHistoryItem } from '@/stores/settings'
+import type {
+  HealthOverview,
+  TrendPoint,
+  MetricsDetailItem,
+  CompareResult,
+} from '@/stores/aiHealth'
+import type { PhysicsGuardConfig, ConfigHistoryItem } from '@/stores/physicsGuard'
+import type { InterlockRule, InterlockLog, InterlockStats } from '@/stores/gateInterlock'
 
-// ──────────── 告警阈值 ────────────
+// ════════════════════════════════════════════════════════════
+// Tab1: 告警阈值
+// ════════════════════════════════════════════════════════════
 
-/** 获取阈值列表 */
 export function getThresholds(params?: { reservoir_id?: number; metric?: string }) {
   return http.get<ApiResponse<ThresholdRule[]>>('/settings/thresholds', { params })
 }
 
-/** 更新阈值 */
 export function updateThreshold(id: number, data: ThresholdUpdateParams) {
   return http.put<ApiResponse<null>>(`/settings/thresholds/${id}`, data)
 }
 
-// ──────────── 多目标权重 ────────────
+// ════════════════════════════════════════════════════════════
+// Tab2: 多目标权重
+// ════════════════════════════════════════════════════════════
 
-/** 获取当前权重 */
 export function getWeights() {
   return http.get<ApiResponse<WeightConfig>>('/settings/weights')
 }
 
-/** 更新权重 */
 export function updateWeights(data: WeightUpdateParams) {
   return http.put<ApiResponse<null>>('/settings/weights', data)
 }
 
-// ──────────── AI 模型管理 ────────────
+export function getWeightHistory(params?: { page?: number; page_size?: number }) {
+  return http.get<ApiResponse<WeightHistoryItem[]>>('/settings/weights/history', { params })
+}
 
-/** 获取模型列表 */
+// ════════════════════════════════════════════════════════════
+// Tab3: AI 模型管理
+// ════════════════════════════════════════════════════════════
+
 export function getModels(params?: {
   page?: number
   page_size?: number
@@ -55,39 +70,139 @@ export function getModels(params?: {
   status?: string
   keyword?: string
 }) {
-  return http.get<ApiResponse<PageResult<ModelInfo>>>('/settings/models', { params })
+  return http.get<ApiResponse<PageResult<ModelInfo>>>('/models/list', { params })
 }
 
-/** 上传模型 */
 export function uploadModel(formData: FormData) {
-  return http.post<ApiResponse<ModelInfo>>('/settings/models/upload', formData, {
+  return http.post<ApiResponse<ModelInfo>>('/models/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
 
-/** 激活模型 */
 export function activateModel(id: number, data?: ModelActivateParams) {
-  return http.post<ApiResponse<null>>(`/settings/models/${id}/activate`, data)
+  return http.put<ApiResponse<null>>(`/models/${id}/activate`, data)
 }
 
-/** 回滚模型 */
 export function rollbackModel(id: number, data?: ModelRollbackParams) {
-  return http.post<ApiResponse<null>>(`/settings/models/${id}/rollback`, data)
+  return http.post<ApiResponse<null>>(`/models/${id}/rollback`, data)
 }
 
-/** 删除模型 */
 export function deleteModel(id: number) {
-  return http.delete<ApiResponse<null>>(`/settings/models/${id}`)
+  return http.delete<ApiResponse<null>>(`/models/${id}`)
 }
 
-/** 下发模型至边缘端 */
 export function deployModel(id: number, data: ModelDeployParams) {
-  return http.post<ApiResponse<null>>(`/settings/models/${id}/deploy`, data)
+  return http.post<ApiResponse<null>>(`/models/${id}/deploy`, data)
 }
 
-// ──────────── 用户管理 ────────────
+export function getModelDetail(id: number) {
+  return http.get<ApiResponse<ModelInfo>>(`/models/${id}`)
+}
 
-/** 获取用户列表 */
+// ════════════════════════════════════════════════════════════
+// Tab4: AI 模型健康度
+// ════════════════════════════════════════════════════════════
+
+export function getAIMetrics(params: { reservoir_id: number }) {
+  return http.get<ApiResponse<HealthOverview>>('/v1/settings/ai/metrics', { params })
+}
+
+export function getAIMetricsHistory(params: { reservoir_id: number; days?: number }) {
+  return http.get<ApiResponse<TrendPoint[]>>('/v1/settings/ai/metrics/history', { params })
+}
+
+export function getAIHealthOverview() {
+  return http.get<ApiResponse<HealthOverview[]>>('/v1/settings/ai/health')
+}
+
+export function getAIMetricsDetail(params: {
+  reservoir_id: number
+  page?: number
+  page_size?: number
+}) {
+  return http.get<ApiResponse<PageResult<MetricsDetailItem>>>('/v1/settings/ai/metrics/detail', {
+    params,
+  })
+}
+
+export function getAIVersionCompare(params: {
+  reservoir_id: number
+  version1: string
+  version2: string
+}) {
+  return http.get<ApiResponse<CompareResult>>('/v1/settings/ai/compare', { params })
+}
+
+// ════════════════════════════════════════════════════════════
+// Tab5: 物理防护配置
+// ════════════════════════════════════════════════════════════
+
+export function getPhysicsGuard(params: { reservoir_id: number }) {
+  return http.get<ApiResponse<PhysicsGuardConfig>>('/v1/settings/physics-guard', { params })
+}
+
+export function updatePhysicsGuard(id: number, data: Partial<PhysicsGuardConfig>) {
+  return http.put<ApiResponse<{ new_version: string }>>(`/v1/settings/physics-guard/${id}`, data)
+}
+
+export function getPhysicsGuardHistory(params: { reservoir_id: number }) {
+  return http.get<ApiResponse<ConfigHistoryItem[]>>('/v1/settings/physics-guard/history', {
+    params,
+  })
+}
+
+export function rollbackPhysicsGuard(id: number) {
+  return http.post<ApiResponse<{ new_version: string }>>(
+    `/v1/settings/physics-guard/${id}/rollback`,
+  )
+}
+
+export function clonePhysicsGuard(data: {
+  source_reservoir_id: number
+  target_reservoir_id: number
+}) {
+  return http.post<ApiResponse<PhysicsGuardConfig>>('/v1/settings/physics-guard/clone', data)
+}
+
+// ════════════════════════════════════════════════════════════
+// Tab6: 闸门互锁规则
+// ════════════════════════════════════════════════════════════
+
+export function getInterlockRules(params: { reservoir_id: number }) {
+  return http.get<ApiResponse<InterlockRule[]>>('/v1/settings/gate-interlock/rules', { params })
+}
+
+export function updateInterlockRule(id: number, data: Partial<InterlockRule>) {
+  return http.put<ApiResponse<null>>(`/v1/settings/gate-interlock/rules/${id}`, data)
+}
+
+export function toggleInterlockRule(id: number) {
+  return http.post<ApiResponse<{ is_enabled: boolean }>>(
+    `/v1/settings/gate-interlock/rules/${id}/toggle`,
+  )
+}
+
+export function getInterlockLogs(params: {
+  reservoir_id: number
+  page?: number
+  page_size?: number
+  rule_ids?: number[]
+  start?: string
+  end?: string
+}) {
+  return http.get<ApiResponse<PageResult<InterlockLog>>>('/v1/settings/gate-interlock/logs', {
+    params,
+  })
+}
+
+export function getInterlockStats(params: { reservoir_id: number; days?: number }) {
+  return http.get<ApiResponse<InterlockStats[]>>('/v1/settings/gate-interlock/stats', { params })
+}
+
+// ════════════════════════════════════════════════════════════
+// Tab7: 用户管理
+// ════════════════════════════════════════════════════════════
+
 export function getUsers(params?: {
   page?: number
   page_size?: number
@@ -95,35 +210,29 @@ export function getUsers(params?: {
   is_enabled?: number
   keyword?: string
 }) {
-  return http.get<ApiResponse<PageResult<SystemUser>>>('/settings/users', { params })
+  return http.get<ApiResponse<PageResult<SystemUser>>>('/users', { params })
 }
 
-/** 创建用户 */
 export function createUser(data: CreateUserParams) {
-  return http.post<ApiResponse<null>>('/settings/users', data)
+  return http.post<ApiResponse<null>>('/users', data)
 }
 
-/** 更新用户 */
 export function updateUser(id: number, data: UpdateUserParams) {
-  return http.put<ApiResponse<null>>(`/settings/users/${id}`, data)
+  return http.put<ApiResponse<null>>(`/users/${id}`, data)
 }
 
-/** 重置密码 */
 export function resetUserPassword(id: number, data?: ResetPasswordParams) {
-  return http.post<ApiResponse<null>>(`/settings/users/${id}/reset-password`, data)
+  return http.put<ApiResponse<null>>(`/users/${id}/reset-password`, data)
 }
 
-/** 锁定账号 */
 export function lockUser(id: number, data: LockUserParams) {
-  return http.post<ApiResponse<null>>(`/settings/users/${id}/lock`, data)
+  return http.put<ApiResponse<null>>(`/users/${id}/lock`, data)
 }
 
-/** 解锁账号 */
 export function unlockUser(id: number, data?: UnlockUserParams) {
-  return http.post<ApiResponse<null>>(`/settings/users/${id}/unlock`, data)
+  return http.put<ApiResponse<null>>(`/users/${id}/unlock`, data)
 }
 
-/** 删除用户 */
 export function deleteUser(id: number) {
-  return http.delete<ApiResponse<null>>(`/settings/users/${id}`)
+  return http.delete<ApiResponse<null>>(`/users/${id}`)
 }

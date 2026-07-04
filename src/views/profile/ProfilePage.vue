@@ -7,9 +7,22 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  ElCard, ElAvatar, ElTag, ElButton, ElDialog, ElForm, ElFormItem,
-  ElInput, ElTable, ElTableColumn, ElPagination, ElSelect, ElOption,
-  ElDatePicker, ElProgress, ElMessage,
+  ElCard,
+  ElAvatar,
+  ElTag,
+  ElButton,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElTable,
+  ElTableColumn,
+  ElPagination,
+  ElSelect,
+  ElOption,
+  ElDatePicker,
+  ElProgress,
+  ElMessage,
 } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { checkPasswordStrength, FORM_RULES } from '@/constants/validation'
@@ -22,11 +35,18 @@ const userStore = useUserStore()
 // ── 5. 响应式数据 ──
 
 /** 从 localStorage 读取本地扩展资料（phone/email/registerTime 等 store 不存的信息） */
-function loadExtProfile(): { realname: string; phone: string; email: string; registerTime: string } {
+function loadExtProfile(): {
+  realname: string
+  phone: string
+  email: string
+  registerTime: string
+} {
   try {
     const raw = localStorage.getItem('profile')
     if (raw) return JSON.parse(raw)
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return { realname: '', phone: '', email: '', registerTime: new Date().toISOString().slice(0, 10) }
 }
 
@@ -77,21 +97,26 @@ const strengthColor = computed(() => {
   return pwdForm.value.new_password ? '#ef4444' : '#c0c4cc'
 })
 
-const displayName = computed(() =>
-  userStore.userInfo?.nickname || userStore.userInfo?.username || '用户',
+const displayName = computed(
+  () => userStore.userInfo?.nickname || userStore.userInfo?.username || '用户',
 )
 
 const roleLabel = computed(() => {
   const map: Record<string, string> = {
-    operator: '值班运维', dispatcher: '调度工程师', manager: '站长/管理',
-    admin: '系统管理员', algorithm_engineer: '算法工程师',
+    operator: '值班运维',
+    dispatcher: '调度工程师',
+    manager: '站长/管理',
+    admin: '系统管理员',
+    algorithm_engineer: '算法工程师',
   }
   const roles = userStore.userInfo?.roles ?? []
   return roles.map((r) => map[r] ?? r).join('、')
 })
 
 /** 注册时间：优先 localStorage，否则用当前时间 */
-const registerTime = computed(() => extProfile.value.registerTime || new Date().toISOString().slice(0, 10))
+const registerTime = computed(
+  () => extProfile.value.registerTime || new Date().toISOString().slice(0, 10),
+)
 
 // ── 7. 方法函数 ──
 
@@ -125,7 +150,9 @@ function submitInfo() {
     recordLog('个人中心', '编辑', '修改了个人资料', 1)
     ElMessage.success('资料更新成功')
     infoVisible.value = false
-  } finally { infoSubmitting.value = false }
+  } finally {
+    infoSubmitting.value = false
+  }
 }
 
 function openPwdDialog() {
@@ -135,10 +162,12 @@ function openPwdDialog() {
 
 async function submitPassword() {
   if (pwdForm.value.new_password !== pwdForm.value.confirm_password) {
-    ElMessage.warning('两次输入的新密码不一致'); return
+    ElMessage.warning('两次输入的新密码不一致')
+    return
   }
   if (strength.value.level === 'weak') {
-    ElMessage.warning('新密码强度太弱，请按规则设置'); return
+    ElMessage.warning('新密码强度太弱，请按规则设置')
+    return
   }
   pwdSubmitting.value = true
   try {
@@ -147,27 +176,102 @@ async function submitPassword() {
       recordLog('个人中心', '修改密码', '修改了登录密码', 1)
       ElMessage.success('密码修改成功，3 秒后跳转登录')
       pwdVisible.value = false
-      setTimeout(() => { userStore.logout(); router.push('/login') }, 3000)
+      setTimeout(() => {
+        userStore.logout()
+        router.push('/login')
+      }, 3000)
     }
   } catch {
     recordLog('个人中心', '修改密码', '修改密码失败', 0)
-  } finally { pwdSubmitting.value = false }
+  } finally {
+    pwdSubmitting.value = false
+  }
 }
 
 /** 种子日志（首次访问时写入） */
 function seedLogs() {
   if (localStorage.getItem('operationLogs')) return
   const seed: OperationLog[] = [
-    { id: 1, time: '2026-07-03 10:05:22', module: '登录认证', type: '登录', description: '用户 admin 登录成功', result: 1 },
-    { id: 2, time: '2026-07-03 09:30:15', module: '系统设置', type: '修改', description: '更新了上游水位告警阈值', result: 1 },
-    { id: 3, time: '2026-07-02 18:20:00', module: '设备管理', type: '重启', description: '远程重启设备「水泵」', result: 1 },
-    { id: 4, time: '2026-07-02 16:45:30', module: '调度决策', type: '执行', description: '手动下发闸门开度 35%', result: 1 },
-    { id: 5, time: '2026-07-02 14:10:00', module: '告警管理', type: '处置', description: '处置告警 ALM-20260702-00078', result: 1 },
-    { id: 6, time: '2026-07-02 11:30:00', module: '个人中心', type: '修改密码', description: '修改了登录密码', result: 1 },
-    { id: 7, time: '2026-07-01 09:00:00', module: '登录认证', type: '登录', description: '用户 admin 登录成功', result: 1 },
-    { id: 8, time: '2026-06-30 17:00:00', module: '系统设置', type: '创建', description: '创建新用户「孙七」', result: 1 },
-    { id: 9, time: '2026-06-30 15:30:00', module: '设备管理', type: '状态变更', description: '设备「降压模块」标记为维护中', result: 1 },
-    { id: 10, time: '2026-06-29 08:45:00', module: '登录认证', type: '登录', description: '用户 zhangsan 登录失败（密码错误）', result: 0 },
+    {
+      id: 1,
+      time: '2026-07-03 10:05:22',
+      module: '登录认证',
+      type: '登录',
+      description: '用户 admin 登录成功',
+      result: 1,
+    },
+    {
+      id: 2,
+      time: '2026-07-03 09:30:15',
+      module: '系统设置',
+      type: '修改',
+      description: '更新了上游水位告警阈值',
+      result: 1,
+    },
+    {
+      id: 3,
+      time: '2026-07-02 18:20:00',
+      module: '设备管理',
+      type: '重启',
+      description: '远程重启设备「水泵」',
+      result: 1,
+    },
+    {
+      id: 4,
+      time: '2026-07-02 16:45:30',
+      module: '调度决策',
+      type: '执行',
+      description: '手动下发闸门开度 35%',
+      result: 1,
+    },
+    {
+      id: 5,
+      time: '2026-07-02 14:10:00',
+      module: '告警管理',
+      type: '处置',
+      description: '处置告警 ALM-20260702-00078',
+      result: 1,
+    },
+    {
+      id: 6,
+      time: '2026-07-02 11:30:00',
+      module: '个人中心',
+      type: '修改密码',
+      description: '修改了登录密码',
+      result: 1,
+    },
+    {
+      id: 7,
+      time: '2026-07-01 09:00:00',
+      module: '登录认证',
+      type: '登录',
+      description: '用户 admin 登录成功',
+      result: 1,
+    },
+    {
+      id: 8,
+      time: '2026-06-30 17:00:00',
+      module: '系统设置',
+      type: '创建',
+      description: '创建新用户「孙七」',
+      result: 1,
+    },
+    {
+      id: 9,
+      time: '2026-06-30 15:30:00',
+      module: '设备管理',
+      type: '状态变更',
+      description: '设备「降压模块」标记为维护中',
+      result: 1,
+    },
+    {
+      id: 10,
+      time: '2026-06-29 08:45:00',
+      module: '登录认证',
+      type: '登录',
+      description: '用户 zhangsan 登录失败（密码错误）',
+      result: 0,
+    },
   ]
   localStorage.setItem('operationLogs', JSON.stringify(seed))
 }
@@ -189,45 +293,73 @@ function fetchLogs() {
     logsTotal.value = all.length
     const start = (logsPage.value - 1) * 15
     logs.value = all.slice(start, start + 15)
-  } finally { logsLoading.value = false }
+  } finally {
+    logsLoading.value = false
+  }
 }
 
-function onLogFilterChange() { logsPage.value = 1; fetchLogs() }
-function onLogPageChange(p: number) { logsPage.value = p; fetchLogs() }
+function onLogFilterChange() {
+  logsPage.value = 1
+  fetchLogs()
+}
+function onLogPageChange(p: number) {
+  logsPage.value = p
+  fetchLogs()
+}
 
 // ── 8. 生命周期 ──
-onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
+onMounted(() => {
+  initProfile()
+  seedLogs()
+  fetchLogs()
+})
 </script>
 
 <template>
   <div class="page profile-page">
     <!-- ═══ 卡片1: 个人信息 ═══ -->
-    <el-card class="profile-card" v-loading="profileLoading" shadow="never">
+    <ElCard
+v-loading="profileLoading" class="profile-card"
+shadow="never"
+>
       <template #header>
         <div class="profile-card__header">
           <span>个人信息</span>
-          <el-button type="primary" @click="openInfoDialog">编辑</el-button>
+          <ElButton
+type="primary" @click="openInfoDialog"> 编辑 </ElButton>
         </div>
       </template>
       <div class="profile-info">
         <div class="profile-info__avatar">
-          <el-avatar :size="96" style="background:linear-gradient(135deg, #1890ff, #00d4ff);color:#fff;font-size:38px;font-weight:600">
+          <ElAvatar
+            :size="96"
+            style="
+              background: linear-gradient(135deg, #1890ff, #00d4ff);
+              color: #fff;
+              font-size: 38px;
+              font-weight: 600;
+            "
+          >
             {{ displayName.charAt(0) }}
-          </el-avatar>
+          </ElAvatar>
         </div>
         <div class="profile-info__fields">
           <div class="profile-info__row">
             <span class="profile-info__label">用户名</span>
-            <span class="profile-info__value">{{ userStore.userInfo?.username ?? displayName }}</span>
+            <span class="profile-info__value">{{
+              userStore.userInfo?.username ?? displayName
+            }}</span>
           </div>
           <div class="profile-info__row">
             <span class="profile-info__label">姓名</span>
-            <span class="profile-info__value">{{ extProfile.realname || userStore.userInfo?.nickname || '-' }}</span>
+            <span class="profile-info__value">{{
+              extProfile.realname || userStore.userInfo?.nickname || '-'
+            }}</span>
           </div>
           <div class="profile-info__row">
             <span class="profile-info__label">角色</span>
             <span class="profile-info__value">
-              <el-tag>{{ roleLabel || '未分配' }}</el-tag>
+              <ElTag>{{ roleLabel || '未分配' }}</ElTag>
             </span>
           </div>
           <div class="profile-info__row">
@@ -244,30 +376,43 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
           </div>
         </div>
       </div>
-    </el-card>
+    </ElCard>
 
     <!-- ═══ 卡片2: 账户安全 ═══ -->
-    <el-card class="profile-card" shadow="never">
-      <template #header><span>账户安全</span></template>
+    <ElCard class="profile-card" shadow="never">
+      <template #header>
+        <span>账户安全</span>
+      </template>
       <div class="profile-security">
         <div class="profile-security__item">
           <div class="profile-security__info">
             <span class="profile-security__label">登录密码</span>
             <span class="profile-security__desc">定期更换密码可保护账户安全</span>
           </div>
-          <el-button @click="openPwdDialog">修改密码</el-button>
+          <ElButton @click="openPwdDialog"> 修改密码 </ElButton>
         </div>
       </div>
-    </el-card>
+    </ElCard>
 
     <!-- ═══ 卡片3: 操作日志 ═══ -->
-    <el-card class="profile-card" shadow="never">
-      <template #header><span>我的操作日志</span></template>
+    <ElCard class="profile-card" shadow="never">
+      <template #header>
+        <span>我的操作日志</span>
+      </template>
       <div class="profile-logs__filters">
-        <el-select v-model="logModuleFilter" placeholder="操作模块" clearable style="width:160px" @change="onLogFilterChange">
-          <el-option v-for="m in logModules" :key="m.value" :label="m.label" :value="m.value" />
-        </el-select>
-        <el-date-picker
+        <ElSelect
+          v-model="logModuleFilter"
+          placeholder="操作模块"
+          clearable
+          style="width: 160px"
+          @change="onLogFilterChange"
+        >
+          <ElOption
+v-for="m in logModules" :key="m.value"
+:label="m.label" :value="m.value"
+/>
+        </ElSelect>
+        <ElDatePicker
           v-model="logDateRange"
           type="daterange"
           range-separator="至"
@@ -278,89 +423,149 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
           @change="onLogFilterChange"
         />
       </div>
-      <el-table :data="logs" v-loading="logsLoading" class="profile-logs-table" style="width:100%;margin-top:14px">
-        <el-table-column prop="time" label="时间" width="190" />
-        <el-table-column prop="module" label="操作模块" width="120" />
-        <el-table-column prop="type" label="操作类型" width="130" />
-        <el-table-column prop="description" label="操作描述" min-width="220" show-overflow-tooltip />
-        <el-table-column label="操作结果" width="100">
+      <ElTable
+        v-loading="logsLoading"
+        :data="logs"
+        class="profile-logs-table"
+        style="width: 100%; margin-top: 14px"
+      >
+        <ElTableColumn
+prop="time" label="时间"
+width="190"
+/>
+        <ElTableColumn
+prop="module" label="操作模块"
+width="120"
+/>
+        <ElTableColumn
+prop="type" label="操作类型"
+width="130"
+/>
+        <ElTableColumn
+prop="description" label="操作描述" min-width="220" show-overflow-tooltip />
+        <ElTableColumn label="操作结果"
+width="100">
           <template #default="scope">
-            <el-tag :type="(scope.row as OperationLog).result === 1 ? 'success' : 'danger'">{{ (scope.row as OperationLog).result === 1 ? '成功' : '失败' }}</el-tag>
+            <ElTag :type="(scope.row as OperationLog).result === 1 ? 'success' : 'danger'">
+              {{ (scope.row as OperationLog).result === 1 ? '成功' : '失败' }}
+            </ElTag>
           </template>
-        </el-table-column>
-      </el-table>
-      <el-pagination
+        </ElTableColumn>
+      </ElTable>
+      <ElPagination
         v-model:current-page="logsPage"
         :page-size="15"
         :total="logsTotal"
         layout="total, prev, pager, next"
         background
         class="profile-logs-pagination"
-        style="margin-top:16px;justify-content:flex-end"
+        style="margin-top: 16px; justify-content: flex-end"
         @current-change="onLogPageChange"
       />
-    </el-card>
+    </ElCard>
 
     <!-- ═══ 编辑资料弹窗 ═══ -->
-    <el-dialog v-model="infoVisible" title="编辑个人信息" width="420px">
-      <el-form :model="infoForm" label-width="80px">
-        <el-form-item label="姓名" :rules="FORM_RULES.realname">
-          <el-input v-model="infoForm.realname" maxlength="20" placeholder="2-20个字符" />
-        </el-form-item>
-        <el-form-item label="手机号" :rules="FORM_RULES.phone">
-          <el-input v-model="infoForm.phone" maxlength="11" placeholder="11位手机号" />
-        </el-form-item>
-        <el-form-item label="邮箱" :rules="FORM_RULES.email">
-          <el-input v-model="infoForm.email" placeholder="请输入邮箱地址" />
-        </el-form-item>
-      </el-form>
+    <ElDialog v-model="infoVisible" title="编辑个人信息" width="420px">
+      <ElForm
+:model="infoForm" label-width="80px"
+>
+        <ElFormItem label="姓名"
+:rules="FORM_RULES.realname">
+          <ElInput v-model="infoForm.realname"
+maxlength="20" placeholder="2-20个字符" />
+        </ElFormItem>
+        <ElFormItem label="手机号"
+:rules="FORM_RULES.phone">
+          <ElInput v-model="infoForm.phone"
+maxlength="11" placeholder="11位手机号" />
+        </ElFormItem>
+        <ElFormItem label="邮箱"
+:rules="FORM_RULES.email">
+          <ElInput v-model="infoForm.email"
+placeholder="请输入邮箱地址" />
+        </ElFormItem>
+      </ElForm>
       <template #footer>
-        <el-button @click="infoVisible = false">取消</el-button>
-        <el-button type="primary" :loading="infoSubmitting" @click="submitInfo">保存</el-button>
+        <ElButton @click="infoVisible = false"> 取消 </ElButton>
+        <ElButton
+type="primary" :loading="infoSubmitting" @click="submitInfo"> 保存 </ElButton>
       </template>
-    </el-dialog>
+    </ElDialog>
 
     <!-- ═══ 修改密码弹窗 ═══ -->
-    <el-dialog v-model="pwdVisible" title="修改密码" width="460px">
-      <el-form :model="pwdForm" label-width="100px">
-        <el-form-item label="当前密码" required>
-          <el-input v-model="pwdForm.old_password" type="password" show-password placeholder="请输入当前密码" />
-        </el-form-item>
-        <el-form-item label="新密码" required>
-          <el-input v-model="pwdForm.new_password" :type="showNewPwd ? 'text' : 'password'" show-password placeholder="≥8位含大小写字母和数字" />
-        </el-form-item>
+    <ElDialog v-model="pwdVisible" title="修改密码" width="460px">
+      <ElForm
+:model="pwdForm" label-width="100px"
+>
+        <ElFormItem label="当前密码"
+required>
+          <ElInput
+            v-model="pwdForm.old_password"
+            type="password"
+            show-password
+            placeholder="请输入当前密码"
+          />
+        </ElFormItem>
+        <ElFormItem label="新密码"
+required>
+          <ElInput
+            v-model="pwdForm.new_password"
+            :type="showNewPwd ? 'text' : 'password'"
+            show-password
+            placeholder="≥8位含大小写字母和数字"
+          />
+        </ElFormItem>
         <!-- 密码强度 -->
         <template v-if="pwdForm.new_password">
           <div class="pwd-strength">
             <div class="pwd-strength__bar">
-              <el-progress
+              <ElProgress
                 :percentage="(strength.score / 5) * 100"
                 :color="strengthColor"
                 :stroke-width="6"
                 :show-text="false"
               />
             </div>
-            <span class="pwd-strength__label" :style="{ color: strengthColor }">
+            <span
+class="pwd-strength__label" :style="{ color: strengthColor }"
+>
               {{ strength.level === 'strong' ? '强' : strength.level === 'medium' ? '中' : '弱' }}
             </span>
           </div>
           <ul class="pwd-checklist">
-            <li v-for="(c, i) in strength.checks" :key="i" :class="{ 'is-passed': c.passed }">
+            <li
+v-for="(c, i) in strength.checks" :key="i"
+:class="{ 'is-passed': c.passed }"
+>
               <span class="pwd-checklist__icon">{{ c.passed ? '✓' : '×' }}</span>
               {{ c.label }}
             </li>
           </ul>
         </template>
-        <el-form-item label="确认新密码" required>
-          <el-input v-model="pwdForm.confirm_password" type="password" show-password placeholder="请再次输入新密码"
-            :class="{ 'is-error': pwdForm.confirm_password && pwdForm.new_password !== pwdForm.confirm_password }" />
-        </el-form-item>
-      </el-form>
+        <ElFormItem label="确认新密码"
+required>
+          <ElInput
+            v-model="pwdForm.confirm_password"
+            type="password"
+            show-password
+            placeholder="请再次输入新密码"
+            :class="{
+              'is-error':
+                pwdForm.confirm_password && pwdForm.new_password !== pwdForm.confirm_password,
+            }"
+          />
+        </ElFormItem>
+      </ElForm>
       <template #footer>
-        <el-button @click="pwdVisible = false">取消</el-button>
-        <el-button type="primary" :loading="pwdSubmitting" @click="submitPassword">确认修改</el-button>
+        <ElButton @click="pwdVisible = false"> 取消 </ElButton>
+        <ElButton
+type="primary" :loading="pwdSubmitting"
+@click="submitPassword"
+>
+          确认修改
+        </ElButton>
       </template>
-    </el-dialog>
+    </ElDialog>
   </div>
 </template>
 
@@ -451,8 +656,15 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
     gap: 6px;
   }
 
-  &__label { font-size: 17px; font-weight: 600; color: var(--color-text); }
-  &__desc { font-size: 15px; color: var(--color-text-secondary); }
+  &__label {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--color-text);
+  }
+  &__desc {
+    font-size: 15px;
+    color: var(--color-text-secondary);
+  }
 }
 
 // 操作日志
@@ -486,8 +698,12 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
 }
 
 .profile-logs-pagination {
-  :deep(.el-pagination__total) { font-size: 15px; }
-  :deep(.btn-prev), :deep(.btn-next), :deep(.el-pager li) {
+  :deep(.el-pagination__total) {
+    font-size: 15px;
+  }
+  :deep(.btn-prev),
+  :deep(.btn-next),
+  :deep(.el-pager li) {
     min-width: 36px;
     height: 36px;
     line-height: 36px;
@@ -502,8 +718,13 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
   gap: var(--spacing-sm);
   margin: var(--spacing-sm) 0 var(--spacing-sm) 100px;
 
-  &__bar { flex: 1; }
-  &__label { font-size: var(--font-size-sm); font-weight: 600; }
+  &__bar {
+    flex: 1;
+  }
+  &__label {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+  }
 }
 
 .pwd-checklist {
@@ -520,7 +741,9 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
     gap: 4px;
     font-size: var(--font-size-xs);
     color: var(--color-text-secondary);
-    &.is-passed { color: #22c55e; }
+    &.is-passed {
+      color: #22c55e;
+    }
   }
 
   &__icon {
@@ -530,6 +753,8 @@ onMounted(() => { initProfile(); seedLogs(); fetchLogs() })
 }
 
 .is-error {
-  :deep(.el-input__inner) { border-color: #ef4444; }
+  :deep(.el-input__inner) {
+    border-color: #ef4444;
+  }
 }
 </style>

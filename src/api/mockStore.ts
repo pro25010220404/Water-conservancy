@@ -1,16 +1,30 @@
 // ============================================================
 // Mock 数据仓库 — 向家坝水电站实时模拟（后端就绪后移除）
 // ============================================================
-import type { AlarmRecord, AlarmExceedLog, AlarmFilterParams, AlarmStatsResult } from '@/types/alarm'
+import type {
+  AlarmRecord,
+  AlarmExceedLog,
+  AlarmFilterParams,
+  AlarmStatsResult,
+} from '@/types/alarm'
 import { ALARM_TYPE_MAP } from '@/constants/alarm'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import { createAlarmSeed, createExceedLogSeed } from './mock/alarmSeed'
 import type {
-  DispatchStatus, DecisionDetail, PredictionData, DispatchRecord,
+  DispatchStatus,
+  DecisionDetail,
+  PredictionData,
+  DispatchRecord,
 } from '@/types/dispatch'
 import type {
-  SimulationRealtimeData, SimulationParams, SimulationStartPayload,
-  SimulationSpeed, AiModel, SimulationReport, FaultReview, TrainingTask,
+  SimulationRealtimeData,
+  SimulationParams,
+  SimulationStartPayload,
+  SimulationSpeed,
+  AiModel,
+  SimulationReport,
+  FaultReview,
+  TrainingTask,
 } from '@/types/simulation'
 import { XIANGJIABA_HYDRO } from '@/constants/xiangjiaba'
 import {
@@ -28,11 +42,14 @@ const TICK_SEC = 3
 let stationLive: StationTelemetry = createInitialTelemetry()
 
 function jitter(base: number, range: number) {
-  return +(base + Math.sin(tick * 0.3) * range * 0.5 + (Math.random() - 0.5) * range * 0.3).toFixed(2)
+  return +(base + Math.sin(tick * 0.3) * range * 0.5 + (Math.random() - 0.5) * range * 0.3).toFixed(
+    2,
+  )
 }
 
 function pushHistory() {
-  const t = simState.status === 'running' ? simState.elapsedSec : Math.floor(Date.now() / 1000) % 100000
+  const t =
+    simState.status === 'running' ? simState.elapsedSec : Math.floor(Date.now() / 1000) % 100000
   simState.historyLevels.push({ time: t, value: simState.currentLevel })
   simState.historyFlows.push({ time: t, value: simState.currentFlow })
   if (simState.historyLevels.length > 180) simState.historyLevels.shift()
@@ -69,7 +86,9 @@ function initAlarmStore(): AlarmRecord[] {
       const parsed = JSON.parse(raw) as AlarmRecord[]
       if (Array.isArray(parsed) && parsed.length > 0) return parsed
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return persistAlarmStore(createAlarmSeed(nowIso))
 }
 
@@ -93,36 +112,82 @@ const exceedLogs: AlarmExceedLog[] = createExceedLogSeed(nowIso)
 type AutoLevel = 1 | 2 | 3
 
 let dispatchStatus: DispatchStatus = {
-  mode: 'auto', autoLevel: 2 as AutoLevel,
+  mode: 'auto',
+  autoLevel: 2 as AutoLevel,
   upstreamLevel: stationLive.upstreamLevel,
   downstreamLevel: stationLive.downstreamLevel,
   flowRate: stationLive.inflowRate,
   gateOpening: stationLive.gateOpening,
-  lastDispatchAt: nowIso(30), isExecuting: false, executingTarget: null,
+  lastDispatchAt: nowIso(30),
+  isExecuting: false,
+  executingTarget: null,
 }
 
 const decisionBase: DecisionDetail = {
-  id: 1, trace_id: 'trace-001', reservoir_id: 1,
-  decision_time: nowIso(0), decision_mode: 'L2', risk_rank: 1,
-  upstream_level: 380.65, downstream_level: 278.42, inflow_rate: 1920, current_opening: 45,
-  lstm_predictions: { '1h': { level: 380.8, flow: 1950 }, '3h': { level: 381.1, flow: 2100 }, '6h': { level: 381.5, flow: 2300 } },
-  recommended_opening: 52, confidence: 87,
+  id: 1,
+  trace_id: 'trace-001',
+  reservoir_id: 1,
+  decision_time: nowIso(0),
+  decision_mode: 'L2',
+  risk_rank: 1,
+  upstream_level: 380.65,
+  downstream_level: 278.42,
+  inflow_rate: 1920,
+  current_opening: 45,
+  lstm_predictions: {
+    '1h': { level: 380.8, flow: 1950 },
+    '3h': { level: 381.1, flow: 2100 },
+    '6h': { level: 381.5, flow: 2300 },
+  },
+  recommended_opening: 52,
+  confidence: 87,
   factors: [
     { name: '当前水位', value: '380.65 m', direction: 'up', weight: 0.22 },
     { name: 'LSTM预测水位', value: '381.10 m', direction: 'up', weight: 0.25 },
     { name: '实时流量', value: '1920 m³/s', direction: 'up', weight: 0.18 },
     { name: '闸门开度', value: '45%', direction: 'neutral', weight: 0.12 },
     { name: '防洪安全约束', value: '0.85 m', direction: 'down', weight: 0.13 },
-    { name: '生态流量要求', value: '达标', direction: 'neutral', weight: 0.10 },
+    { name: '生态流量要求', value: '达标', direction: 'neutral', weight: 0.1 },
   ],
   alternatives: [
-    { id: '推荐', opening: 52, expectedLevel: 380.2, power: 2850, safetyScore: 92, totalScore: 91, recommended: true, confidence: 87 },
-    { id: '保守', opening: 38, expectedLevel: 380.8, power: 2100, safetyScore: 96, totalScore: 85, recommended: false, confidence: 72 },
-    { id: '激进', opening: 65, expectedLevel: 379.6, power: 3200, safetyScore: 78, totalScore: 82, recommended: false, confidence: 58 },
+    {
+      id: '推荐',
+      opening: 52,
+      expectedLevel: 380.2,
+      power: 2850,
+      safetyScore: 92,
+      totalScore: 91,
+      recommended: true,
+      confidence: 87,
+    },
+    {
+      id: '保守',
+      opening: 38,
+      expectedLevel: 380.8,
+      power: 2100,
+      safetyScore: 96,
+      totalScore: 85,
+      recommended: false,
+      confidence: 72,
+    },
+    {
+      id: '激进',
+      opening: 65,
+      expectedLevel: 379.6,
+      power: 3200,
+      safetyScore: 78,
+      totalScore: 82,
+      recommended: false,
+      confidence: 58,
+    },
   ],
-  weights_used: { power_weight: 0.40, safety_weight: 0.35, ecology_weight: 0.25 },
-  reward_score: 0.87, physics_validation: null,
-  execution_status: 'pending', executed_opening: null, actual_level_after: null, actual_power_after: null,
+  weights_used: { power_weight: 0.4, safety_weight: 0.35, ecology_weight: 0.25 },
+  reward_score: 0.87,
+  physics_validation: null,
+  execution_status: 'pending',
+  executed_opening: null,
+  actual_level_after: null,
+  actual_power_after: null,
   created_at: nowIso(0),
 }
 
@@ -132,54 +197,443 @@ function buildRecordSnapshot(opening: number, confidence: number): DispatchRecor
     confidence,
     recommended_opening: opening,
     plans: decisionBase.alternatives.map((p) => ({
-      id: p.id, opening: p.opening, totalScore: p.totalScore, recommended: p.recommended,
+      id: p.id,
+      opening: p.opening,
+      totalScore: p.totalScore,
+      recommended: p.recommended,
     })),
   }
 }
 
 const dispatchRecords: DispatchRecord[] = [
-  { id: 1, decision_time: nowIso(15), decision_mode: 'L2', recommended_opening: 52, confidence: 87, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(52, 87) },
-  { id: 2, decision_time: nowIso(45), decision_mode: 'L1', recommended_opening: 42, confidence: 72, risk_rank: 2, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(42, 72) },
-  { id: 3, decision_time: nowIso(90), decision_mode: 'L3', recommended_opening: 48, confidence: 91, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '自动执行', operator_name: '系统', snapshot: buildRecordSnapshot(48, 91) },
-  { id: 4, decision_time: nowIso(120), decision_mode: 'L2', recommended_opening: 50, confidence: 88, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(50, 88) },
-  { id: 5, decision_time: nowIso(180), decision_mode: 'L1', recommended_opening: 40, confidence: 65, risk_rank: 2, execution_status: 'failed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(40, 65) },
-  { id: 6, decision_time: nowIso(240), decision_mode: 'L2', recommended_opening: 55, confidence: 82, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(55, 82) },
-  { id: 7, decision_time: nowIso(360), decision_mode: 'L3', recommended_opening: 60, confidence: 93, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '自动执行', operator_name: '系统', snapshot: buildRecordSnapshot(60, 93) },
-  { id: 8, decision_time: nowIso(480), decision_mode: 'L1', recommended_opening: 38, confidence: 58, risk_rank: 3, execution_status: 'rejected', physics_validation: null, action: '忽略建议', operator_name: '张调度', snapshot: buildRecordSnapshot(38, 58) },
-  { id: 9, decision_time: nowIso(600), decision_mode: 'L2', recommended_opening: 47, confidence: 84, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '李运维', snapshot: buildRecordSnapshot(47, 84) },
-  { id: 10, decision_time: nowIso(720), decision_mode: 'L2', recommended_opening: 44, confidence: 79, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '张调度', snapshot: buildRecordSnapshot(44, 79) },
-  { id: 11, decision_time: nowIso(900), decision_mode: 'L1', recommended_opening: 36, confidence: 62, risk_rank: 2, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(36, 62) },
-  { id: 12, decision_time: nowIso(1080), decision_mode: 'L3', recommended_opening: 58, confidence: 90, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '自动执行', operator_name: '系统', snapshot: buildRecordSnapshot(58, 90) },
-  { id: 13, decision_time: nowIso(1260), decision_mode: 'L2', recommended_opening: 51, confidence: 86, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(51, 86) },
-  { id: 14, decision_time: nowIso(1440), decision_mode: 'L1', recommended_opening: 43, confidence: 70, risk_rank: 2, execution_status: 'rejected', physics_validation: null, action: '忽略建议', operator_name: '李运维', snapshot: buildRecordSnapshot(43, 70) },
-  { id: 15, decision_time: nowIso(1620), decision_mode: 'L2', recommended_opening: 49, confidence: 83, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(49, 83) },
-  { id: 16, decision_time: nowIso(1800), decision_mode: 'L2', recommended_opening: 46, confidence: 81, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(46, 81) },
-  { id: 17, decision_time: nowIso(2100), decision_mode: 'L3', recommended_opening: 62, confidence: 89, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '自动执行', operator_name: '系统', snapshot: buildRecordSnapshot(62, 89) },
-  { id: 18, decision_time: nowIso(2400), decision_mode: 'L1', recommended_opening: 41, confidence: 68, risk_rank: 2, execution_status: 'failed', physics_validation: null, action: '手动下发开度', operator_name: '张调度', snapshot: buildRecordSnapshot(41, 68) },
-  { id: 19, decision_time: nowIso(2700), decision_mode: 'L2', recommended_opening: 53, confidence: 85, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '李运维', snapshot: buildRecordSnapshot(53, 85) },
-  { id: 20, decision_time: nowIso(3000), decision_mode: 'L2', recommended_opening: 45, confidence: 80, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(45, 80) },
-  { id: 21, decision_time: nowIso(3300), decision_mode: 'L2', recommended_opening: 54, confidence: 86, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '改派执行', operator_name: '张调度', snapshot: buildRecordSnapshot(54, 86) },
-  { id: 22, decision_time: nowIso(3600), decision_mode: 'L1', recommended_opening: 39, confidence: 64, risk_rank: 2, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(39, 64) },
-  { id: 23, decision_time: nowIso(3900), decision_mode: 'L3', recommended_opening: 57, confidence: 92, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '自动执行', operator_name: '系统', snapshot: buildRecordSnapshot(57, 92) },
-  { id: 24, decision_time: nowIso(4200), decision_mode: 'L2', recommended_opening: 48, confidence: 81, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '李运维', snapshot: buildRecordSnapshot(48, 81) },
-  { id: 25, decision_time: nowIso(4500), decision_mode: 'L2', recommended_opening: 52, confidence: 0, risk_rank: 2, execution_status: 'rejected', physics_validation: null, action: '取消执行', operator_name: '张调度', snapshot: buildRecordSnapshot(52, 0) },
-  { id: 26, decision_time: nowIso(4800), decision_mode: 'L1', recommended_opening: 37, confidence: 60, risk_rank: 3, execution_status: 'failed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(37, 60) },
-  { id: 27, decision_time: nowIso(5100), decision_mode: 'L2', recommended_opening: 50, confidence: 84, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(50, 84) },
-  { id: 28, decision_time: nowIso(5400), decision_mode: 'L3', recommended_opening: 61, confidence: 88, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '自动执行', operator_name: '系统', snapshot: buildRecordSnapshot(61, 88) },
-  { id: 29, decision_time: nowIso(5700), decision_mode: 'L2', recommended_opening: 46, confidence: 78, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(46, 78) },
-  { id: 30, decision_time: nowIso(6000), decision_mode: 'L1', recommended_opening: 35, confidence: 55, risk_rank: 3, execution_status: 'rejected', physics_validation: null, action: '忽略建议', operator_name: '张调度', snapshot: buildRecordSnapshot(35, 55) },
-  { id: 31, decision_time: nowIso(6300), decision_mode: 'L2', recommended_opening: 51, confidence: 83, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(51, 83) },
-  { id: 32, decision_time: nowIso(6600), decision_mode: 'L2', recommended_opening: 47, confidence: 79, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(47, 79) },
+  {
+    id: 1,
+    decision_time: nowIso(15),
+    decision_mode: 'L2',
+    recommended_opening: 52,
+    confidence: 87,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '采纳调度建议',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(52, 87),
+  },
+  {
+    id: 2,
+    decision_time: nowIso(45),
+    decision_mode: 'L1',
+    recommended_opening: 42,
+    confidence: 72,
+    risk_rank: 2,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '手动下发开度',
+    operator_name: '李运维',
+    snapshot: buildRecordSnapshot(42, 72),
+  },
+  {
+    id: 3,
+    decision_time: nowIso(90),
+    decision_mode: 'L3',
+    recommended_opening: 48,
+    confidence: 91,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '自动执行',
+    operator_name: '系统',
+    snapshot: buildRecordSnapshot(48, 91),
+  },
+  {
+    id: 4,
+    decision_time: nowIso(120),
+    decision_mode: 'L2',
+    recommended_opening: 50,
+    confidence: 88,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '采纳调度建议',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(50, 88),
+  },
+  {
+    id: 5,
+    decision_time: nowIso(180),
+    decision_mode: 'L1',
+    recommended_opening: 40,
+    confidence: 65,
+    risk_rank: 2,
+    execution_status: 'failed',
+    physics_validation: null,
+    action: '手动下发开度',
+    operator_name: '李运维',
+    snapshot: buildRecordSnapshot(40, 65),
+  },
+  {
+    id: 6,
+    decision_time: nowIso(240),
+    decision_mode: 'L2',
+    recommended_opening: 55,
+    confidence: 82,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '采纳调度建议',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(55, 82),
+  },
+  {
+    id: 7,
+    decision_time: nowIso(360),
+    decision_mode: 'L3',
+    recommended_opening: 60,
+    confidence: 93,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '自动执行',
+    operator_name: '系统',
+    snapshot: buildRecordSnapshot(60, 93),
+  },
+  {
+    id: 8,
+    decision_time: nowIso(480),
+    decision_mode: 'L1',
+    recommended_opening: 38,
+    confidence: 58,
+    risk_rank: 3,
+    execution_status: 'rejected',
+    physics_validation: null,
+    action: '忽略建议',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(38, 58),
+  },
+  {
+    id: 9,
+    decision_time: nowIso(600),
+    decision_mode: 'L2',
+    recommended_opening: 47,
+    confidence: 84,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '采纳调度建议',
+    operator_name: '李运维',
+    snapshot: buildRecordSnapshot(47, 84),
+  },
+  {
+    id: 10,
+    decision_time: nowIso(720),
+    decision_mode: 'L2',
+    recommended_opening: 44,
+    confidence: 79,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '手动下发开度',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(44, 79),
+  },
+  {
+    id: 11,
+    decision_time: nowIso(900),
+    decision_mode: 'L1',
+    recommended_opening: 36,
+    confidence: 62,
+    risk_rank: 2,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '手动下发开度',
+    operator_name: '李运维',
+    snapshot: buildRecordSnapshot(36, 62),
+  },
+  {
+    id: 12,
+    decision_time: nowIso(1080),
+    decision_mode: 'L3',
+    recommended_opening: 58,
+    confidence: 90,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '自动执行',
+    operator_name: '系统',
+    snapshot: buildRecordSnapshot(58, 90),
+  },
+  {
+    id: 13,
+    decision_time: nowIso(1260),
+    decision_mode: 'L2',
+    recommended_opening: 51,
+    confidence: 86,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '采纳调度建议',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(51, 86),
+  },
+  {
+    id: 14,
+    decision_time: nowIso(1440),
+    decision_mode: 'L1',
+    recommended_opening: 43,
+    confidence: 70,
+    risk_rank: 2,
+    execution_status: 'rejected',
+    physics_validation: null,
+    action: '忽略建议',
+    operator_name: '李运维',
+    snapshot: buildRecordSnapshot(43, 70),
+  },
+  {
+    id: 15,
+    decision_time: nowIso(1620),
+    decision_mode: 'L2',
+    recommended_opening: 49,
+    confidence: 83,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '采纳调度建议',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(49, 83),
+  },
+  {
+    id: 16,
+    decision_time: nowIso(1800),
+    decision_mode: 'L2',
+    recommended_opening: 46,
+    confidence: 81,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '手动下发开度',
+    operator_name: '李运维',
+    snapshot: buildRecordSnapshot(46, 81),
+  },
+  {
+    id: 17,
+    decision_time: nowIso(2100),
+    decision_mode: 'L3',
+    recommended_opening: 62,
+    confidence: 89,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '自动执行',
+    operator_name: '系统',
+    snapshot: buildRecordSnapshot(62, 89),
+  },
+  {
+    id: 18,
+    decision_time: nowIso(2400),
+    decision_mode: 'L1',
+    recommended_opening: 41,
+    confidence: 68,
+    risk_rank: 2,
+    execution_status: 'failed',
+    physics_validation: null,
+    action: '手动下发开度',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(41, 68),
+  },
+  {
+    id: 19,
+    decision_time: nowIso(2700),
+    decision_mode: 'L2',
+    recommended_opening: 53,
+    confidence: 85,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '采纳调度建议',
+    operator_name: '李运维',
+    snapshot: buildRecordSnapshot(53, 85),
+  },
+  {
+    id: 20,
+    decision_time: nowIso(3000),
+    decision_mode: 'L2',
+    recommended_opening: 45,
+    confidence: 80,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '采纳调度建议',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(45, 80),
+  },
+  {
+    id: 21,
+    decision_time: nowIso(3300),
+    decision_mode: 'L2',
+    recommended_opening: 54,
+    confidence: 86,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '改派执行',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(54, 86),
+  },
+  {
+    id: 22,
+    decision_time: nowIso(3600),
+    decision_mode: 'L1',
+    recommended_opening: 39,
+    confidence: 64,
+    risk_rank: 2,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '手动下发开度',
+    operator_name: '李运维',
+    snapshot: buildRecordSnapshot(39, 64),
+  },
+  {
+    id: 23,
+    decision_time: nowIso(3900),
+    decision_mode: 'L3',
+    recommended_opening: 57,
+    confidence: 92,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '自动执行',
+    operator_name: '系统',
+    snapshot: buildRecordSnapshot(57, 92),
+  },
+  {
+    id: 24,
+    decision_time: nowIso(4200),
+    decision_mode: 'L2',
+    recommended_opening: 48,
+    confidence: 81,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '采纳调度建议',
+    operator_name: '李运维',
+    snapshot: buildRecordSnapshot(48, 81),
+  },
+  {
+    id: 25,
+    decision_time: nowIso(4500),
+    decision_mode: 'L2',
+    recommended_opening: 52,
+    confidence: 0,
+    risk_rank: 2,
+    execution_status: 'rejected',
+    physics_validation: null,
+    action: '取消执行',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(52, 0),
+  },
+  {
+    id: 26,
+    decision_time: nowIso(4800),
+    decision_mode: 'L1',
+    recommended_opening: 37,
+    confidence: 60,
+    risk_rank: 3,
+    execution_status: 'failed',
+    physics_validation: null,
+    action: '手动下发开度',
+    operator_name: '李运维',
+    snapshot: buildRecordSnapshot(37, 60),
+  },
+  {
+    id: 27,
+    decision_time: nowIso(5100),
+    decision_mode: 'L2',
+    recommended_opening: 50,
+    confidence: 84,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '采纳调度建议',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(50, 84),
+  },
+  {
+    id: 28,
+    decision_time: nowIso(5400),
+    decision_mode: 'L3',
+    recommended_opening: 61,
+    confidence: 88,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '自动执行',
+    operator_name: '系统',
+    snapshot: buildRecordSnapshot(61, 88),
+  },
+  {
+    id: 29,
+    decision_time: nowIso(5700),
+    decision_mode: 'L2',
+    recommended_opening: 46,
+    confidence: 78,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '手动下发开度',
+    operator_name: '李运维',
+    snapshot: buildRecordSnapshot(46, 78),
+  },
+  {
+    id: 30,
+    decision_time: nowIso(6000),
+    decision_mode: 'L1',
+    recommended_opening: 35,
+    confidence: 55,
+    risk_rank: 3,
+    execution_status: 'rejected',
+    physics_validation: null,
+    action: '忽略建议',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(35, 55),
+  },
+  {
+    id: 31,
+    decision_time: nowIso(6300),
+    decision_mode: 'L2',
+    recommended_opening: 51,
+    confidence: 83,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '采纳调度建议',
+    operator_name: '张调度',
+    snapshot: buildRecordSnapshot(51, 83),
+  },
+  {
+    id: 32,
+    decision_time: nowIso(6600),
+    decision_mode: 'L2',
+    recommended_opening: 47,
+    confidence: 79,
+    risk_rank: 1,
+    execution_status: 'executed',
+    physics_validation: null,
+    action: '手动下发开度',
+    operator_name: '李运维',
+    snapshot: buildRecordSnapshot(47, 79),
+  },
 ]
 
 // ---------- 仿真 ----------
 let simState: SimulationRealtimeData = {
-  status: 'idle', elapsedSec: 0,
+  status: 'idle',
+  elapsedSec: 0,
   currentLevel: stationLive.upstreamLevel,
   currentDownstreamLevel: stationLive.downstreamLevel,
   currentFlow: stationLive.inflowRate,
   currentOpening: stationLive.gateOpening,
-  historyLevels: [], historyFlows: [],
+  historyLevels: [],
+  historyFlows: [],
 }
 
 // 预填近期水位曲线，进入页面即可见动态趋势
@@ -199,36 +653,87 @@ let simParams: SimulationParams = {
 let simSpeed: SimulationSpeed = 1
 
 const models: AiModel[] = [
-  { id: 1, type: 'LSTM', version: 'v2.1.0', filePath: '/models/lstm_v210.pt', status: 'active', metrics: { mae: 0.042, rmse: 0.068, accuracy: 94.2 }, remark: '向家坝水位预测主模型', createdAt: nowIso(43200), activatedAt: nowIso(1440) },
-  { id: 2, type: 'DQN', version: 'v2.3.1', filePath: '/models/dqn_v231.pt', status: 'active', metrics: { mae: 0.035, accuracy: 91.8 }, remark: '闸门调度决策模型', createdAt: nowIso(21600), activatedAt: nowIso(720) },
-  { id: 3, type: 'LSTM', version: 'v2.0.5', filePath: '/models/lstm_v205.pt', status: 'inactive', metrics: { mae: 0.055, rmse: 0.082, accuracy: 89.5 }, remark: '上一版本', createdAt: nowIso(86400), activatedAt: null },
+  {
+    id: 1,
+    type: 'LSTM',
+    version: 'v2.1.0',
+    filePath: '/models/lstm_v210.pt',
+    status: 'active',
+    metrics: { mae: 0.042, rmse: 0.068, accuracy: 94.2 },
+    remark: '向家坝水位预测主模型',
+    createdAt: nowIso(43200),
+    activatedAt: nowIso(1440),
+  },
+  {
+    id: 2,
+    type: 'DQN',
+    version: 'v2.3.1',
+    filePath: '/models/dqn_v231.pt',
+    status: 'active',
+    metrics: { mae: 0.035, accuracy: 91.8 },
+    remark: '闸门调度决策模型',
+    createdAt: nowIso(21600),
+    activatedAt: nowIso(720),
+  },
+  {
+    id: 3,
+    type: 'LSTM',
+    version: 'v2.0.5',
+    filePath: '/models/lstm_v205.pt',
+    status: 'inactive',
+    metrics: { mae: 0.055, rmse: 0.082, accuracy: 89.5 },
+    remark: '上一版本',
+    createdAt: nowIso(86400),
+    activatedAt: null,
+  },
 ]
 
 const reports: SimulationReport[] = [
   {
-    id: 1, runId: 101, scene: 'flood', params: { scene: 'flood', initialLevel: 380.2, inflowRate: 3500, durationMin: 120 },
+    id: 1,
+    runId: 101,
+    scene: 'flood',
+    params: { scene: 'flood', initialLevel: 380.2, inflowRate: 3500, durationMin: 120 },
     summary: { maxLevel: 381.8, minLevel: 380.2, totalDischarge: 125000, estimatedPower: 28500 },
-    content: '洪水场景下闸门逐步加大开度，最高水位381.8m，未突破汛限。建议汛前预泄方案可提前30min启动。',
-    filePath: '/reports/r001.pdf', createdAt: nowIso(2880), operatorName: '王算法',
+    content:
+      '洪水场景下闸门逐步加大开度，最高水位381.8m，未突破汛限。建议汛前预泄方案可提前30min启动。',
+    filePath: '/reports/r001.pdf',
+    createdAt: nowIso(2880),
+    operatorName: '王算法',
   },
   {
-    id: 2, runId: 102, scene: 'normal', params: { scene: 'normal', initialLevel: 379.8, inflowRate: 1850, durationMin: 60 },
+    id: 2,
+    runId: 102,
+    scene: 'normal',
+    params: { scene: 'normal', initialLevel: 379.8, inflowRate: 1850, durationMin: 60 },
     summary: { maxLevel: 380.1, minLevel: 379.6, totalDischarge: 68000, estimatedPower: 15200 },
     content: '常规调度仿真：开度45%时水位稳定在379.9m附近，发电效率最优。',
-    filePath: '/reports/r002.pdf', createdAt: nowIso(1440), operatorName: '张调度',
+    filePath: '/reports/r002.pdf',
+    createdAt: nowIso(1440),
+    operatorName: '张调度',
   },
   {
-    id: 3, runId: 103, scene: 'dry', params: { scene: 'dry', initialLevel: 378.5, inflowRate: 900, durationMin: 90 },
+    id: 3,
+    runId: 103,
+    scene: 'dry',
+    params: { scene: 'dry', initialLevel: 378.5, inflowRate: 900, durationMin: 90 },
     summary: { maxLevel: 378.8, minLevel: 378.2, totalDischarge: 32000, estimatedPower: 9800 },
     content: '枯水期仿真：生态流量保障优先，最小下泄流量满足要求。',
-    filePath: '/reports/r003.pdf', createdAt: nowIso(720), operatorName: '李运维',
+    filePath: '/reports/r003.pdf',
+    createdAt: nowIso(720),
+    operatorName: '李运维',
   },
 ]
 
 const reviews: FaultReview[] = [
   {
-    id: 1, alarmId: 1001, faultType: '高水位超限', impactScope: '上游库区、1-3号闸门',
-    reviewed: false, status: 'pending', createdAt: nowIso(1440),
+    id: 1,
+    alarmId: 1001,
+    faultType: '高水位超限',
+    impactScope: '上游库区、1-3号闸门',
+    reviewed: false,
+    status: 'pending',
+    createdAt: nowIso(1440),
     timeline: [
       { time: '09:12:05', event: '水位超限持续35s，触发紧急告警' },
       { time: '09:12:40', event: '调度员确认告警' },
@@ -240,18 +745,34 @@ const reviews: FaultReview[] = [
     conclusion: null,
   },
   {
-    id: 2, alarmId: 1004, faultType: '生态流量不足', impactScope: '下游河道生态段',
-    reviewed: true, status: 'reviewed', createdAt: nowIso(4320),
+    id: 2,
+    alarmId: 1004,
+    faultType: '生态流量不足',
+    impactScope: '下游河道生态段',
+    reviewed: true,
+    status: 'reviewed',
+    createdAt: nowIso(4320),
     timeline: [
       { time: '14:20:00', event: '生态流量低于阈值，触发一般告警' },
       { time: '14:25:30', event: '调整3号闸门开度' },
       { time: '14:35:00', event: '生态流量恢复达标' },
     ],
-    conclusion: { rootCause: '枯水期来水偏少，生态流量分配权重不足', improvements: '优化枯水期生态流量保障策略', responsibleDept: '调度中心', reviewedBy: '李运维', reviewedAt: nowIso(4000) },
+    conclusion: {
+      rootCause: '枯水期来水偏少，生态流量分配权重不足',
+      improvements: '优化枯水期生态流量保障策略',
+      responsibleDept: '调度中心',
+      reviewedBy: '李运维',
+      reviewedAt: nowIso(4000),
+    },
   },
   {
-    id: 3, alarmId: 1006, faultType: '闸门执行失败', impactScope: '1号表孔闸门、泄洪通道',
-    reviewed: false, status: 'pending', createdAt: nowIso(480),
+    id: 3,
+    alarmId: 1006,
+    faultType: '闸门执行失败',
+    impactScope: '1号表孔闸门、泄洪通道',
+    reviewed: false,
+    status: 'pending',
+    createdAt: nowIso(480),
     timeline: [
       { time: '08:05:12', event: '1号闸门开度指令下发失败' },
       { time: '08:05:57', event: '持续超限42s，触发紧急告警' },
@@ -261,14 +782,25 @@ const reviews: FaultReview[] = [
     conclusion: null,
   },
   {
-    id: 4, alarmId: 1008, faultType: '传感器误报', impactScope: '出库流量监测',
-    reviewed: true, status: 'reviewed', createdAt: nowIso(960),
+    id: 4,
+    alarmId: 1008,
+    faultType: '传感器误报',
+    impactScope: '出库流量监测',
+    reviewed: true,
+    status: 'reviewed',
+    createdAt: nowIso(960),
     timeline: [
       { time: '16:30:00', event: '出库流量传感器短时超限' },
       { time: '16:30:33', event: '触发一般告警' },
       { time: '16:35:00', event: '人工复核确认为校准偏差' },
     ],
-    conclusion: { rootCause: '传感器零点漂移导致读数偏高', improvements: '纳入月度校准计划，增加交叉校验', responsibleDept: '设备管理', reviewedBy: '王算法', reviewedAt: nowIso(900) },
+    conclusion: {
+      rootCause: '传感器零点漂移导致读数偏高',
+      improvements: '纳入月度校准计划，增加交叉校验',
+      responsibleDept: '设备管理',
+      reviewedBy: '王算法',
+      reviewedAt: nowIso(900),
+    },
   },
 ]
 
@@ -340,13 +872,15 @@ function filterAlarms(params: AlarmFilterParams) {
     list = list.filter((a) => new Date(a.createdAt).getTime() <= end)
   }
   if (params.keyword) {
-    list = list.filter((a) => fuzzyMatch(
-      params.keyword!,
-      a.content,
-      a.pointName,
-      String(a.id),
-      ALARM_TYPE_MAP[a.type]?.label,
-    ))
+    list = list.filter((a) =>
+      fuzzyMatch(
+        params.keyword!,
+        a.content,
+        a.pointName,
+        String(a.id),
+        ALARM_TYPE_MAP[a.type]?.label,
+      ),
+    )
   }
   return list
 }
@@ -368,7 +902,9 @@ export const mockApi = {
     const start = (params.pageNum - 1) * params.pageSize
     list = list.slice(start, start + params.pageSize)
     const pendingCount = alarmStore.filter((a) => a.status === 'pending').length
-    return delay(ok({ list, total, pageNum: params.pageNum, pageSize: params.pageSize, pendingCount }))
+    return delay(
+      ok({ list, total, pageNum: params.pageNum, pageSize: params.pageSize, pendingCount }),
+    )
   },
 
   getAlarmDetail(id: number) {
@@ -402,7 +938,12 @@ export const mockApi = {
     return delay(ok(null))
   },
 
-  getExceedLogs(params?: { keyword?: string; type?: string; startTime?: string; endTime?: string }) {
+  getExceedLogs(params?: {
+    keyword?: string
+    type?: string
+    startTime?: string
+    endTime?: string
+  }) {
     let list = [...exceedLogs]
     if (params?.type) list = list.filter((log) => log.type === params.type)
     if (params?.startTime) {
@@ -414,12 +955,9 @@ export const mockApi = {
       list = list.filter((log) => new Date(log.createdAt).getTime() <= end)
     }
     if (params?.keyword) {
-      list = list.filter((log) => fuzzyMatch(
-        params.keyword!,
-        log.point,
-        ALARM_TYPE_MAP[log.type]?.label,
-        String(log.value),
-      ))
+      list = list.filter((log) =>
+        fuzzyMatch(params.keyword!, log.point, ALARM_TYPE_MAP[log.type]?.label, String(log.value)),
+      )
     }
     list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     return delay(ok({ list, total: list.length, pageNum: 1, pageSize: 20 }))
@@ -443,10 +981,18 @@ export const mockApi = {
   },
 
   // 调度
-  getDispatchStatus() { return delay(ok({ ...dispatchStatus })) },
+  getDispatchStatus() {
+    return delay(ok({ ...dispatchStatus }))
+  },
 
   getDecisionDetail() {
-    return delay(ok({ ...decisionBase, factors: [...decisionBase.factors], alternatives: [...decisionBase.alternatives] }))
+    return delay(
+      ok({
+        ...decisionBase,
+        factors: [...decisionBase.factors],
+        alternatives: [...decisionBase.alternatives],
+      }),
+    )
   },
 
   getPrediction(horizon: '1h' | '3h' | '6h') {
@@ -468,12 +1014,21 @@ export const mockApi = {
     const water_seq = [...hist_water, ...pred_water]
     const flow_seq = water_seq.map((p, i) => ({
       time: p.time,
-      value: Math.round(baseFlow + Math.sin(i * 0.15) * 120 + (i > histPts ? (i - histPts) * 2 : 0)),
+      value: Math.round(
+        baseFlow + Math.sin(i * 0.15) * 120 + (i > histPts ? (i - histPts) * 2 : 0),
+      ),
     }))
-    return delay(ok({
-      id: 1, base_time: new Date(now).toISOString(), predict_term: termMap[horizon],
-      water_seq, flow_seq, predict_accuracy: 94.2, created_at: new Date(now).toISOString(),
-    } as PredictionData))
+    return delay(
+      ok({
+        id: 1,
+        base_time: new Date(now).toISOString(),
+        predict_term: termMap[horizon],
+        water_seq,
+        flow_seq,
+        predict_accuracy: 94.2,
+        created_at: new Date(now).toISOString(),
+      } as PredictionData),
+    )
   },
 
   executeDispatch(params: { targetOpening: number }) {
@@ -490,9 +1045,16 @@ export const mockApi = {
       dispatchStatus.executingTarget = null
     }, 4000)
     dispatchRecords.unshift({
-      id: Date.now(), decision_time: nowIso(0), decision_mode: `L${dispatchStatus.autoLevel}` as 'L1',
-      recommended_opening: v, confidence: 100, risk_rank: 1, execution_status: 'executed',
-      physics_validation: null, action: '手动下发开度', operator_name: '当前用户',
+      id: Date.now(),
+      decision_time: nowIso(0),
+      decision_mode: `L${dispatchStatus.autoLevel}` as 'L1',
+      recommended_opening: v,
+      confidence: 100,
+      risk_rank: 1,
+      execution_status: 'executed',
+      physics_validation: null,
+      action: '手动下发开度',
+      operator_name: '当前用户',
       snapshot: buildRecordSnapshot(v, 100),
     })
     if (dispatchRecords.length > 100) dispatchRecords.pop()
@@ -505,9 +1067,16 @@ export const mockApi = {
     dispatchStatus.isExecuting = false
     dispatchStatus.executingTarget = null
     dispatchRecords.unshift({
-      id: Date.now(), decision_time: nowIso(0), decision_mode: `L${dispatchStatus.autoLevel}` as 'L1',
-      recommended_opening: target, confidence: 0, risk_rank: 2, execution_status: 'rejected',
-      physics_validation: null, action: '取消执行', operator_name: '当前用户',
+      id: Date.now(),
+      decision_time: nowIso(0),
+      decision_mode: `L${dispatchStatus.autoLevel}` as 'L1',
+      recommended_opening: target,
+      confidence: 0,
+      risk_rank: 2,
+      execution_status: 'rejected',
+      physics_validation: null,
+      action: '取消执行',
+      operator_name: '当前用户',
       snapshot: buildRecordSnapshot(target, 0),
     })
     if (dispatchRecords.length > 100) dispatchRecords.pop()
@@ -555,27 +1124,38 @@ export const mockApi = {
     stationLive.gateOpening = decisionBase.recommended_opening
     simState.currentOpening = decisionBase.recommended_opening
     dispatchRecords.unshift({
-      id: Date.now(), decision_time: nowIso(0), decision_mode: decisionBase.decision_mode,
-      recommended_opening: decisionBase.recommended_opening, confidence: decisionBase.confidence,
-      risk_rank: decisionBase.risk_rank, execution_status: 'executed', physics_validation: null,
-      action: '采纳调度建议', operator_name: '当前用户', snapshot: buildRecordSnapshot(decisionBase.recommended_opening, decisionBase.confidence),
+      id: Date.now(),
+      decision_time: nowIso(0),
+      decision_mode: decisionBase.decision_mode,
+      recommended_opening: decisionBase.recommended_opening,
+      confidence: decisionBase.confidence,
+      risk_rank: decisionBase.risk_rank,
+      execution_status: 'executed',
+      physics_validation: null,
+      action: '采纳调度建议',
+      operator_name: '当前用户',
+      snapshot: buildRecordSnapshot(decisionBase.recommended_opening, decisionBase.confidence),
     })
     if (dispatchRecords.length > 100) dispatchRecords.pop()
     return delay(ok(null))
   },
 
-  ignoreDecision() { return delay(ok(null)) },
+  ignoreDecision() {
+    return delay(ok(null))
+  },
 
   getDispatchLogs(params?: { keyword?: string }) {
     let list = [...dispatchRecords]
     if (params?.keyword) {
-      list = list.filter((r) => fuzzyMatch(
-        params.keyword!,
-        r.decision_mode,
-        String(r.recommended_opening),
-        r.execution_status,
-        String(r.confidence),
-      ))
+      list = list.filter((r) =>
+        fuzzyMatch(
+          params.keyword!,
+          r.decision_mode,
+          String(r.recommended_opening),
+          r.execution_status,
+          String(r.confidence),
+        ),
+      )
     }
     return delay(ok({ list, total: list.length, pageNum: 1, pageSize: list.length || 1 }))
   },
@@ -583,13 +1163,23 @@ export const mockApi = {
   getRiskLevel() {
     const safe = 380.0
     const diff = Math.abs(dispatchStatus.upstreamLevel - safe)
-    if (diff <= 0.5) return delay(ok({ level: 'low' as const, diff, safeMin: safe - 0.5, safeMax: safe + 0.5 }))
-    if (diff <= 1.0) return delay(ok({ level: 'medium' as const, diff, safeMin: safe - 1, safeMax: safe + 1 }))
+    if (diff <= 0.5)
+      return delay(ok({ level: 'low' as const, diff, safeMin: safe - 0.5, safeMax: safe + 0.5 }))
+    if (diff <= 1.0)
+      return delay(ok({ level: 'medium' as const, diff, safeMin: safe - 1, safeMax: safe + 1 }))
     return delay(ok({ level: 'high' as const, diff, safeMin: safe - 1, safeMax: safe + 1 }))
   },
 
   // 仿真
-  getSimulationStatus() { return delay(ok({ ...simState, historyLevels: [...simState.historyLevels], historyFlows: [...simState.historyFlows] })) },
+  getSimulationStatus() {
+    return delay(
+      ok({
+        ...simState,
+        historyLevels: [...simState.historyLevels],
+        historyFlows: [...simState.historyFlows],
+      }),
+    )
+  },
 
   startSimulation(params: SimulationStartPayload) {
     simParams = {
@@ -599,7 +1189,10 @@ export const mockApi = {
       durationMin: params.durationMin,
     }
     simSpeed = params.speed ?? 1
-    const opening = Math.max(0, Math.min(100, Math.round(params.gateOpening ?? stationLive.gateOpening)))
+    const opening = Math.max(
+      0,
+      Math.min(100, Math.round(params.gateOpening ?? stationLive.gateOpening)),
+    )
     stationLive = {
       ...createInitialTelemetry(),
       upstreamLevel: params.initialLevel,
@@ -649,7 +1242,10 @@ export const mockApi = {
     for (let i = 24; i >= 0; i--) {
       const lv = +(stationLive.upstreamLevel - i * 0.012 + Math.sin(i * 0.4) * 0.025).toFixed(2)
       simState.historyLevels.push({ time: i, value: lv })
-      simState.historyFlows.push({ time: i, value: stationLive.inflowRate + Math.sin(i * 0.3) * 30 })
+      simState.historyFlows.push({
+        time: i,
+        value: stationLive.inflowRate + Math.sin(i * 0.3) * 30,
+      })
     }
     syncDispatchFromStation()
     return delay(ok(null))
@@ -683,24 +1279,54 @@ export const mockApi = {
     }
     return delay(ok(list))
   },
-  activateModel(id: number) { models.forEach((m) => { m.status = m.id === id ? 'active' : 'inactive' }); return delay(ok(null)) },
-  uploadModel() { return delay(ok(models[0])) },
-
-  startTraining() { return delay(ok({ taskId: `task-${Date.now()}` })) },
-  getTrainingProgress(taskId: string): Promise<{ code: number; msg: string; data: TrainingTask; success: boolean; trace_id: string }> {
-    const progress = Math.min(100, (tick % 20) * 5 + 20)
-    return delay(ok({ taskId, modelId: 1, config: {}, progress, lossCurve: [{ epoch: 1, loss: 0.05 }], status: progress >= 100 ? 'completed' : 'running' }))
+  activateModel(id: number) {
+    models.forEach((m) => {
+      m.status = m.id === id ? 'active' : 'inactive'
+    })
+    return delay(ok(null))
+  },
+  uploadModel() {
+    return delay(ok(models[0]))
   },
 
-  generateReport() { return delay(ok(reports[0])) },
+  startTraining() {
+    return delay(ok({ taskId: `task-${Date.now()}` }))
+  },
+  getTrainingProgress(taskId: string): Promise<{
+    code: number
+    msg: string
+    data: TrainingTask
+    success: boolean
+    trace_id: string
+  }> {
+    const progress = Math.min(100, (tick % 20) * 5 + 20)
+    return delay(
+      ok({
+        taskId,
+        modelId: 1,
+        config: {},
+        progress,
+        lossCurve: [{ epoch: 1, loss: 0.05 }],
+        status: progress >= 100 ? 'completed' : 'running',
+      }),
+    )
+  },
+
+  generateReport() {
+    return delay(ok(reports[0]))
+  },
   getReportList(params?: { keyword?: string }) {
     let list = [...reports]
     if (params?.keyword) {
-      list = list.filter((r) => fuzzyMatch(params.keyword!, r.content, r.operatorName, r.scene, String(r.runId)))
+      list = list.filter((r) =>
+        fuzzyMatch(params.keyword!, r.content, r.operatorName, r.scene, String(r.runId)),
+      )
     }
     return delay(ok({ list, total: list.length, pageNum: 1, pageSize: 10 }))
   },
-  downloadReport() { return delay(new Blob(['报告内容'], { type: 'text/plain' })) },
+  downloadReport() {
+    return delay(new Blob(['报告内容'], { type: 'text/plain' }))
+  },
 
   getFaultReviewList(params?: { keyword?: string; type?: string }) {
     let list = [...reviews]
@@ -716,26 +1342,57 @@ export const mockApi = {
   },
   submitFaultConclusion(id: number, conclusion: FaultReview['conclusion']) {
     const item = reviews.find((r) => r.id === id)
-    if (item) { item.conclusion = conclusion; item.reviewed = true; item.status = 'reviewed' }
+    if (item) {
+      item.conclusion = conclusion
+      item.reviewed = true
+      item.status = 'reviewed'
+    }
     return delay(ok(null))
   },
-  importToSimulation() { return delay(ok(simParams)) },
-  getSimulationRuns() { return delay(ok({ list: [{ id: 101, scene: 'flood' as const, params: simParams, status: 'finished' as const, summary: reports[0].summary, createdAt: nowIso(2880) }], total: 1, pageNum: 1, pageSize: 10 })) },
+  importToSimulation() {
+    return delay(ok(simParams))
+  },
+  getSimulationRuns() {
+    return delay(
+      ok({
+        list: [
+          {
+            id: 101,
+            scene: 'flood' as const,
+            params: simParams,
+            status: 'finished' as const,
+            summary: reports[0].summary,
+            createdAt: nowIso(2880),
+          },
+        ],
+        total: 1,
+        pageNum: 1,
+        pageSize: 10,
+      }),
+    )
+  },
 
   // 驾驶舱 KPI
   getCockpitKpi() {
-    return delay(ok({
-      station: STATION,
-      upstreamLevel: dispatchStatus.upstreamLevel,
-      downstreamLevel: dispatchStatus.downstreamLevel,
-      flowRate: dispatchStatus.flowRate,
-      gateOpening: dispatchStatus.gateOpening,
-      power: Math.round(jitter(2850, 120)),
-      inspectionRate: Math.round(jitter(86.5, 2)),
-      assetHealth: Math.round(jitter(92, 3)),
-      workOrderDone: Math.round(jitter(78, 5)),
-      pendingTasks: Math.max(1, Math.round(jitter(5, 2))),
-      alarmSummary: { urgent: alarmStore.filter((a) => a.level === 'URGENT' && a.status === 'pending').length, important: alarmStore.filter((a) => a.level === 'IMPORTANT' && a.status === 'pending').length, normal: alarmStore.filter((a) => a.status === 'pending' && a.level === 'NORMAL').length },
-    }))
+    return delay(
+      ok({
+        station: STATION,
+        upstreamLevel: dispatchStatus.upstreamLevel,
+        downstreamLevel: dispatchStatus.downstreamLevel,
+        flowRate: dispatchStatus.flowRate,
+        gateOpening: dispatchStatus.gateOpening,
+        power: Math.round(jitter(2850, 120)),
+        inspectionRate: Math.round(jitter(86.5, 2)),
+        assetHealth: Math.round(jitter(92, 3)),
+        workOrderDone: Math.round(jitter(78, 5)),
+        pendingTasks: Math.max(1, Math.round(jitter(5, 2))),
+        alarmSummary: {
+          urgent: alarmStore.filter((a) => a.level === 'URGENT' && a.status === 'pending').length,
+          important: alarmStore.filter((a) => a.level === 'IMPORTANT' && a.status === 'pending')
+            .length,
+          normal: alarmStore.filter((a) => a.status === 'pending' && a.level === 'NORMAL').length,
+        },
+      }),
+    )
   },
 }
