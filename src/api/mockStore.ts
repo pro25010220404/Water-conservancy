@@ -238,7 +238,7 @@ const reports: SimulationReport[] = [
     filePath: '/reports/r002.pdf', createdAt: nowIso(1440), operatorName: '张调度',
   },
   {
-    id: 3, runId: 103, scene: 'drought', params: { scene: 'drought', initialLevel: 378.5, inflowRate: 900, durationMin: 90 },
+    id: 3, runId: 103, scene: 'dry', params: { scene: 'dry', initialLevel: 378.5, inflowRate: 900, durationMin: 90 },
     summary: { maxLevel: 378.8, minLevel: 378.2, totalDischarge: 32000, estimatedPower: 9800 },
     content: '枯水期仿真：生态流量保障优先，最小下泄流量满足要求。',
     filePath: '/reports/r003.pdf', createdAt: nowIso(720), operatorName: '李运维',
