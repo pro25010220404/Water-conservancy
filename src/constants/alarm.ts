@@ -52,15 +52,12 @@ export interface AlarmAction {
 
 /**
  * 根据告警状态返回可用操作
- * 规则：未处理→[确认][处置]；已确认→[处置]；已处置→[查看详情]
+ * 规则：未处理→[确认]；已确认→[处置]；已处置→[查看详情]
  */
 export function getAlarmActions(status: string): AlarmAction[] {
   switch (status) {
     case 'pending':
-      return [
-        { label: '确认', type: 'confirm' },
-        { label: '处置', type: 'handle' },
-      ]
+      return [{ label: '确认', type: 'confirm' }]
     case 'confirmed':
       return [{ label: '处置', type: 'handle' }]
     case 'handled':

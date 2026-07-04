@@ -4,6 +4,7 @@
 import type { AlarmRecord, AlarmExceedLog, AlarmFilterParams, AlarmStatsResult } from '@/types/alarm'
 import { ALARM_TYPE_MAP } from '@/constants/alarm'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
+import { createAlarmSeed, createExceedLogSeed } from './mock/alarmSeed'
 import type {
   DispatchStatus, DecisionDetail, PredictionData, DispatchRecord,
 } from '@/types/dispatch'
@@ -57,97 +58,36 @@ function nowIso(offsetMin = 0) {
 }
 
 // ---------- 告警 ----------
-const alarmStore: AlarmRecord[] = [
-  {
-    id: 1001, level: 'URGENT', type: 'HIGH_WATER', content: `${STATION}上游水位持续超限`,
-    threshold: 380.5, currentValue: 381.2, durationSec: 42, status: 'pending',
-    confirmedAt: null, confirmedBy: null, confirmedByName: null,
-    handledAt: null, handledBy: null, handledByName: null, remark: null,
-    createdAt: nowIso(15), pointName: '上游水文站', deviceType: 'hydro',
-    snapshot: { upstreamLevel: 381.2, downstreamLevel: 278.5, flowRate: 1850, gateOpening: 45, recordedAt: nowIso(15) },
-  },
-  {
-    id: 1002, level: 'IMPORTANT', type: 'FLOW_SPIKE', content: '入库流量突变，变化率超阈值',
-    threshold: 2000, currentValue: 2350, durationSec: 35, status: 'pending',
-    confirmedAt: null, confirmedBy: null, confirmedByName: null,
-    handledAt: null, handledBy: null, handledByName: null, remark: null,
-    createdAt: nowIso(28), pointName: '入库监测站', deviceType: 'hydro',
-    snapshot: { upstreamLevel: 380.8, downstreamLevel: 278.3, flowRate: 2350, gateOpening: 42, recordedAt: nowIso(28) },
-  },
-  {
-    id: 1003, level: 'IMPORTANT', type: 'DEVICE_OFFLINE', content: '3号闸门执行器通信中断',
-    threshold: 30, currentValue: 0, durationSec: 68, status: 'confirmed',
-    confirmedAt: nowIso(10), confirmedBy: 1, confirmedByName: '张调度',
-    handledAt: null, handledBy: null, handledByName: null, remark: null,
-    createdAt: nowIso(45), pointName: '3号闸门', deviceType: 'gate', snapshot: null,
-  },
-  {
-    id: 1004, level: 'NORMAL', type: 'LOW_WATER', content: '下游生态流量偏低预警',
-    threshold: 1200, currentValue: 1150, durationSec: 31, status: 'handled',
-    confirmedAt: nowIso(120), confirmedBy: 2, confirmedByName: '李运维',
-    handledAt: nowIso(90), handledBy: 2, handledByName: '李运维',
-    remark: '已调整3号闸门开度至55%，生态流量恢复达标。',
-    createdAt: nowIso(150), pointName: '下游生态站', deviceType: 'hydro', snapshot: null,
-  },
-  {
-    id: 1005, level: 'NORMAL', type: 'EXEC_TIMEOUT', content: '5号闸门开度调节执行超时',
-    threshold: 60, currentValue: 85, durationSec: 32, status: 'handled',
-    confirmedAt: nowIso(200), confirmedBy: 1, confirmedByName: '张调度',
-    handledAt: nowIso(180), handledBy: 1, handledByName: '张调度',
-    remark: '现场检查液压系统，重启执行器后恢复正常。',
-    createdAt: nowIso(220), pointName: '5号闸门', deviceType: 'gate', snapshot: null,
-  },
-  {
-    id: 1006, level: 'URGENT', type: 'EXEC_FAIL', content: '1号闸门执行失败，需人工介入',
-    threshold: 0, currentValue: 1, durationSec: 45, status: 'pending',
-    confirmedAt: null, confirmedBy: null, confirmedByName: null,
-    handledAt: null, handledBy: null, handledByName: null, remark: null,
-    createdAt: nowIso(5), pointName: '1号闸门', deviceType: 'gate',
-    snapshot: { upstreamLevel: 380.6, downstreamLevel: 278.4, flowRate: 1920, gateOpening: 38, recordedAt: nowIso(5) },
-  },
-  {
-    id: 1007, level: 'IMPORTANT', type: 'HIGH_WATER', content: '2号表孔水位传感器读数异常偏高',
-    threshold: 380.0, currentValue: 380.9, durationSec: 38, status: 'pending',
-    confirmedAt: null, confirmedBy: null, confirmedByName: null,
-    handledAt: null, handledBy: null, handledByName: null, remark: null,
-    createdAt: nowIso(8), pointName: '2号表孔传感器', deviceType: 'sensor',
-    snapshot: { upstreamLevel: 380.9, downstreamLevel: 278.2, flowRate: 1880, gateOpening: 40, recordedAt: nowIso(8) },
-  },
-  {
-    id: 1008, level: 'NORMAL', type: 'FLOW_SPIKE', content: '出库流量短时波动，疑似传感器噪声',
-    threshold: 1800, currentValue: 1950, durationSec: 33, status: 'handled',
-    confirmedAt: nowIso(60), confirmedBy: 2, confirmedByName: '李运维',
-    handledAt: nowIso(50), handledBy: 2, handledByName: '李运维',
-    remark: '经复核为传感器校准偏差，已标记误告警并完成校准。',
-    createdAt: nowIso(80), pointName: '出库流量传感器', deviceType: 'sensor',
-    isFalseAlarm: true, snapshot: null,
-  },
-  {
-    id: 1009, level: 'URGENT', type: 'HIGH_WATER', content: '向家坝库区水位逼近汛限，需调度关注',
-    threshold: 380.5, currentValue: 381.0, durationSec: 55, status: 'confirmed',
-    confirmedAt: nowIso(3), confirmedBy: 1, confirmedByName: '张调度',
-    handledAt: null, handledBy: null, handledByName: null, remark: null,
-    createdAt: nowIso(12), pointName: '库区水位监测站', deviceType: 'hydro',
-    snapshot: { upstreamLevel: 381.0, downstreamLevel: 278.6, flowRate: 2100, gateOpening: 48, recordedAt: nowIso(12) },
-  },
-  {
-    id: 1010, level: 'IMPORTANT', type: 'DEVICE_OFFLINE', content: '4号闸门位移传感器离线',
-    threshold: 0, currentValue: 0, durationSec: 40, status: 'handled',
-    confirmedAt: nowIso(300), confirmedBy: 1, confirmedByName: '张调度',
-    handledAt: nowIso(280), handledBy: 1, handledByName: '张调度',
-    remark: '更换通信模块后恢复在线，位移数据正常。',
-    createdAt: nowIso(320), pointName: '4号闸门', deviceType: 'gate', snapshot: null,
-  },
-]
+const ALARM_MOCK_VERSION = '20260704-v2'
+const ALARM_MOCK_KEY = 'wc_alarm_mock'
 
-const exceedLogs: AlarmExceedLog[] = [
-  { id: 501, point: '上游水文站', type: 'HIGH_WATER', value: 380.8, threshold: 380.5, durationSec: 18, createdAt: nowIso(2) },
-  { id: 502, point: '入库监测站', type: 'FLOW_SPIKE', value: 2100, threshold: 2000, durationSec: 22, createdAt: nowIso(1) },
-  { id: 503, point: '下游生态站', type: 'LOW_WATER', value: 1180, threshold: 1200, durationSec: 15, createdAt: nowIso(0) },
-  { id: 504, point: '2号表孔传感器', type: 'HIGH_WATER', value: 380.6, threshold: 380.5, durationSec: 12, createdAt: nowIso(4) },
-  { id: 505, point: '出库流量传感器', type: 'FLOW_SPIKE', value: 2050, threshold: 2000, durationSec: 8, createdAt: nowIso(6) },
-  { id: 506, point: '1号闸门', type: 'EXEC_TIMEOUT', value: 72, threshold: 60, durationSec: 25, createdAt: nowIso(3) },
-]
+function initAlarmStore(): AlarmRecord[] {
+  try {
+    const ver = localStorage.getItem(`${ALARM_MOCK_KEY}_ver`)
+    const raw = localStorage.getItem(ALARM_MOCK_KEY)
+    if (ver === ALARM_MOCK_VERSION && raw) {
+      const parsed = JSON.parse(raw) as AlarmRecord[]
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+  } catch { /* ignore */ }
+  return persistAlarmStore(createAlarmSeed(nowIso))
+}
+
+function persistAlarmStore(next: AlarmRecord[]) {
+  localStorage.setItem(`${ALARM_MOCK_KEY}_ver`, ALARM_MOCK_VERSION)
+  localStorage.setItem(ALARM_MOCK_KEY, JSON.stringify(next))
+  return next
+}
+
+let alarmStore: AlarmRecord[] = initAlarmStore()
+
+function ensureAlarmStore() {
+  if (alarmStore.length === 0) {
+    alarmStore = persistAlarmStore(createAlarmSeed(nowIso))
+  }
+}
+
+const exceedLogs: AlarmExceedLog[] = createExceedLogSeed(nowIso)
 
 // ---------- 调度 ----------
 type AutoLevel = 1 | 2 | 3
@@ -158,7 +98,7 @@ let dispatchStatus: DispatchStatus = {
   downstreamLevel: stationLive.downstreamLevel,
   flowRate: stationLive.inflowRate,
   gateOpening: stationLive.gateOpening,
-  lastDispatchAt: nowIso(30), isExecuting: false,
+  lastDispatchAt: nowIso(30), isExecuting: false, executingTarget: null,
 }
 
 const decisionBase: DecisionDetail = {
@@ -186,10 +126,50 @@ const decisionBase: DecisionDetail = {
   created_at: nowIso(0),
 }
 
+function buildRecordSnapshot(opening: number, confidence: number): DispatchRecord['snapshot'] {
+  return {
+    factors: decisionBase.factors.slice(0, 5).map((f) => ({ ...f })),
+    confidence,
+    recommended_opening: opening,
+    plans: decisionBase.alternatives.map((p) => ({
+      id: p.id, opening: p.opening, totalScore: p.totalScore, recommended: p.recommended,
+    })),
+  }
+}
+
 const dispatchRecords: DispatchRecord[] = [
-  { id: 1, decision_time: nowIso(30), decision_mode: 'L2', recommended_opening: 45, confidence: 85, risk_rank: 1, execution_status: 'executed', physics_validation: null },
-  { id: 2, decision_time: nowIso(90), decision_mode: 'L1', recommended_opening: 42, confidence: 72, risk_rank: 2, execution_status: 'executed', physics_validation: null },
-  { id: 3, decision_time: nowIso(180), decision_mode: 'L3', recommended_opening: 48, confidence: 91, risk_rank: 1, execution_status: 'executed', physics_validation: null },
+  { id: 1, decision_time: nowIso(15), decision_mode: 'L2', recommended_opening: 52, confidence: 87, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(52, 87) },
+  { id: 2, decision_time: nowIso(45), decision_mode: 'L1', recommended_opening: 42, confidence: 72, risk_rank: 2, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(42, 72) },
+  { id: 3, decision_time: nowIso(90), decision_mode: 'L3', recommended_opening: 48, confidence: 91, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '自动执行', operator_name: '系统', snapshot: buildRecordSnapshot(48, 91) },
+  { id: 4, decision_time: nowIso(120), decision_mode: 'L2', recommended_opening: 50, confidence: 88, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(50, 88) },
+  { id: 5, decision_time: nowIso(180), decision_mode: 'L1', recommended_opening: 40, confidence: 65, risk_rank: 2, execution_status: 'failed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(40, 65) },
+  { id: 6, decision_time: nowIso(240), decision_mode: 'L2', recommended_opening: 55, confidence: 82, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(55, 82) },
+  { id: 7, decision_time: nowIso(360), decision_mode: 'L3', recommended_opening: 60, confidence: 93, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '自动执行', operator_name: '系统', snapshot: buildRecordSnapshot(60, 93) },
+  { id: 8, decision_time: nowIso(480), decision_mode: 'L1', recommended_opening: 38, confidence: 58, risk_rank: 3, execution_status: 'rejected', physics_validation: null, action: '忽略建议', operator_name: '张调度', snapshot: buildRecordSnapshot(38, 58) },
+  { id: 9, decision_time: nowIso(600), decision_mode: 'L2', recommended_opening: 47, confidence: 84, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '李运维', snapshot: buildRecordSnapshot(47, 84) },
+  { id: 10, decision_time: nowIso(720), decision_mode: 'L2', recommended_opening: 44, confidence: 79, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '张调度', snapshot: buildRecordSnapshot(44, 79) },
+  { id: 11, decision_time: nowIso(900), decision_mode: 'L1', recommended_opening: 36, confidence: 62, risk_rank: 2, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(36, 62) },
+  { id: 12, decision_time: nowIso(1080), decision_mode: 'L3', recommended_opening: 58, confidence: 90, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '自动执行', operator_name: '系统', snapshot: buildRecordSnapshot(58, 90) },
+  { id: 13, decision_time: nowIso(1260), decision_mode: 'L2', recommended_opening: 51, confidence: 86, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(51, 86) },
+  { id: 14, decision_time: nowIso(1440), decision_mode: 'L1', recommended_opening: 43, confidence: 70, risk_rank: 2, execution_status: 'rejected', physics_validation: null, action: '忽略建议', operator_name: '李运维', snapshot: buildRecordSnapshot(43, 70) },
+  { id: 15, decision_time: nowIso(1620), decision_mode: 'L2', recommended_opening: 49, confidence: 83, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(49, 83) },
+  { id: 16, decision_time: nowIso(1800), decision_mode: 'L2', recommended_opening: 46, confidence: 81, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(46, 81) },
+  { id: 17, decision_time: nowIso(2100), decision_mode: 'L3', recommended_opening: 62, confidence: 89, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '自动执行', operator_name: '系统', snapshot: buildRecordSnapshot(62, 89) },
+  { id: 18, decision_time: nowIso(2400), decision_mode: 'L1', recommended_opening: 41, confidence: 68, risk_rank: 2, execution_status: 'failed', physics_validation: null, action: '手动下发开度', operator_name: '张调度', snapshot: buildRecordSnapshot(41, 68) },
+  { id: 19, decision_time: nowIso(2700), decision_mode: 'L2', recommended_opening: 53, confidence: 85, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '李运维', snapshot: buildRecordSnapshot(53, 85) },
+  { id: 20, decision_time: nowIso(3000), decision_mode: 'L2', recommended_opening: 45, confidence: 80, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(45, 80) },
+  { id: 21, decision_time: nowIso(3300), decision_mode: 'L2', recommended_opening: 54, confidence: 86, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '改派执行', operator_name: '张调度', snapshot: buildRecordSnapshot(54, 86) },
+  { id: 22, decision_time: nowIso(3600), decision_mode: 'L1', recommended_opening: 39, confidence: 64, risk_rank: 2, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(39, 64) },
+  { id: 23, decision_time: nowIso(3900), decision_mode: 'L3', recommended_opening: 57, confidence: 92, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '自动执行', operator_name: '系统', snapshot: buildRecordSnapshot(57, 92) },
+  { id: 24, decision_time: nowIso(4200), decision_mode: 'L2', recommended_opening: 48, confidence: 81, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '李运维', snapshot: buildRecordSnapshot(48, 81) },
+  { id: 25, decision_time: nowIso(4500), decision_mode: 'L2', recommended_opening: 52, confidence: 0, risk_rank: 2, execution_status: 'rejected', physics_validation: null, action: '取消执行', operator_name: '张调度', snapshot: buildRecordSnapshot(52, 0) },
+  { id: 26, decision_time: nowIso(4800), decision_mode: 'L1', recommended_opening: 37, confidence: 60, risk_rank: 3, execution_status: 'failed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(37, 60) },
+  { id: 27, decision_time: nowIso(5100), decision_mode: 'L2', recommended_opening: 50, confidence: 84, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(50, 84) },
+  { id: 28, decision_time: nowIso(5400), decision_mode: 'L3', recommended_opening: 61, confidence: 88, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '自动执行', operator_name: '系统', snapshot: buildRecordSnapshot(61, 88) },
+  { id: 29, decision_time: nowIso(5700), decision_mode: 'L2', recommended_opening: 46, confidence: 78, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(46, 78) },
+  { id: 30, decision_time: nowIso(6000), decision_mode: 'L1', recommended_opening: 35, confidence: 55, risk_rank: 3, execution_status: 'rejected', physics_validation: null, action: '忽略建议', operator_name: '张调度', snapshot: buildRecordSnapshot(35, 55) },
+  { id: 31, decision_time: nowIso(6300), decision_mode: 'L2', recommended_opening: 51, confidence: 83, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '采纳调度建议', operator_name: '张调度', snapshot: buildRecordSnapshot(51, 83) },
+  { id: 32, decision_time: nowIso(6600), decision_mode: 'L2', recommended_opening: 47, confidence: 79, risk_rank: 1, execution_status: 'executed', physics_validation: null, action: '手动下发开度', operator_name: '李运维', snapshot: buildRecordSnapshot(47, 79) },
 ]
 
 // ---------- 仿真 ----------
@@ -381,6 +361,7 @@ function todayStartMs() {
 export const mockApi = {
   // 告警
   getAlarmList(params: AlarmFilterParams) {
+    ensureAlarmStore()
     let list = filterAlarms(params)
     list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     const total = list.length
@@ -403,24 +384,35 @@ export const mockApi = {
       item.confirmedAt = nowIso(0)
       item.confirmedBy = 1
       item.confirmedByName = '当前用户'
+      persistAlarmStore(alarmStore)
     }
     return delay(ok(null))
   },
 
   handleAlarm(params: { id: number; remark: string }) {
     const item = alarmStore.find((a) => a.id === params.id)
-    if (item && item.status !== 'handled') {
+    if (item && item.status === 'confirmed') {
       item.status = 'handled'
       item.handledAt = nowIso(0)
       item.handledBy = 1
       item.handledByName = '当前用户'
       item.remark = params.remark
+      persistAlarmStore(alarmStore)
     }
     return delay(ok(null))
   },
 
-  getExceedLogs(params?: { keyword?: string }) {
+  getExceedLogs(params?: { keyword?: string; type?: string; startTime?: string; endTime?: string }) {
     let list = [...exceedLogs]
+    if (params?.type) list = list.filter((log) => log.type === params.type)
+    if (params?.startTime) {
+      const start = new Date(params.startTime).getTime()
+      list = list.filter((log) => new Date(log.createdAt).getTime() >= start)
+    }
+    if (params?.endTime) {
+      const end = new Date(params.endTime).getTime()
+      list = list.filter((log) => new Date(log.createdAt).getTime() <= end)
+    }
     if (params?.keyword) {
       list = list.filter((log) => fuzzyMatch(
         params.keyword!,
@@ -429,6 +421,7 @@ export const mockApi = {
         String(log.value),
       ))
     }
+    list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     return delay(ok({ list, total: list.length, pageNum: 1, pageSize: 20 }))
   },
 
@@ -459,32 +452,71 @@ export const mockApi = {
   getPrediction(horizon: '1h' | '3h' | '6h') {
     const termMap = { '1h': 1 as const, '3h': 2 as const, '6h': 3 as const }
     const pts = horizon === '1h' ? 12 : horizon === '3h' ? 36 : 72
+    const histPts = 12
     const now = Date.now()
     const step = 5 * 60000
-    const water_seq = Array.from({ length: pts }, (_, i) => ({
+    const baseLevel = dispatchStatus.upstreamLevel
+    const baseFlow = dispatchStatus.flowRate
+    const hist_water = Array.from({ length: histPts }, (_, i) => ({
+      time: new Date(now - (histPts - i) * step).toISOString(),
+      value: +(baseLevel + Math.sin(i * 0.25) * 0.08).toFixed(2),
+    }))
+    const pred_water = Array.from({ length: pts }, (_, i) => ({
       time: new Date(now + i * step).toISOString(),
-      value: +(380.65 + Math.sin(i * 0.2 + tick * 0.1) * 0.4 + i * 0.005).toFixed(2),
+      value: +(baseLevel + Math.sin(i * 0.2 + tick * 0.1) * 0.4 + i * 0.005).toFixed(2),
     }))
-    const flow_seq = Array.from({ length: pts }, (_, i) => ({
-      time: water_seq[i].time,
-      value: Math.round(1920 + Math.sin(i * 0.15) * 150 + i * 2),
+    const water_seq = [...hist_water, ...pred_water]
+    const flow_seq = water_seq.map((p, i) => ({
+      time: p.time,
+      value: Math.round(baseFlow + Math.sin(i * 0.15) * 120 + (i > histPts ? (i - histPts) * 2 : 0)),
     }))
-    return delay(ok({ id: 1, base_time: new Date(now).toISOString(), predict_term: termMap[horizon], water_seq, flow_seq, predict_accuracy: 94.2, created_at: new Date(now).toISOString() } as PredictionData))
+    return delay(ok({
+      id: 1, base_time: new Date(now).toISOString(), predict_term: termMap[horizon],
+      water_seq, flow_seq, predict_accuracy: 94.2, created_at: new Date(now).toISOString(),
+    } as PredictionData))
   },
 
   executeDispatch(params: { targetOpening: number }) {
     const v = Math.max(0, Math.min(100, Math.round(params.targetOpening)))
-    dispatchStatus.gateOpening = v
-    stationLive.gateOpening = v
-    simState.currentOpening = v
     dispatchStatus.isExecuting = true
-    setTimeout(() => { dispatchStatus.isExecuting = false }, 2000)
-    dispatchRecords.unshift({ id: Date.now(), decision_time: nowIso(0), decision_mode: 'L1', recommended_opening: params.targetOpening, confidence: 100, risk_rank: 1, execution_status: 'executed', physics_validation: null })
+    dispatchStatus.executingTarget = v
+    dispatchStatus.lastDispatchAt = nowIso(0)
+    setTimeout(() => {
+      dispatchStatus.gateOpening = v
+      stationLive.gateOpening = v
+      simState.currentOpening = v
+      decisionBase.current_opening = v
+      dispatchStatus.isExecuting = false
+      dispatchStatus.executingTarget = null
+    }, 4000)
+    dispatchRecords.unshift({
+      id: Date.now(), decision_time: nowIso(0), decision_mode: `L${dispatchStatus.autoLevel}` as 'L1',
+      recommended_opening: v, confidence: 100, risk_rank: 1, execution_status: 'executed',
+      physics_validation: null, action: '手动下发开度', operator_name: '当前用户',
+      snapshot: buildRecordSnapshot(v, 100),
+    })
+    if (dispatchRecords.length > 100) dispatchRecords.pop()
+    return delay(ok(null))
+  },
+
+  cancelDispatch() {
+    if (!dispatchStatus.isExecuting) return delay(ok(null))
+    const target = dispatchStatus.executingTarget ?? dispatchStatus.gateOpening
+    dispatchStatus.isExecuting = false
+    dispatchStatus.executingTarget = null
+    dispatchRecords.unshift({
+      id: Date.now(), decision_time: nowIso(0), decision_mode: `L${dispatchStatus.autoLevel}` as 'L1',
+      recommended_opening: target, confidence: 0, risk_rank: 2, execution_status: 'rejected',
+      physics_validation: null, action: '取消执行', operator_name: '当前用户',
+      snapshot: buildRecordSnapshot(target, 0),
+    })
+    if (dispatchRecords.length > 100) dispatchRecords.pop()
     return delay(ok(null))
   },
 
   emergencyStop() {
     dispatchStatus.isExecuting = false
+    dispatchStatus.executingTarget = null
     dispatchStatus.mode = 'manual'
     dispatchStatus.autoLevel = 1
     dispatchStatus.gateOpening = 0
@@ -497,6 +529,7 @@ export const mockApi = {
   /** 全局急停 — 调度 + 仿真联动，闸门归零 */
   globalEmergencyStop() {
     dispatchStatus.isExecuting = false
+    dispatchStatus.executingTarget = null
     dispatchStatus.mode = 'manual'
     dispatchStatus.autoLevel = 1
     dispatchStatus.gateOpening = 0
@@ -518,7 +551,16 @@ export const mockApi = {
 
   acceptDecision() {
     dispatchStatus.gateOpening = decisionBase.recommended_opening
-    dispatchRecords.unshift({ id: Date.now(), decision_time: nowIso(0), decision_mode: 'L2', recommended_opening: decisionBase.recommended_opening, confidence: decisionBase.confidence, risk_rank: decisionBase.risk_rank, execution_status: 'executed', physics_validation: null })
+    dispatchStatus.lastDispatchAt = nowIso(0)
+    stationLive.gateOpening = decisionBase.recommended_opening
+    simState.currentOpening = decisionBase.recommended_opening
+    dispatchRecords.unshift({
+      id: Date.now(), decision_time: nowIso(0), decision_mode: decisionBase.decision_mode,
+      recommended_opening: decisionBase.recommended_opening, confidence: decisionBase.confidence,
+      risk_rank: decisionBase.risk_rank, execution_status: 'executed', physics_validation: null,
+      action: '采纳调度建议', operator_name: '当前用户', snapshot: buildRecordSnapshot(decisionBase.recommended_opening, decisionBase.confidence),
+    })
+    if (dispatchRecords.length > 100) dispatchRecords.pop()
     return delay(ok(null))
   },
 
@@ -535,7 +577,7 @@ export const mockApi = {
         String(r.confidence),
       ))
     }
-    return delay(ok({ list: list.slice(0, 20), total: list.length, pageNum: 1, pageSize: 20 }))
+    return delay(ok({ list, total: list.length, pageNum: 1, pageSize: list.length || 1 }))
   },
 
   getRiskLevel() {
@@ -624,6 +666,7 @@ export const mockApi = {
 
   emergencyStopSimulation() {
     dispatchStatus.isExecuting = false
+    dispatchStatus.executingTarget = null
     dispatchStatus.mode = 'manual'
     dispatchStatus.autoLevel = 1
     dispatchStatus.gateOpening = 0

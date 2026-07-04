@@ -8,7 +8,6 @@ import { ElContainer, ElAside, ElMain } from 'element-plus'
 import AppHeader from './AppHeader.vue'
 import AppSidebar from './AppSidebar.vue'
 import AppTabs from './AppTabs.vue'
-import GlobalEmergencyStop from '@/components/GlobalEmergencyStop.vue'
 import { useTabsStore } from '@/stores/tabs'
 
 const route = useRoute()
@@ -36,7 +35,6 @@ watch(
       <el-main class="main-layout__content" :class="{ 'main-layout__content--flush': isFlushPage }">
         <router-view />
       </el-main>
-      <GlobalEmergencyStop />
     </el-container>
   </el-container>
 </template>

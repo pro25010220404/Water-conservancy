@@ -1,13 +1,12 @@
 <script setup lang="ts">
 // ============================================================
-// 顶栏 — Logo / 折叠 / 页面标题 / 用户信息
+// 顶栏 — Logo / 折叠 / 页面标题 / 时钟 / 急停
 // ============================================================
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { ElDropdown, ElDropdownMenu, ElDropdownItem, ElAvatar } from 'element-plus'
+import { useRoute } from 'vue-router'
 import { Expand, Fold } from '@element-plus/icons-vue'
 import { APP_TITLE } from '@/constants'
-import { useUserStore } from '@/stores/user'
+import GlobalEmergencyStop from '@/components/GlobalEmergencyStop.vue'
 
 defineProps<{
   collapsed: boolean
@@ -18,26 +17,16 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
-const router = useRouter()
-const userStore = useUserStore()
 
 const now = ref('')
 let timer: ReturnType<typeof setInterval> | null = null
 
 const pageTitle = computed(() => (route.meta.title as string) || APP_TITLE)
-const displayName = computed(
-  () => userStore.userInfo?.nickname || userStore.userInfo?.username || '未登录',
-)
 
 function updateClock() {
   const date = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   now.value = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
-}
-
-function handleLogout() {
-  userStore.logout()
-  router.push('/login')
 }
 
 onMounted(() => {
@@ -60,18 +49,7 @@ onUnmounted(() => {
     </div>
     <div class="app-header__right">
       <span class="app-header__clock">{{ now }}</span>
-      <el-dropdown trigger="click">
-        <div class="app-header__user">
-          <el-avatar :size="32">{{ displayName.charAt(0) }}</el-avatar>
-          <span class="app-header__name">{{ displayName }}</span>
-        </div>
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item @click="router.push('/profile')">个人中心</el-dropdown-item>
-            <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
+      <GlobalEmergencyStop placement="header" />
     </div>
   </header>
 </template>
@@ -84,8 +62,25 @@ onUnmounted(() => {
   justify-content: space-between;
   height: var(--header-height);
   padding: 0 var(--spacing-lg);
-  background: var(--color-layout-gradient-header);
+  background: linear-gradient(90deg, #0a1628 0%, #0d2137 50%, #112a45 100%);
+  border-bottom: 1px solid var(--color-layout-blue-border);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--color-layout-blue-glow) 50%,
+      transparent 100%
+    );
+    pointer-events: none;
+  }
 
   &__left {
     display: flex;
@@ -102,15 +97,15 @@ onUnmounted(() => {
     height: 34px;
     border: 1px solid var(--color-layout-blue-border);
     border-radius: var(--border-radius-sm);
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(0, 212, 255, 0.06);
     color: var(--color-layout-blue-brand);
     cursor: pointer;
     transition: all 0.2s;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.18);
-      border-color: rgba(255, 255, 255, 0.35);
-      box-shadow: 0 0 14px rgba(110, 179, 255, 0.25);
+      background: rgba(0, 212, 255, 0.14);
+      border-color: rgba(0, 212, 255, 0.4);
+      box-shadow: 0 0 12px rgba(0, 212, 255, 0.2);
     }
   }
 
@@ -134,33 +129,8 @@ onUnmounted(() => {
     font-family: 'Roboto Mono', 'SF Mono', monospace;
     font-size: var(--font-size-sm);
     color: var(--color-layout-blue-brand);
+    opacity: 0.85;
     letter-spacing: 0.5px;
-  }
-
-  &__user {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    cursor: pointer;
-    padding: 4px 8px 4px 4px;
-    border-radius: var(--border-radius-base);
-    transition: background 0.2s;
-
-    &:hover {
-      background: rgba(255, 255, 255, 0.08);
-    }
-  }
-
-  &__name {
-    font-size: var(--font-size-sm);
-    color: var(--color-layout-blue-text);
-  }
-
-  :deep(.el-avatar) {
-    background: linear-gradient(135deg, #2e66b8, #4a90d9);
-    color: #fff;
-    font-weight: 600;
-    border: 1px solid rgba(255, 255, 255, 0.25);
   }
 }
 </style>
