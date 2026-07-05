@@ -42,7 +42,8 @@ onUnmounted(() => {
 <template>
   <header class="app-header">
     <div class="app-header__left">
-      <button class="app-header__collapse" type="button" @click="emit('toggleCollapse')">
+      <button class="app-header__collapse"
+type="button" @click="emit('toggleCollapse')">
         <el-icon><Fold v-if="!collapsed" /><Expand v-else /></el-icon>
       </button>
       <span class="app-header__title">{{ pageTitle }}</span>

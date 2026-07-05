@@ -53,12 +53,14 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-loading="loading" class="profile-page">
+  <div v-loading="loading"
+class="profile-page">
     <!-- 卡片1: 个人信息 -->
     <ProfileCard />
 
     <!-- 卡片2: 账户安全 -->
-    <ElCard class="security-card" shadow="never">
+    <ElCard class="security-card"
+shadow="never">
       <template #header>
         <span>账户安全</span>
       </template>
@@ -74,7 +76,8 @@ onMounted(() => {
     </ElCard>
 
     <!-- 卡片3: 我的操作日志 -->
-    <ElCard class="logs-card" shadow="never">
+    <ElCard class="logs-card"
+shadow="never">
       <template #header>
         <span>我的操作日志</span>
       </template>
@@ -82,7 +85,8 @@ onMounted(() => {
     </ElCard>
 
     <!-- 修改密码弹窗 -->
-    <PasswordChangeDialog :visible="pwdVisible" @update:visible="pwdVisible = $event" />
+    <PasswordChangeDialog :visible="pwdVisible"
+@update:visible="pwdVisible = $event" />
   </div>
 </template>
 

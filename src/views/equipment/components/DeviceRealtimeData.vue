@@ -30,7 +30,8 @@ const refreshTime = computed(() => {
   <div class="device-realtime-data">
     <!-- 传感器类设备 -->
     <template v-if="isSensor && monitoring">
-      <ElDescriptions :column="2" border size="small">
+      <ElDescriptions :column="2"
+border size="small">
         <ElDescriptionsItem label="当前读数">
           <span class="device-realtime-data__reading">{{ monitoring.upstream_level }}</span>
           <span class="device-realtime-data__unit"> m</span>
@@ -50,9 +51,7 @@ m（米）
         <ElDescriptionsItem label="出库流量">
           {{ monitoring.outflow_rate }} m³/s
         </ElDescriptionsItem>
-        <ElDescriptionsItem
-label="最近刷新时间" :span="2"
->
+        <ElDescriptionsItem label="最近刷新时间" :span="2">
           {{ refreshTime }}
         </ElDescriptionsItem>
       </ElDescriptions>
@@ -60,7 +59,8 @@ label="最近刷新时间" :span="2"
 
     <!-- 执行器类设备 -->
     <template v-else-if="isActuator && monitoring">
-      <ElDescriptions :column="2" border size="small">
+      <ElDescriptions :column="2"
+border size="small">
         <ElDescriptionsItem label="当前读数">
           <span class="device-realtime-data__reading">{{ monitoring.gate_opening }}</span>
           <span class="device-realtime-data__unit"> %</span>

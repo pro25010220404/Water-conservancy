@@ -96,23 +96,25 @@ onUnmounted(() => { stopTimer() })
 // ═══ 图表 ═══
 const chartOpt = computed(() => {
   const data = allData.value
-  const series = metrics.map(m => ({
-    name: m.label, type: 'line', data: data.map(d => [d.label, d[m]]),
-    smooth: true, symbol: 'none', lineStyle: { color: m.color, width: 1.5 },
-    markLine: {
-      silent: true, symbol: 'none',
-      lineStyle: { color: '#f59e0b', width: 2, type: 'dashed' },
-      data: [{ xAxis: replaySnapshot.value?.label }],
-      label: { show: false },
-    },
-  }))
-
   const events = data.filter(d => d.event)
-  if (events.length) {
-    series[0].markPoint = {
-      data: events.map(d => ({ name: d.event.label, coord: [d.label, d.upstreamLevel], symbol: 'pin', symbolSize: 36, itemStyle: { color: d.event.color }, label: { show: true, fontSize: 11, color: '#fff' } })),
+  const series = metrics.map((m, i) => {
+    const s: Record<string, any> = {
+      name: m.label, type: 'line', data: data.map(d => [d.label, d[m.key as keyof typeof d]]),
+      smooth: true, symbol: 'none', lineStyle: { color: m.color, width: 1.5 },
+      markLine: {
+        silent: true, symbol: 'none',
+        lineStyle: { color: '#f59e0b', width: 2, type: 'dashed' },
+        data: [{ xAxis: replaySnapshot.value?.label }],
+        label: { show: false },
+      },
     }
-  }
+    if (i === 0 && events.length) {
+      s.markPoint = {
+        data: events.map(d => ({ name: d.event.label, coord: [d.label, d.upstreamLevel], symbol: 'pin', symbolSize: 36, itemStyle: { color: d.event.color }, label: { show: true, fontSize: 11, color: '#fff' } })),
+      }
+    }
+    return s
+  })
 
   return {
     backgroundColor: 'transparent',

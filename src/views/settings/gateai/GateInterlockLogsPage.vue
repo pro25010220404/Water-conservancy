@@ -5,6 +5,7 @@ import GateInterlockPanel from '../components/GateInterlockPanel.vue'
 
 <template>
   <GateAiPageShell>
-    <GateInterlockPanel fixed-view="logs" standalone />
+    <GateInterlockPanel fixed-view="logs"
+standalone />
   </GateAiPageShell>
 </template>

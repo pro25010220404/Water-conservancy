@@ -5,14 +5,7 @@ import * as THREE from 'three'
 import type { SimulationScene } from '@/types/simulation'
 
 export type WeatherType =
-  | 'clear'
-  | 'cloudy_sunset'
-  | 'rain'
-  | 'storm'
-  | 'fog_morning'
-  | 'night'
-  | 'twin'
-  | 'panorama'
+  'clear' | 'cloudy_sunset' | 'rain' | 'storm' | 'fog_morning' | 'night' | 'twin' | 'panorama'
 
 export interface WeatherState {
   skyTop: THREE.Color
@@ -36,7 +29,8 @@ export interface WeatherState {
 }
 
 function w(
-  partial: Partial<WeatherState> & Pick<WeatherState, 'skyTop' | 'skyHorizon' | 'sunColor' | 'fogColor'>,
+  partial: Partial<WeatherState> &
+    Pick<WeatherState, 'skyTop' | 'skyHorizon' | 'sunColor' | 'fogColor'>,
 ): WeatherState {
   return {
     skyMid: partial.skyMid ?? partial.skyTop.clone().lerp(partial.skyHorizon, 0.5),

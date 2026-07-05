@@ -170,7 +170,9 @@ onMounted(() => {
 <template>
   <div class="gate-interlock-page">
     <div class="page-header">
-      <h2 class="page-title">闸门互锁规则</h2>
+      <h2 class="page-title">
+闸门互锁规则
+</h2>
       <div class="header-actions">
         <ElSelect
           v-model="reservoirId"

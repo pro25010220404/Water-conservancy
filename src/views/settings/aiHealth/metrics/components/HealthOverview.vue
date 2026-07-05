@@ -24,13 +24,13 @@ function formatPercent(val: number): string {
 </script>
 
 <template>
-  <div v-loading="loading" class="health-overview">
-    <ElCard shadow="hover" class="overview-card overview-card--score">
+  <div v-loading="loading"
+class="health-overview">
+    <ElCard shadow="hover"
+class="overview-card overview-card--score">
       <ElStatistic title="综合评分">
         <template #default>
-          <span
-class="score-value" :style="{ color: scoreColor }"
->
+          <span class="score-value" :style="{ color: scoreColor }">
             {{ overview ? (overview.overallScore * 100).toFixed(1) : '--' }}
           </span>
         </template>
@@ -42,9 +42,7 @@ class="score-value" :style="{ color: scoreColor }"
       >
         {{ gradeInfo.label }}
       </div>
-      <div
-v-if="gradeInfo" class="grade-sub"
->
+      <div v-if="gradeInfo" class="grade-sub">
         {{ gradeInfo.scoreRange }} | {{ gradeInfo.level }}
       </div>
       <div v-if="!overview && !loading"
@@ -54,11 +52,9 @@ class="card-placeholder"
 </div>
     </ElCard>
 
-    <ElCard shadow="hover" class="overview-card">
-      <ElStatistic
-title="LSTM 水位 MAE" :value="overview?.waterLevelMAE ?? 0"
-:precision="3"
->
+    <ElCard shadow="hover"
+class="overview-card">
+      <ElStatistic title="LSTM 水位 MAE" :value="overview?.waterLevelMAE ?? 0" :precision="3">
         <template #suffix>
           <span class="unit-text">m</span>
         </template>
@@ -70,7 +66,8 @@ class="card-placeholder"
 </div>
     </ElCard>
 
-    <ElCard shadow="hover" class="overview-card">
+    <ElCard shadow="hover"
+class="overview-card">
       <ElStatistic
         title="安全规则覆盖率"
         :value="overview ? formatPercent(overview.safetyCoverageRate) : '--'"
@@ -82,7 +79,8 @@ class="card-placeholder"
 </div>
     </ElCard>
 
-    <ElCard shadow="hover" class="overview-card">
+    <ElCard shadow="hover"
+class="overview-card">
       <ElStatistic
         title="决策自主率 (L3_AUTO占比)"
         :value="overview ? formatPercent(overview.decisionAutoRate) : '--'"

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { ElTag, ElDrawer } from 'element-plus'
-import { RESERVOIR_OPTIONS } from '@/constants/settings'
 
 interface InterlockEvent {
   id: number

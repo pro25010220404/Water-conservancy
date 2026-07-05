@@ -14,7 +14,7 @@ const compareMode = ref(false)
 const queried = ref(false)
 
 // 生成模拟数据
-function genData(baseTime: number, color: string) {
+function genData(baseTime: number, _color: string) {
   const arr = []
   for (let i = 0; i < 48; i++) {
     arr.push({

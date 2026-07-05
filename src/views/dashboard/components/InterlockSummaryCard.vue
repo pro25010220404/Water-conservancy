@@ -14,7 +14,6 @@ const recentRule = ref<{ name: string; time: string } | null>({
   name: '泄洪-发电互斥',
   time: new Date(Date.now() - 5 * 60000).toISOString(), // 5 分钟前
 })
-const loading = ref(false)
 
 // ── D-99: 计数颜色 ──
 const countColor = computed(() => {

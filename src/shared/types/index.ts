@@ -40,7 +40,8 @@ export type DictMap = Record<string | number, DictOption>
 // ════════════════════════════════════════════════════════════
 
 /** 设备类型 */
-export type EquipmentType = 'sensor' | 'plc' | 'gateway' | 'actuator' | 'power' | 'pump' | 'accessory'
+export type EquipmentType =
+  'sensor' | 'plc' | 'gateway' | 'actuator' | 'power' | 'pump' | 'accessory'
 
 /** 设备状态 */
 export type EquipmentStatus = 'online' | 'offline' | 'fault' | 'maintenance'

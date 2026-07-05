@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElIcon } from 'element-plus'
-import { DataAnalysis, VideoPlay, Close } from '@element-plus/icons-vue'
+import { DataAnalysis } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
@@ -125,21 +125,6 @@ const replaySnapshot = computed(() => {
   }
   return best
 })
-
-function enterReplay() {
-  replayMode.value = true
-  isReplaying.value = true
-  replayTime.value = allData.value[Math.floor(allData.value.length / 2)]?.time ?? Date.now()
-  replayPlaying.value = false
-  replaySpeed.value = 1
-}
-
-function exitReplay() {
-  stopReplayTimer()
-  replayMode.value = false
-  isReplaying.value = false
-  replayPlaying.value = false
-}
 
 function toggleReplayPlay() {
   if (replayPlaying.value) {

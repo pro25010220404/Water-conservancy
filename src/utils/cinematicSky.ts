@@ -2,9 +2,7 @@
 // 电影级动态天光 — 多天气预设
 // ============================================================
 import * as THREE from 'three'
-import {
-  WEATHER_PRESETS, lerpWeather, type WeatherType, type WeatherState,
-} from './weatherSystem'
+import { WEATHER_PRESETS, lerpWeather, type WeatherType, type WeatherState } from './weatherSystem'
 
 const SKY_VS = `
   varying vec3 vWorldPos;
@@ -91,7 +89,11 @@ export interface CinematicSky {
   setWeather: (type: WeatherType) => void
   applyToScene: (
     scene: THREE.Scene,
-    lights: { sun: THREE.DirectionalLight | null; ambient: THREE.AmbientLight | null; hemi: THREE.HemisphereLight | null },
+    lights: {
+      sun: THREE.DirectionalLight | null
+      ambient: THREE.AmbientLight | null
+      hemi: THREE.HemisphereLight | null
+    },
     renderer: THREE.WebGLRenderer,
   ) => void
   dispose: () => void
@@ -153,7 +155,9 @@ export function createCinematicSky(
     mesh,
     envMap: rt.texture,
     uniforms,
-    get currentWeather() { return current },
+    get currentWeather() {
+      return current
+    },
     update(t: number, dt: number) {
       uniforms.uTime.value = t
       if (blend < 1) {
@@ -162,11 +166,13 @@ export function createCinematicSky(
         applyWeatherToUniforms(uniforms, current)
       }
       const angle = t * 0.025
-      uniforms.uSunDir.value.set(
-        current.sunDir.x + Math.sin(angle) * 0.06,
-        current.sunDir.y + Math.sin(t * 0.06) * 0.03,
-        current.sunDir.z + Math.cos(angle) * 0.05,
-      ).normalize()
+      uniforms.uSunDir.value
+        .set(
+          current.sunDir.x + Math.sin(angle) * 0.06,
+          current.sunDir.y + Math.sin(t * 0.06) * 0.03,
+          current.sunDir.z + Math.cos(angle) * 0.05,
+        )
+        .normalize()
     },
     setWeather(type: WeatherType) {
       if (type === targetType && blend >= 1) return

@@ -156,7 +156,8 @@ onMounted(() => {
     />
 
     <!-- JSON detail dialog -->
-    <ElDialog v-model="jsonDialogVisible" title="配置快照详情" width="600px">
+    <ElDialog v-model="jsonDialogVisible"
+title="配置快照详情" width="600px">
       <pre class="json-viewer">{{ jsonContent }}</pre>
       <template #footer>
         <el-button @click="jsonDialogVisible = false">

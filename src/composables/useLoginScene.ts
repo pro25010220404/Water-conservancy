@@ -19,17 +19,17 @@ interface PeriodColors {
 
 const PERIODS: Record<Period, PeriodColors> = {
   dawn: {
-    skyTop: [0.22, 0.28, 0.50],
+    skyTop: [0.22, 0.28, 0.5],
     skyHorizon: [0.65, 0.55, 0.58],
     waterDeep: [0.02, 0.06, 0.16],
-    waterSurface: [0.06, 0.16, 0.30],
-    specular: [0.90, 0.65, 0.40],
+    waterSurface: [0.06, 0.16, 0.3],
+    specular: [0.9, 0.65, 0.4],
     sunDir: [0.5, 0.25, 0.7],
   },
   noon: {
-    skyTop: [0.18, 0.40, 0.72],
+    skyTop: [0.18, 0.4, 0.72],
     skyHorizon: [0.55, 0.68, 0.78],
-    waterDeep: [0.02, 0.10, 0.24],
+    waterDeep: [0.02, 0.1, 0.24],
     waterSurface: [0.05, 0.19, 0.36],
     specular: [1.0, 0.92, 0.78],
     sunDir: [0.35, 0.65, 0.55],
@@ -39,16 +39,16 @@ const PERIODS: Record<Period, PeriodColors> = {
     skyHorizon: [0.55, 0.28, 0.25],
     waterDeep: [0.02, 0.04, 0.14],
     waterSurface: [0.06, 0.09, 0.24],
-    specular: [0.90, 0.50, 0.28],
-    sunDir: [0.55, 0.20, 0.65],
+    specular: [0.9, 0.5, 0.28],
+    sunDir: [0.55, 0.2, 0.65],
   },
   night: {
     skyTop: [0.03, 0.04, 0.12],
     skyHorizon: [0.06, 0.07, 0.18],
-    waterDeep: [0.01, 0.03, 0.10],
+    waterDeep: [0.01, 0.03, 0.1],
     waterSurface: [0.03, 0.06, 0.16],
-    specular: [0.40, 0.50, 0.75],
-    sunDir: [-0.2, 0.40, 0.7],
+    specular: [0.4, 0.5, 0.75],
+    sunDir: [-0.2, 0.4, 0.7],
   },
 }
 
@@ -276,7 +276,10 @@ export function useLoginScene(containerRef: Ref<HTMLElement | null>) {
     try {
       const c = document.createElement('canvas')
       if (!(c.getContext('webgl') || c.getContext('experimental-webgl'))) throw new Error()
-    } catch { webglSupported.value = false; return }
+    } catch {
+      webglSupported.value = false
+      return
+    }
 
     const cl = PERIODS.noon
 
@@ -306,7 +309,9 @@ export function useLoginScene(containerRef: Ref<HTMLElement | null>) {
       fragmentShader: skyFrag,
       uniforms: {
         uSkyTop: { value: new THREE.Color(cl.skyTop[0], cl.skyTop[1], cl.skyTop[2]) },
-        uSkyHorizon: { value: new THREE.Color(cl.skyHorizon[0], cl.skyHorizon[1], cl.skyHorizon[2]) },
+        uSkyHorizon: {
+          value: new THREE.Color(cl.skyHorizon[0], cl.skyHorizon[1], cl.skyHorizon[2]),
+        },
         uSunDir: { value: new THREE.Vector3(cl.sunDir[0], cl.sunDir[1], cl.sunDir[2]) },
       },
       side: THREE.BackSide,
@@ -327,12 +332,16 @@ export function useLoginScene(containerRef: Ref<HTMLElement | null>) {
         uTime: { value: 0 },
         uCameraPos: { value: new THREE.Vector3() },
         uWaterDeep: { value: new THREE.Color(cl.waterDeep[0], cl.waterDeep[1], cl.waterDeep[2]) },
-        uWaterSurface: { value: new THREE.Color(cl.waterSurface[0], cl.waterSurface[1], cl.waterSurface[2]) },
+        uWaterSurface: {
+          value: new THREE.Color(cl.waterSurface[0], cl.waterSurface[1], cl.waterSurface[2]),
+        },
         uSpecular: { value: new THREE.Color(cl.specular[0], cl.specular[1], cl.specular[2]) },
         uSunDir: { value: new THREE.Vector3(cl.sunDir[0], cl.sunDir[1], cl.sunDir[2]) },
         uSkyTop: { value: new THREE.Color(cl.skyTop[0], cl.skyTop[1], cl.skyTop[2]) },
-        uSkyHorizon: { value: new THREE.Color(cl.skyHorizon[0], cl.skyHorizon[1], cl.skyHorizon[2]) },
-        uNormalStrength: { value: 0.40 },
+        uSkyHorizon: {
+          value: new THREE.Color(cl.skyHorizon[0], cl.skyHorizon[1], cl.skyHorizon[2]),
+        },
+        uNormalStrength: { value: 0.4 },
       },
       transparent: false,
       depthWrite: true,
@@ -396,7 +405,9 @@ export function useLoginScene(containerRef: Ref<HTMLElement | null>) {
     }
   }
 
-  onMounted(() => { if (window.innerWidth >= 768) init() })
+  onMounted(() => {
+    if (window.innerWidth >= 768) init()
+  })
   onUnmounted(() => dispose())
   return { webglSupported }
 }

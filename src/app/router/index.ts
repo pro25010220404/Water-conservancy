@@ -107,7 +107,10 @@ const routes: RouteRecordRaw[] = [
         path: 'simulation',
         name: 'Simulation',
         component: () => import('@/views/simulation/SimulationPage.vue'),
-        meta: { title: '智慧水利数字孪生驾驶舱 - 向家坝水电站闸门智能调度系统', shortTitle: '数字孪生' },
+        meta: {
+          title: '智慧水利数字孪生驾驶舱 - 向家坝水电站闸门智能调度系统',
+          shortTitle: '数字孪生',
+        },
       },
       {
         path: 'equipment',
@@ -118,19 +121,48 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'settings',
         name: 'Settings',
-        component: () => import('@/views/settings/SettingsPage.vue'),
-        meta: { title: '系统设置' },
+        redirect: '/settings/thresholds',
       },
       {
-        path: 'dispatch/gate-actions',
-        name: 'DispatchGateActions',
-        component: () => import('@/views/dispatch/components/GateActionsPanel.vue'),
-        meta: { title: '闸门动作历史' },
+        path: 'settings/thresholds',
+        name: 'SettingsThresholds',
+        component: () => import('@/views/settings/SettingsPage.vue'),
+        meta: { title: '告警阈值配置', settingsTab: 'thresholds' },
+      },
+      {
+        path: 'settings/weights',
+        name: 'SettingsWeights',
+        component: () => import('@/views/settings/SettingsPage.vue'),
+        meta: { title: '多目标权重配置', settingsTab: 'weights' },
+      },
+      {
+        path: 'settings/models',
+        name: 'SettingsModels',
+        component: () => import('@/views/settings/SettingsPage.vue'),
+        meta: { title: '模型管理', settingsTab: 'models' },
+      },
+      {
+        path: 'settings/users',
+        name: 'SettingsUsers',
+        component: () => import('@/views/settings/SettingsPage.vue'),
+        meta: { title: '用户管理', settingsTab: 'users' },
+      },
+      {
+        path: 'settings/physics-guard',
+        name: 'SettingsPhysicsGuard',
+        component: () => import('@/views/settings/SettingsPage.vue'),
+        meta: { title: '物理防护配置', settingsTab: 'physics-guard' },
+      },
+      {
+        path: 'settings/physics-guard-history',
+        name: 'SettingsPhysicsGuardHistory',
+        component: () => import('@/views/settings/SettingsPage.vue'),
+        meta: { title: '配置变更历史', settingsTab: 'physics-guard-history' },
       },
       {
         path: 'settings/ai/models',
         name: 'SettingsAiModels',
-        redirect: '/settings',
+        redirect: '/settings/models',
         meta: { title: '模型管理' },
       },
       {
@@ -144,16 +176,6 @@ const routes: RouteRecordRaw[] = [
         name: 'SettingsAiCompare',
         component: () => import('@/views/settings/gateai/ModelComparePage.vue'),
         meta: { title: '模型版本对比' },
-      },
-      {
-        path: 'settings/physics-guard',
-        redirect: { path: '/settings', query: { tab: 'physics-guard' } },
-        meta: { title: '物理防护配置' },
-      },
-      {
-        path: 'settings/physics-guard/history',
-        redirect: { path: '/settings', query: { tab: 'physics-guard-history' } },
-        meta: { title: '配置变更历史' },
       },
       {
         path: 'settings/gate-interlock',

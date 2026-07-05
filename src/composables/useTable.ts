@@ -24,7 +24,10 @@ export function useTable<T>(
       }
       // 清除空值
       Object.keys(params).forEach((key: string) => {
-        if ((params as Record<string, unknown>)[key] === '' || (params as Record<string, unknown>)[key] === undefined) {
+        if (
+          (params as Record<string, unknown>)[key] === '' ||
+          (params as Record<string, unknown>)[key] === undefined
+        ) {
           delete (params as Record<string, unknown>)[key]
         }
       })

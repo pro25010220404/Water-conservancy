@@ -85,8 +85,11 @@ async function saveEdit() {
     <div class="device-basic-info__header">
       <span class="device-basic-info__label">设备参数</span>
       <template v-if="!editing">
-        <ElButton
-text type="primary" :icon="Edit" size="small" @click="startEdit"> 编辑 </ElButton>
+        <ElButton text
+type="primary" :icon="Edit" size="small" @click="startEdit"
+>
+编辑
+</ElButton>
       </template>
       <template v-else>
         <div class="device-basic-info__actions">
@@ -100,18 +103,20 @@ text type="primary" :icon="Edit" size="small" @click="startEdit"> 编辑 </ElBut
           >
             保存
           </ElButton>
-          <ElButton
-text size="small" :icon="Close" @click="cancelEdit"> 取消 </ElButton>
+          <ElButton text
+size="small" :icon="Close" @click="cancelEdit"
+>
+取消
+</ElButton>
         </div>
       </template>
     </div>
 
-    <ElDescriptions :column="2" border size="small">
+    <ElDescriptions :column="2"
+border size="small">
       <ElDescriptionsItem label="设备名称">
         <template v-if="editing">
-          <ElInput
-v-model="editForm.name" size="small"
-/>
+          <ElInput v-model="editForm.name" size="small" />
         </template>
         <template v-else>
           {{ detail.name }}
@@ -128,10 +133,7 @@ v-model="editForm.name" size="small"
 
       <ElDescriptionsItem label="型号规格">
         <template v-if="editing">
-          <ElInput
-v-model="editForm.model" size="small"
-placeholder="请输入型号规格"
-/>
+          <ElInput v-model="editForm.model" size="small" placeholder="请输入型号规格" />
         </template>
         <template v-else>
           {{ detail.model || '-' }}
@@ -140,10 +142,7 @@ placeholder="请输入型号规格"
 
       <ElDescriptionsItem label="安装位置">
         <template v-if="editing">
-          <ElInput
-v-model="editForm.install_location" size="small"
-placeholder="请输入安装位置"
-/>
+          <ElInput v-model="editForm.install_location" size="small" placeholder="请输入安装位置" />
         </template>
         <template v-else>
           {{ detail.install_location || '-' }}
@@ -162,9 +161,7 @@ placeholder="请输入安装位置"
         {{ (detail as any).purchase_date || '-' }}
       </ElDescriptionsItem>
 
-      <ElDescriptionsItem
-label="备注" :span="2"
->
+      <ElDescriptionsItem label="备注" :span="2">
         <template v-if="editing">
           <ElInput
             v-model="editForm.remark"

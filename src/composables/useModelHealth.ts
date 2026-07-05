@@ -2,7 +2,7 @@
 // AI 模型健康度 — 数据管理 composable
 // D-88: 每 5 分钟轮询 + WebSocket 消息接入
 // ============================================================
-import { ref, watch, onUnmounted, type Ref } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { AI_HEALTH_REFRESH_INTERVAL } from '@/constants/aiHealth'
 import { fetchModelMetricsLatest } from '@/api/gateaiSettings'
 import type { ModelMetricLatest, HealthGrade } from '@/types/gateai'

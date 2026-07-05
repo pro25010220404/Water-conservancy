@@ -7,12 +7,9 @@ import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, Ma
 import { CanvasRenderer } from 'echarts/renderers'
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, MarkLineComponent, MarkPointComponent, CanvasRenderer])
 import { ElTag } from 'element-plus'
-import { RESERVOIR_OPTIONS } from '@/constants/settings'
-import { HEALTH_GRADE, EVAL_DIMENSIONS } from '@/constants/aiHealth'
+import { HEALTH_GRADE } from '@/constants/aiHealth'
 
-const reservoirId = ref(1)
 const days = ref(30)
-const loading = ref(false)
 
 // Mock 评分历史
 interface ScorePoint { time: string; overall: number; prediction: number; decision: number; compliance: number; grade: string }

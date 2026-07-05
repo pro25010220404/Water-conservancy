@@ -143,10 +143,12 @@ async function submitPassword() {
     @update:model-value="emit('update:visible', $event)"
   >
     <ElForm ref="formRef"
-:model="pwdForm" label-width="100px">
+:model="pwdForm" label-width="100px"
+>
       <!-- 当前密码 -->
       <ElFormItem label="当前密码"
-required>
+required
+>
         <ElInput
           v-model="pwdForm.old_password"
           type="password"
@@ -157,7 +159,8 @@ required>
 
       <!-- 新密码 -->
       <ElFormItem label="新密码"
-required>
+required
+>
         <ElInput
           v-model="pwdForm.new_password"
           type="password"
@@ -177,18 +180,13 @@ required>
               :show-text="false"
             />
           </div>
-          <span
-class="pwd-strength__label" :style="{ color: strengthColor }"
->
+          <span class="pwd-strength__label" :style="{ color: strengthColor }">
             {{ strength.level === 'strong' ? '强' : strength.level === 'medium' ? '中' : '弱' }}
           </span>
         </div>
 
         <ul class="pwd-checklist">
-          <li
-v-for="(c, i) in strength.checks" :key="i"
-:class="{ 'is-passed': c.passed }"
->
+          <li v-for="(c, i) in strength.checks" :key="i" :class="{ 'is-passed': c.passed }">
             <span class="pwd-checklist__icon">{{ c.passed ? '&#10003;' : '&#10005;' }}</span>
             {{ c.label }}
           </li>
@@ -197,7 +195,8 @@ v-for="(c, i) in strength.checks" :key="i"
 
       <!-- 确认新密码 -->
       <ElFormItem label="确认新密码"
-required>
+required
+>
         <ElInput
           v-model="pwdForm.confirm_password"
           type="password"
