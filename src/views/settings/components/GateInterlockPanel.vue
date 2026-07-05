@@ -349,12 +349,6 @@ onMounted(async () => {
 }
 .trigger-count-tag {
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-
-  &:hover {
-    color: #1677ff;
-    border-color: #91caff;
-  }
 }
 .priority-badge {
   display: inline-flex;
@@ -372,12 +366,6 @@ onMounted(async () => {
   line-height: 1;
   cursor: grab;
   user-select: none;
-  transition: background 0.15s, box-shadow 0.15s, transform 0.15s;
-
-  &:hover {
-    background: linear-gradient(180deg, #e6f4ff 0%, #d6ebff 100%);
-    box-shadow: 0 2px 6px rgba(22, 119, 255, 0.15);
-  }
 
   &:active {
     cursor: grabbing;

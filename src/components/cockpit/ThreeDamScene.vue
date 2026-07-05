@@ -18,6 +18,7 @@ import {
   getSimulationFocusCamera, collectDamMeshes, applyTwinLightBackgroundMaterials, type DamModelInstance,
 } from '@/utils/damModelLoader'
 import { XIANGJIABA_HYDRO, upstreamLevelToSceneY, getLevelStatus, levelGaugePercent } from '@/constants/xiangjiaba'
+import { getBimDisplayName, getBimDefaultDetail } from '@/utils/bimDisplayName'
 import type { SimulationScene } from '@/types/simulation'
 
 const props = withDefaults(defineProps<{
@@ -645,12 +646,12 @@ function updatePierScreenLabels() {
   const w = containerRef.value.clientWidth
   const h = containerRef.value.clientHeight
   const v = new THREE.Vector3()
-  pierScreenLabels.value = pierObjects.map((obj, i) => {
+  pierScreenLabels.value = pierObjects.map((obj) => {
     obj.getWorldPosition(v)
     v.y += 9
     v.project(camera!)
     return {
-      name: `pier_${i + 1}`,
+      name: getBimDisplayName(obj.name),
       x: (v.x * 0.5 + 0.5) * w,
       y: (-v.y * 0.5 + 0.5) * h,
       visible: v.z < 1 && v.z > -1,
@@ -1028,9 +1029,10 @@ function onMouseMove(e: MouseEvent) {
         hoveredObject = outlineTarget
         outlinePass.selectedObjects = [outlineTarget]
       }
-      const detail = (root.userData.detail as string) || '向家坝水电站 BIM 工程构件'
-      tooltip.value = { name: root.name, detail, x: e.clientX - rect.left + 14, y: e.clientY - rect.top - 10, visible: true }
-      emit('device-hover', { name: root.name, detail })
+      const detail = (root.userData.detail as string) || getBimDefaultDetail(root.name)
+      const displayName = getBimDisplayName(root.name)
+      tooltip.value = { name: displayName, detail, x: e.clientX - rect.left + 14, y: e.clientY - rect.top - 10, visible: true }
+      emit('device-hover', { name: displayName, detail })
       containerRef.value.style.cursor = 'pointer'
       return
     }

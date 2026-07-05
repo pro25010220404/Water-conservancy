@@ -1125,9 +1125,7 @@ onUnmounted(() => {
   color: $cockpit-accent; font-weight: 600; font-size: 15px;
   border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; background: #f8fafc; z-index: 1;
 }
-.record-row { border-bottom: 1px solid #f1f5f9; cursor: pointer; background: #fff;
-  &:hover { background: #f8fafc; }
-}
+.record-row { border-bottom: 1px solid #f1f5f9; cursor: pointer; background: #fff; }
 .record-expand {
   padding: 14px 18px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 14px;
   .snap-validation {

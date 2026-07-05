@@ -368,12 +368,6 @@ function formatDuration(sec: number) {
     border-radius: 8px;
     @include interactive-tactile(-2px);
 
-    &:hover {
-      border-color: rgba(24, 144, 255, 0.35);
-      background: #f0f8ff;
-      box-shadow: 0 4px 12px rgba(24, 144, 255, 0.12);
-    }
-
     &.active {
       color: $cockpit-accent;
       background: #e6f4ff;
@@ -454,10 +448,6 @@ function formatDuration(sec: number) {
     border-bottom: 1px solid rgba(24, 144, 255, 0.1);
     font-size: $cockpit-font-base;
     min-width: 0;
-
-    &:hover {
-      background: rgba(24, 144, 255, 0.04);
-    }
   }
 
   dt {
@@ -535,16 +525,6 @@ function formatDuration(sec: number) {
     border-bottom: 1px solid rgba(24, 144, 255, 0.1);
     border-radius: 8px;
     cursor: pointer;
-    transition:
-      transform 0.22s ease,
-      background 0.22s ease,
-      box-shadow 0.22s ease;
-
-    &:hover {
-      transform: translateY(-1px);
-      background: rgba(24, 144, 255, 0.04);
-      box-shadow: 0 4px 14px rgba(24, 144, 255, 0.08);
-    }
 
     &:active {
       transform: scale(0.99);

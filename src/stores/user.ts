@@ -3,13 +3,15 @@
 // ============================================================
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { loginApi } from '@/api/auth'
+import type { UserRole } from '@/constants/roles'
 
 export interface UserInfo {
   id: number
   username: string
   nickname: string
   avatar?: string
-  roles: string[]
+  roles: UserRole[]
   permissions: string[]
 }
 
@@ -38,13 +40,23 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem('userInfo', JSON.stringify(info))
   }
 
-  async function login(credentials: { username: string; password: string }): Promise<void> {
-    // TODO: 对接 POST /api/auth/login
-    setSession('dev-token', {
-      id: 1,
-      username: credentials.username,
-      nickname: credentials.username,
-      roles: ['admin'],
+  async function login(credentials: { username: string; password: string; remember?: boolean }): Promise<void> {
+    const res = await loginApi({
+      account: credentials.username,
+      password: credentials.password,
+      remember: credentials.remember,
+    })
+    const { data } = res.data
+    if (!data?.token || !data.user_info) {
+      throw new Error('登录失败')
+    }
+    const u = data.user_info
+    const role = (u.role_code || 'operator') as UserRole
+    setSession(data.token, {
+      id: u.id,
+      username: u.account,
+      nickname: u.realname || u.account,
+      roles: [role],
       permissions: [],
     })
   }

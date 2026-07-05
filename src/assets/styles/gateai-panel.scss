@@ -94,17 +94,11 @@ $gateai-pad-y: 20px;
     cursor: pointer;
     font-size: $font-size-base;
     color: #475569;
-    transition: border-color 0.2s, background 0.2s;
-
     &.active {
       background: #e6f4ff;
       border-color: #1890ff;
       color: #1890ff;
       font-weight: 600;
-    }
-
-    &:hover:not(.active) {
-      border-color: #94a3b8;
     }
   }
 }

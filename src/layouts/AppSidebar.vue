@@ -160,16 +160,5 @@ const visibleMenus = computed(() =>
     border-left: 3px solid var(--color-layout-blue-active-border);
     box-shadow: inset 0 0 24px rgba(110, 179, 255, 0.12);
   }
-
-  :deep(.el-menu-item:hover) {
-    background: rgba(255, 255, 255, 0.12) !important;
-    color: var(--color-layout-blue-text) !important;
-    transform: translateX(3px);
-    box-shadow: 0 2px 12px rgba(110, 179, 255, 0.18);
-  }
-
-  :deep(.el-menu-item:active) {
-    transform: translateX(1px) scale(0.98);
-  }
 }
 </style>

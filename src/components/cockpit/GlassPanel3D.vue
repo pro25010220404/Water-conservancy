@@ -115,14 +115,5 @@ defineProps<{
 
   &__extra { margin-left: auto; }
   &__body { padding: 16px 18px; overflow: visible; font-size: 16px; }
-
-  &:hover .glass-panel__deco {
-    box-shadow: 0 0 14px rgba(24, 144, 255, 0.55);
-    transform: scaleY(1.08);
-  }
-
-  &__deco {
-    transition: box-shadow 0.25s ease, transform 0.25s ease;
-  }
 }
 </style>

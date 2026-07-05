@@ -291,7 +291,6 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
 .health-chip {
   display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: #fff; border: 1px solid #e2e8f0;
   border-radius: 6px; cursor: pointer; font-size: 14px;
-  &:hover { border-color: #1890ff; }
 }
 .view-toggle { @include gateai.gateai-view-toggle; }
 .metric-cards {
@@ -302,7 +301,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
   padding: 18px 20px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc;
   span { display: block; font-size: 14px; color: #64748b; margin-bottom: 8px; }
   strong { font-size: 24px; color: #1e293b; }
-  &.clickable { cursor: pointer; transition: box-shadow .2s; &:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); } }
+  &.clickable { cursor: pointer; }
 }
 .metric-chart {
   width: 100%;

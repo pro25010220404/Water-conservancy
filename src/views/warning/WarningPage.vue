@@ -392,7 +392,7 @@ onUnmounted(() => {
 .table-panel { flex: 1; min-height: 420px; display: flex; flex-direction: column; }
 .table-3d { flex: 1; overflow: auto; &__head, &__row { display: grid; grid-template-columns: 148px 72px 88px 1fr 108px 72px 80px 120px; gap: 10px; padding: 12px 14px; font-size: $cockpit-font-sm; align-items: center; }
   &__head { color: $cockpit-accent; font-weight: 600; letter-spacing: 1px; border-bottom: 1px solid rgba(24,144,255,0.12); background: rgba(24,144,255,0.05); position: sticky; top: 0; }
-  &__row { border-bottom: 1px solid rgba(15,23,42,0.06); transition: background 0.2s; cursor: pointer; &:hover { background: rgba(24,144,255,0.04); } &.expanded { background: rgba(24,144,255,0.06); } }
+  &__row { border-bottom: 1px solid rgba(15,23,42,0.06); cursor: pointer; &.expanded { background: rgba(24,144,255,0.06); } }
   &__expand { padding: 12px 14px 14px 148px; background: rgba(24,144,255,0.03); border-bottom: 1px solid rgba(15,23,42,0.08); }
 }
 .val-threshold { color: #0ea5e9; font-weight: 600; }

@@ -182,7 +182,7 @@ function onSceneChange(scene: SimulationScene) {
   applyScenePreset(scene)
 }
 
-/** 主页面按钮：打开仿真弹窗（控制在弹窗左侧） */
+/** 打开全景弹窗（开始/暂停/重置均在弹窗内操作） */
 function handleOpenSimModal() {
   viewMode.value = '3d'
   panoramaVisible.value = true
@@ -440,22 +440,16 @@ onUnmounted(() => {
                 </option>
               </select>
             </label>
-            <span class="sim-toolbar__sep" />
-            <button type="button" class="sim-toolbar__btn sim-toolbar__btn--launch" @click="handleOpenSimModal">
-              开始仿真
-            </button>
-            <button type="button" class="sim-toolbar__btn" :disabled="!canPause" @click="handlePauseSim">
-              {{ simStatus.status === 'paused' ? '继续' : '暂停' }}
-            </button>
+            <span class="sim-toolbar__spacer" />
             <button
               type="button"
-              class="sim-toolbar__btn"
-              :disabled="simStatus.status === 'idle'"
-              @click="handleResetSim"
+              class="sim-toolbar__status"
+              :style="{ color: statusInfo?.color }"
+              @click="handleOpenSimModal"
             >
-              重置
+              仿真 {{ elapsedLabel }} · {{ statusInfo?.label }}
+              <small>打开控制</small>
             </button>
-            <span class="sim-toolbar__time">仿真 {{ elapsedLabel }} · {{ statusInfo?.label }}</span>
           </div>
         </main>
 
@@ -945,10 +939,41 @@ onUnmounted(() => {
       }
     }
 
-    &__time {
-      margin-left: 8px;
+    &__spacer {
+      flex: 1;
+      min-width: 8px;
+    }
+
+    &__status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+      padding: 8px 14px;
       font-size: $cockpit-font-base;
+      font-weight: 600;
       color: #64748b;
+      background: rgba(230, 244, 255, 0.6);
+      border: 1px solid rgba(24, 144, 255, 0.18);
+      border-radius: 8px;
+      cursor: pointer;
+      transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        border-color 0.2s ease;
+
+      small {
+        font-size: 13px;
+        font-weight: 500;
+        color: #1890ff;
+        opacity: 0.85;
+      }
+
+      &:hover {
+        transform: translateY(-1px);
+        border-color: rgba(24, 144, 255, 0.35);
+        box-shadow: 0 4px 12px rgba(24, 144, 255, 0.12);
+      }
     }
 
     &__field {

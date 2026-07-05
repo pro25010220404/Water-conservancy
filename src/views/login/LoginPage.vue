@@ -33,11 +33,15 @@ async function handleLogin() {
   }
   loading.value = true
   try {
-    await userStore.login({ username: username.value, password: password.value })
+    await userStore.login({
+      username: username.value,
+      password: password.value,
+      remember: rememberMe.value,
+    })
     ElMessage.success('登录成功')
     router.push((route.query.redirect as string) || '/dashboard')
   } catch {
-    ElMessage.error('用户名或密码错误')
+    // 错误提示由 request 拦截器统一弹出
   } finally {
     loading.value = false
   }
