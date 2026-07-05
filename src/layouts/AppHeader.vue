@@ -112,10 +112,10 @@ onUnmounted(() => {
 
   &__clock {
     font-family: 'Roboto Mono', 'SF Mono', monospace;
-    font-size: var(--font-size-sm);
+    font-size: 15px;
     color: var(--color-layout-blue-brand);
-    opacity: 0.85;
-    letter-spacing: 0.5px;
+    opacity: 0.9;
+    letter-spacing: 1px;
   }
 }
 </style>

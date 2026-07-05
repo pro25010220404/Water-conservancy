@@ -22,6 +22,8 @@ export const ALARM_TYPE_MAP: Record<string, DictOption> = {
   EXEC_TIMEOUT: { label: '执行超时', value: 'EXEC_TIMEOUT', color: '#f97316' },
   EXEC_FAIL: { label: '执行失败', value: 'EXEC_FAIL', color: '#dc2626' },
   MODEL_HEALTH_DEGRADED: { label: '模型健康降级', value: 'MODEL_HEALTH_DEGRADED', color: '#7c3aed' },
+  MODEL_ROLLBACK: { label: '模型自动回退', value: 'MODEL_ROLLBACK', color: '#dc2626' },
+  MODEL_DRIFT: { label: '模型数据漂移', value: 'MODEL_DRIFT', color: '#f97316' },
 }
 
 export const ALARM_TYPE_OPTIONS: DictOption[] = Object.values(ALARM_TYPE_MAP)

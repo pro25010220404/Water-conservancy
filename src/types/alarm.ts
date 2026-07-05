@@ -18,6 +18,8 @@ export type AlarmType =
   | 'EXEC_TIMEOUT'
   | 'EXEC_FAIL'
   | 'MODEL_HEALTH_DEGRADED'
+  | 'MODEL_ROLLBACK'
+  | 'MODEL_DRIFT'
 
 // ---------- 告警处理状态 ----------
 export type AlarmStatus = 'pending' | 'confirmed' | 'handled'

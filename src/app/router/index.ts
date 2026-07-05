@@ -55,9 +55,41 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'history',
-        name: 'History',
-        component: () => import('@/views/history/HistoryPage.vue'),
+        component: () => import('@/views/history/index.vue'),
         meta: { title: '历史查询' },
+        redirect: '/history/query',
+        children: [
+          {
+            path: 'query',
+            name: 'HistoryQuery',
+            component: () => import('@/views/history/components/DataQueryTab.vue'),
+            meta: { title: '数据查询' },
+          },
+          {
+            path: 'compare',
+            name: 'HistoryCompare',
+            component: () => import('@/views/history/components/DualCompareTab.vue'),
+            meta: { title: '双时段对比' },
+          },
+          {
+            path: 'model-score',
+            name: 'HistoryModelScore',
+            component: () => import('@/views/history/components/ModelScoreTab.vue'),
+            meta: { title: '模型评分历史' },
+          },
+          {
+            path: 'interlock',
+            name: 'HistoryInterlock',
+            component: () => import('@/views/history/components/InterlockEventTab.vue'),
+            meta: { title: '互锁事件回溯' },
+          },
+          {
+            path: 'replay',
+            name: 'HistoryReplay',
+            component: () => import('@/views/history/components/ReplayTab.vue'),
+            meta: { title: '时光机回放' },
+          },
+        ],
       },
       {
         path: 'warning',

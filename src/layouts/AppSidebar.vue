@@ -63,6 +63,8 @@ const visibleMenus = computed(() =>
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/cockpit.scss' as *;
+
 .app-sidebar {
   display: flex;
   flex-direction: column;
@@ -80,6 +82,7 @@ const visibleMenus = computed(() =>
     border-right: none;
     background: transparent;
     padding: 8px 0;
+    @include hide-scrollbar;
   }
 
   :deep(.el-menu-item) {
@@ -106,6 +109,37 @@ const visibleMenus = computed(() =>
 
   :deep(.el-menu-item:active) {
     transform: translateX(1px) scale(0.98);
+  }
+}
+</style>
+
+<style lang="scss">
+// 侧边栏折叠后子菜单弹出层 — 深色背景 + 亮色文字
+.el-menu--popup {
+  background: linear-gradient(170deg, #0a1628 0%, #0d2137 35%, #112a45 100%) !important;
+  border: 1px solid rgba(110, 179, 255, 0.2) !important;
+  border-radius: 8px !important;
+  padding: 6px 0 !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45) !important;
+
+  .el-menu-item {
+    margin: 2px 6px;
+    border-radius: 6px;
+    color: rgba(200, 215, 235, 0.85) !important;
+    font-size: 14px;
+    font-weight: 500;
+    background: transparent !important;
+
+    &:hover {
+      color: #fff !important;
+      background: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    &.is-active {
+      color: #6eb3ff !important;
+      background: rgba(110, 179, 255, 0.12) !important;
+      font-weight: 600 !important;
+    }
   }
 }
 </style>
