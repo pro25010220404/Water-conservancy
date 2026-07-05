@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // ============================================================
-// 侧边栏 — 九大板块导航
+// 侧边栏 — 九大板块导航（Logo 已移至 MainLayout 顶栏）
 // ============================================================
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
@@ -9,9 +9,8 @@ import {
   Monitor, Ship, Switch, DataAnalysis, VideoCamera,
   Clock, Warning, Operation, Cpu, SetUp, Setting, User,
 } from '@element-plus/icons-vue'
-import { APP_TITLE, MENU_ITEMS } from '@/constants'
+import { MENU_ITEMS } from '@/constants'
 import { usePermission } from '@/composables/usePermission'
-import logoUrl from '@/assets/images/logo.png'
 
 defineProps<{
   collapsed: boolean
@@ -35,37 +34,31 @@ const visibleMenus = computed(() =>
 
 <template>
   <aside class="app-sidebar" :class="{ 'is-collapsed': collapsed }">
-    <div class="app-sidebar__logo">
-      <img :src="logoUrl" alt="logo" class="app-sidebar__logo-img" />
-      <span v-if="!collapsed" class="app-sidebar__logo-text">{{ APP_TITLE }}</span>
-    </div>
-    <div class="app-sidebar__nav">
-      <el-menu
-        :default-active="route.path"
-        :collapse="collapsed"
-        :collapse-transition="false"
-        background-color="transparent"
-        text-color="var(--color-layout-blue-text-secondary)"
-        active-text-color="var(--color-layout-blue-brand)"
-        router
-      >
-        <template v-for="item in visibleMenus" :key="item.path">
-          <el-sub-menu v-if="item.children?.length" :index="item.path">
-            <template #title>
-              <el-icon><component :is="iconMap[item.icon]" /></el-icon>
-              <span>{{ item.title }}</span>
-            </template>
-            <el-menu-item v-for="c in item.children" :key="c.path" :index="c.path">
-              <span>{{ c.title }}</span>
-            </el-menu-item>
-          </el-sub-menu>
-          <el-menu-item v-else :index="item.path">
+    <el-menu
+      :default-active="route.path"
+      :collapse="collapsed"
+      :collapse-transition="false"
+      background-color="transparent"
+      text-color="var(--color-layout-blue-text-secondary)"
+      active-text-color="var(--color-layout-blue-brand)"
+      router
+    >
+      <template v-for="item in visibleMenus" :key="item.path">
+        <el-sub-menu v-if="item.children?.length" :index="item.path">
+          <template #title>
             <el-icon><component :is="iconMap[item.icon]" /></el-icon>
             <span>{{ item.title }}</span>
+          </template>
+          <el-menu-item v-for="c in item.children" :key="c.path" :index="c.path">
+            <span>{{ c.title }}</span>
           </el-menu-item>
-        </template>
-      </el-menu>
-    </div>
+        </el-sub-menu>
+        <el-menu-item v-else :index="item.path">
+          <el-icon><component :is="iconMap[item.icon]" /></el-icon>
+          <span>{{ item.title }}</span>
+        </el-menu-item>
+      </template>
+    </el-menu>
   </aside>
 </template>
 
@@ -73,58 +66,17 @@ const visibleMenus = computed(() =>
 .app-sidebar {
   display: flex;
   flex-direction: column;
-  width: var(--sider-width);
+  width: 100%;
   height: 100%;
   background: var(--color-layout-gradient-sidebar);
-  transition: width 0.3s;
-  overflow: hidden;
+  border-right: 1px solid var(--color-layout-blue-border);
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
-
-  &.is-collapsed {
-    width: 64px;
-  }
-
-  &__logo {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    height: var(--header-height);
-    padding: 0 var(--spacing-md);
-  }
-
-  &__logo-img {
-    width: 34px;
-    height: 34px;
-    flex-shrink: 0;
-    object-fit: contain;
-  }
-
-  &__logo-text {
-    font-size: var(--font-size-sm);
-    font-weight: 500;
-    line-height: 1.4;
-    color: var(--color-layout-blue-text);
-    letter-spacing: 0.5px;
-  }
-
-  &__nav {
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-    border-right: 1px solid var(--color-layout-blue-border);
-  }
-
-  &.is-collapsed &__logo {
-    justify-content: center;
-    padding: 0;
-  }
-
-  &.is-collapsed &__logo-img {
-    width: 32px;
-    height: 32px;
-  }
+  overflow: hidden;
 
   :deep(.el-menu) {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
     border-right: none;
     background: transparent;
     padding: 8px 0;

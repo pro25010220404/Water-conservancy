@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // ============================================================
-// 顶栏 — Logo / 折叠 / 页面标题 / 时钟 / 急停
+// 顶栏 — 折叠 / 页面标题 / 时钟 / 急停（背景由 MainLayout 顶栏统一绘制）
 // ============================================================
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
@@ -56,31 +56,16 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .app-header {
-  position: relative;
   display: flex;
+  flex: 1;
   align-items: center;
   justify-content: space-between;
-  height: var(--header-height);
+  min-width: 0;
+  height: 100%;
   padding: 0 var(--spacing-lg);
-  background: linear-gradient(90deg, #0a1628 0%, #0d2137 50%, #112a45 100%);
+  background: transparent;
   border-bottom: 1px solid var(--color-layout-blue-border);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-
-  &::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      var(--color-layout-blue-glow) 50%,
-      transparent 100%
-    );
-    pointer-events: none;
-  }
 
   &__left {
     display: flex;

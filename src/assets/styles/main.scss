@@ -31,7 +31,8 @@
   --color-layout-blue-brand: #{$color-layout-blue-brand};
   --color-layout-blue-glow: #{$color-layout-blue-glow};
   --color-layout-gradient-login: linear-gradient(170deg, #{$color-layout-blue} 0%, #{$color-layout-blue-header} 35%, #{$color-layout-blue-accent} 100%);
-  --color-layout-gradient-header: linear-gradient(90deg, #{$color-layout-blue} 0%, #{$color-layout-blue-header} 45%, #{$color-layout-blue-accent} 100%);
+  --color-layout-gradient-topbar: linear-gradient(90deg, #{$color-layout-blue} 0%, #{$color-layout-blue-header} 45%, #{$color-layout-blue-accent} 100%);
+  --color-layout-gradient-header: var(--color-layout-gradient-topbar);
   --color-layout-gradient-sidebar: linear-gradient(170deg, #{$color-layout-blue} 0%, #{$color-layout-blue-header} 35%, #{$color-layout-blue-accent} 100%);
   --color-text: #{$color-text};
   --color-text-secondary: #{$color-text-secondary};
