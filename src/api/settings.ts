@@ -36,11 +36,11 @@ import type { InterlockRule, InterlockLog, InterlockStats } from '@/stores/gateI
 // ════════════════════════════════════════════════════════════
 
 export function getThresholds(params?: { reservoir_id?: number; metric?: string }) {
-  return http.get<ApiResponse<ThresholdRule[]>>('/settings/thresholds', { params })
+  return http.get<ApiResponse<ThresholdRule[]>>('/v1/settings/thresholds', { params })
 }
 
 export function updateThreshold(id: number, data: ThresholdUpdateParams) {
-  return http.put<ApiResponse<null>>(`/settings/thresholds/${id}`, data)
+  return http.put<ApiResponse<null>>(`/v1/settings/thresholds/${id}`, data)
 }
 
 // ════════════════════════════════════════════════════════════
@@ -48,15 +48,15 @@ export function updateThreshold(id: number, data: ThresholdUpdateParams) {
 // ════════════════════════════════════════════════════════════
 
 export function getWeights() {
-  return http.get<ApiResponse<WeightConfig>>('/settings/weights')
+  return http.get<ApiResponse<WeightConfig>>('/v1/settings/weights')
 }
 
 export function updateWeights(data: WeightUpdateParams) {
-  return http.put<ApiResponse<null>>('/settings/weights', data)
+  return http.put<ApiResponse<null>>('/v1/settings/weights', data)
 }
 
 export function getWeightHistory(params?: { page?: number; page_size?: number }) {
-  return http.get<ApiResponse<WeightHistoryItem[]>>('/settings/weights/history', { params })
+  return http.get<ApiResponse<WeightHistoryItem[]>>('/v1/settings/weights/history', { params })
 }
 
 // ════════════════════════════════════════════════════════════
@@ -70,33 +70,33 @@ export function getModels(params?: {
   status?: string
   keyword?: string
 }) {
-  return http.get<ApiResponse<PageResult<ModelInfo>>>('/models/list', { params })
+  return http.get<ApiResponse<PageResult<ModelInfo>>>('/v1/settings/models', { params })
 }
 
 export function uploadModel(formData: FormData) {
-  return http.post<ApiResponse<ModelInfo>>('/models/upload', formData, {
+  return http.post<ApiResponse<ModelInfo>>('/v1/settings/models/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
 
 export function activateModel(id: number, data?: ModelActivateParams) {
-  return http.put<ApiResponse<null>>(`/models/${id}/activate`, data)
+  return http.post<ApiResponse<null>>(`/v1/settings/models/${id}/activate`, data)
 }
 
 export function rollbackModel(id: number, data?: ModelRollbackParams) {
-  return http.post<ApiResponse<null>>(`/models/${id}/rollback`, data)
+  return http.post<ApiResponse<null>>(`/v1/settings/models/${id}/rollback`, data)
 }
 
 export function deleteModel(id: number) {
-  return http.delete<ApiResponse<null>>(`/models/${id}`)
+  return http.delete<ApiResponse<null>>(`/v1/settings/models/${id}`)
 }
 
 export function deployModel(id: number, data: ModelDeployParams) {
-  return http.post<ApiResponse<null>>(`/models/${id}/deploy`, data)
+  return http.post<ApiResponse<null>>(`/v1/settings/models/${id}/deploy`, data)
 }
 
 export function getModelDetail(id: number) {
-  return http.get<ApiResponse<ModelInfo>>(`/models/${id}`)
+  return http.get<ApiResponse<ModelInfo>>(`/v1/settings/models/${id}`)
 }
 
 // ════════════════════════════════════════════════════════════
@@ -210,29 +210,29 @@ export function getUsers(params?: {
   is_enabled?: number
   keyword?: string
 }) {
-  return http.get<ApiResponse<PageResult<SystemUser>>>('/users', { params })
+  return http.get<ApiResponse<PageResult<SystemUser>>>('/v1/settings/users', { params })
 }
 
 export function createUser(data: CreateUserParams) {
-  return http.post<ApiResponse<null>>('/users', data)
+  return http.post<ApiResponse<null>>('/v1/settings/users', data)
 }
 
 export function updateUser(id: number, data: UpdateUserParams) {
-  return http.put<ApiResponse<null>>(`/users/${id}`, data)
+  return http.put<ApiResponse<null>>(`/v1/settings/users/${id}`, data)
 }
 
 export function resetUserPassword(id: number, data?: ResetPasswordParams) {
-  return http.put<ApiResponse<null>>(`/users/${id}/reset-password`, data)
+  return http.post<ApiResponse<null>>(`/v1/settings/users/${id}/reset-password`, data)
 }
 
 export function lockUser(id: number, data: LockUserParams) {
-  return http.put<ApiResponse<null>>(`/users/${id}/lock`, data)
+  return http.post<ApiResponse<null>>(`/v1/settings/users/${id}/lock`, data)
 }
 
 export function unlockUser(id: number, data?: UnlockUserParams) {
-  return http.put<ApiResponse<null>>(`/users/${id}/unlock`, data)
+  return http.post<ApiResponse<null>>(`/v1/settings/users/${id}/unlock`, data)
 }
 
 export function deleteUser(id: number) {
-  return http.delete<ApiResponse<null>>(`/users/${id}`)
+  return http.delete<ApiResponse<null>>(`/v1/settings/users/${id}`)
 }
