@@ -23,7 +23,7 @@ export function getEquipmentList(params: {
   group?: string
   keyword?: string
 }) {
-  return http.get<ApiResponse<PageResult<Equipment>>>('/equipment/all-list', { params })
+  return http.get<ApiResponse<PageResult<Equipment>>>('/equipment/list', { params })
 }
 
 // ── 设备详情 ──
