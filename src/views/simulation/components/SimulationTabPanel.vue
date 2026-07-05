@@ -5,12 +5,18 @@ import { Search } from '@element-plus/icons-vue'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import {
-  SIMULATION_SCENE_MAP, MODEL_STATUS_MAP, REVIEW_STATUS_MAP, SIMULATION_TABS,
+  SIMULATION_SCENE_MAP,
+  MODEL_STATUS_MAP,
+  REVIEW_STATUS_MAP,
+  SIMULATION_TABS,
   type SimulationTab,
 } from '@/constants/simulation'
 import type {
-  SimulationScene, SimulationRealtimeData,
-  AiModel, SimulationReport, FaultReview,
+  SimulationScene,
+  SimulationRealtimeData,
+  AiModel,
+  SimulationReport,
+  FaultReview,
 } from '@/types/simulation'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 
@@ -40,7 +46,9 @@ const emit = defineEmits<{
   'import-review': [id: number]
 }>()
 
-const tabTitle = computed(() => SIMULATION_TABS.find((t) => t.value === props.activeTab)?.label ?? '')
+const tabTitle = computed(
+  () => SIMULATION_TABS.find((t) => t.value === props.activeTab)?.label ?? '',
+)
 const sceneInfo = computed(() => SIMULATION_SCENE_MAP[props.simScene])
 const searchKeyword = ref('')
 
@@ -52,7 +60,9 @@ const filteredModels = computed(() => {
 const filteredReports = computed(() => {
   const kw = searchKeyword.value.trim()
   if (!kw || props.activeTab !== 'report') return props.reports
-  return props.reports.filter((r) => fuzzyMatch(kw, r.content, r.operatorName, r.scene, String(r.runId)))
+  return props.reports.filter((r) =>
+    fuzzyMatch(kw, r.content, r.operatorName, r.scene, String(r.runId)),
+  )
 })
 const filteredReviews = computed(() => {
   const kw = searchKeyword.value.trim()
@@ -62,7 +72,11 @@ const filteredReviews = computed(() => {
 const showSearch = computed(() => props.activeTab !== 'control')
 
 const HEALTH_GRADE_COLOR: Record<string, string> = {
-  S: '#16a34a', A: '#22c55e', B: '#f59e0b', C: '#f97316', D: '#dc2626',
+  S: '#16a34a',
+  A: '#22c55e',
+  B: '#f59e0b',
+  C: '#f97316',
+  D: '#dc2626',
 }
 
 function healthGradeColor(grade?: string) {
@@ -155,7 +169,12 @@ function formatDuration(sec: number) {
             <div class="entity-list__main">
               <strong>{{ m.type }} {{ m.version }}</strong>
               <div class="entity-list__tags">
-                <ElTag v-if="m.metrics?.healthGrade" :color="healthGradeColor(m.metrics.healthGrade)" effect="dark" size="small">
+                <ElTag
+                  v-if="m.metrics?.healthGrade"
+                  :color="healthGradeColor(m.metrics.healthGrade)"
+                  effect="dark"
+                  size="small"
+                >
                   健康 {{ m.metrics.healthGrade }}
                 </ElTag>
                 <ElTag :color="MODEL_STATUS_MAP[m.status]?.color" effect="dark" size="small">
@@ -165,11 +184,19 @@ function formatDuration(sec: number) {
             </div>
             <div class="entity-list__meta">
               {{ m.createdAt }}
-              <template v-if="m.metrics?.overallScore != null"> · 综合分 {{ (m.metrics.overallScore * 100).toFixed(0) }}</template>
+              <template v-if="m.metrics?.overallScore != null">
+                · 综合分 {{ (m.metrics.overallScore * 100).toFixed(0) }}</template
+              >
             </div>
             <p v-if="m.remark" class="entity-list__desc">{{ m.remark }}</p>
             <div class="entity-list__actions">
-              <ElButton v-if="m.status !== 'active'" link type="primary" @click="emit('activate', m.id)">激活</ElButton>
+              <ElButton
+                v-if="m.status !== 'active'"
+                link
+                type="primary"
+                @click="emit('activate', m.id)"
+                >激活</ElButton
+              >
               <ElButton link type="primary" @click="emit('train', m.id)">训练</ElButton>
             </div>
           </li>
@@ -196,7 +223,10 @@ function formatDuration(sec: number) {
 
       <template v-else>
         <p class="hint-text">关联历史告警事件，复盘根因并一键导入仿真参数复现。</p>
-        <ElEmpty v-if="!filteredReviews.length && !reviewLoading" description="暂无历史故障复盘记录" />
+        <ElEmpty
+          v-if="!filteredReviews.length && !reviewLoading"
+          description="暂无历史故障复盘记录"
+        />
         <ul v-else class="entity-list">
           <li v-for="r in filteredReviews" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
@@ -279,7 +309,12 @@ function formatDuration(sec: number) {
             <div class="entity-list__main">
               <strong>{{ m.type }} {{ m.version }}</strong>
               <div class="entity-list__tags">
-                <ElTag v-if="m.metrics?.healthGrade" :color="healthGradeColor(m.metrics.healthGrade)" effect="dark" size="small">
+                <ElTag
+                  v-if="m.metrics?.healthGrade"
+                  :color="healthGradeColor(m.metrics.healthGrade)"
+                  effect="dark"
+                  size="small"
+                >
                   健康 {{ m.metrics.healthGrade }}
                 </ElTag>
                 <ElTag :color="MODEL_STATUS_MAP[m.status]?.color" effect="dark" size="small">
@@ -289,11 +324,19 @@ function formatDuration(sec: number) {
             </div>
             <div class="entity-list__meta">
               {{ m.createdAt }}
-              <template v-if="m.metrics?.overallScore != null"> · 综合分 {{ (m.metrics.overallScore * 100).toFixed(0) }}</template>
+              <template v-if="m.metrics?.overallScore != null">
+                · 综合分 {{ (m.metrics.overallScore * 100).toFixed(0) }}</template
+              >
             </div>
             <p v-if="m.remark" class="entity-list__desc">{{ m.remark }}</p>
             <div class="entity-list__actions">
-              <ElButton v-if="m.status !== 'active'" link type="primary" @click="emit('activate', m.id)">激活</ElButton>
+              <ElButton
+                v-if="m.status !== 'active'"
+                link
+                type="primary"
+                @click="emit('activate', m.id)"
+                >激活</ElButton
+              >
               <ElButton link type="primary" @click="emit('train', m.id)">训练</ElButton>
             </div>
           </li>
@@ -320,7 +363,10 @@ function formatDuration(sec: number) {
 
       <template v-else>
         <p class="hint-text">关联历史告警事件，复盘根因并一键导入仿真参数复现。</p>
-        <ElEmpty v-if="!filteredReviews.length && !reviewLoading" description="暂无历史故障复盘记录" />
+        <ElEmpty
+          v-if="!filteredReviews.length && !reviewLoading"
+          description="暂无历史故障复盘记录"
+        />
         <ul v-else class="entity-list">
           <li v-for="r in filteredReviews" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
@@ -558,7 +604,10 @@ function formatDuration(sec: number) {
     gap: 10px;
     margin-bottom: 6px;
 
-    strong { font-size: $cockpit-font-md; color: $cockpit-text; }
+    strong {
+      font-size: $cockpit-font-md;
+      color: $cockpit-text;
+    }
   }
 
   &__tags {

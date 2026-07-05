@@ -45,6 +45,24 @@ $font-size-base: 14px;
 $font-size-lg: 16px;
 $font-size-xl: 20px;
 
+// 业务常用字号
+$font-size-kpi-value: 24px;   // KPI 数值
+$font-size-section-title: 17px; // 面板标题
+$font-size-table-cell: 16px;   // 表格单元格
+$font-size-table-header: 15px; // 表格表头
+
+// ECharts 坐标轴字号
+$font-size-chart-axis: 13px;
+
+// 等宽字体栈
+$font-mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
+
+// 业务常用字色
+$color-heading: #1e293b;       // 标题/名称
+$color-label: #64748b;         // 标签/副文本
+$color-cell: #334155;          // 表格正文
+$color-cell-dim: #94a3b8;      // 表格单位/次要
+
 // ---------- 间距 ----------
 $spacing-xs: 4px;
 $spacing-sm: 8px;

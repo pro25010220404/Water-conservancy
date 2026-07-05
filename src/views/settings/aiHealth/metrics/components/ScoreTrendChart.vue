@@ -38,7 +38,7 @@ function getOption(): echarts.EChartsOption {
       data: props.data.map((d) => d.time),
       axisLabel: {
         rotate: 45,
-        fontSize: 10,
+        fontSize: 13,
       },
     },
     yAxis: {
@@ -132,10 +132,8 @@ onBeforeUnmount(() => {
 <template>
   <div v-loading="loading" class="score-trend-chart">
     <h3 class="chart-title">7日健康度趋势</h3>
-    <div ref="chartContainer"
-class="chart-container" />
-    <div
-v-if="!data.length && !loading" class="chart-empty">暂无趋势数据</div>
+    <div ref="chartContainer" class="chart-container" />
+    <div v-if="!data.length && !loading" class="chart-empty">暂无趋势数据</div>
   </div>
 </template>
 

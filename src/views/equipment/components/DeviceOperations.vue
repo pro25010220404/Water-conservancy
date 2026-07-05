@@ -34,14 +34,11 @@ const showMarkNormal = computed(() => {
 
 <template>
   <div class="device-operations">
-    <ElButton
-type="danger" :icon="RefreshRight" @click="emit('restart')"> 远程重启 </ElButton>
+    <ElButton type="danger" :icon="RefreshRight" @click="emit('restart')"> 远程重启 </ElButton>
 
-    <ElButton
-type="primary" :icon="Setting" @click="emit('edit-config')"> 参数配置 </ElButton>
+    <ElButton type="primary" :icon="Setting" @click="emit('edit-config')"> 参数配置 </ElButton>
 
-    <ElButton
-type="warning" :icon="WarningFilled" @click="emit('mark-fault')"> 标记故障 </ElButton>
+    <ElButton type="warning" :icon="WarningFilled" @click="emit('mark-fault')"> 标记故障 </ElButton>
 
     <ElButton
       v-if="showMarkNormal"
@@ -52,8 +49,7 @@ type="warning" :icon="WarningFilled" @click="emit('mark-fault')"> 标记故障 <
       标记正常
     </ElButton>
 
-    <ElButton
-type="info" :icon="Document" plain @click="emit('view-logs')"> 查看日志 </ElButton>
+    <ElButton type="info" :icon="Document" plain @click="emit('view-logs')"> 查看日志 </ElButton>
   </div>
 </template>
 

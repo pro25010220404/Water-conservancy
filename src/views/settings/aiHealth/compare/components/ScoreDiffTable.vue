@@ -33,36 +33,24 @@ const dataSources: Record<string, string> = {
     <h3 class="diff-title">评分差异明细</h3>
     <ElTable :data="data ?? []" border stripe style="width: 100%">
       <ElTableColumn prop="dimension" label="评估维度" min-width="140" align="center" />
-      <ElTableColumn
-label="版本1" width="120"
-align="center"
->
+      <ElTableColumn label="版本1" width="120" align="center">
         <template #default="scope">
           {{ ((scope.row as CompareResult['scoreDiff'][number]).v1 * 100).toFixed(1) }}%
         </template>
       </ElTableColumn>
-      <ElTableColumn
-label="版本2" width="120"
-align="center"
->
+      <ElTableColumn label="版本2" width="120" align="center">
         <template #default="scope">
           {{ ((scope.row as CompareResult['scoreDiff'][number]).v2 * 100).toFixed(1) }}%
         </template>
       </ElTableColumn>
-      <ElTableColumn
-label="差异" width="120"
-align="center"
->
+      <ElTableColumn label="差异" width="120" align="center">
         <template #default="scope">
           <span :class="getDiffClass((scope.row as CompareResult['scoreDiff'][number]).diff)">
             {{ formatDiff((scope.row as CompareResult['scoreDiff'][number]).diff) }}
           </span>
         </template>
       </ElTableColumn>
-      <ElTableColumn
-label="数据来源" min-width="140"
-align="center"
->
+      <ElTableColumn label="数据来源" min-width="140" align="center">
         <template #default="scope">
           {{
             dataSources[(scope.row as CompareResult['scoreDiff'][number]).dimension] ?? '边缘实时'
@@ -70,8 +58,7 @@ align="center"
         </template>
       </ElTableColumn>
     </ElTable>
-    <div
-v-if="!data && !loading" class="table-empty">暂无对比数据</div>
+    <div v-if="!data && !loading" class="table-empty">暂无对比数据</div>
   </div>
 </template>
 

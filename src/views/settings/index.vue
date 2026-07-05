@@ -292,8 +292,14 @@ const MOCK_USERS: SystemUser[] = [
 ]
 
 // ── Tab 切换处理 ──
-function onModelSearch() { modelsPage.value = 1; fetchModels() }
-function onUserSearch() { usersPage.value = 1; fetchUsers() }
+function onModelSearch() {
+  modelsPage.value = 1
+  fetchModels()
+}
+function onUserSearch() {
+  usersPage.value = 1
+  fetchUsers()
+}
 function onTabChange(tabName: string) {
   if (tabName === 'ai-health') {
     router.push('/settings/ai/metrics')
@@ -347,7 +353,11 @@ async function saveThreshold(id: number) {
 function fetchWeights() {
   weightLoading.value = true
   weights.value = MOCK_WEIGHTS
-  weightForm.value = { power_weight: MOCK_WEIGHTS.power_weight, safety_weight: MOCK_WEIGHTS.safety_weight, ecology_weight: MOCK_WEIGHTS.ecology_weight }
+  weightForm.value = {
+    power_weight: MOCK_WEIGHTS.power_weight,
+    safety_weight: MOCK_WEIGHTS.safety_weight,
+    ecology_weight: MOCK_WEIGHTS.ecology_weight,
+  }
   weightLoading.value = false
 }
 async function saveWeights() {
@@ -376,7 +386,10 @@ async function saveWeights() {
 function fetchModels() {
   modelsLoading.value = true
   let filtered = [...MOCK_MODELS]
-  if (modelKeyword.value) { const kw = modelKeyword.value.toLowerCase(); filtered = filtered.filter((m) => m.name.toLowerCase().includes(kw)) }
+  if (modelKeyword.value) {
+    const kw = modelKeyword.value.toLowerCase()
+    filtered = filtered.filter((m) => m.name.toLowerCase().includes(kw))
+  }
   modelsTotal.value = filtered.length
   models.value = filtered.slice((modelsPage.value - 1) * 10, modelsPage.value * 10)
   modelsLoading.value = false
@@ -433,7 +446,12 @@ async function handleDeleteModel(id: number) {
 function fetchUsers() {
   usersLoading.value = true
   let filtered = [...MOCK_USERS]
-  if (userKeyword.value) { const kw = userKeyword.value.toLowerCase(); filtered = filtered.filter((u) => u.account.toLowerCase().includes(kw) || u.realname.includes(kw)) }
+  if (userKeyword.value) {
+    const kw = userKeyword.value.toLowerCase()
+    filtered = filtered.filter(
+      (u) => u.account.toLowerCase().includes(kw) || u.realname.includes(kw),
+    )
+  }
   usersTotal.value = filtered.length
   users.value = filtered.slice((usersPage.value - 1) * 10, usersPage.value * 10)
   usersLoading.value = false
@@ -510,9 +528,15 @@ onMounted(() => {
   syncActiveTabFromRoute()
   thresholds.value = [...MOCK_THRESHOLDS]
   weights.value = MOCK_WEIGHTS
-  weightForm.value = { power_weight: MOCK_WEIGHTS.power_weight, safety_weight: MOCK_WEIGHTS.safety_weight, ecology_weight: MOCK_WEIGHTS.ecology_weight }
-  models.value = [...MOCK_MODELS]; modelsTotal.value = MOCK_MODELS.length
-  users.value = [...MOCK_USERS]; usersTotal.value = MOCK_USERS.length
+  weightForm.value = {
+    power_weight: MOCK_WEIGHTS.power_weight,
+    safety_weight: MOCK_WEIGHTS.safety_weight,
+    ecology_weight: MOCK_WEIGHTS.ecology_weight,
+  }
+  models.value = [...MOCK_MODELS]
+  modelsTotal.value = MOCK_MODELS.length
+  users.value = [...MOCK_USERS]
+  usersTotal.value = MOCK_USERS.length
 })
 </script>
 
@@ -520,15 +544,13 @@ onMounted(() => {
   <div class="settings-page">
     <ElTabs v-model="activeTab" type="border-card" class="settings-tabs" @tab-change="onTabChange">
       <!-- ═══ Tab1: 告警阈值 ═══ -->
-      <ElTabPane
-label="告警阈值配置" name="thresholds"
->
+      <ElTabPane label="告警阈值配置" name="thresholds">
         <ElTable v-loading="thresholdsLoading" :data="thresholds" style="width: 100%">
           <ElTableColumn label="监控指标" min-width="140">
             <template #default="scope">
               {{
                 METRIC_LABEL_MAP[(scope.row as ThresholdRule).metric] ??
-                  (scope.row as ThresholdRule).metric
+                (scope.row as ThresholdRule).metric
               }}
             </template>
           </ElTableColumn>
@@ -589,7 +611,7 @@ label="告警阈值配置" name="thresholds"
                 :max="120"
                 :step="5"
                 controls-position="right"
-style="width:105px"
+                style="width: 105px"
               />
               <span v-else>{{ (scope.row as ThresholdRule).debounce_seconds }}s</span>
             </template>
@@ -602,9 +624,7 @@ style="width:105px"
                 :active-value="1"
                 :inactive-value="0"
               />
-              <ElTag
-v-else :type="(scope.row as ThresholdRule).enabled === 1 ? 'success' : 'info'"
->
+              <ElTag v-else :type="(scope.row as ThresholdRule).enabled === 1 ? 'success' : 'info'">
                 {{ (scope.row as ThresholdRule).enabled === 1 ? '启用' : '停用' }}
               </ElTag>
             </template>
@@ -641,11 +661,8 @@ v-else :type="(scope.row as ThresholdRule).enabled === 1 ? 'success' : 'info'"
       </ElTabPane>
 
       <!-- ═══ Tab2: 多目标权重 ═══ -->
-      <ElTabPane
-label="多目标权重配置" name="weights"
->
-        <ElCard v-loading="weightLoading"
-shadow="never">
+      <ElTabPane label="多目标权重配置" name="weights">
+        <ElCard v-loading="weightLoading" shadow="never">
           <div class="weight-section">
             <div class="weight-presets">
               <span class="weight-presets__label">预设方案：</span>
@@ -653,13 +670,11 @@ shadow="never">
                 v-for="p in WEIGHT_PRESETS"
                 :key="p.id"
                 style="margin-right: 8px"
-                @click="
-                  weightForm = {
+                @click="weightForm = {
                     power_weight: p.power,
                     safety_weight: p.safety,
                     ecology_weight: p.eco,
-                  }
-                "
+                  }"
               >
                 {{ p.label }}
               </ElButton>
@@ -711,8 +726,7 @@ shadow="never">
             <div class="weight-summary">
               <span>合计：</span>
               <span :class="{ 'weight-summary--invalid': !weightValid }">{{ weightSum }}</span>
-              <span v-if="!weightValid"
-class="weight-summary--warn"
+              <span v-if="!weightValid" class="weight-summary--warn"
                 ><el-icon><Warning /></el-icon>三权重之和必须等于 1.0 才能保存</span
               >
             </div>
@@ -730,9 +744,7 @@ class="weight-summary--warn"
       </ElTabPane>
 
       <!-- ═══ Tab3: 模型管理 ═══ -->
-      <ElTabPane
-label="模型管理" name="models"
->
+      <ElTabPane label="模型管理" name="models">
         <div class="settings-toolbar">
           <ElInput
             v-model="modelKeyword"
@@ -742,11 +754,7 @@ label="模型管理" name="models"
             style="width: 220px"
             @input="onModelSearch()"
           />
-          <ElButton :icon="Refresh"
-@click="fetchModels"
->
-刷新
-</ElButton>
+          <ElButton :icon="Refresh" @click="fetchModels"> 刷新 </ElButton>
           <ElUpload
             ref="uploadRef"
             :http-request="handleUpload"
@@ -767,15 +775,13 @@ label="模型管理" name="models"
           border
           style="width: 100%; margin-top: 12px"
         >
-          <ElTableColumn prop="name"
-label="模型名称" min-width="150" />
+          <ElTableColumn prop="name" label="模型名称" min-width="150" />
           <ElTableColumn label="类型" width="100">
             <template #default="scope">
               {{ MODEL_TYPE_MAP[(scope.row as ModelInfo).type] ?? (scope.row as ModelInfo).type }}
             </template>
           </ElTableColumn>
-          <ElTableColumn prop="version"
-label="版本" width="80" />
+          <ElTableColumn prop="version" label="版本" width="80" />
           <ElTableColumn label="状态" width="90">
             <template #default="scope">
               <ElTag
@@ -797,14 +803,10 @@ label="版本" width="80" />
             </template>
           </ElTableColumn>
           <ElTableColumn prop="accuracy" label="准确率" width="80">
-            <template #default="scope">
-{{ (scope.row as ModelInfo).accuracy ?? '-' }}%
-</template>
+            <template #default="scope"> {{ (scope.row as ModelInfo).accuracy ?? '-' }}% </template>
           </ElTableColumn>
-          <ElTableColumn prop="size"
-label="大小(MB)" width="90" />
-          <ElTableColumn prop="deployed_nodes"
-label="已下发节点" width="100" />
+          <ElTableColumn prop="size" label="大小(MB)" width="90" />
+          <ElTableColumn prop="deployed_nodes" label="已下发节点" width="100" />
           <ElTableColumn label="操作" width="220" fixed="right">
             <template #default="scope">
               <ElButton
@@ -823,10 +825,7 @@ label="已下发节点" width="100" />
               >
                 回滚
               </ElButton>
-              <ElButton
-type="primary" link
-@click="router.push('/settings/ai/compare')"
->
+              <ElButton type="primary" link @click="router.push('/settings/ai/compare')">
                 对比
               </ElButton>
               <ElButton
@@ -861,9 +860,7 @@ type="primary" link
       <ElTabPane label="闸门互锁规则" name="gate-interlock" />
 
       <!-- ═══ Tab7: 用户管理 ═══ -->
-      <ElTabPane
-label="用户管理" name="users"
->
+      <ElTabPane label="用户管理" name="users">
         <div class="settings-toolbar">
           <ElInput
             v-model="userKeyword"
@@ -873,11 +870,7 @@ label="用户管理" name="users"
             style="width: 220px"
             @input="onUserSearch()"
           />
-          <ElButton :icon="Refresh"
-@click="fetchUsers"
->
-刷新
-</ElButton>
+          <ElButton :icon="Refresh" @click="fetchUsers"> 刷新 </ElButton>
           <ElButton
             type="primary"
             :icon="Plus"
@@ -894,18 +887,15 @@ label="用户管理" name="users"
           border
           style="width: 100%; margin-top: 12px"
         >
-          <ElTableColumn type="index"
-label="#" width="50" align="center" />
-          <ElTableColumn prop="account"
-label="用户名" min-width="100" />
-          <ElTableColumn prop="realname"
-label="姓名" min-width="80" />
+          <ElTableColumn type="index" label="#" width="50" align="center" />
+          <ElTableColumn prop="account" label="用户名" min-width="100" />
+          <ElTableColumn prop="realname" label="姓名" min-width="80" />
           <ElTableColumn label="角色" min-width="120" align="center">
             <template #default="scope">
               <ElTag>
                 {{
                   roleLabelMap[String((scope.row as SystemUser).role_id)] ??
-                    (scope.row as SystemUser).role_name
+                  (scope.row as SystemUser).role_name
                 }}
               </ElTag>
             </template>
@@ -920,10 +910,8 @@ label="姓名" min-width="80" />
               </ElTag>
             </template>
           </ElTableColumn>
-          <ElTableColumn prop="phone"
-label="手机号" min-width="120" />
-          <ElTableColumn prop="created_at"
-label="注册时间" min-width="150" />
+          <ElTableColumn prop="phone" label="手机号" min-width="120" />
+          <ElTableColumn prop="created_at" label="注册时间" min-width="150" />
           <ElTableColumn label="操作" width="260" fixed="right" align="center">
             <template #default="scope">
               <ElButton
@@ -933,11 +921,7 @@ label="注册时间" min-width="150" />
               >
                 编辑
               </ElButton>
-              <ElButton link
-@click="handleResetPwd(scope.row as SystemUser)"
->
-重置密码
-</ElButton>
+              <ElButton link @click="handleResetPwd(scope.row as SystemUser)"> 重置密码 </ElButton>
               <ElButton
                 v-if="(scope.row as SystemUser).is_enabled === 1"
                 type="warning"
@@ -946,16 +930,10 @@ label="注册时间" min-width="150" />
               >
                 锁定
               </ElButton>
-              <ElButton
-v-else type="success"
-link @click="handleUnlock(scope.row as SystemUser)"
->
+              <ElButton v-else type="success" link @click="handleUnlock(scope.row as SystemUser)">
                 解锁
               </ElButton>
-              <ElButton
-type="danger" link
-@click="handleDeleteUser(scope.row as SystemUser)"
->
+              <ElButton type="danger" link @click="handleDeleteUser(scope.row as SystemUser)">
                 删除
               </ElButton>
             </template>
@@ -978,18 +956,10 @@ type="danger" link
           width="480px"
         >
           <ElForm :model="userForm" label-width="80px">
-            <ElFormItem
-v-if="userDialogMode === 'create'" label="用户名"
-required
->
-              <ElInput
-v-model="userForm.account" placeholder="≥3位字母数字下划线"
-/>
+            <ElFormItem v-if="userDialogMode === 'create'" label="用户名" required>
+              <ElInput v-model="userForm.account" placeholder="≥3位字母数字下划线" />
             </ElFormItem>
-            <ElFormItem
-v-if="userDialogMode === 'create'" label="密码"
-required
->
+            <ElFormItem v-if="userDialogMode === 'create'" label="密码" required>
               <ElInput
                 v-model="userForm.password"
                 type="password"
@@ -997,17 +967,11 @@ required
                 show-password
               />
             </ElFormItem>
-            <ElFormItem
-label="姓名" required
->
-              <ElInput
-v-model="userForm.realname" placeholder="2-20个字符"
-maxlength="20"
-/>
+            <ElFormItem label="姓名" required>
+              <ElInput v-model="userForm.realname" placeholder="2-20个字符" maxlength="20" />
             </ElFormItem>
             <ElFormItem label="角色">
-              <ElSelect v-model="userForm.role_id"
-style="width: 100%">
+              <ElSelect v-model="userForm.role_id" style="width: 100%">
                 <ElOption
                   v-for="r in USER_ROLE_OPTIONS"
                   :key="r.value"
@@ -1017,16 +981,12 @@ style="width: 100%">
               </ElSelect>
             </ElFormItem>
             <ElFormItem label="手机号">
-              <ElInput
-v-model="userForm.phone" placeholder="11位手机号"
-maxlength="11"
-/>
+              <ElInput v-model="userForm.phone" placeholder="11位手机号" maxlength="11" />
             </ElFormItem>
           </ElForm>
           <template #footer>
             <ElButton @click="userDialogVisible = false"> 取消 </ElButton>
-            <ElButton
-type="primary" :loading="userSubmitting" @click="submitUser">
+            <ElButton type="primary" :loading="userSubmitting" @click="submitUser">
               {{ userDialogMode === 'create' ? '创建' : '保存' }}
             </ElButton>
           </template>
@@ -1037,6 +997,7 @@ type="primary" :loading="userSubmitting" @click="submitUser">
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 .settings-page {
   :deep(.el-table) {
     font-size: var(--font-size-base, 14px);
@@ -1067,7 +1028,9 @@ type="primary" :loading="userSubmitting" @click="submitUser">
   padding: var(--spacing-lg, 24px) 0;
 
   // 滑块动画效果
-  :deep(.el-slider__runway) { height: 8px; }
+  :deep(.el-slider__runway) {
+    height: 8px;
+  }
   :deep(.el-slider__bar) {
     height: 8px;
     transition: width 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
@@ -1077,7 +1040,10 @@ type="primary" :loading="userSubmitting" @click="submitUser">
       left 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
       transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
-  :deep(.el-slider__button) { width: 20px; height: 20px; }
+  :deep(.el-slider__button) {
+    width: 20px;
+    height: 20px;
+  }
 }
 .weight-presets {
   display: flex;

@@ -2,11 +2,24 @@
 import { ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ElSelect, ElOption, ElTable, ElTableColumn, ElButton, ElTag,
-  ElDialog, ElDescriptions, ElDescriptionsItem, ElMessage, ElMessageBox,
+  ElSelect,
+  ElOption,
+  ElTable,
+  ElTableColumn,
+  ElButton,
+  ElTag,
+  ElDialog,
+  ElDescriptions,
+  ElDescriptionsItem,
+  ElMessage,
+  ElMessageBox,
 } from 'element-plus'
 import type { PhysicsGuardHistoryItem } from '@/types/gateai'
-import { fetchReservoirOptions, fetchPhysicsGuardHistory, rollbackPhysicsGuard } from '@/api/gateaiSettings'
+import {
+  fetchReservoirOptions,
+  fetchPhysicsGuardHistory,
+  rollbackPhysicsGuard,
+} from '@/api/gateaiSettings'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,7 +34,9 @@ async function load() {
   loading.value = true
   try {
     list.value = await fetchPhysicsGuardHistory(reservoirId.value)
-  } finally { loading.value = false }
+  } finally {
+    loading.value = false
+  }
 }
 
 function openDetail(row: PhysicsGuardHistoryItem) {
@@ -53,7 +68,9 @@ async function handleRollback(row: PhysicsGuardHistoryItem) {
     await rollbackPhysicsGuard(reservoirId.value, row.id)
     ElMessage.success(`已回滚至 v${row.config_version}`)
     await load()
-  } catch { /* cancel */ }
+  } catch {
+    /* cancel */
+  }
 }
 
 watch(reservoirId, load)
@@ -69,17 +86,22 @@ onMounted(async () => {
   <div v-loading="loading" class="gateai-panel">
     <div class="gateai-panel__toolbar">
       <span>水库</span>
-      <ElSelect v-model="reservoirId" style="width:200px">
+      <ElSelect v-model="reservoirId" style="width: 200px">
         <ElOption v-for="r in reservoirs" :key="r.id" :label="r.name" :value="r.id" />
       </ElSelect>
       <ElButton type="primary" link @click="goPhysicsGuardConfig">返回配置管理</ElButton>
     </div>
 
-    <ElTable :data="list" stripe border style="width:100%">
+    <ElTable :data="list" stripe border style="width: 100%">
       <ElTableColumn prop="config_version" label="版本号" min-width="120">
         <template #default="{ row }">
           <span>v{{ (row as PhysicsGuardHistoryItem).config_version }}</span>
-          <ElTag v-if="(row as PhysicsGuardHistoryItem).is_active" type="success" style="margin-left:8px">当前</ElTag>
+          <ElTag
+            v-if="(row as PhysicsGuardHistoryItem).is_active"
+            type="success"
+            style="margin-left: 8px"
+            >当前</ElTag
+          >
         </template>
       </ElTableColumn>
       <ElTableColumn prop="changed_at" label="变更时间" min-width="190" />
@@ -87,12 +109,16 @@ onMounted(async () => {
       <ElTableColumn prop="description" label="变更说明" min-width="280" show-overflow-tooltip />
       <ElTableColumn label="操作" min-width="150" fixed="right" align="center">
         <template #default="{ row }">
-          <ElButton link type="primary" @click="openDetail(row as PhysicsGuardHistoryItem)">详情</ElButton>
+          <ElButton link type="primary" @click="openDetail(row as PhysicsGuardHistoryItem)"
+            >详情</ElButton
+          >
           <ElButton
             v-if="!(row as PhysicsGuardHistoryItem).is_active"
-            link type="warning"
+            link
+            type="warning"
             @click="handleRollback(row as PhysicsGuardHistoryItem)"
-          >回滚</ElButton>
+            >回滚</ElButton
+          >
         </template>
       </ElTableColumn>
     </ElTable>
@@ -105,7 +131,7 @@ onMounted(async () => {
           <ElDescriptionsItem label="变更人">{{ detailRow.changed_by_name }}</ElDescriptionsItem>
           <ElDescriptionsItem label="说明">{{ detailRow.description }}</ElDescriptionsItem>
         </ElDescriptions>
-        <ElTable :data="detailRow.changes" stripe border style="margin-top:14px">
+        <ElTable :data="detailRow.changes" stripe border style="margin-top: 14px">
           <ElTableColumn prop="label" label="字段" width="160" />
           <ElTableColumn label="变更前" min-width="100">
             <template #default="{ row }">{{ row.before }}</template>

@@ -26,19 +26,27 @@ let timer: ReturnType<typeof setInterval> | null = null
 
 // ── D-85 环形图颜色 ──
 const GRADE_COLORS: Record<string, string> = {
-  S: '#52c41a', A: '#1890ff', B: '#faad14', C: '#fa8c16', D: '#f5222d',
+  S: '#52c41a',
+  A: '#1890ff',
+  B: '#faad14',
+  C: '#fa8c16',
+  D: '#f5222d',
 }
 
 const GRADE_LABEL: Record<string, string> = {
-  S: 'S级·完全自主', A: 'A级·自主为主', B: 'B级·建议模式', C: 'C级·强制人工', D: 'D级·自动冻结',
+  S: 'S级·完全自主',
+  A: 'A级·自主为主',
+  B: 'B级·建议模式',
+  C: 'C级·强制人工',
+  D: 'D级·自动冻结',
 }
 
 const SEGMENTS = [
-  { grade: 'D', min: 0.00, max: 0.40, color: GRADE_COLORS.D },
-  { grade: 'C', min: 0.40, max: 0.55, color: GRADE_COLORS.C },
-  { grade: 'B', min: 0.55, max: 0.70, color: GRADE_COLORS.B },
-  { grade: 'A', min: 0.70, max: 0.85, color: GRADE_COLORS.A },
-  { grade: 'S', min: 0.85, max: 1.00, color: GRADE_COLORS.S },
+  { grade: 'D', min: 0.0, max: 0.4, color: GRADE_COLORS.D },
+  { grade: 'C', min: 0.4, max: 0.55, color: GRADE_COLORS.C },
+  { grade: 'B', min: 0.55, max: 0.7, color: GRADE_COLORS.B },
+  { grade: 'A', min: 0.7, max: 0.85, color: GRADE_COLORS.A },
+  { grade: 'S', min: 0.85, max: 1.0, color: GRADE_COLORS.S },
 ] as const
 
 // ── SVG 几何参数 ──
@@ -47,8 +55,8 @@ const CX = 100
 const CY = 105
 const OUTER_R = 82
 const INNER_R = 68
-const GAUGE_START_DEG = 130  // SVG 角度 (0=3点钟, CW)
-const GAUGE_SPAN_DEG = 280    // 覆盖 280°
+const GAUGE_START_DEG = 130 // SVG 角度 (0=3点钟, CW)
+const GAUGE_SPAN_DEG = 280 // 覆盖 280°
 
 function scoreToAngle(score: number): number {
   return ((GAUGE_START_DEG + score * GAUGE_SPAN_DEG) * Math.PI) / 180
@@ -85,9 +93,27 @@ const pointerBase2 = computed(() => polar(CX, CY, 20, pointerAngle.value - 0.3))
 const dimensionBars = computed(() => {
   if (!currentData.value) return []
   return [
-    { key: 'prediction', label: EVAL_DIMENSIONS.prediction.label, weight: EVAL_DIMENSIONS.prediction.weight, score: currentData.value.prediction_score, color: EVAL_DIMENSIONS.prediction.color },
-    { key: 'decision', label: EVAL_DIMENSIONS.decision.label, weight: EVAL_DIMENSIONS.decision.weight, score: currentData.value.decision_score, color: EVAL_DIMENSIONS.decision.color },
-    { key: 'compliance', label: EVAL_DIMENSIONS.compliance.label, weight: EVAL_DIMENSIONS.compliance.weight, score: currentData.value.compliance_score, color: EVAL_DIMENSIONS.compliance.color },
+    {
+      key: 'prediction',
+      label: EVAL_DIMENSIONS.prediction.label,
+      weight: EVAL_DIMENSIONS.prediction.weight,
+      score: currentData.value.prediction_score,
+      color: EVAL_DIMENSIONS.prediction.color,
+    },
+    {
+      key: 'decision',
+      label: EVAL_DIMENSIONS.decision.label,
+      weight: EVAL_DIMENSIONS.decision.weight,
+      score: currentData.value.decision_score,
+      color: EVAL_DIMENSIONS.decision.color,
+    },
+    {
+      key: 'compliance',
+      label: EVAL_DIMENSIONS.compliance.label,
+      weight: EVAL_DIMENSIONS.compliance.weight,
+      score: currentData.value.compliance_score,
+      color: EVAL_DIMENSIONS.compliance.color,
+    },
   ]
 })
 
@@ -116,7 +142,9 @@ watch(flashTrigger, async () => {
   // 闪烁动画
   isFlashing.value = true
   await nextTick()
-  setTimeout(() => { isFlashing.value = false }, 2400)
+  setTimeout(() => {
+    isFlashing.value = false
+  }, 2400)
 })
 
 // ── 获取数据 ──
@@ -138,8 +166,11 @@ async function fetchData() {
         rollbackVersion.value = null
       }
     }
-  } catch { /* 静默 */ }
-  finally { loading.value = false }
+  } catch {
+    /* 静默 */
+  } finally {
+    loading.value = false
+  }
 }
 
 function onReservoirChange() {
@@ -166,12 +197,7 @@ onBeforeUnmount(() => {
     <!-- 标题 + 水库切换 (D-91) -->
     <div class="ai-health-ring__header">
       <h3 class="ai-health-ring__title" @click="drillDown">AI 模型健康度</h3>
-      <ElSelect
-        v-model="reservoirId"
-        size="small"
-        style="width: 130px"
-        @change="onReservoirChange"
-      >
+      <ElSelect v-model="reservoirId" size="small" style="width: 130px" @change="onReservoirChange">
         <ElOption
           v-for="opt in RESERVOIR_OPTIONS"
           :key="opt.value"
@@ -258,7 +284,12 @@ onBeforeUnmount(() => {
 
       <!-- 等级图例 -->
       <div class="ai-health-ring__grade-legend">
-        <span v-for="g in ['S','A','B','C','D']" :key="g" class="ai-health-ring__grade-dot" :style="{ color: GRADE_COLORS[g] }">
+        <span
+          v-for="g in ['S', 'A', 'B', 'C', 'D']"
+          :key="g"
+          class="ai-health-ring__grade-dot"
+          :style="{ color: GRADE_COLORS[g] }"
+        >
           {{ g }}
         </span>
       </div>
@@ -266,11 +297,7 @@ onBeforeUnmount(() => {
 
     <!-- D-86: 三维评分子环 -->
     <div class="ai-health-ring__dimensions">
-      <div
-        v-for="dim in dimensionBars"
-        :key="dim.key"
-        class="ai-health-ring__dim"
-      >
+      <div v-for="dim in dimensionBars" :key="dim.key" class="ai-health-ring__dim">
         <div class="ai-health-ring__dim-head">
           <span class="ai-health-ring__dim-label">{{ dim.label }}</span>
           <span class="ai-health-ring__dim-weight">权重 {{ dim.weight.toFixed(2) }}</span>
@@ -299,9 +326,7 @@ onBeforeUnmount(() => {
     </Transition>
 
     <!-- 点击下钻提示 -->
-    <div class="ai-health-ring__drilldown-hint" @click="drillDown">
-      查看模型健康度仪表盘 →
-    </div>
+    <div class="ai-health-ring__drilldown-hint" @click="drillDown">查看模型健康度仪表盘 →</div>
   </div>
 </template>
 
@@ -326,7 +351,9 @@ onBeforeUnmount(() => {
     color: #1e293b;
     cursor: pointer;
 
-    &:hover { color: #3b82f6; }
+    &:hover {
+      color: #3b82f6;
+    }
   }
 
   // ── SVG 环形 ──
@@ -394,8 +421,13 @@ onBeforeUnmount(() => {
   }
 
   @keyframes flash-ring {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.35; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
   }
 
   // ── 等级图例 ──
@@ -499,7 +531,9 @@ onBeforeUnmount(() => {
     padding: 0 2px;
     opacity: 0.6;
 
-    &:hover { opacity: 1; }
+    &:hover {
+      opacity: 1;
+    }
   }
 
   // ── 下钻提示 ──

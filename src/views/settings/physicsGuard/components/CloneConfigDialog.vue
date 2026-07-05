@@ -45,10 +45,7 @@ const filteredTargetOptions = computed(() =>
     <div class="clone-form">
       <div class="clone-field">
         <label>源水库（当前配置）</label>
-        <ElSelect
-v-model="sourceReservoirId" style="width: 100%"
-disabled
->
+        <ElSelect v-model="sourceReservoirId" style="width: 100%" disabled>
           <ElOption
             v-for="opt in RESERVOIR_OPTIONS"
             :key="opt.value"
@@ -60,10 +57,7 @@ disabled
 
       <div class="clone-field">
         <label>目标水库</label>
-        <ElSelect
-v-model="targetReservoirId" placeholder="选择目标水库"
-style="width: 100%"
->
+        <ElSelect v-model="targetReservoirId" placeholder="选择目标水库" style="width: 100%">
           <ElOption
             v-for="opt in filteredTargetOptions"
             :key="opt.value"
@@ -76,10 +70,7 @@ style="width: 100%"
 
     <template #footer>
       <ElButton @click="emit('update:visible', false)"> 取消 </ElButton>
-      <ElButton
-type="primary" :disabled="!targetReservoirId"
-@click="handleClone"
->
+      <ElButton type="primary" :disabled="!targetReservoirId" @click="handleClone">
         克隆配置
       </ElButton>
     </template>

@@ -61,8 +61,14 @@ const route = useRoute()
 const router = useRouter()
 
 const SETTINGS_TAB_NAMES = [
-  'thresholds', 'weights', 'models', 'ai-metrics',
-  'physics-guard', 'physics-guard-history', 'gate-interlock', 'users',
+  'thresholds',
+  'weights',
+  'models',
+  'ai-metrics',
+  'physics-guard',
+  'physics-guard-history',
+  'gate-interlock',
+  'users',
 ] as const
 
 // ── 5. 响应式数据 ──
@@ -786,15 +792,13 @@ onMounted(() => {
   <div class="page settings-page">
     <ElTabs v-model="activeTab" type="border-card" class="settings-page__tabs">
       <!-- ═══ Tab1: 告警阈值 ═══ -->
-      <ElTabPane
-label="告警阈值配置" name="thresholds"
->
+      <ElTabPane label="告警阈值配置" name="thresholds">
         <ElTable v-loading="thresholdsLoading" :data="thresholds" style="width: 100%">
           <ElTableColumn prop="metric" label="监控指标" min-width="140">
             <template #default="scope">
               {{
                 metricLabelMap[(scope.row as ThresholdRule).metric] ??
-                  (scope.row as ThresholdRule).metric
+                (scope.row as ThresholdRule).metric
               }}
             </template>
           </ElTableColumn>
@@ -855,7 +859,7 @@ label="告警阈值配置" name="thresholds"
                 :max="120"
                 :step="5"
                 controls-position="right"
-style="width:105px"
+                style="width: 105px"
               />
               <span v-else>{{ (scope.row as ThresholdRule).debounce_seconds }}s</span>
             </template>
@@ -868,9 +872,7 @@ style="width:105px"
                 :active-value="1"
                 :inactive-value="0"
               />
-              <ElTag
-v-else :type="(scope.row as ThresholdRule).enabled === 1 ? 'success' : 'info'"
->
+              <ElTag v-else :type="(scope.row as ThresholdRule).enabled === 1 ? 'success' : 'info'">
                 {{ (scope.row as ThresholdRule).enabled === 1 ? '启用' : '停用' }}
               </ElTag>
             </template>
@@ -909,11 +911,8 @@ v-else :type="(scope.row as ThresholdRule).enabled === 1 ? 'success' : 'info'"
       </ElTabPane>
 
       <!-- ═══ Tab2: 多目标权重 ═══ -->
-      <ElTabPane
-label="多目标权重配置" name="weights"
->
-        <ElCard v-loading="weightLoading"
-class="settings-page__weight-card" shadow="never">
+      <ElTabPane label="多目标权重配置" name="weights">
+        <ElCard v-loading="weightLoading" class="settings-page__weight-card" shadow="never">
           <div class="weight-section">
             <div class="weight-presets">
               <span class="weight-label">预设方案：</span>
@@ -973,8 +972,7 @@ class="settings-page__weight-card" shadow="never">
             <div class="weight-summary">
               <span>合计：</span>
               <span :class="{ 'weight-summary--invalid': !weightValid }">{{ weightSum }}</span>
-              <span v-if="!weightValid"
-class="weight-summary--warn"
+              <span v-if="!weightValid" class="weight-summary--warn"
                 ><el-icon><Warning /></el-icon>三权重之和必须等于 1.0 才能保存</span
               >
             </div>
@@ -992,9 +990,7 @@ class="weight-summary--warn"
       </ElTabPane>
 
       <!-- ═══ Tab3: 模型管理 ═══ -->
-      <ElTabPane
-label="模型管理" name="models"
->
+      <ElTabPane label="模型管理" name="models">
         <div class="settings-page__toolbar">
           <ElInput
             v-model="modelKeyword"
@@ -1004,11 +1000,7 @@ label="模型管理" name="models"
             style="width: 220px"
             @input="modelsPage = 1; fetchModels()"
           />
-          <ElButton :icon="Refresh"
-@click="fetchModels"
->
-刷新
-</ElButton>
+          <ElButton :icon="Refresh" @click="fetchModels"> 刷新 </ElButton>
           <ElUpload
             ref="uploadRef"
             :http-request="handleUpload"
@@ -1082,10 +1074,8 @@ label="模型管理" name="models"
           <ElTableColumn prop="accuracy" label="准确率" width="80">
             <template #default="scope"> {{ (scope.row as ModelInfo).accuracy ?? '-' }}% </template>
           </ElTableColumn>
-          <ElTableColumn prop="size"
-label="大小(MB)" width="90" />
-          <ElTableColumn prop="deployed_nodes"
-label="已下发节点" width="100" />
+          <ElTableColumn prop="size" label="大小(MB)" width="90" />
+          <ElTableColumn prop="deployed_nodes" label="已下发节点" width="100" />
           <ElTableColumn label="操作" width="240" fixed="right">
             <template #default="scope">
               <ElButton
@@ -1104,10 +1094,7 @@ label="已下发节点" width="100" />
               >
                 回滚
               </ElButton>
-              <ElButton
-type="primary" link
-@click="handleDeployModel((scope.row as ModelInfo).id)"
->
+              <ElButton type="primary" link @click="handleDeployModel((scope.row as ModelInfo).id)">
                 下发
               </ElButton>
               <ElButton
@@ -1171,11 +1158,7 @@ type="primary" link
             style="width: 220px"
             @input="usersPage = 1; fetchUsers()"
           />
-          <ElButton :icon="Refresh"
-@click="fetchUsers"
->
-刷新
-</ElButton>
+          <ElButton :icon="Refresh" @click="fetchUsers"> 刷新 </ElButton>
           <ElButton
             type="primary"
             :icon="Plus"
@@ -1193,12 +1176,9 @@ type="primary" link
           style="width: 100%; margin-top: 12px"
           table-layout="auto"
         >
-          <ElTableColumn type="index"
-label="#" width="50" align="center" />
-          <ElTableColumn prop="account"
-label="用户名" min-width="100" />
-          <ElTableColumn prop="realname"
-label="姓名" min-width="80" />
+          <ElTableColumn type="index" label="#" width="50" align="center" />
+          <ElTableColumn prop="account" label="用户名" min-width="100" />
+          <ElTableColumn prop="realname" label="姓名" min-width="80" />
           <ElTableColumn label="角色" min-width="110" align="center">
             <template #default="scope">
               <ElTag type="info">
@@ -1219,10 +1199,8 @@ label="姓名" min-width="80" />
               </ElTag>
             </template>
           </ElTableColumn>
-          <ElTableColumn prop="phone"
-label="手机号" min-width="120" />
-          <ElTableColumn prop="created_at"
-label="注册时间" min-width="150" />
+          <ElTableColumn prop="phone" label="手机号" min-width="120" />
+          <ElTableColumn prop="created_at" label="注册时间" min-width="150" />
           <ElTableColumn label="操作" width="240" fixed="right" align="center">
             <template #default="scope">
               <ElButton
@@ -1232,11 +1210,7 @@ label="注册时间" min-width="150" />
               >
                 编辑
               </ElButton>
-              <ElButton link
-@click="handleResetPwd(scope.row as SystemUser)"
->
-重置
-</ElButton>
+              <ElButton link @click="handleResetPwd(scope.row as SystemUser)"> 重置 </ElButton>
               <ElButton
                 v-if="(scope.row as SystemUser).is_enabled === 1"
                 type="warning"
@@ -1245,16 +1219,10 @@ label="注册时间" min-width="150" />
               >
                 锁定
               </ElButton>
-              <ElButton
-v-else type="success"
-link @click="handleUnlock(scope.row as SystemUser)"
->
+              <ElButton v-else type="success" link @click="handleUnlock(scope.row as SystemUser)">
                 解锁
               </ElButton>
-              <ElButton
-type="danger" link
-@click="handleDelete(scope.row as SystemUser)"
->
+              <ElButton type="danger" link @click="handleDelete(scope.row as SystemUser)">
                 删除
               </ElButton>
             </template>
@@ -1282,25 +1250,17 @@ type="danger" link
             :rules="
               userDialogMode === 'create'
                 ? {
-                  account: FORM_RULES.account,
-                  password: FORM_RULES.password,
-                  realname: FORM_RULES.realname,
-                }
+                    account: FORM_RULES.account,
+                    password: FORM_RULES.password,
+                    realname: FORM_RULES.realname,
+                  }
                 : { realname: FORM_RULES.realname }
             "
           >
-            <ElFormItem
-v-if="userDialogMode === 'create'" label="用户名"
-prop="account"
->
-              <ElInput
-v-model="userForm.account" placeholder="≥3位字母数字下划线"
-/>
+            <ElFormItem v-if="userDialogMode === 'create'" label="用户名" prop="account">
+              <ElInput v-model="userForm.account" placeholder="≥3位字母数字下划线" />
             </ElFormItem>
-            <ElFormItem
-v-if="userDialogMode === 'create'" label="密码"
-prop="password"
->
+            <ElFormItem v-if="userDialogMode === 'create'" label="密码" prop="password">
               <ElInput
                 v-model="userForm.password"
                 type="password"
@@ -1308,17 +1268,11 @@ prop="password"
                 show-password
               />
             </ElFormItem>
-            <ElFormItem
-label="姓名" prop="realname"
->
-              <ElInput
-v-model="userForm.realname" placeholder="2-20个字符"
-maxlength="20"
-/>
+            <ElFormItem label="姓名" prop="realname">
+              <ElInput v-model="userForm.realname" placeholder="2-20个字符" maxlength="20" />
             </ElFormItem>
             <ElFormItem label="角色">
-              <ElSelect v-model="userForm.role_id"
-style="width: 100%">
+              <ElSelect v-model="userForm.role_id" style="width: 100%">
                 <ElOption
                   v-for="r in roleOptions"
                   :key="r.value"
@@ -1328,10 +1282,7 @@ style="width: 100%">
               </ElSelect>
             </ElFormItem>
             <ElFormItem label="手机号">
-              <ElInput
-v-model="userForm.phone" placeholder="11位手机号"
-maxlength="11"
-/>
+              <ElInput v-model="userForm.phone" placeholder="11位手机号" maxlength="11" />
             </ElFormItem>
           </ElForm>
           <template #footer>
@@ -1347,6 +1298,7 @@ maxlength="11"
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 .settings-page {
   // 全局提大表格字号
   :deep(.el-table) {
@@ -1477,7 +1429,6 @@ maxlength="11"
   gap: 8px;
   justify-content: center;
 }
-
 
 // 阈值表格编辑按钮区
 </style>

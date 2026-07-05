@@ -14,15 +14,27 @@ const editVisible = ref(false)
 const loading = ref(false)
 
 const avatarChar = computed(() => {
-  const name = profileStore.userInfo?.realname || userStore.userInfo?.nickname || userStore.userInfo?.username || '用户'
+  const name =
+    profileStore.userInfo?.realname ||
+    userStore.userInfo?.nickname ||
+    userStore.userInfo?.username ||
+    '用户'
   return name.charAt(0)
 })
 
 const username = computed(() => userStore.userInfo?.username ?? '未知')
-const realname = computed(() => profileStore.userInfo?.realname || userStore.userInfo?.nickname || '-')
+const realname = computed(
+  () => profileStore.userInfo?.realname || userStore.userInfo?.nickname || '-',
+)
 
 const roleLabel = computed(() => {
-  const map: Record<string, string> = { operator: '值班运维', dispatcher: '调度工程师', manager: '站长/管理', admin: '系统管理员', algorithm_engineer: '算法工程师' }
+  const map: Record<string, string> = {
+    operator: '值班运维',
+    dispatcher: '调度工程师',
+    manager: '站长/管理',
+    admin: '系统管理员',
+    algorithm_engineer: '算法工程师',
+  }
   const roles = userStore.userInfo?.roles ?? []
   return roles.map((r) => map[r] ?? r).join('、') || '未分配'
 })
@@ -30,7 +42,9 @@ const roleLabel = computed(() => {
 const email = computed(() => profileStore.userInfo?.email || '未填写')
 const phone = computed(() => profileStore.userInfo?.phone || '未填写')
 const registerTime = computed(() => profileStore.userInfo?.created_at || '-')
-const currentAvatarUrl = computed(() => profileStore.userInfo?.avatar || userStore.userInfo?.avatar || '')
+const currentAvatarUrl = computed(
+  () => profileStore.userInfo?.avatar || userStore.userInfo?.avatar || '',
+)
 
 function initProfile() {
   loading.value = true
@@ -41,28 +55,31 @@ function initProfile() {
       realname: userStore.userInfo?.nickname ?? '管理员',
       avatar: '',
       role_name: (userStore.userInfo?.roles ?? ['admin'])[0],
-      phone: '未填写', email: '未填写',
+      phone: '未填写',
+      email: '未填写',
       created_at: new Date().toISOString().slice(0, 10),
     })
   }
   loading.value = false
 }
 
-function openEditDialog() { editVisible.value = true }
-function onProfileSaved() { initProfile() }
-onMounted(() => { initProfile() })
+function openEditDialog() {
+  editVisible.value = true
+}
+function onProfileSaved() {
+  initProfile()
+}
+onMounted(() => {
+  initProfile()
+})
 </script>
 
 <template>
-  <ElCard
-v-loading="loading" class="profile-card"
-shadow="never"
->
+  <ElCard v-loading="loading" class="profile-card" shadow="never">
     <template #header>
       <div class="profile-card__header">
         <span>个人信息</span>
-        <ElButton
-type="primary" @click="openEditDialog"> 编辑 </ElButton>
+        <ElButton type="primary" @click="openEditDialog"> 编辑 </ElButton>
       </div>
     </template>
 

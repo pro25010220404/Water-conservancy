@@ -105,47 +105,29 @@ onMounted(() => {
       />
     </div>
 
-    <ElTable
-v-loading="loading" :data="data"
-border stripe style="width: 100%"
->
+    <ElTable v-loading="loading" :data="data" border stripe style="width: 100%">
       <ElTableColumn prop="hour" label="时间段" min-width="150" align="center" />
-      <ElTableColumn
-prop="prediction_score" label="预测准确性得分"
-min-width="120" align="center"
->
+      <ElTableColumn prop="prediction_score" label="预测准确性得分" min-width="120" align="center">
         <template #default="scope">
           {{ ((scope.row as MetricsDetailItem).prediction_score * 100).toFixed(1) }}%
         </template>
       </ElTableColumn>
-      <ElTableColumn
-prop="decision_score" label="决策可靠性得分"
-min-width="120" align="center"
->
+      <ElTableColumn prop="decision_score" label="决策可靠性得分" min-width="120" align="center">
         <template #default="scope">
           {{ ((scope.row as MetricsDetailItem).decision_score * 100).toFixed(1) }}%
         </template>
       </ElTableColumn>
-      <ElTableColumn
-prop="compliance_score" label="物理合规性得分"
-min-width="120" align="center"
->
+      <ElTableColumn prop="compliance_score" label="物理合规性得分" min-width="120" align="center">
         <template #default="scope">
           {{ ((scope.row as MetricsDetailItem).compliance_score * 100).toFixed(1) }}%
         </template>
       </ElTableColumn>
-      <ElTableColumn
-prop="overall_score" label="综合评分"
-min-width="110" align="center"
->
+      <ElTableColumn prop="overall_score" label="综合评分" min-width="110" align="center">
         <template #default="scope">
           {{ ((scope.row as MetricsDetailItem).overall_score * 100).toFixed(1) }}%
         </template>
       </ElTableColumn>
-      <ElTableColumn
-prop="health_grade" label="健康等级"
-width="100" align="center"
->
+      <ElTableColumn prop="health_grade" label="健康等级" width="100" align="center">
         <template #default="scope">
           <ElTag
             :type="getGradeTagClass((scope.row as MetricsDetailItem).health_grade)"
@@ -157,26 +139,17 @@ width="100" align="center"
           </ElTag>
         </template>
       </ElTableColumn>
-      <ElTableColumn
-prop="water_level_mae" label="水位MAE"
-min-width="100" align="center"
->
+      <ElTableColumn prop="water_level_mae" label="水位MAE" min-width="100" align="center">
         <template #default="scope">
           {{ (scope.row as MetricsDetailItem).water_level_mae.toFixed(3) }}m
         </template>
       </ElTableColumn>
-      <ElTableColumn
-prop="safety_coverage_rate" label="安全覆盖率"
-min-width="110" align="center"
->
+      <ElTableColumn prop="safety_coverage_rate" label="安全覆盖率" min-width="110" align="center">
         <template #default="scope">
           {{ ((scope.row as MetricsDetailItem).safety_coverage_rate * 100).toFixed(1) }}%
         </template>
       </ElTableColumn>
-      <ElTableColumn
-prop="decision_auto_rate" label="决策自主率"
-min-width="110" align="center"
->
+      <ElTableColumn prop="decision_auto_rate" label="决策自主率" min-width="110" align="center">
         <template #default="scope">
           {{ ((scope.row as MetricsDetailItem).decision_auto_rate * 100).toFixed(1) }}%
         </template>

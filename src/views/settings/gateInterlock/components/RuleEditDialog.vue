@@ -126,28 +126,19 @@ const reservoirOpts = RESERVOIR_OPTIONS
     :close-on-click-modal="false"
     @update:model-value="(val: boolean) => emit('update:visible', val)"
   >
-    <ElForm
-:model="form" label-width="100px"
->
-      <ElFormItem label="规则名称"
-required>
-        <ElInput v-model="form.name"
-placeholder="请输入规则名称" maxlength="50" />
+    <ElForm :model="form" label-width="100px">
+      <ElFormItem label="规则名称" required>
+        <ElInput v-model="form.name" placeholder="请输入规则名称" maxlength="50" />
       </ElFormItem>
 
       <ElFormItem label="说明">
-        <ElInput v-model="form.description"
-type="textarea" :rows="2" placeholder="规则说明" />
+        <ElInput v-model="form.description" type="textarea" :rows="2" placeholder="规则说明" />
       </ElFormItem>
 
       <ElFormItem label="作用范围">
         <ElRadioGroup v-model="form.scope">
-          <ElRadio value="global">
-全局默认
-</ElRadio>
-          <ElRadio value="reservoir">
-水库专属
-</ElRadio>
+          <ElRadio value="global"> 全局默认 </ElRadio>
+          <ElRadio value="reservoir"> 水库专属 </ElRadio>
         </ElRadioGroup>
         <ElSelect
           v-if="form.scope === 'reservoir'"
@@ -170,8 +161,7 @@ type="textarea" :rows="2" placeholder="规则说明" />
       <div class="conditions-section">
         <div class="section-header">
           <span class="section-title">触发条件</span>
-          <ElButton :icon="Plus"
-size="small" type="primary" @click="addCondition">
+          <ElButton :icon="Plus" size="small" type="primary" @click="addCondition">
             添加条件
           </ElButton>
         </div>
@@ -192,8 +182,7 @@ size="small" type="primary" @click="addCondition">
       <div class="conditions-section">
         <div class="section-header">
           <span class="section-title">约束动作</span>
-          <ElButton :icon="Plus"
-size="small" type="primary" @click="addConstraint">
+          <ElButton :icon="Plus" size="small" type="primary" @click="addConstraint">
             添加动作
           </ElButton>
         </div>
@@ -211,9 +200,7 @@ size="small" type="primary" @click="addConstraint">
 
     <template #footer>
       <ElButton @click="emit('update:visible', false)"> 取消 </ElButton>
-      <ElButton
-type="primary" @click="handleSave"
->
+      <ElButton type="primary" @click="handleSave">
         {{ isEdit ? '保存' : '创建' }}
       </ElButton>
     </template>

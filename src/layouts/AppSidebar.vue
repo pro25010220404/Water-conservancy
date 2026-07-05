@@ -6,8 +6,18 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMenu, ElMenuItem, ElSubMenu, ElIcon } from 'element-plus'
 import {
-  Monitor, Ship, Switch, DataAnalysis, VideoCamera,
-  Clock, Warning, Operation, Cpu, SetUp, Setting, User,
+  Monitor,
+  Ship,
+  Switch,
+  DataAnalysis,
+  VideoCamera,
+  Clock,
+  Warning,
+  Operation,
+  Cpu,
+  SetUp,
+  Setting,
+  User,
 } from '@element-plus/icons-vue'
 import { MENU_ITEMS } from '@/constants'
 import { usePermission } from '@/composables/usePermission'
@@ -20,8 +30,18 @@ const route = useRoute()
 const { hasRoutePermission } = usePermission()
 
 const iconMap: Record<string, any> = {
-  Monitor, Ship, Switch, DataAnalysis, VideoCamera,
-  Clock, Warning, Operation, Cpu, SetUp, Setting, User,
+  Monitor,
+  Ship,
+  Switch,
+  DataAnalysis,
+  VideoCamera,
+  Clock,
+  Warning,
+  Operation,
+  Cpu,
+  SetUp,
+  Setting,
+  User,
 }
 
 const visibleMenus = computed(() =>
@@ -96,7 +116,7 @@ const visibleMenus = computed(() =>
     background: var(--color-layout-blue-active) !important;
     color: var(--color-layout-blue-brand) !important;
     font-weight: 600;
-    border-left: 3px solid var(--color-layout-blue-active-border);
+    border-left: none;
     box-shadow: inset 0 0 24px rgba(110, 179, 255, 0.12);
   }
 

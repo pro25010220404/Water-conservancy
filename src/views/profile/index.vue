@@ -87,6 +87,7 @@ onMounted(() => {
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 .profile-page {
   max-width: var(--content-max-width, 1200px);
   margin: 0 auto;

@@ -181,10 +181,8 @@ onMounted(() => {
 
     <!-- Bottom actions -->
     <div class="bottom-actions">
-      <ElButton
-type="primary" :loading="isSaving" @click="handleSave"> 保存配置 </ElButton>
-      <ElButton
-:disabled="!isDirty" @click="handleReset"> 重置修改 </ElButton>
+      <ElButton type="primary" :loading="isSaving" @click="handleSave"> 保存配置 </ElButton>
+      <ElButton :disabled="!isDirty" @click="handleReset"> 重置修改 </ElButton>
       <ElButton @click="cloneDialogVisible = true"> 克隆配置到其他水库 </ElButton>
     </div>
 

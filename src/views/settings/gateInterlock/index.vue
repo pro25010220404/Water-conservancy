@@ -185,8 +185,7 @@ onMounted(() => {
             :value="opt.value"
           />
         </ElSelect>
-        <ElButton
-type="primary" :icon="Plus" @click="handleNew"> 新建规则 </ElButton>
+        <ElButton type="primary" :icon="Plus" @click="handleNew"> 新建规则 </ElButton>
       </div>
     </div>
 
@@ -208,6 +207,7 @@ type="primary" :icon="Plus" @click="handleNew"> 新建规则 </ElButton>
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 .gate-interlock-page {
   padding: var(--spacing-md);
 }

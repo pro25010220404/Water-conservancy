@@ -587,6 +587,7 @@ onUnmounted(() => {
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 @use '@/assets/styles/cockpit.scss' as *;
 
 .sim-page--twin.sim-page--sky {

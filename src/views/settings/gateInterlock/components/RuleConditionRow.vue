@@ -98,10 +98,7 @@ function updateConstraintType(val: string) {
     />
 
     <!-- Remove button -->
-    <ElButton
-:icon="Delete" circle
-size="small" type="danger" @click="emit('remove')"
-/>
+    <ElButton :icon="Delete" circle size="small" type="danger" @click="emit('remove')" />
   </div>
 </template>
 

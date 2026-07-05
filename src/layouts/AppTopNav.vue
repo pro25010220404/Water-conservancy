@@ -13,8 +13,9 @@ const { hasRoutePermission } = usePermission()
 
 const cockpitMenus = computed(() =>
   MENU_ITEMS.filter(
-    (item) => COCKPIT_MODULE_PATHS.includes(item.path as (typeof COCKPIT_MODULE_PATHS)[number])
-      && hasRoutePermission(item.path),
+    (item) =>
+      COCKPIT_MODULE_PATHS.includes(item.path as (typeof COCKPIT_MODULE_PATHS)[number]) &&
+      hasRoutePermission(item.path),
   ),
 )
 

@@ -67,26 +67,15 @@ const changedCount = computed(() => diffRows.value.filter((r) => r.changed).leng
     width="700px"
     @update:model-value="(val: boolean) => emit('update:visible', val)"
   >
-    <ElTable
-:data="diffRows" max-height="400"
-border stripe size="small"
->
-      <ElTableColumn
-prop="section" label="配置分组"
-width="140"
-/>
-      <ElTableColumn
-prop="fieldLabel" label="字段"
-min-width="180"
-/>
-      <ElTableColumn label="旧值"
-width="120" align="center">
+    <ElTable :data="diffRows" max-height="400" border stripe size="small">
+      <ElTableColumn prop="section" label="配置分组" width="140" />
+      <ElTableColumn prop="fieldLabel" label="字段" min-width="180" />
+      <ElTableColumn label="旧值" width="120" align="center">
         <template #default="scope">
           {{ (scope.row as DiffRow).oldValue }}
         </template>
       </ElTableColumn>
-      <ElTableColumn label="新值"
-width="120" align="center">
+      <ElTableColumn label="新值" width="120" align="center">
         <template #default="scope">
           <span :class="{ 'changed-value': (scope.row as DiffRow).changed }">
             {{ (scope.row as DiffRow).newValue }}
@@ -97,11 +86,7 @@ width="120" align="center">
 
     <template #footer>
       <ElButton @click="emit('update:visible', false)"> 取消 </ElButton>
-      <ElButton type="primary"
-@click="emit('confirm')"
->
-确认保存 (生成新版本)
-</ElButton>
+      <ElButton type="primary" @click="emit('confirm')"> 确认保存 (生成新版本) </ElButton>
     </template>
   </ElDialog>
 </template>

@@ -253,7 +253,9 @@ async function handleLogin() {
     border: none;
     background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
     box-shadow: 0 10px 28px rgba(24, 144, 255, 0.4);
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition:
+      transform 0.2s,
+      box-shadow 0.2s;
 
     &:hover {
       background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%);
@@ -275,7 +277,9 @@ async function handleLogin() {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 
   &:focus-within {
     border-color: rgba(24, 144, 255, 0.7);

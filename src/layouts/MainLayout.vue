@@ -18,7 +18,11 @@ const isFlushPage = computed(() => route.path.startsWith('/simulation'))
 </script>
 
 <template>
-  <el-container direction="vertical" class="main-layout" :class="{ 'main-layout--collapsed': collapsed }">
+  <el-container
+    direction="vertical"
+    class="main-layout"
+    :class="{ 'main-layout--collapsed': collapsed }"
+  >
     <header class="main-layout__topbar">
       <div class="main-layout__brand">
         <img :src="logoUrl" alt="logo" class="main-layout__logo" />
@@ -102,7 +106,7 @@ const isFlushPage = computed(() => route.path.startsWith('/simulation'))
   &__content {
     flex: 1;
     min-height: 0;
-    background: var(--color-bg-dark);
+    background: #fff;
     padding: var(--spacing-lg);
     overflow-y: auto;
     @include hide-scrollbar;
@@ -110,13 +114,7 @@ const isFlushPage = computed(() => route.path.startsWith('/simulation'))
     &--flush {
       padding: 0;
       overflow: hidden;
-      background: linear-gradient(
-        180deg,
-        #f0f4f8 0%,
-        #e8f2fa 6%,
-        #f0f7fc 18%,
-        #f7fbff 100%
-      );
+      background: linear-gradient(180deg, #f0f4f8 0%, #e8f2fa 6%, #f0f7fc 18%, #f7fbff 100%);
     }
   }
 }

@@ -3,9 +3,21 @@ import { ref, computed } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent } from 'echarts/components'
+import {
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  DataZoomComponent,
+} from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-use([LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, CanvasRenderer])
+use([
+  LineChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  DataZoomComponent,
+  CanvasRenderer,
+])
 
 // 时段 A / B
 const rangeA = ref({ start: '', end: '' })
@@ -19,7 +31,11 @@ function genData(baseTime: number, color: string) {
   for (let i = 0; i < 48; i++) {
     arr.push({
       time: baseTime + i * 3600000,
-      label: new Date(baseTime + i * 3600000).toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit' }),
+      label: new Date(baseTime + i * 3600000).toLocaleString('zh-CN', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+      }),
       level: +(378.5 + Math.sin(i / 8) * 1.2 + (Math.random() - 0.5) * 0.3).toFixed(2),
       flow: Math.round(6350 + Math.sin(i / 6) * 800 + (Math.random() - 0.5) * 200),
     })
@@ -44,13 +60,18 @@ function doQuery() {
 const diffStats = computed(() => {
   if (!dataA.value.length || !dataB.value.length) return null
   const len = Math.min(dataA.value.length, dataB.value.length)
-  let maxDiff = 0, sumDiff = 0
+  let maxDiff = 0,
+    sumDiff = 0
   for (let i = 0; i < len; i++) {
     const d = Math.abs(dataA.value[i].level - dataB.value[i].level)
     if (d > maxDiff) maxDiff = d
     sumDiff += d
   }
-  return { maxDiff: +maxDiff.toFixed(2), avgDiff: +(sumDiff / len).toFixed(2), pct: +((sumDiff / len) / 378.5 * 100).toFixed(1) }
+  return {
+    maxDiff: +maxDiff.toFixed(2),
+    avgDiff: +(sumDiff / len).toFixed(2),
+    pct: +((sumDiff / len / 378.5) * 100).toFixed(1),
+  }
 })
 
 // 图表
@@ -67,10 +88,44 @@ const chartOpt = computed(() => {
     ],
     dataZoom: [{ type: 'slider', bottom: 0, height: 22 }],
     series: [
-      { name: '时段A 水位', type: 'line', data: dataA.value.map(d => d.level), smooth: true, lineStyle: { color: '#1890ff', width: 2 }, itemStyle: { color: '#1890ff' }, symbol: 'none' },
-      { name: '时段A 流量', type: 'line', data: dataA.value.map(d => d.flow), smooth: true, yAxisIndex: 1, lineStyle: { color: '#91caff' }, itemStyle: { color: '#91caff' }, symbol: 'none' },
-      { name: '时段B 水位', type: 'line', data: dataB.value.map(d => d.level), smooth: true, lineStyle: { color: '#ff7f0e', width: 2, type: 'dashed' }, itemStyle: { color: '#ff7f0e' }, symbol: 'none' },
-      { name: '时段B 流量', type: 'line', data: dataB.value.map(d => d.flow), smooth: true, yAxisIndex: 1, lineStyle: { color: '#ffbb78', type: 'dashed' }, itemStyle: { color: '#ffbb78' }, symbol: 'none' },
+      {
+        name: '时段A 水位',
+        type: 'line',
+        data: dataA.value.map((d) => d.level),
+        smooth: true,
+        lineStyle: { color: '#1890ff', width: 2 },
+        itemStyle: { color: '#1890ff' },
+        symbol: 'none',
+      },
+      {
+        name: '时段A 流量',
+        type: 'line',
+        data: dataA.value.map((d) => d.flow),
+        smooth: true,
+        yAxisIndex: 1,
+        lineStyle: { color: '#91caff' },
+        itemStyle: { color: '#91caff' },
+        symbol: 'none',
+      },
+      {
+        name: '时段B 水位',
+        type: 'line',
+        data: dataB.value.map((d) => d.level),
+        smooth: true,
+        lineStyle: { color: '#ff7f0e', width: 2, type: 'dashed' },
+        itemStyle: { color: '#ff7f0e' },
+        symbol: 'none',
+      },
+      {
+        name: '时段B 流量',
+        type: 'line',
+        data: dataB.value.map((d) => d.flow),
+        smooth: true,
+        yAxisIndex: 1,
+        lineStyle: { color: '#ffbb78', type: 'dashed' },
+        itemStyle: { color: '#ffbb78' },
+        symbol: 'none',
+      },
     ],
   }
 })
@@ -81,11 +136,13 @@ function doExport() {
   for (let i = 0; i < len; i++) {
     rows.push([
       dataA.value[i]?.label ?? '',
-      dataA.value[i]?.level ?? '', dataA.value[i]?.flow ?? '',
-      dataB.value[i]?.level ?? '', dataB.value[i]?.flow ?? '',
+      dataA.value[i]?.level ?? '',
+      dataA.value[i]?.flow ?? '',
+      dataB.value[i]?.level ?? '',
+      dataB.value[i]?.flow ?? '',
     ])
   }
-  const csv = rows.map(r => r.join(',')).join('\n')
+  const csv = rows.map((r) => r.join(',')).join('\n')
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
@@ -114,36 +171,111 @@ function doExport() {
     </div>
 
     <div v-if="diffStats" class="dc__stats">
-      <span>最大差 <b>{{ diffStats.maxDiff }}m</b></span>
-      <span>平均差 <b>{{ diffStats.avgDiff }}m</b></span>
-      <span>变化率 <b>{{ diffStats.pct }}%</b></span>
+      <span
+        >最大差 <b>{{ diffStats.maxDiff }}m</b></span
+      >
+      <span
+        >平均差 <b>{{ diffStats.avgDiff }}m</b></span
+      >
+      <span
+        >变化率 <b>{{ diffStats.pct }}%</b></span
+      >
     </div>
 
     <div class="dc__chart">
-      <VChart v-if="queried" :option="chartOpt" autoresize style="width:100%;height:100%" />
+      <VChart v-if="queried" :option="chartOpt" autoresize style="width: 100%; height: 100%" />
       <div v-else class="dc__empty">请选择 A / B 时段并点击"对比查询"</div>
     </div>
   </div>
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 .dc {
-  display: flex; flex-direction: column; height: 100%; padding: 18px 24px; gap: 14px;
-  &__filters { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-  &__period { display: flex; align-items: center; gap: 8px; }
-  &__badge { padding: 4px 14px; font-size: 13px; font-weight: 700; color: #fff; border-radius: 4px;
-    &--a { background: #1890ff; } &--b { background: #ff7f0e; }
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 18px 24px;
+  gap: 14px;
+  &__filters {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
   }
-  input { padding: 7px 10px; font-size: 14px; border: 1px solid #d1d5db; border-radius: 6px; }
-  &__btn { padding: 8px 16px; font-size: 14px; font-weight: 500; color: #64748b; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer;
-    &:hover:not(:disabled) { background: #f3f4f6; }
-    &:disabled { opacity: 0.4; }
-    &--q { color: #fff; background: #3b82f6; border-color: #3b82f6; &:hover:not(:disabled) { background: #2563eb; } }
+  &__period {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
-  &__stats { display: flex; gap: 20px; padding: 10px 16px; background: #f8fafc; border-radius: 8px; font-size: 14px; color: #64748b;
-    b { color: #1e293b; font-family: 'SF Mono', monospace; margin-left: 4px; }
+  &__badge {
+    padding: 4px 14px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    border-radius: 4px;
+    &--a {
+      background: #1890ff;
+    }
+    &--b {
+      background: #ff7f0e;
+    }
   }
-  &__chart { flex: 1; min-height: 0; background: #fff; border-radius: 8px; border: 1px solid #eef0f2; }
-  &__empty { display: flex; align-items: center; justify-content: center; height: 100%; color: #94a3b8; font-size: 16px; }
+  input {
+    padding: 7px 10px;
+    @include text-input;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+  }
+  &__btn {
+    padding: 8px 16px;
+    @include text-btn;
+    color: #475569;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    cursor: pointer;
+    &:hover:not(:disabled) {
+      background: #f3f4f6;
+    }
+    &:disabled {
+      opacity: 0.4;
+    }
+    &--q {
+      color: #fff;
+      background: #3b82f6;
+      border-color: #3b82f6;
+      &:hover:not(:disabled) {
+        background: #2563eb;
+      }
+    }
+  }
+  &__stats {
+    display: flex;
+    gap: 20px;
+    padding: 10px 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+    @include text-table-header;
+    b {
+      @include text-table-number;
+      margin-left: 4px;
+    }
+  }
+  &__chart {
+    flex: 1;
+    min-height: 0;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #eef0f2;
+  }
+  &__empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #94a3b8;
+    font-size: 16px;
+  }
 }
 </style>

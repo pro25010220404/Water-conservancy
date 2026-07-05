@@ -137,11 +137,9 @@ onBeforeUnmount(() => {
       </ElSelect>
     </div>
 
-    <HealthOverviewCards :overview="overview"
-:loading="overviewLoading" />
+    <HealthOverviewCards :overview="overview" :loading="overviewLoading" />
 
-    <ScoreTrendChart :data="trendData"
-:loading="trendLoading" />
+    <ScoreTrendChart :data="trendData" :loading="trendLoading" />
 
     <MetricsDetailTable :reservoir-id="reservoirId" />
 
@@ -153,6 +151,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 .ai-health-metrics {
   padding: var(--spacing-md);
 }

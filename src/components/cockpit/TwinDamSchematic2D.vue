@@ -51,12 +51,19 @@ onUnmounted(() => {
 
 function surfaceY(xNorm: number, baseLevelY: number, amp: number, speed: number) {
   const p = wavePhase.value * speed
-  return baseLevelY
-    + Math.sin(xNorm * 6.2 + p) * amp
-    + Math.sin(xNorm * 11.5 + p * 1.35) * amp * 0.45
+  return (
+    baseLevelY + Math.sin(xNorm * 6.2 + p) * amp + Math.sin(xNorm * 11.5 + p * 1.35) * amp * 0.45
+  )
 }
 
-function buildWaterBody(xStart: number, xEnd: number, levelY: number, bottomY: number, amp: number, speed: number) {
+function buildWaterBody(
+  xStart: number,
+  xEnd: number,
+  levelY: number,
+  bottomY: number,
+  amp: number,
+  speed: number,
+) {
   const steps = 28
   const span = xEnd - xStart
   let d = `M ${xStart} ${bottomY}`
@@ -145,7 +152,9 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
       <span><i class="dot dot--up" />上游库区 {{ waterLevel.toFixed(2) }} m</span>
       <span><i class="dot dot--down" />下游尾水 {{ downstreamLevel.toFixed(2) }} m</span>
       <span><i class="dot dot--flow" />入库 {{ flowRate }} m³/s</span>
-      <span class="twin-2d__status" :style="{ color: levelStatus.color }">{{ levelStatus.label }}</span>
+      <span class="twin-2d__status" :style="{ color: levelStatus.color }">{{
+        levelStatus.label
+      }}</span>
     </div>
 
     <svg
@@ -189,9 +198,20 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
 
       <!-- 高程标尺 -->
       <g class="twin-2d__axis">
-        <line :x1="PAD.l" :y1="PAD.t" :x2="PAD.l" :y2="PAD.t + innerH" stroke="#94a3b8" stroke-width="1" />
-        <text :x="PAD.l - 8" :y="PAD.t + 4" text-anchor="end" class="axis-label">{{ ELEV_MAX }}m</text>
-        <text :x="PAD.l - 8" :y="PAD.t + innerH" text-anchor="end" class="axis-label">{{ ELEV_MIN }}m</text>
+        <line
+          :x1="PAD.l"
+          :y1="PAD.t"
+          :x2="PAD.l"
+          :y2="PAD.t + innerH"
+          stroke="#94a3b8"
+          stroke-width="1"
+        />
+        <text :x="PAD.l - 8" :y="PAD.t + 4" text-anchor="end" class="axis-label">
+          {{ ELEV_MAX }}m
+        </text>
+        <text :x="PAD.l - 8" :y="PAD.t + innerH" text-anchor="end" class="axis-label">
+          {{ ELEV_MIN }}m
+        </text>
       </g>
 
       <!-- 参考水位线 -->
@@ -206,13 +226,24 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
           :stroke-dasharray="line.dash"
           opacity="0.75"
         />
-        <text :x="PAD.l + innerW - 4" :y="elevToY(line.v) - 4" text-anchor="end" class="ref-label" :fill="line.color">
+        <text
+          :x="PAD.l + innerW - 4"
+          :y="elevToY(line.v) - 4"
+          text-anchor="end"
+          class="ref-label"
+          :fill="line.color"
+        >
           {{ line.label }} {{ line.v }}m
         </text>
       </g>
 
       <!-- 上游水体（动态波浪轮廓） -->
-      <path :d="upstreamBodyPath" fill="url(#waterUp)" opacity="0.9" class="twin-2d__water twin-2d__water--up" />
+      <path
+        :d="upstreamBodyPath"
+        fill="url(#waterUp)"
+        opacity="0.9"
+        class="twin-2d__water twin-2d__water--up"
+      />
       <g clip-path="url(#upstreamClip)">
         <rect
           :x="PAD.l - shimmerOffset"
@@ -222,7 +253,13 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
           fill="url(#waterShimmer)"
           opacity="0.5"
         >
-          <animate attributeName="x" :from="PAD.l - 40" :to="PAD.l + 40" dur="3s" repeatCount="indefinite" />
+          <animate
+            attributeName="x"
+            :from="PAD.l - 40"
+            :to="PAD.l + 40"
+            dur="3s"
+            repeatCount="indefinite"
+          />
         </rect>
         <g v-for="(fl, i) in flowLines" :key="'flow-' + i">
           <line
@@ -235,9 +272,27 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
             stroke-linecap="round"
             opacity="0.6"
           >
-            <animate attributeName="y1" :values="`${fl.yStart};${fl.yEnd};${fl.yStart}`" dur="2.2s" :begin="`${fl.delay}s`" repeatCount="indefinite" />
-            <animate attributeName="y2" :values="`${fl.yEnd};${fl.yStart + 40};${fl.yEnd}`" dur="2.2s" :begin="`${fl.delay}s`" repeatCount="indefinite" />
-            <animate attributeName="opacity" values="0.2;0.7;0.2" dur="2.2s" :begin="`${fl.delay}s`" repeatCount="indefinite" />
+            <animate
+              attributeName="y1"
+              :values="`${fl.yStart};${fl.yEnd};${fl.yStart}`"
+              dur="2.2s"
+              :begin="`${fl.delay}s`"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="y2"
+              :values="`${fl.yEnd};${fl.yStart + 40};${fl.yEnd}`"
+              dur="2.2s"
+              :begin="`${fl.delay}s`"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="0.2;0.7;0.2"
+              dur="2.2s"
+              :begin="`${fl.delay}s`"
+              repeatCount="indefinite"
+            />
           </line>
         </g>
       </g>
@@ -288,7 +343,9 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
         stroke="#64748b"
         stroke-width="1.5"
       />
-      <text :x="damX + damW / 2" :y="crestY - 10" text-anchor="middle" class="dam-label">向家坝大坝</text>
+      <text :x="damX + damW / 2" :y="crestY - 10" text-anchor="middle" class="dam-label">
+        向家坝大坝
+      </text>
 
       <!-- 闸门 -->
       <g v-for="g in gates" :key="g.idx">
@@ -311,7 +368,9 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
           stroke="#94a3b8"
           stroke-width="0.6"
         />
-        <text :x="g.x + g.w / 2" :y="baseY + 14" text-anchor="middle" class="gate-label">{{ g.idx }}#</text>
+        <text :x="g.x + g.w / 2" :y="baseY + 14" text-anchor="middle" class="gate-label">
+          {{ g.idx }}#
+        </text>
       </g>
 
       <!-- 泄洪（动态水柱 + 水雾） -->
@@ -325,7 +384,12 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
               stroke-width="2.5"
               stroke-linecap="round"
             >
-              <animate attributeName="opacity" values="0.45;1;0.45" dur="1s" repeatCount="indefinite" />
+              <animate
+                attributeName="opacity"
+                values="0.45;1;0.45"
+                dur="1s"
+                repeatCount="indefinite"
+              />
             </path>
             <path
               :d="`M ${g.x + g.w * 0.35} ${baseY + 4} Q ${g.x + g.w * 0.5} ${baseY + 40 + openRatio * 35} ${g.x + g.w * 0.65} ${baseY + 30 + openRatio * 28}`"
@@ -335,18 +399,44 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
               stroke-linecap="round"
               opacity="0.7"
             >
-              <animate attributeName="opacity" values="0.3;0.8;0.3" dur="0.8s" repeatCount="indefinite" />
+              <animate
+                attributeName="opacity"
+                values="0.3;0.8;0.3"
+                dur="0.8s"
+                repeatCount="indefinite"
+              />
             </path>
-            <circle :cx="g.x + g.w * 0.5" :cy="baseY + 22 + openRatio * 20" r="3" fill="#e0f2fe" opacity="0.5">
-              <animate attributeName="cy" :values="`${baseY + 22 + openRatio * 20};${baseY + 50 + openRatio * 30};${baseY + 22 + openRatio * 20}`" dur="1.4s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.6;0;0.6" dur="1.4s" repeatCount="indefinite" />
+            <circle
+              :cx="g.x + g.w * 0.5"
+              :cy="baseY + 22 + openRatio * 20"
+              r="3"
+              fill="#e0f2fe"
+              opacity="0.5"
+            >
+              <animate
+                attributeName="cy"
+                :values="`${baseY + 22 + openRatio * 20};${baseY + 50 + openRatio * 30};${baseY + 22 + openRatio * 20}`"
+                dur="1.4s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="opacity"
+                values="0.6;0;0.6"
+                dur="1.4s"
+                repeatCount="indefinite"
+              />
             </circle>
           </template>
         </g>
       </g>
 
       <!-- 下游水体 -->
-      <path :d="downstreamBodyPath" fill="url(#waterDown)" opacity="0.85" class="twin-2d__water twin-2d__water--down" />
+      <path
+        :d="downstreamBodyPath"
+        fill="url(#waterDown)"
+        opacity="0.85"
+        class="twin-2d__water twin-2d__water--down"
+      />
       <g clip-path="url(#downstreamClip)">
         <rect
           :x="damX + damW - shimmerOffset"
@@ -356,7 +446,13 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
           fill="url(#waterShimmer)"
           opacity="0.4"
         >
-          <animate attributeName="x" :from="damX + damW - 40" :to="damX + damW + 40" dur="3.5s" repeatCount="indefinite" />
+          <animate
+            attributeName="x"
+            :from="damX + damW - 40"
+            :to="damX + damW + 40"
+            dur="3.5s"
+            repeatCount="indefinite"
+          />
         </rect>
       </g>
       <path
@@ -382,11 +478,32 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
       </text>
 
       <!-- 河床 -->
-      <rect :x="PAD.l" :y="baseY" :width="innerW" :height="PAD.t + innerH - baseY" fill="#78716c" opacity="0.35" />
+      <rect
+        :x="PAD.l"
+        :y="baseY"
+        :width="innerW"
+        :height="PAD.t + innerH - baseY"
+        fill="#78716c"
+        opacity="0.35"
+      />
 
       <!-- 区域标注 -->
-      <text :x="PAD.l + (damX - PAD.l) / 2" :y="PAD.t + innerH + 22" text-anchor="middle" class="zone-label">上游库区</text>
-      <text :x="damX + damW + (PAD.l + innerW - damX - damW) / 2" :y="PAD.t + innerH + 22" text-anchor="middle" class="zone-label">下游河道</text>
+      <text
+        :x="PAD.l + (damX - PAD.l) / 2"
+        :y="PAD.t + innerH + 22"
+        text-anchor="middle"
+        class="zone-label"
+      >
+        上游库区
+      </text>
+      <text
+        :x="damX + damW + (PAD.l + innerW - damX - damW) / 2"
+        :y="PAD.t + innerH + 22"
+        text-anchor="middle"
+        class="zone-label"
+      >
+        下游河道
+      </text>
     </svg>
 
     <div class="twin-2d__scale">
@@ -510,9 +627,15 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
   height: 8px;
   border-radius: 50%;
 
-  &--up { background: #1890ff; }
-  &--down { background: #0ea5e9; }
-  &--flow { background: #22c55e; }
+  &--up {
+    background: #1890ff;
+  }
+  &--down {
+    background: #0ea5e9;
+  }
+  &--flow {
+    background: #22c55e;
+  }
 }
 
 .twin-2d__svg {
@@ -534,8 +657,12 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
     font-size: 11px;
     font-weight: 600;
 
-    &--up { fill: #1890ff; }
-    &--down { fill: #0284c7; }
+    &--up {
+      fill: #1890ff;
+    }
+    &--down {
+      fill: #0284c7;
+    }
   }
 }
 </style>

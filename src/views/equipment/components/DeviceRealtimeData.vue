@@ -35,9 +35,7 @@ const refreshTime = computed(() => {
           <span class="device-realtime-data__reading">{{ monitoring.upstream_level }}</span>
           <span class="device-realtime-data__unit"> m</span>
         </ElDescriptionsItem>
-        <ElDescriptionsItem label="单位">
-m（米）
-</ElDescriptionsItem>
+        <ElDescriptionsItem label="单位"> m（米） </ElDescriptionsItem>
         <ElDescriptionsItem label="上游水位">
           {{ monitoring.upstream_level }} m
         </ElDescriptionsItem>
@@ -50,9 +48,7 @@ m（米）
         <ElDescriptionsItem label="出库流量">
           {{ monitoring.outflow_rate }} m³/s
         </ElDescriptionsItem>
-        <ElDescriptionsItem
-label="最近刷新时间" :span="2"
->
+        <ElDescriptionsItem label="最近刷新时间" :span="2">
           {{ refreshTime }}
         </ElDescriptionsItem>
       </ElDescriptions>
@@ -65,18 +61,10 @@ label="最近刷新时间" :span="2"
           <span class="device-realtime-data__reading">{{ monitoring.gate_opening }}</span>
           <span class="device-realtime-data__unit"> %</span>
         </ElDescriptionsItem>
-        <ElDescriptionsItem label="单位">
-%（开度百分比）
-</ElDescriptionsItem>
-        <ElDescriptionsItem label="闸门开度">
-{{ monitoring.gate_opening }}%
-</ElDescriptionsItem>
-        <ElDescriptionsItem label="当前位置">
-{{ monitoring.gate_opening }}%
-</ElDescriptionsItem>
-        <ElDescriptionsItem label="目标值">
-{{ monitoring.power_output }} kW
-</ElDescriptionsItem>
+        <ElDescriptionsItem label="单位"> %（开度百分比） </ElDescriptionsItem>
+        <ElDescriptionsItem label="闸门开度"> {{ monitoring.gate_opening }}% </ElDescriptionsItem>
+        <ElDescriptionsItem label="当前位置"> {{ monitoring.gate_opening }}% </ElDescriptionsItem>
+        <ElDescriptionsItem label="目标值"> {{ monitoring.power_output }} kW </ElDescriptionsItem>
         <ElDescriptionsItem label="最近刷新时间">
           {{ refreshTime }}
         </ElDescriptionsItem>
@@ -85,9 +73,7 @@ label="最近刷新时间" :span="2"
 
     <!-- 无实时数据 -->
     <template v-else>
-      <div class="device-realtime-data__empty">
-暂无实时监测数据
-</div>
+      <div class="device-realtime-data__empty">暂无实时监测数据</div>
     </template>
   </div>
 </template>

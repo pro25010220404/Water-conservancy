@@ -72,34 +72,24 @@ const pageSizeOptions = [10, 15, 20, 50]
       <ElTableColumn type="selection" width="50" />
       <ElTableColumn prop="name" label="设备名称" min-width="160" show-overflow-tooltip />
       <ElTableColumn prop="code" label="设备编号" width="130" />
-      <ElTableColumn
-label="设备类型" width="120"
->
+      <ElTableColumn label="设备类型" width="120">
         <template #default="scope">
           {{ typeLabelMap[scope.row.type] ?? scope.row.type }}
         </template>
       </ElTableColumn>
-      <ElTableColumn
-label="运行状态" width="100"
->
+      <ElTableColumn label="运行状态" width="100">
         <template #default="scope">
-          <ElTag :type="getStatusType(scope.row.status)"
-size="small" disable-transitions>
+          <ElTag :type="getStatusType(scope.row.status)" size="small" disable-transitions>
             {{ DEVICE_STATUS[scope.row.status]?.label ?? scope.row.status }}
           </ElTag>
         </template>
       </ElTableColumn>
-      <ElTableColumn
-label="安装位置" width="140"
-show-overflow-tooltip
->
+      <ElTableColumn label="安装位置" width="140" show-overflow-tooltip>
         <template #default="scope">
           {{ scope.row.install_location ?? '-' }}
         </template>
       </ElTableColumn>
-      <ElTableColumn
-label="所属分组" width="120"
->
+      <ElTableColumn label="所属分组" width="120">
         <template #default="scope">
           {{ scope.row.group ?? '-' }}
         </template>

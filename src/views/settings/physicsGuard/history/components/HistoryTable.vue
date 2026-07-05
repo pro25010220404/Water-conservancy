@@ -29,22 +29,15 @@ function formatDate(dateStr: string): string {
   >
     <ElTableColumn type="index" label="#" width="50" align="center" />
 
-    <ElTableColumn
-prop="version" label="版本号"
-width="100" align="center"
->
+    <ElTableColumn prop="version" label="版本号" width="100" align="center">
       <template #default="scope">
-        <ElTag type="primary"
-size="small">
+        <ElTag type="primary" size="small">
           {{ (scope.row as ConfigHistoryItem).version }}
         </ElTag>
       </template>
     </ElTableColumn>
 
-    <ElTableColumn
-label="变更时间" min-width="160"
-align="center"
->
+    <ElTableColumn label="变更时间" min-width="160" align="center">
       <template #default="scope">
         {{ formatDate((scope.row as ConfigHistoryItem).changed_at) }}
       </template>
@@ -54,10 +47,7 @@ align="center"
 
     <ElTableColumn prop="description" label="变更说明" min-width="300" show-overflow-tooltip />
 
-    <ElTableColumn
-label="操作" width="180"
-fixed="right" align="center"
->
+    <ElTableColumn label="操作" width="180" fixed="right" align="center">
       <template #default="scope">
         <div class="action-buttons">
           <ElButton

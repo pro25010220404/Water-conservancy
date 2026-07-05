@@ -25,9 +25,9 @@ const countColor = computed(() => {
 
 const countStyle = computed(() => {
   const map: Record<string, { bg: string; text: string }> = {
-    red:    { bg: '#fef2f2', text: '#dc2626' },
+    red: { bg: '#fef2f2', text: '#dc2626' },
     yellow: { bg: '#fffbeb', text: '#d97706' },
-    gray:   { bg: '#f8fafc', text: '#475569' },
+    gray: { bg: '#f8fafc', text: '#475569' },
   }
   return map[countColor.value]
 })
@@ -65,7 +65,10 @@ onMounted(() => {
 
     <!-- D-99: 触发计数徽章 -->
     <div class="il-card__count-row" @click="goLogs">
-      <div class="il-card__count-badge" :style="{ background: countStyle.bg, color: countStyle.text }">
+      <div
+        class="il-card__count-badge"
+        :style="{ background: countStyle.bg, color: countStyle.text }"
+      >
         <span class="il-card__count-num">{{ triggerCount24h }}</span>
         <span class="il-card__count-unit">次 / 24h</span>
       </div>
@@ -87,9 +90,7 @@ onMounted(() => {
     </div>
 
     <!-- D-102: 快捷入口 -->
-    <button class="il-card__btn" @click="goRules">
-      互锁规则 →
-    </button>
+    <button class="il-card__btn" @click="goRules">互锁规则 →</button>
   </div>
 </template>
 
@@ -177,8 +178,13 @@ onMounted(() => {
   }
 
   @keyframes pulse-dot {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.3;
+    }
   }
 
   &__recent-info {

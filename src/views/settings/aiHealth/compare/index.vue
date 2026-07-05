@@ -129,21 +129,23 @@ onMounted(() => {
           :value="opt.value"
         />
       </ElSelect>
-      <ElButton
-type="primary" :loading="compareLoading" @click="doCompare"> 开始对比 </ElButton>
+      <ElButton type="primary" :loading="compareLoading" @click="doCompare"> 开始对比 </ElButton>
     </div>
 
     <CompareRadar :data="compareData?.radarData ?? null" :loading="compareLoading" />
 
     <ScoreDiffTable :data="compareData?.scoreDiff ?? null" :loading="compareLoading" />
 
-    <div v-if="compareData"
-class="compare-summary">
+    <div v-if="compareData" class="compare-summary">
       <div class="summary-row">
-        <span>版本1 综合评分:
-          <strong>{{ (compareData.version1.overallScore * 100).toFixed(1) }}%</strong></span>
-        <span>版本2 综合评分:
-          <strong>{{ (compareData.version2.overallScore * 100).toFixed(1) }}%</strong></span>
+        <span
+          >版本1 综合评分:
+          <strong>{{ (compareData.version1.overallScore * 100).toFixed(1) }}%</strong></span
+        >
+        <span
+          >版本2 综合评分:
+          <strong>{{ (compareData.version2.overallScore * 100).toFixed(1) }}%</strong></span
+        >
         <span
           :class="
             compareData.version1.overallScore >= compareData.version2.overallScore

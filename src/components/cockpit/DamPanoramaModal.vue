@@ -2,7 +2,9 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import ThreeDamScene from '@/components/cockpit/ThreeDamScene.vue'
 import {
-  SIMULATION_SCENE_OPTIONS, SIMULATION_SCENE_MAP, SPEED_OPTIONS,
+  SIMULATION_SCENE_OPTIONS,
+  SIMULATION_SCENE_MAP,
+  SPEED_OPTIONS,
 } from '@/constants/simulation'
 import type { SimulationScene, SimulationSpeed, SimulationRealtimeData } from '@/types/simulation'
 
@@ -41,28 +43,35 @@ const emit = defineEmits<{
 
 const sceneRef = ref<InstanceType<typeof ThreeDamScene> | null>(null)
 const sceneInfo = computed(() => SIMULATION_SCENE_MAP[props.simScene])
-const simActive = computed(() =>
-  props.simStatus.status === 'running'
-  || props.simStatus.status === 'paused'
-  || props.simStatus.status === 'finished',
+const simActive = computed(
+  () =>
+    props.simStatus.status === 'running' ||
+    props.simStatus.status === 'paused' ||
+    props.simStatus.status === 'finished',
 )
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape' && props.visible) emit('close')
 }
 
-watch(() => props.visible, (v) => {
-  document.body.style.overflow = v ? 'hidden' : ''
-  if (v && simActive.value) {
-    setTimeout(() => sceneRef.value?.focusSimulationView(), 600)
-  }
-})
+watch(
+  () => props.visible,
+  (v) => {
+    document.body.style.overflow = v ? 'hidden' : ''
+    if (v && simActive.value) {
+      setTimeout(() => sceneRef.value?.focusSimulationView(), 600)
+    }
+  },
+)
 
-watch(() => props.simStatus.status, (status) => {
-  if (props.visible && (status === 'running' || status === 'paused')) {
-    setTimeout(() => sceneRef.value?.focusSimulationView(), 400)
-  }
-})
+watch(
+  () => props.simStatus.status,
+  (status) => {
+    if (props.visible && (status === 'running' || status === 'paused')) {
+      setTimeout(() => sceneRef.value?.focusSimulationView(), 400)
+    }
+  },
+)
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => {
@@ -109,7 +118,9 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
                 </div>
                 <div class="sim-modal__kpi">
                   <small>预期上游水位</small>
-                  <strong :style="{ color: levelStatusColor }">{{ waterLevel.toFixed(2) }} m</strong>
+                  <strong :style="{ color: levelStatusColor }"
+                    >{{ waterLevel.toFixed(2) }} m</strong
+                  >
                   <em>{{ levelStatusLabel }}</em>
                 </div>
                 <div class="sim-modal__kpi">
@@ -131,112 +142,126 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
             </template>
 
             <template v-else>
-            <div class="sim-modal__scene-brief">
-              <h3>{{ sceneInfo?.label }}</h3>
-              <p>{{ sceneInfo?.description }}</p>
-            </div>
-
-            <div class="sim-modal__field">
-              <label>预设场景</label>
-              <select
-                class="sim-modal__select"
-                :value="simScene"
-                :disabled="!canStart"
-                @change="emit('update:simScene', ($event.target as HTMLSelectElement).value as SimulationScene)"
-              >
-                <option v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :value="s.value">
-                  {{ s.label }}
-                </option>
-              </select>
-            </div>
-
-            <div class="sim-modal__field">
-              <label>仿真倍速</label>
-              <select
-                class="sim-modal__select"
-                :value="simSpeed"
-                :disabled="simStatus.status === 'running'"
-                @change="emit('update:simSpeed', Number(($event.target as HTMLSelectElement).value) as SimulationSpeed)"
-              >
-                <option v-for="s in SPEED_OPTIONS" :key="s.value" :value="s.value">
-                  {{ s.label }}
-                </option>
-              </select>
-            </div>
-
-            <div class="sim-modal__field">
-              <label>闸门开度 {{ gateOpening }}%</label>
-              <input
-                type="range"
-                class="sim-modal__slider"
-                min="0"
-                max="100"
-                step="1"
-                :value="gateOpening"
-                @input="emit('update:gateOpening', Number(($event.target as HTMLInputElement).value))"
-              />
-            </div>
-
-            <div class="sim-modal__actions">
-              <button
-                type="button"
-                class="sim-modal__btn sim-modal__btn--primary"
-                :disabled="!canStart"
-                @click="emit('start')"
-              >
-                开始仿真
-              </button>
-              <button
-                type="button"
-                class="sim-modal__btn"
-                :disabled="!canPause"
-                @click="emit('pause')"
-              >
-                {{ simStatus.status === 'paused' ? '继续' : '暂停' }}
-              </button>
-              <button
-                type="button"
-                class="sim-modal__btn sim-modal__btn--ghost"
-                :disabled="simStatus.status === 'idle'"
-                @click="emit('reset')"
-              >
-                重置
-              </button>
-            </div>
-
-            <div class="sim-modal__kpis">
-              <div class="sim-modal__kpi">
-                <small>仿真时间</small>
-                <strong>{{ elapsedLabel }}</strong>
+              <div class="sim-modal__scene-brief">
+                <h3>{{ sceneInfo?.label }}</h3>
+                <p>{{ sceneInfo?.description }}</p>
               </div>
-              <div class="sim-modal__kpi">
-                <small>上游水位</small>
-                <strong :style="{ color: levelStatusColor }">{{ waterLevel.toFixed(2) }} m</strong>
-                <em>{{ levelStatusLabel }}</em>
-              </div>
-              <div class="sim-modal__kpi">
-                <small>下游尾水</small>
-                <strong>{{ downstreamLevel.toFixed(2) }} m</strong>
-              </div>
-              <div class="sim-modal__kpi">
-                <small>入库流量</small>
-                <strong>{{ flowRate }} m³/s</strong>
-              </div>
-              <div class="sim-modal__kpi">
-                <small>闸门开度</small>
-                <strong>{{ gateOpening }}%</strong>
-              </div>
-            </div>
 
-            <div v-if="simStatus.historyLevels.length" class="sim-modal__history">
-              <h4>水位变化（最近）</h4>
-              <ul>
-                <li v-for="(p, i) in simStatus.historyLevels.slice(-6)" :key="i">
-                  T+{{ p.time }}s · {{ p.value.toFixed(2) }} m
-                </li>
-              </ul>
-            </div>
-            <p v-else class="sim-modal__hint">点击「开始仿真」后，左侧实时显示运行数据。</p>
+              <div class="sim-modal__field">
+                <label>预设场景</label>
+                <select
+                  class="sim-modal__select"
+                  :value="simScene"
+                  :disabled="!canStart"
+                  @change="
+                    emit(
+                      'update:simScene',
+                      ($event.target as HTMLSelectElement).value as SimulationScene,
+                    )
+                  "
+                >
+                  <option v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :value="s.value">
+                    {{ s.label }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="sim-modal__field">
+                <label>仿真倍速</label>
+                <select
+                  class="sim-modal__select"
+                  :value="simSpeed"
+                  :disabled="simStatus.status === 'running'"
+                  @change="
+                    emit(
+                      'update:simSpeed',
+                      Number(($event.target as HTMLSelectElement).value) as SimulationSpeed,
+                    )
+                  "
+                >
+                  <option v-for="s in SPEED_OPTIONS" :key="s.value" :value="s.value">
+                    {{ s.label }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="sim-modal__field">
+                <label>闸门开度 {{ gateOpening }}%</label>
+                <input
+                  type="range"
+                  class="sim-modal__slider"
+                  min="0"
+                  max="100"
+                  step="1"
+                  :value="gateOpening"
+                  @input="
+                    emit('update:gateOpening', Number(($event.target as HTMLInputElement).value))
+                  "
+                />
+              </div>
+
+              <div class="sim-modal__actions">
+                <button
+                  type="button"
+                  class="sim-modal__btn sim-modal__btn--primary"
+                  :disabled="!canStart"
+                  @click="emit('start')"
+                >
+                  开始仿真
+                </button>
+                <button
+                  type="button"
+                  class="sim-modal__btn"
+                  :disabled="!canPause"
+                  @click="emit('pause')"
+                >
+                  {{ simStatus.status === 'paused' ? '继续' : '暂停' }}
+                </button>
+                <button
+                  type="button"
+                  class="sim-modal__btn sim-modal__btn--ghost"
+                  :disabled="simStatus.status === 'idle'"
+                  @click="emit('reset')"
+                >
+                  重置
+                </button>
+              </div>
+
+              <div class="sim-modal__kpis">
+                <div class="sim-modal__kpi">
+                  <small>仿真时间</small>
+                  <strong>{{ elapsedLabel }}</strong>
+                </div>
+                <div class="sim-modal__kpi">
+                  <small>上游水位</small>
+                  <strong :style="{ color: levelStatusColor }"
+                    >{{ waterLevel.toFixed(2) }} m</strong
+                  >
+                  <em>{{ levelStatusLabel }}</em>
+                </div>
+                <div class="sim-modal__kpi">
+                  <small>下游尾水</small>
+                  <strong>{{ downstreamLevel.toFixed(2) }} m</strong>
+                </div>
+                <div class="sim-modal__kpi">
+                  <small>入库流量</small>
+                  <strong>{{ flowRate }} m³/s</strong>
+                </div>
+                <div class="sim-modal__kpi">
+                  <small>闸门开度</small>
+                  <strong>{{ gateOpening }}%</strong>
+                </div>
+              </div>
+
+              <div v-if="simStatus.historyLevels.length" class="sim-modal__history">
+                <h4>水位变化（最近）</h4>
+                <ul>
+                  <li v-for="(p, i) in simStatus.historyLevels.slice(-6)" :key="i">
+                    T+{{ p.time }}s · {{ p.value.toFixed(2) }} m
+                  </li>
+                </ul>
+              </div>
+              <p v-else class="sim-modal__hint">点击「开始仿真」后，左侧实时显示运行数据。</p>
             </template>
           </aside>
 
@@ -254,17 +279,36 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
               :sim-running="simActive"
               :auto-rotate="false"
             />
-            <svg class="sim-modal__geo-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <svg
+              class="sim-modal__geo-lines"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
               <defs>
                 <linearGradient id="simModalGeoGrad" x1="0%" y1="100%" x2="100%" y2="30%">
                   <stop offset="0%" stop-color="rgba(24,144,255,0.85)" />
                   <stop offset="100%" stop-color="rgba(64,200,255,0.15)" />
                 </linearGradient>
               </defs>
-              <path class="sim-modal__geo-line" d="M 8 92 Q 22 72 38 58 T 62 44" fill="none" stroke="url(#simModalGeoGrad)" stroke-width="0.2" />
-              <path class="sim-modal__geo-line sim-modal__geo-line--d2" d="M 8 92 Q 18 68 32 50 T 55 38" fill="none" stroke="url(#simModalGeoGrad)" stroke-width="0.15" />
+              <path
+                class="sim-modal__geo-line"
+                d="M 8 92 Q 22 72 38 58 T 62 44"
+                fill="none"
+                stroke="url(#simModalGeoGrad)"
+                stroke-width="0.2"
+              />
+              <path
+                class="sim-modal__geo-line sim-modal__geo-line--d2"
+                d="M 8 92 Q 18 68 32 50 T 55 38"
+                fill="none"
+                stroke="url(#simModalGeoGrad)"
+                stroke-width="0.15"
+              />
             </svg>
-            <button type="button" class="sim-modal__close" aria-label="关闭" @click="emit('close')">✕</button>
+            <button type="button" class="sim-modal__close" aria-label="关闭" @click="emit('close')">
+              ✕
+            </button>
           </main>
         </div>
       </div>
@@ -381,7 +425,10 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
     border-radius: 8px;
     cursor: pointer;
 
-    &:disabled { opacity: 0.5; cursor: not-allowed; }
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   }
 
   &__slider {
@@ -404,14 +451,19 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
     border: 1px solid rgba(24, 144, 255, 0.3);
     border-radius: 8px;
     cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition:
+      transform 0.2s ease,
+      box-shadow 0.2s ease;
 
     &:hover:not(:disabled) {
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(24, 144, 255, 0.2);
     }
 
-    &:disabled { opacity: 0.45; cursor: not-allowed; }
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
 
     &--primary {
       color: #fff;
@@ -499,7 +551,10 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
     stroke-dasharray: 6 10;
     animation: geo-line-flow 4s linear infinite;
 
-    &--d2 { animation-delay: 0.8s; opacity: 0.65; }
+    &--d2 {
+      animation-delay: 0.8s;
+      opacity: 0.65;
+    }
   }
 
   &__close {
@@ -524,7 +579,9 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
 
 .panorama-fade-enter-active .sim-modal__panel,
 .panorama-fade-leave-active .sim-modal__panel {
-  transition: opacity 0.38s ease, transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    opacity 0.38s ease,
+    transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .panorama-fade-enter-active .sim-modal__backdrop,
@@ -534,7 +591,9 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
 
 .panorama-fade-enter-from,
 .panorama-fade-leave-to {
-  .sim-modal__backdrop { opacity: 0; }
+  .sim-modal__backdrop {
+    opacity: 0;
+  }
   .sim-modal__panel {
     opacity: 0;
     transform: scale(0.9);
@@ -542,7 +601,11 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
 }
 
 @keyframes geo-line-flow {
-  0% { stroke-dashoffset: 0; }
-  100% { stroke-dashoffset: -32; }
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -32;
+  }
 }
 </style>

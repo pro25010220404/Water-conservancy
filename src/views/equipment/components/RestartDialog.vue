@@ -83,11 +83,8 @@ watch(
   >
     <div class="restart-dialog">
       <!-- 警告横幅 -->
-      <div
-class="restart-dialog__warn" :class="{ 'restart-dialog__warn--high': isHighRisk }"
->
-        <ElIcon v-if="isHighRisk"
-:size="20">
+      <div class="restart-dialog__warn" :class="{ 'restart-dialog__warn--high': isHighRisk }">
+        <ElIcon v-if="isHighRisk" :size="20">
           <WarningFilled />
         </ElIcon>
         <span>{{ warningText }}</span>
@@ -99,11 +96,8 @@ class="restart-dialog__warn" :class="{ 'restart-dialog__warn--high': isHighRisk 
       </p>
 
       <!-- 重启原因表单 -->
-      <ElForm
-label-width="80px" class="restart-dialog__form"
->
-        <ElFormItem label="重启原因"
-required>
+      <ElForm label-width="80px" class="restart-dialog__form">
+        <ElFormItem label="重启原因" required>
           <ElInput
             v-model="reason"
             type="textarea"

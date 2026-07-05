@@ -81,14 +81,8 @@ function moveDown(index: number) {
 </script>
 
 <template>
-  <ElTable
-v-loading="loading" :data="rules"
-border stripe style="width: 100%"
->
-    <ElTableColumn
-label="优先级" width="80"
-align="center"
->
+  <ElTable v-loading="loading" :data="rules" border stripe style="width: 100%">
+    <ElTableColumn label="优先级" width="80" align="center">
       <template #default="scope">
         <div class="priority-cell">
           <span class="priority-num">{{ (scope.row as InterlockRule).priority }}</span>
@@ -114,10 +108,7 @@ align="center"
 
     <ElTableColumn prop="name" label="规则名称" min-width="120" />
 
-    <ElTableColumn
-label="作用范围" width="110"
-align="center"
->
+    <ElTableColumn label="作用范围" width="110" align="center">
       <template #default="scope">
         <ElTag
           :type="(scope.row as InterlockRule).scope === 'global' ? 'info' : 'primary'"
@@ -130,26 +121,19 @@ align="center"
 
     <ElTableColumn prop="description" label="说明" min-width="200" show-overflow-tooltip />
 
-    <ElTableColumn
-label="触发条件" min-width="200"
->
+    <ElTableColumn label="触发条件" min-width="200">
       <template #default="scope">
         <span class="condition-text">{{ getConditionText(scope.row as InterlockRule) }}</span>
       </template>
     </ElTableColumn>
 
-    <ElTableColumn
-label="约束动作" min-width="200"
->
+    <ElTableColumn label="约束动作" min-width="200">
       <template #default="scope">
         <span class="condition-text">{{ getConstraintText(scope.row as InterlockRule) }}</span>
       </template>
     </ElTableColumn>
 
-    <ElTableColumn
-label="状态" width="80"
-align="center"
->
+    <ElTableColumn label="状态" width="80" align="center">
       <template #default="scope">
         <ElSwitch
           :model-value="(scope.row as InterlockRule).is_enabled"
@@ -158,10 +142,7 @@ align="center"
       </template>
     </ElTableColumn>
 
-    <ElTableColumn
-label="近7天触发" width="110"
-align="center"
->
+    <ElTableColumn label="近7天触发" width="110" align="center">
       <template #default="scope">
         <ElTag
           :type="(scope.row as InterlockRule).trigger_count_7d > 0 ? 'warning' : 'info'"
@@ -172,10 +153,7 @@ align="center"
       </template>
     </ElTableColumn>
 
-    <ElTableColumn
-label="操作" width="80"
-fixed="right" align="center"
->
+    <ElTableColumn label="操作" width="80" fixed="right" align="center">
       <template #default="scope">
         <ElButton
           type="primary"

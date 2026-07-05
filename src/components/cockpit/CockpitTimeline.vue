@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 
-const props = withDefaults(defineProps<{
-  playing?: boolean
-  speed?: number
-}>(), {
-  playing: true,
-  speed: 1,
-})
+const props = withDefaults(
+  defineProps<{
+    playing?: boolean
+    speed?: number
+  }>(),
+  {
+    playing: true,
+    speed: 1,
+  },
+)
 
 const emit = defineEmits<{
   play: []
@@ -24,7 +27,9 @@ onMounted(() => {
     if (props.playing) progress.value = (progress.value + 0.5 * props.speed) % 100
   }, 500)
 })
-onUnmounted(() => { if (timer) clearInterval(timer) })
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
+})
 
 const speeds = [0.5, 1, 2, 5]
 </script>
@@ -33,7 +38,11 @@ const speeds = [0.5, 1, 2, 5]
   <footer class="cockpit-timeline">
     <div class="cockpit-timeline__controls">
       <button class="tl-btn" title="重置" @click="emit('reset')">⟲</button>
-      <button class="tl-btn tl-btn--primary" :title="playing ? '暂停' : '播放'" @click="playing ? emit('pause') : emit('play')">
+      <button
+        class="tl-btn tl-btn--primary"
+        :title="playing ? '暂停' : '播放'"
+        @click="playing ? emit('pause') : emit('play')"
+      >
         {{ playing ? '⏸' : '▶' }}
       </button>
       <div class="cockpit-timeline__speeds">
@@ -43,7 +52,9 @@ const speeds = [0.5, 1, 2, 5]
           class="tl-speed"
           :class="{ 'is-active': speed === s }"
           @click="emit('speedChange', s)"
-        >{{ s }}x</button>
+        >
+          {{ s }}x
+        </button>
       </div>
     </div>
     <div class="cockpit-timeline__track">
@@ -147,8 +158,15 @@ const speeds = [0.5, 1, 2, 5]
   font-size: 14px;
   transition: all 0.2s;
 
-  &:hover { border-color: $cockpit-cyan; color: $cockpit-cyan; }
-  &--primary { background: rgba(0, 212, 255, 0.15); border-color: rgba(0, 212, 255, 0.4); color: $cockpit-cyan; }
+  &:hover {
+    border-color: $cockpit-cyan;
+    color: $cockpit-cyan;
+  }
+  &--primary {
+    background: rgba(0, 212, 255, 0.15);
+    border-color: rgba(0, 212, 255, 0.4);
+    color: $cockpit-cyan;
+  }
 }
 
 .tl-speed {
@@ -160,7 +178,11 @@ const speeds = [0.5, 1, 2, 5]
   color: $cockpit-text-dim;
   cursor: pointer;
 
-  &.is-active { background: rgba(0, 212, 255, 0.15); border-color: $cockpit-cyan; color: $cockpit-cyan; }
+  &.is-active {
+    background: rgba(0, 212, 255, 0.15);
+    border-color: $cockpit-cyan;
+    color: $cockpit-cyan;
+  }
 }
 
 .tl-scene {
@@ -174,6 +196,9 @@ const speeds = [0.5, 1, 2, 5]
   transform: perspective(400px) rotateX(3deg);
   transition: all 0.2s;
 
-  &:hover { box-shadow: 0 4px 16px rgba(0, 212, 255, 0.2); transform: perspective(400px) rotateX(0deg); }
+  &:hover {
+    box-shadow: 0 4px 16px rgba(0, 212, 255, 0.2);
+    transform: perspective(400px) rotateX(0deg);
+  }
 }
 </style>

@@ -4,7 +4,14 @@
 // ============================================================
 
 import { computed } from 'vue'
-import { ElCard, ElDescriptions, ElDescriptionsItem, ElTag, ElButton, ElSkeleton } from 'element-plus'
+import {
+  ElCard,
+  ElDescriptions,
+  ElDescriptionsItem,
+  ElTag,
+  ElButton,
+  ElSkeleton,
+} from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
 import { DEVICE_TYPE, DEVICE_STATUS } from '@/constants'
 import { useEquipmentStore } from '@/stores/equipment'
@@ -22,7 +29,9 @@ const emit = defineEmits<{
   (e: 'restart', device: { name: string; type: string }): void
 }>()
 
-function handleClose() { emit('close') }
+function handleClose() {
+  emit('close')
+}
 function handleRestart() {
   if (detail.value) emit('restart', { name: detail.value.name, type: detail.value.type })
 }
@@ -42,13 +51,22 @@ const syncInfo = computed(() => {
   return {
     last_sync_time: detail.value.last_online ?? '-',
     config_version: detail.value.ip ? `v2.1.${detail.value.id}` : '-',
-    sync_status: detail.value.status === 'online' ? 'synced' : detail.value.status === 'offline' ? 'failed' : 'pending',
+    sync_status:
+      detail.value.status === 'online'
+        ? 'synced'
+        : detail.value.status === 'offline'
+          ? 'failed'
+          : 'pending',
     config_hash: detail.value.ip ? `a1b2c3d${detail.value.id}` : '-',
   }
 })
 
 function getSyncStatusType(status: string): 'success' | 'warning' | 'danger' {
-  const map: Record<string, 'success' | 'warning' | 'danger'> = { synced: 'success', pending: 'warning', failed: 'danger' }
+  const map: Record<string, 'success' | 'warning' | 'danger'> = {
+    synced: 'success',
+    pending: 'warning',
+    failed: 'danger',
+  }
   return map[status] ?? 'warning'
 }
 function getSyncStatusLabel(status: string): string {
@@ -81,12 +99,23 @@ function getSyncStatusLabel(status: string): string {
 
         <!-- 配置同步状态区 -->
         <ElCard v-if="isGateway" shadow="never" class="device-detail__section">
-          <template #header><span class="device-detail__section-title">配置同步状态</span></template>
+          <template #header
+            ><span class="device-detail__section-title">配置同步状态</span></template
+          >
           <ElDescriptions :column="2" border size="small">
-            <ElDescriptionsItem label="最后同步时间">{{ syncInfo?.last_sync_time ?? '-' }}</ElDescriptionsItem>
-            <ElDescriptionsItem label="当前配置版本">{{ syncInfo?.config_version ?? '-' }}</ElDescriptionsItem>
+            <ElDescriptionsItem label="最后同步时间">{{
+              syncInfo?.last_sync_time ?? '-'
+            }}</ElDescriptionsItem>
+            <ElDescriptionsItem label="当前配置版本">{{
+              syncInfo?.config_version ?? '-'
+            }}</ElDescriptionsItem>
             <ElDescriptionsItem label="同步状态">
-              <ElTag v-if="syncInfo" :type="getSyncStatusType(syncInfo.sync_status)" size="small" disable-transitions>
+              <ElTag
+                v-if="syncInfo"
+                :type="getSyncStatusType(syncInfo.sync_status)"
+                size="small"
+                disable-transitions
+              >
                 {{ getSyncStatusLabel(syncInfo.sync_status) }}
               </ElTag>
             </ElDescriptionsItem>
@@ -108,14 +137,42 @@ function getSyncStatusLabel(status: string): string {
 
 <style scoped lang="scss">
 .device-detail {
-  display: flex; flex-direction: column; gap: var(--spacing-md); overflow-y: auto; flex: 1;
-  &__header { display: flex; align-items: center; justify-content: space-between; padding: var(--spacing-sm) 0; }
-  &__title { font-weight: 600; font-size: var(--font-size-lg); }
-  &__section {
-    :deep(.el-card__header) { padding: var(--spacing-sm) var(--spacing-md); background: var(--color-bg-dark); }
-    :deep(.el-card__body) { padding: var(--spacing-md); }
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  overflow-y: auto;
+  flex: 1;
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm) 0;
   }
-  &__section-title { font-weight: 600; font-size: var(--font-size-base); color: var(--color-text); }
-  &__hash { font-family: 'Consolas', 'Courier New', monospace; font-size: var(--font-size-xs); color: var(--color-text-secondary); background: var(--color-bg-dark); padding: 2px 6px; border-radius: var(--border-radius-sm); }
+  &__title {
+    font-weight: 600;
+    font-size: var(--font-size-lg);
+  }
+  &__section {
+    :deep(.el-card__header) {
+      padding: var(--spacing-sm) var(--spacing-md);
+      background: var(--color-bg-dark);
+    }
+    :deep(.el-card__body) {
+      padding: var(--spacing-md);
+    }
+  }
+  &__section-title {
+    font-weight: 600;
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+  }
+  &__hash {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    background: var(--color-bg-dark);
+    padding: 2px 6px;
+    border-radius: var(--border-radius-sm);
+  }
 }
 </style>
