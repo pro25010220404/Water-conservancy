@@ -7,6 +7,7 @@ import type {
   SimulationStartPayload,
   AiModel, TrainingTask, TrainingConfig, FaultReview, FaultConclusion,
 } from '@/types/simulation'
+import type { PhysicsGuardSummary } from '@/types/dispatch'
 import { mockApi } from './mockStore'
 
 async function fetchMock<T>(_url: string, _options?: RequestInit): Promise<ApiResponse<T>> {
@@ -121,4 +122,8 @@ export async function getSimulationRuns(params: { pageNum: number; pageSize: num
 }
 export async function getCockpitKpi(): Promise<ApiResponse<Record<string, unknown>>> {
   return withMockFallback('/api/cockpit/kpi', () => mockApi.getCockpitKpi())
+}
+
+export async function getPhysicsGuardSummary(): Promise<ApiResponse<PhysicsGuardSummary>> {
+  return withMockFallback('/api/v1/settings/physics-guard?reservoir_id=1', () => mockApi.getPhysicsGuardSummary())
 }

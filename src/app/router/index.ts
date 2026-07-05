@@ -90,6 +90,42 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '系统设置' },
       },
       {
+        path: 'dispatch/gate-actions',
+        name: 'DispatchGateActions',
+        component: () => import('@/views/dispatch/components/GateActionsPanel.vue'),
+        meta: { title: '闸门动作历史' },
+      },
+      {
+        path: 'settings/ai/models',
+        name: 'SettingsAiModels',
+        redirect: '/settings',
+        meta: { title: '模型管理' },
+      },
+      {
+        path: 'settings/ai/metrics',
+        name: 'SettingsAiMetrics',
+        component: () => import('@/views/settings/gateai/ModelMetricsPage.vue'),
+        meta: { title: '模型健康度仪表盘' },
+      },
+      {
+        path: 'settings/ai/compare',
+        name: 'SettingsAiCompare',
+        component: () => import('@/views/settings/gateai/ModelComparePage.vue'),
+        meta: { title: '模型版本对比' },
+      },
+      {
+        path: 'settings/gate-interlock',
+        name: 'SettingsGateInterlock',
+        component: () => import('@/views/settings/gateai/GateInterlockPage.vue'),
+        meta: { title: '闸门互锁规则配置' },
+      },
+      {
+        path: 'settings/gate-interlock/logs',
+        name: 'SettingsGateInterlockLogs',
+        component: () => import('@/views/settings/gateai/GateInterlockLogsPage.vue'),
+        meta: { title: '互锁触发日志' },
+      },
+      {
         path: 'profile',
         name: 'Profile',
         component: () => import('@/views/profile/ProfilePage.vue'),

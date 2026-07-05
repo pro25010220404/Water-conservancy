@@ -187,6 +187,10 @@ export interface ModelInfo {
   size: number
   is_active: number
   deployed_nodes: number
+  /** 三维评判综合分 0~1 */
+  overall_score?: number
+  /** 健康等级 S/A/B/C/D */
+  health_grade?: string
 }
 
 /** 模型上传参数 */

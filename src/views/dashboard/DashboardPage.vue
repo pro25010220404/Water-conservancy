@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import AiModelHealthRing from './components/AiModelHealthRing.vue'
+import { fetchPhysicsGuardSummary } from '@/api/dispatchPage'
+import type { PhysicsGuardSummary } from '@/types/dispatch'
+
 const router = useRouter()
+const physicsGuard = ref<PhysicsGuardSummary | null>(null)
 
 const data = ref({ upstreamLevel:378.52, downstreamLevel:269.18, inflowRate:6350, outflowRate:5820, powerOutput:4119, gateOpening:34, capacity:48.36 })
 let t:ReturnType<typeof setInterval>
-onMounted(()=>{t=setInterval(()=>{
+onMounted(async ()=>{
+  physicsGuard.value = (await fetchPhysicsGuardSummary()).data
+  t=setInterval(()=>{
   data.value.upstreamLevel=+(data.value.upstreamLevel+(Math.random()-.5)*0.1).toFixed(2)
   data.value.powerOutput=+(data.value.powerOutput+(Math.random()-.5)*15).toFixed(0)
 },3000)})
@@ -79,6 +86,12 @@ const alarms = [
         </div>
       </div>
       <div class="col col--side">
+        <AiModelHealthRing />
+        <div v-if="physicsGuard" class="panel physics-card">
+          <h2>物理防护配置</h2>
+          <p>v{{ physicsGuard.config_version }} · 紧急 {{ physicsGuard.upstream_emergency }}m</p>
+          <button class="sec__btn" @click="router.push({ path: '/settings', query: { tab: 'physics-guard' } })">管理配置 →</button>
+        </div>
         <div class="panel">
           <h2>实时告警</h2>
           <div v-for="a in alarms" :key="a.time" class="al">
@@ -331,6 +344,11 @@ const alarms = [
   background: #fff;
   border: 1px solid #eef0f4;
   border-radius: 8px;
+  & + .panel { margin-top: 12px; }
+}
+.physics-card {
+  p { margin: 0 0 10px; font-size: 13px; color: #64748b; }
+  .sec__btn { margin-top: 4px; }
 }
 
 .panel h2 {

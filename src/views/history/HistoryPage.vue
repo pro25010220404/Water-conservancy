@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { ElIcon } from 'element-plus'
-import { DataAnalysis, VideoPlay, VideoPause, Close } from '@element-plus/icons-vue'
+import { DataAnalysis, VideoPlay, Close } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
@@ -113,10 +113,6 @@ let replayTimer: ReturnType<typeof setInterval> | null = null
 const replayTimeMin = computed(() => allData.value[0]?.time ?? 0)
 const replayTimeMax = computed(() => allData.value[allData.value.length - 1]?.time ?? 0)
 const replayTimeLabel = computed(() => new Date(replayTime.value).toLocaleString('zh-CN'))
-const replayProgress = computed(() => {
-  const span = replayTimeMax.value - replayTimeMin.value
-  return span > 0 ? ((replayTime.value - replayTimeMin.value) / span) * 100 : 0
-})
 
 // 快照：最接近 replayTime 的数据点
 const replaySnapshot = computed(() => {

@@ -22,7 +22,7 @@ const HOME_TAB: TabItem = {
 }
 
 /** 最多同时打开的标签数（含固定首页） */
-export const MAX_TABS = 8
+export const MAX_TABS = 10
 
 export const useTabsStore = defineStore('tabs', () => {
   const tabs = ref<TabItem[]>([{ ...HOME_TAB }])

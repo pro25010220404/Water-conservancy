@@ -197,6 +197,21 @@ export function createAlarmSeed(nowIso: (offsetMin?: number) => string): AlarmRe
       createdAt: nowIso(14), pointName: '1号表孔', deviceType: 'gate',
       snapshot: { upstreamLevel: 380.72, downstreamLevel: 278.28, flowRate: 1875, gateOpening: 44, recordedAt: nowIso(14) },
     },
+    {
+      id: 1025, level: 'URGENT', type: 'MODEL_HEALTH_DEGRADED', content: 'Physics-LSTM v5.1 健康度降至 C 级，已强制 L1 人工模式',
+      threshold: 0.55, currentValue: 0.42, durationSec: 35, status: 'pending',
+      confirmedAt: null, confirmedBy: null, confirmedByName: null,
+      handledAt: null, handledBy: null, handledByName: null, remark: null,
+      createdAt: nowIso(5), pointName: 'AI 推理引擎', deviceType: 'sensor',
+      snapshot: { upstreamLevel: 380.68, downstreamLevel: 278.4, flowRate: 1910, gateOpening: 47, recordedAt: nowIso(5) },
+    },
+    {
+      id: 1026, level: 'IMPORTANT', type: 'MODEL_HEALTH_DEGRADED', content: '模型综合评分连续 3 次 D 级，已自动回退至 v5.0',
+      threshold: 0.40, currentValue: 0.38, durationSec: 32, status: 'confirmed',
+      confirmedAt: nowIso(1), confirmedBy: 1, confirmedByName: '张调度',
+      handledAt: null, handledBy: null, handledByName: null, remark: null,
+      createdAt: nowIso(20), pointName: '边缘推理节点', deviceType: 'sensor', snapshot: null,
+    },
   ]
 }
 

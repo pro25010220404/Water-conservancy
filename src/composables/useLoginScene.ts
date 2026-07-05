@@ -52,17 +52,6 @@ const PERIODS: Record<Period, PeriodColors> = {
   },
 }
 
-function getPeriod(h: number): Period {
-  if (h >= 5 && h < 8) return 'dawn'
-  if (h >= 8 && h < 17) return 'noon'
-  if (h >= 17 && h < 20) return 'dusk'
-  return 'night'
-}
-
-function lerp3(a: [number, number, number], b: [number, number, number], t: number): [number, number, number] {
-  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
-}
-
 // ============================================================
 // 天空背景 Shader（渐变 + 太阳光晕）
 // ============================================================

@@ -5,7 +5,7 @@
 import { ref } from 'vue'
 import { ElNotification } from 'element-plus'
 import type { AlarmPushMessage, AlarmRecord } from '@/types/alarm'
-import { ALARM_LEVEL_MAP } from '@/constants/alarm'
+import { ALARM_LEVEL_MAP, ALARM_TYPE_MAP } from '@/constants/alarm'
 
 /** 未处理告警数量（全局共享，供侧边栏角标使用） */
 export const pendingAlarmCount = ref(0)
@@ -40,8 +40,9 @@ function playBeep() {
 // ---------- 弹窗通知 ----------
 function showAlarmNotification(alarm: AlarmRecord) {
   const levelInfo = ALARM_LEVEL_MAP[alarm.level]
+  const typeLabel = ALARM_TYPE_MAP[alarm.type]?.label ?? alarm.type
   ElNotification({
-    title: `【${levelInfo?.label ?? alarm.level}】${alarm.type}`,
+    title: `【${levelInfo?.label ?? alarm.level}】${typeLabel}`,
     message: alarm.content,
     type: alarm.level === 'URGENT' ? 'error' : alarm.level === 'IMPORTANT' ? 'warning' : 'info',
     duration: alarm.level === 'URGENT' ? 0 : 6000,

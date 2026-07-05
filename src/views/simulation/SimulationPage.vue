@@ -19,14 +19,16 @@ import { XIANGJIABA_HYDRO, getLevelStatus, levelGaugePercent } from '@/constants
 import {
   SIMULATION_SCENE_OPTIONS, SIMULATION_SCENE_MAP, getScenePreset,
   SIMULATION_STATUS_MAP, SPEED_OPTIONS, DEFAULT_TRAINING_CONFIG,
+  SIMULATION_TABS,
   type SimulationTab,
 } from '@/constants/simulation'
 import {
   startSimulation, pauseSimulation, resumeSimulation, resetSimulation, getSimulationStatus,
   setSimulationGateOpening,
   getModelList, activateModel, uploadModel, startTraining, generateReport, getReportList,
-  getFaultReviewList, getFaultReviewDetail, importToSimulation,
+  getFaultReviewList, getFaultReviewDetail, importToSimulation, getPhysicsGuardSummary,
 } from '@/api/simulation'
+import type { PhysicsGuardSummary } from '@/types/dispatch'
 
 // ── 5. 响应式数据 ──
 const activeTab = ref<SimulationTab>('control')
@@ -66,6 +68,7 @@ const reviews = ref<FaultReview[]>([])
 const modelLoading = ref(false)
 const reportLoading = ref(false)
 const reviewLoading = ref(false)
+const physicsGuard = ref<PhysicsGuardSummary | null>(null)
 
 const reviewDetailVisible = ref(false)
 const reviewDetail = ref<FaultReview | null>(null)
@@ -117,6 +120,7 @@ const canPause = computed(() =>
 const canStart = computed(() =>
   simStatus.value.status === 'idle' || simStatus.value.status === 'finished',
 )
+const activeTabLabel = computed(() => SIMULATION_TABS.find((t) => t.value === activeTab.value)?.label ?? '功能面板')
 /** 主视窗：2D 剖面示意 / 3D 场景 */
 const viewMode = ref<'2d' | '3d'>('3d')
 const panoramaVisible = ref(false)
@@ -145,6 +149,9 @@ async function fetchReports() {
   reportLoading.value = true
   try { reports.value = (await getReportList({ pageNum: 1, pageSize: 10 })).data.list } catch { reports.value = [] }
   finally { reportLoading.value = false }
+}
+async function fetchPhysicsGuard() {
+  try { physicsGuard.value = (await getPhysicsGuardSummary()).data } catch { physicsGuard.value = null }
 }
 async function fetchReviews() {
   reviewLoading.value = true
@@ -279,6 +286,7 @@ onMounted(() => {
   fetchModels()
   fetchReports()
   fetchReviews()
+  fetchPhysicsGuard()
   pollTimer = setInterval(fetchSim, 1000)
 })
 onUnmounted(() => {
@@ -321,6 +329,8 @@ onUnmounted(() => {
               <li><span>汛限水位</span><b>{{ XIANGJIABA_HYDRO.floodLimitLevel }} m</b></li>
               <li><span>坝顶高程</span><b>{{ XIANGJIABA_HYDRO.crestElevation }} m</b></li>
               <li><span>下游尾水</span><b>{{ downstreamLevel.toFixed(2) }} m</b></li>
+              <li v-if="physicsGuard"><span>防护配置</span><b>v{{ physicsGuard.config_version }}</b></li>
+              <li v-if="physicsGuard"><span>紧急水位线</span><b>{{ physicsGuard.upstream_emergency }} m</b></li>
             </ul>
           </GlassPanel3D>
 
@@ -337,8 +347,9 @@ onUnmounted(() => {
           </GlassPanel3D>
         </aside>
 
-        <!-- 中栏：2D/3D 主视窗 + 仿真控制 -->
+        <!-- 中栏：仿真视图 + 仿真控制 -->
         <main class="sim-page__col sim-page__col--center">
+          <div class="sim-viewport-label">仿真视图 · 2D 剖面 / 3D 场景</div>
           <div
             class="sim-viewport sim-viewport--twin"
             :class="{ 'sim-viewport--2d': viewMode === '2d' }"
@@ -462,11 +473,12 @@ onUnmounted(() => {
             </p>
           </GlassPanel3D>
 
-          <GlassPanel3D title="功能面板" large class="sim-func-panel">
+          <GlassPanel3D :title="activeTabLabel" large class="sim-func-panel">
             <SimulationTabPanel
               :active-tab="activeTab"
               :sim-scene="simScene"
               :sim-status="simStatus"
+              :physics-guard="physicsGuard"
               :models="models"
               :reports="reports"
               :reviews="reviews"
@@ -552,13 +564,22 @@ onUnmounted(() => {
         </ElForm>
       </ElDialog>
 
-      <ElDialog v-model="reviewDetailVisible" title="故障复盘详情" width="640px">
-        <ElTimeline v-if="reviewDetail">
-          <ElTimelineItem v-for="(e, i) in reviewDetail.timeline" :key="i" :timestamp="e.time">{{ e.event }}</ElTimelineItem>
-        </ElTimeline>
+      <ElDialog v-model="reviewDetailVisible" title="历史故障复盘详情" width="720px">
+        <template v-if="reviewDetail">
+          <div class="review-summary">
+            <p><strong>{{ reviewDetail.faultType }}</strong></p>
+            <p class="review-meta">影响范围：{{ reviewDetail.impactScope }} · 关联告警 #{{ reviewDetail.alarmId }}</p>
+          </div>
+          <ElTimeline>
+            <ElTimelineItem v-for="(e, i) in reviewDetail.timeline" :key="i" :timestamp="e.time">{{ e.event }}</ElTimelineItem>
+          </ElTimeline>
+        </template>
         <ElForm label-position="top">
           <ElFormItem label="根因分析">
-            <ElInput v-model="reviewConclusion.rootCause" type="textarea" />
+            <ElInput v-model="reviewConclusion.rootCause" type="textarea" :rows="3" placeholder="填写故障根因" />
+          </ElFormItem>
+          <ElFormItem label="改进措施">
+            <ElInput v-model="reviewConclusion.improvements" type="textarea" :rows="2" placeholder="填写改进措施" />
           </ElFormItem>
         </ElForm>
       </ElDialog>
@@ -629,6 +650,14 @@ onUnmounted(() => {
       flex-direction: column;
       gap: 8px;
       min-height: 0;
+    }
+
+    .sim-viewport-label {
+      flex-shrink: 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e4976;
+      padding: 0 4px;
     }
 
     &--right {

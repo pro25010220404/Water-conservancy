@@ -88,7 +88,9 @@ export interface ModelMetrics {
   mae?: number
   rmse?: number
   accuracy?: number
-  [key: string]: number | undefined
+  overallScore?: number
+  healthGrade?: 'S' | 'A' | 'B' | 'C' | 'D'
+  [key: string]: number | string | undefined
 }
 
 // ---------- 训练配置 ----------

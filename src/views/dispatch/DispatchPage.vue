@@ -3,9 +3,10 @@
 // 调度决策 — 严格对照需求文档 §3.1~§3.12
 // ============================================================
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ElButton, ElSlider, ElSelect, ElOption, ElInput, ElInputNumber, ElMessage, ElMessageBox,
-  ElDialog, ElFormItem, ElTable, ElTableColumn, ElProgress, ElTag, ElPagination,
+  ElDialog, ElFormItem, ElTable, ElTableColumn, ElProgress, ElTag, ElPagination, ElCollapse, ElCollapseItem,
 } from 'element-plus'
 import { Refresh, CircleCheck, CircleClose, View } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
@@ -14,16 +15,18 @@ import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, MarkLineComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
+import GateActionsPanel from './components/GateActionsPanel.vue'
 import { XIANGJIABA_HYDRO } from '@/constants/xiangjiaba'
 import {
   AUTO_LEVEL_OPTIONS, AUTO_LEVEL_MAP, DISPATCH_MODE_MAP,
   getConfidenceColor, FACTOR_DIRECTION_MAP,
   OPENING_MIN, OPENING_MAX, OPENING_STEP,
 } from '@/constants/dispatch'
-import type { DecisionDetail, DispatchRecord, DispatchStatus, PredictionData } from '@/types/dispatch'
+import type { DecisionDetail, DispatchRecord, DispatchStatus, PredictionData, PhysicsValidation, PhysicsGuardSummary, PhysicsGuardHistoryItem } from '@/types/dispatch'
 import {
   fetchDispatchStatus, fetchDecisionDetail, fetchPrediction, fetchDispatchLogs,
   postExecute, postCancelExecute, postAcceptDecision, postIgnoreDecision, putDispatchMode, putAutoLevel,
+  fetchPhysicsGuardSummary, fetchPhysicsGuardHistory, postPhysicsGuardRollback,
 } from '@/api/dispatchPage'
 import { useUserStore } from '@/stores/user'
 import { useOperationLog } from '@/composables/useOperationLog'
@@ -32,6 +35,8 @@ import { fuzzyMatch } from '@/utils/fuzzyMatch'
 use([LineChart, GridComponent, TooltipComponent, MarkLineComponent, LegendComponent, CanvasRenderer])
 
 const userStore = useUserStore()
+const route = useRoute()
+const router = useRouter()
 const { record: recordLog } = useOperationLog()
 
 const canModifyLevel = computed(() => {
@@ -63,8 +68,128 @@ const levelDialogVisible = ref(false)
 const pendingLevel = ref<1 | 2 | 3>(2)
 const ignoreVisible = ref(false)
 const ignoreReason = ref('')
+const metricsCollapse = ref(['prediction', 'decision', 'compliance'])
+
+const physicsGuard = ref<PhysicsGuardSummary | null>(null)
+const physicsHistory = ref<PhysicsGuardHistoryItem[]>([])
+const historyVisible = ref(false)
+const historyDetailVisible = ref(false)
+const historyDetailRow = ref<PhysicsGuardHistoryItem | null>(null)
+
+const SYNC_STATUS_MAP: Record<string, { label: string; type: 'success' | 'warning' | 'danger' }> = {
+  synced: { label: '已同步', type: 'success' },
+  stale: { label: '待同步', type: 'warning' },
+  offline: { label: '离线缓存', type: 'danger' },
+}
+
+const physicsValidation = computed(() => decision.value?.physics_validation ?? null)
+
+const DECISION_LEVEL_MAP: Record<string, string> = {
+  L3_AUTO: 'L3 全自动',
+  L2_SUGGEST: 'L2 建议模式',
+  L1_MANUAL: 'L1 强制人工',
+  OVERRIDE: '安全覆盖 OVERRIDE',
+}
+
+const RISK_LEVEL_MAP: Record<string, { label: string; color: string }> = {
+  safe: { label: 'safe', color: '#22c55e' },
+  warning: { label: 'warning', color: '#f59e0b' },
+  danger: { label: 'danger', color: '#ef4444' },
+  critical: { label: 'critical', color: '#dc2626' },
+}
+
+const INTERLOCK_RULE_MAP: Record<string, string> = {
+  spillway_intake_mutex: '泄洪-发电互斥',
+  downstream_impact_protect: '下游冲击保护',
+  symmetry_constraint: '对称性约束',
+  min_discharge_guarantee: '最小下泄保障',
+}
+
+function contributionClass(val: number) {
+  if (val > 0.005) return 'contrib-pos'
+  if (val < -0.005) return 'contrib-neg'
+  return 'contrib-neutral'
+}
+
+function formatContribution(val: number) {
+  const sign = val > 0 ? '+' : ''
+  return `${sign}${val.toFixed(2)}`
+}
+
+function overallContributionMeta(pv: PhysicsValidation) {
+  const v = pv.contribution.overall
+  if (v > 0.02) return { icon: '↑', text: '正面拖升模型评分', cls: 'contrib-pos' }
+  if (v < -0.05) return { icon: '↓↓', text: '明显拖累模型评分', cls: 'contrib-neg' }
+  if (v < 0) return { icon: '↓', text: '轻微拖累模型评分', cls: 'contrib-neg' }
+  return { icon: '→', text: '对模型评分影响轻微', cls: 'contrib-neutral' }
+}
+
+function trendLabel(pv: PhysicsValidation) {
+  if (pv.trend_direction === 'match') return '↑ 预测涨实涨'
+  if (pv.trend_direction === 'mismatch') return '✗ 方向相反'
+  return '待下周期回填'
+}
+
+function physicsCheckLabel(pv: PhysicsValidation) {
+  const steps = pv.physics_correction_steps ?? 0
+  return steps > 0 ? `✗ 修正 ${steps} 步` : '✓ 通过'
+}
+
+function physicsViolationLabel(pv: PhysicsValidation) {
+  const v = pv.physics_violation_m
+  const status = v > 0.5 ? '超过容差 0.5m' : '正常'
+  return `${v.toFixed(2)}m（${status}）`
+}
+
+function interlockRecordLabel(pv: PhysicsValidation | null) {
+  if (!pv?.interlock?.triggered) return '—'
+  return pv.interlock.rules.map((r) => INTERLOCK_RULE_MAP[r] ?? r).join(' / ')
+}
+
+async function loadPhysicsGuard() {
+  const [summary, history] = await Promise.all([
+    fetchPhysicsGuardSummary(),
+    fetchPhysicsGuardHistory(),
+  ])
+  physicsGuard.value = summary.data
+  physicsHistory.value = history.data.list
+}
+
+function openHistoryDetail(row: PhysicsGuardHistoryItem) {
+  historyDetailRow.value = row
+  historyDetailVisible.value = true
+}
+
+async function handleRollback(row: PhysicsGuardHistoryItem) {
+  if (row.is_active) return
+  try {
+    await ElMessageBox.confirm(
+      `确认回滚至版本 ${row.config_version}？边缘端下一同步周期生效。`,
+      '回滚物理防护配置',
+      { type: 'warning' },
+    )
+    const res = await postPhysicsGuardRollback(row.id)
+    physicsGuard.value = res.data
+    await loadPhysicsGuard()
+    recordLog('调度决策', '回滚物理防护配置', `版本 → ${row.config_version}`, 1)
+    ElMessage.success(`已回滚至 ${row.config_version}`)
+    historyVisible.value = false
+  } catch { /* cancel */ }
+}
+
+function goPhysicsGuardHistorySettings() {
+  historyVisible.value = false
+  router.push({ path: '/settings', query: { tab: 'physics-guard-history', reservoir_id: '1' } })
+}
+
+function interlockLabel(pv: PhysicsValidation) {
+  if (!pv.interlock?.triggered) return '✓ 通过'
+  const names = pv.interlock.rules.map((r) => INTERLOCK_RULE_MAP[r] ?? r).join(' · ')
+  return `✗ ${names} · ${pv.interlock.reason}`
+}
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let executionRefreshTimer: ReturnType<typeof setTimeout> | null = null
 const HIST_LEN = 12
 
 const recommendedPlan = computed(() =>
@@ -225,6 +350,7 @@ async function refreshAll() {
     fetchDecisionDetail(),
     fetchPrediction(predictTerm.value),
     fetchDispatchLogs(),
+    loadPhysicsGuard(),
   ])
   status.value = st.data
   decision.value = dec.data
@@ -232,6 +358,12 @@ async function refreshAll() {
   records.value = logs.data.list
   if (dec.data && !userModifiedTarget.value && !st.data.isExecuting) {
     targetOpening.value = dec.data.recommended_opening
+  }
+  if (st.data.isExecuting && !executionRefreshTimer) {
+    executionRefreshTimer = setTimeout(async () => {
+      executionRefreshTimer = null
+      await refreshAll()
+    }, 4200)
   }
 }
 
@@ -340,11 +472,21 @@ async function submitLevel() {
       `确认切换自动执行权限为 ${AUTO_LEVEL_MAP[pendingLevel.value].label}？`,
       '二次确认', { type: 'warning' },
     )
-    await putAutoLevel(pendingLevel.value)
+    const res = await putAutoLevel(pendingLevel.value)
+    const autoResult = res.data as { executed?: boolean; message?: string } | null
     recordLog('调度决策', '变更权限', AUTO_LEVEL_MAP[pendingLevel.value].label, 1)
-    ElMessage.success('权限等级已更新')
     levelDialogVisible.value = false
     await refreshAll()
+    if (autoResult?.executed) {
+      ElMessage.success(autoResult.message ?? '已自动执行调度建议')
+      if (status.value.isExecuting) {
+        window.setTimeout(() => refreshAll(), 4200)
+      }
+    } else if (autoResult?.message && pendingLevel.value >= 2) {
+      ElMessage.warning(autoResult.message)
+    } else {
+      ElMessage.success('权限等级已更新')
+    }
   } catch { /* cancel */ }
 }
 
@@ -356,11 +498,22 @@ watch(predictTerm, () => refreshAll())
 watch(recordKeyword, () => { recordPageNum.value = 1; expandedRecordId.value = null })
 watch(recordPageNum, () => { expandedRecordId.value = null })
 
+function applyRecordQuery() {
+  const id = Number(route.query.recordId)
+  if (id > 0) expandedRecordId.value = id
+}
+
+watch(() => route.query.recordId, applyRecordQuery)
+
 onMounted(() => {
   refreshAll()
+  applyRecordQuery()
   pollTimer = setInterval(refreshAll, 10000)
 })
-onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer)
+  if (executionRefreshTimer) clearTimeout(executionRefreshTimer)
+})
 </script>
 
 <template>
@@ -492,6 +645,26 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
       <VChart class="lstm-chart" :option="chartOption" autoresize />
     </GlassPanel3D>
 
+    <!-- 物理防护配置摘要（文档 §2.5） -->
+    <GlassPanel3D title="物理防护配置" class="panel-physics-guard">
+      <template v-if="physicsGuard">
+        <div class="physics-guard-bar">
+          <ElTag type="info" effect="plain">v{{ physicsGuard.config_version }}</ElTag>
+          <ElTag :type="SYNC_STATUS_MAP[physicsGuard.sync_status]?.type ?? 'info'" size="small">
+            {{ SYNC_STATUS_MAP[physicsGuard.sync_status]?.label ?? physicsGuard.sync_status }}
+          </ElTag>
+          <span>紧急 <strong>{{ physicsGuard.upstream_emergency }} m</strong></span>
+          <span>危险 <strong>{{ physicsGuard.upstream_danger }} m</strong></span>
+          <span>预警 <strong>{{ physicsGuard.upstream_warning }} m</strong></span>
+          <span>L3 置信度 <strong>{{ physicsGuard.fusion_l3_confidence }}</strong></span>
+          <span v-if="physicsGuard.last_sync_at" class="physics-sync">
+            同步 {{ formatTime(physicsGuard.last_sync_at) }}
+          </span>
+          <ElButton size="small" @click="historyVisible = true">变更历史</ElButton>
+        </div>
+      </template>
+    </GlassPanel3D>
+
     <!-- §3.8 调度记录 — 底部全宽 -->
     <GlassPanel3D title="调度记录" class="panel-records">
       <ElInput
@@ -502,7 +675,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
       />
       <div class="record-table-wrap">
         <div class="record-head">
-          <span>时间</span><span>模式</span><span>动作</span><span>目标开度</span><span>结果</span><span>操作人</span>
+          <span>时间</span><span>模式</span><span>动作</span><span>目标开度</span><span>互锁</span><span>结果</span><span>操作人</span>
         </div>
         <template v-for="row in pagedRecords" :key="row.id">
           <div class="record-row" @click="toggleRecordExpand(row.id)">
@@ -510,11 +683,36 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
             <span>{{ row.decision_mode }}</span>
             <span>{{ row.action ?? '—' }}</span>
             <span>{{ row.recommended_opening }}%</span>
+            <span class="record-interlock">
+              <ElTag
+                v-if="row.physics_validation?.interlock?.triggered"
+                type="warning"
+                size="small"
+                effect="plain"
+              >
+                {{ interlockRecordLabel(row.physics_validation) }}
+              </ElTag>
+              <span v-else class="record-interlock--ok">—</span>
+            </span>
             <span><ElTag :type="statusTagType(row.execution_status)" size="default">{{ statusLabel(row.execution_status) }}</ElTag></span>
             <span>{{ row.operator_name ?? '—' }}</span>
           </div>
           <div v-if="expandedRecordId === row.id && row.snapshot" class="record-expand">
             <p><strong>决策快照</strong> · 置信度 {{ row.snapshot.confidence }}% · 推荐开度 {{ row.snapshot.recommended_opening }}%</p>
+            <div v-if="row.physics_validation" class="snap-validation">
+              <span>推理指标</span>
+              <span>等级 {{ DECISION_LEVEL_MAP[row.physics_validation.decision_level] ?? row.physics_validation.decision_level }}</span>
+              <span>综合贡献 {{ formatContribution(row.physics_validation.contribution.overall) }}</span>
+              <ElTag
+                v-if="row.physics_validation.interlock?.triggered"
+                type="warning"
+                size="small"
+                effect="plain"
+              >
+                互锁 · {{ row.physics_validation.interlock.rules.map((r) => INTERLOCK_RULE_MAP[r] ?? r).join(' / ') }}
+              </ElTag>
+              <ElTag v-else type="success" size="small" effect="plain">互锁通过</ElTag>
+            </div>
             <div class="snap-factors">
               <span v-for="f in row.snapshot.factors" :key="f.name">{{ f.name }} {{ f.value }} ({{ (f.weight * 100).toFixed(0) }}%)</span>
             </div>
@@ -535,6 +733,10 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
           class="record-pagination"
         />
       </div>
+    </GlassPanel3D>
+
+    <GlassPanel3D title="闸门动作历史" class="panel-gate-actions">
+      <GateActionsPanel />
     </GlassPanel3D>
 
     <!-- 决策详情弹窗 §3.4 -->
@@ -588,6 +790,126 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
           <p v-if="confidenceValue < 60" class="conf-warn">建议人工复核后再执行</p>
           <p class="detail-meta">trace: {{ decision.trace_id }} · 决策时间 {{ formatTime(decision.decision_time) }}</p>
         </div>
+
+        <!-- 本次推理指标 — 三维评判体系 -->
+        <div v-if="physicsValidation" class="detail-block inference-metrics">
+          <h4>本次推理指标</h4>
+          <ElCollapse v-model="metricsCollapse">
+            <ElCollapseItem title="预测准确性（LSTM 这一步的表现）" name="prediction">
+              <dl class="metric-dl">
+                <div class="metric-dl__row">
+                  <dt>物理校验</dt>
+                  <dd :class="{ 'is-abnormal': (physicsValidation.physics_correction_steps ?? 0) > 0 }">
+                    {{ physicsCheckLabel(physicsValidation) }}
+                  </dd>
+                </div>
+                <div class="metric-dl__row">
+                  <dt>物理偏差</dt>
+                  <dd :class="{ 'is-abnormal': physicsValidation.physics_violation_m > 0.5 }">
+                    {{ physicsViolationLabel(physicsValidation) }}
+                  </dd>
+                </div>
+                <div class="metric-dl__row">
+                  <dt>趋势方向</dt>
+                  <dd :class="{ 'is-abnormal': physicsValidation.trend_direction === 'mismatch' }">
+                    {{ trendLabel(physicsValidation) }}
+                  </dd>
+                </div>
+                <div class="metric-dl__row">
+                  <dt>贡献</dt>
+                  <dd :class="contributionClass(physicsValidation.contribution.prediction)">
+                    {{ formatContribution(physicsValidation.contribution.prediction) }}（Prediction_Score）
+                  </dd>
+                </div>
+              </dl>
+            </ElCollapseItem>
+
+            <ElCollapseItem title="决策可靠性（DQN + 安全层这一步的表现）" name="decision">
+              <dl class="metric-dl">
+                <div class="metric-dl__row">
+                  <dt>安全约束</dt>
+                  <dd :class="{ 'is-abnormal': physicsValidation.safety_overridden }">
+                    {{ physicsValidation.safety_overridden
+                      ? `✗ 覆盖 · ${physicsValidation.safety_override_reason || '安全规则一票否决'}`
+                      : '✓ 通过' }}
+                  </dd>
+                </div>
+                <div class="metric-dl__row">
+                  <dt>决策等级</dt>
+                  <dd :class="{ 'is-abnormal': ['L1_MANUAL', 'OVERRIDE'].includes(physicsValidation.decision_level) }">
+                    {{ DECISION_LEVEL_MAP[physicsValidation.decision_level] ?? physicsValidation.decision_level }}
+                  </dd>
+                </div>
+                <div class="metric-dl__row">
+                  <dt>影子风险</dt>
+                  <dd>
+                    <span :style="{ color: RISK_LEVEL_MAP[physicsValidation.risk_level]?.color }">
+                      {{ physicsValidation.risk_level }}
+                    </span>
+                    · p={{ physicsValidation.risk_probability.toFixed(2) }}
+                  </dd>
+                </div>
+                <div class="metric-dl__row">
+                  <dt>指令平滑</dt>
+                  <dd :class="{ 'is-abnormal': physicsValidation.command_smoothed }">
+                    {{ physicsValidation.command_smoothed
+                      ? `✗ 过滤 · ${physicsValidation.smooth_reason || '变化率超限'}`
+                      : '✓ 通过' }}
+                  </dd>
+                </div>
+                <div class="metric-dl__row">
+                  <dt>互锁约束</dt>
+                  <dd :class="{ 'is-abnormal': physicsValidation.interlock?.triggered }">
+                    {{ interlockLabel(physicsValidation) }}
+                  </dd>
+                </div>
+                <div class="metric-dl__row">
+                  <dt>贡献</dt>
+                  <dd :class="contributionClass(physicsValidation.contribution.decision)">
+                    {{ formatContribution(physicsValidation.contribution.decision) }}（Decision_Score）
+                  </dd>
+                </div>
+              </dl>
+            </ElCollapseItem>
+
+            <ElCollapseItem title="物理合规性（设备 + 物理边界这一步的表现）" name="compliance">
+              <dl class="metric-dl">
+                <div class="metric-dl__row">
+                  <dt>水量平衡偏差</dt>
+                  <dd :class="{ 'is-abnormal': physicsValidation.physics_violation_m > 0.5 }">
+                    {{ physicsValidation.physics_violation_m.toFixed(2) }}m
+                  </dd>
+                </div>
+                <div class="metric-dl__row">
+                  <dt>闸门限位</dt>
+                  <dd :class="{ 'is-abnormal': physicsValidation.gate_limit_touched }">
+                    {{ physicsValidation.gate_limit_touched ? '✗ 已触碰限位' : '✓ 未触碰' }}
+                  </dd>
+                </div>
+                <div class="metric-dl__row">
+                  <dt>变化率超限</dt>
+                  <dd :class="{ 'is-abnormal': physicsValidation.rate_exceeded }">
+                    {{ physicsValidation.rate_exceeded ? '✗ 变化率超限' : '✓ 未超限' }}
+                  </dd>
+                </div>
+                <div class="metric-dl__row">
+                  <dt>贡献</dt>
+                  <dd :class="contributionClass(physicsValidation.contribution.compliance)">
+                    {{ formatContribution(physicsValidation.contribution.compliance) }}（Compliance_Score）
+                  </dd>
+                </div>
+              </dl>
+            </ElCollapseItem>
+          </ElCollapse>
+
+          <div class="inference-overall" :class="overallContributionMeta(physicsValidation).cls">
+            <span class="inference-overall__icon">{{ overallContributionMeta(physicsValidation).icon }}</span>
+            <span>
+              本次综合贡献 {{ formatContribution(physicsValidation.contribution.overall) }} ·
+              {{ overallContributionMeta(physicsValidation).text }}
+            </span>
+          </div>
+        </div>
       </template>
       <template #footer>
         <ElButton size="large" @click="ignoreVisible = true">忽略</ElButton>
@@ -610,6 +932,52 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
       <template #footer>
         <ElButton @click="ignoreVisible = false">取消</ElButton>
         <ElButton type="warning" @click="handleIgnore">确认忽略</ElButton>
+      </template>
+    </ElDialog>
+
+    <!-- 物理防护配置变更历史（当前水库快捷查看） -->
+    <ElDialog v-model="historyVisible" title="物理防护配置变更历史" width="860px">
+      <p class="history-dialog-hint">当前水库的配置版本记录，可在此查看详情或回滚。</p>
+      <ElTable :data="physicsHistory" border stripe size="small">
+        <ElTableColumn prop="config_version" label="版本号" width="96" />
+        <ElTableColumn prop="changed_at" label="变更时间" width="168">
+          <template #default="{ row }">{{ formatTime(row.changed_at) }}</template>
+        </ElTableColumn>
+        <ElTableColumn prop="changed_by_name" label="变更人" width="100" />
+        <ElTableColumn prop="description" label="变更说明" min-width="200" show-overflow-tooltip />
+        <ElTableColumn label="状态" width="88" align="center">
+          <template #default="{ row }">
+            <ElTag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '生效中' : '历史' }}</ElTag>
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="操作" width="140" align="center" fixed="right">
+          <template #default="scope">
+            <ElButton link type="primary" @click="openHistoryDetail(scope.row as PhysicsGuardHistoryItem)">详情</ElButton>
+            <ElButton v-if="!(scope.row as PhysicsGuardHistoryItem).is_active" link type="warning" @click="handleRollback(scope.row as PhysicsGuardHistoryItem)">回滚</ElButton>
+          </template>
+        </ElTableColumn>
+      </ElTable>
+      <template #footer>
+        <div class="history-dialog-footer">
+          <span class="history-dialog-footer-hint">需切换水库或编辑配置？</span>
+          <ElButton link type="primary" @click="goPhysicsGuardHistorySettings">前往设置页管理 →</ElButton>
+        </div>
+      </template>
+    </ElDialog>
+
+    <ElDialog v-model="historyDetailVisible" title="配置变更详情" width="520px">
+      <template v-if="historyDetailRow">
+        <p class="history-detail-meta">
+          <strong>v{{ historyDetailRow.config_version }}</strong>
+          · {{ historyDetailRow.changed_by_name }}
+          · {{ formatTime(historyDetailRow.changed_at) }}
+        </p>
+        <p>{{ historyDetailRow.description }}</p>
+        <ElTable :data="historyDetailRow.changes" border size="small" style="margin-top:12px">
+          <ElTableColumn prop="label" label="字段" width="120" />
+          <ElTableColumn prop="before" label="变更前" width="100" />
+          <ElTableColumn prop="after" label="变更后" width="100" />
+        </ElTable>
       </template>
     </ElDialog>
   </div>
@@ -722,17 +1090,36 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 .manual-action-btn { flex: 1; min-width: 0; height: 40px; font-size: 15px; }
 .manual-exec { margin-top: 0; height: 40px; font-size: 15px; }
 
+.panel-gate-actions { flex-shrink: 0; margin-top: 12px; }
 .panel-records { flex: 1; min-height: 320px; }
 .record-search { margin-bottom: 14px; max-width: 420px; }
 .record-table-wrap { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
 .record-head, .record-row {
   display: grid;
-  grid-template-columns: 168px 72px 1fr 100px 100px 100px;
+  grid-template-columns: 168px 72px 1fr 100px 120px 100px 100px;
   gap: 16px; padding: 16px 20px; font-size: 16px; align-items: center;
   @media (max-width: 900px) {
-    grid-template-columns: 140px 60px 1fr 80px 88px 80px;
+    grid-template-columns: 140px 60px 1fr 80px 100px 88px 80px;
     font-size: 14px; gap: 10px; padding: 12px 14px;
   }
+}
+.record-interlock {
+  font-size: 13px;
+  &--ok { color: #94a3b8; }
+}
+.physics-guard-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px;
+  font-size: 14px; color: #475569;
+  strong { color: #1e293b; font-family: 'SF Mono', monospace; }
+  .physics-sync { margin-left: auto; font-size: 13px; color: #64748b; }
+  @media (max-width: 900px) { .physics-sync { margin-left: 0; width: 100%; } }
+}
+.panel-physics-guard { flex-shrink: 0; }
+.history-detail-meta { margin: 0 0 8px; font-size: 15px; color: #334155; }
+.history-dialog-hint { margin: 0 0 12px; font-size: 13px; color: #64748b; }
+.history-dialog-footer {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px; width: 100%;
+  .history-dialog-footer-hint { font-size: 13px; color: #94a3b8; }
 }
 .record-head {
   color: $cockpit-accent; font-weight: 600; font-size: 15px;
@@ -743,6 +1130,11 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 }
 .record-expand {
   padding: 14px 18px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 14px;
+  .snap-validation {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0;
+    font-size: 13px; color: #475569;
+    > span:first-child { font-weight: 600; color: #334155; }
+  }
   .snap-factors, .snap-plans { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; color: #475569; }
   .rec { color: #16a34a; font-weight: 600; }
 }
@@ -771,6 +1163,35 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 .detail-meta { margin-top: 12px; font-size: 14px; color: $cockpit-text-dim; }
 .detail-conf .conf-warn { font-size: 15px; }
 .sub { color: #64748b; font-size: 14px; }
+
+.inference-metrics {
+  :deep(.el-collapse-item__header) {
+    font-size: 15px; font-weight: 600; color: #334155;
+  }
+  :deep(.el-collapse-item__content) { padding-bottom: 8px; }
+}
+.metric-dl {
+  margin: 0; padding: 0;
+  &__row {
+    display: grid; grid-template-columns: 120px 1fr; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 15px;
+    &:last-child { border-bottom: none; }
+  }
+  dt { color: #64748b; }
+  dd { margin: 0; color: #334155; font-weight: 500; }
+  .is-abnormal { color: #dc2626; }
+}
+.contrib-pos { color: #16a34a !important; }
+.contrib-neg { color: #dc2626 !important; }
+.contrib-neutral { color: #64748b !important; }
+.inference-overall {
+  margin-top: 16px; padding: 14px 16px; border-radius: 8px;
+  font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 10px;
+  background: #f8fafc; border: 1px solid #e2e8f0;
+  &.contrib-pos { background: #f0fdf4; border-color: #bbf7d0; }
+  &.contrib-neg { background: #fef2f2; border-color: #fecaca; }
+  &__icon { font-size: 18px; }
+}
 
 .decision-detail-dialog {
   :deep(.el-dialog) { --el-bg-color: #ffffff; max-width: calc(100vw - 48px); }

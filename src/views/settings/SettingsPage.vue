@@ -4,13 +4,18 @@
 // ============================================================
 
 // ── 1. 外部依赖 ──
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ElTabs, ElTabPane, ElCard, ElTable, ElTableColumn, ElInputNumber, ElSwitch,
   ElButton, ElTag, ElPagination, ElDialog, ElForm, ElFormItem, ElInput, ElSelect,
   ElOption, ElSlider, ElUpload, ElMessage, ElMessageBox,
 } from 'element-plus'
 import { Plus, Upload, Search, Refresh, Warning } from '@element-plus/icons-vue'
+import ModelMetricsPanel from './components/ModelMetricsPanel.vue'
+import PhysicsGuardPanel from './components/PhysicsGuardPanel.vue'
+import PhysicsGuardHistoryPanel from './components/PhysicsGuardHistoryPanel.vue'
+import GateInterlockPanel from './components/GateInterlockPanel.vue'
 import { FORM_RULES } from '@/constants/validation'
 import { useOperationLog } from '@/composables/useOperationLog'
 import {
@@ -22,6 +27,13 @@ import {
 import type { ThresholdRule, WeightConfig, ModelInfo, SystemUser } from '@/shared/types'
 
 const { record: recordLog } = useOperationLog()
+const route = useRoute()
+const router = useRouter()
+
+const SETTINGS_TAB_NAMES = [
+  'thresholds', 'weights', 'models', 'ai-metrics',
+  'physics-guard', 'physics-guard-history', 'gate-interlock', 'users',
+] as const
 
 // ── 5. 响应式数据 ──
 const activeTab = ref('thresholds')
@@ -53,6 +65,7 @@ function applyPreset(p: Preset) {
 // 模型状态映射
 const modelTypeMap: Record<string, string> = { lstm_prediction: 'LSTM 预测', dqn_decision: 'DQN 决策', fault_detection: '故障检测', general: '通用' }
 const modelStatusMap: Record<string, string> = { uploaded: '已上传', validating: '验证中', ready: '就绪', active: '激活中', deprecated: '已废弃' }
+const healthGradeColor: Record<string, string> = { S: '#16a34a', A: '#22c55e', B: '#f59e0b', C: '#f97316', D: '#dc2626' }
 
 // 阈值指标映射
 const metricLabelMap: Record<string, string> = {
@@ -137,11 +150,11 @@ const MOCK_THRESHOLDS: ThresholdRule[] = [
 ]
 const MOCK_WEIGHTS: WeightConfig = { id: 1, version: 'v2.1.0', enabled: 1, power_weight: 0.40, safety_weight: 0.35, ecology_weight: 0.25, preset_name: '均衡方案', is_preset: 1, updated_at: '2026-07-03 09:00:00' }
 const MOCK_MODELS: ModelInfo[] = [
-  { id: 1, name: 'LSTM 水位预测 v2', version: 'v2.3.0', type: 'lstm_prediction', framework: 'pytorch', status: 'active', accuracy: 94.2, training_date: '2026-06-28', size: 128, is_active: 1, deployed_nodes: 3 },
-  { id: 2, name: 'DQN 调度决策 v3', version: 'v3.0.1', type: 'dqn_decision', framework: 'pytorch', status: 'active', accuracy: 88.7, training_date: '2026-06-30', size: 256, is_active: 1, deployed_nodes: 3 },
-  { id: 3, name: '故障检测模型', version: 'v1.2.0', type: 'fault_detection', framework: 'onnx', status: 'ready', accuracy: 82.5, training_date: '2026-06-25', size: 64, is_active: 0, deployed_nodes: 0 },
-  { id: 4, name: 'DQN 调度决策 v2', version: 'v2.9.0', type: 'dqn_decision', framework: 'pytorch', status: 'deprecated', accuracy: 85.1, training_date: '2026-05-15', size: 240, is_active: 0, deployed_nodes: 0 },
-  { id: 5, name: '通用水位预测', version: 'v1.0.0', type: 'general', framework: 'tensorflow', status: 'validating', accuracy: 76.3, training_date: '2026-07-02', size: 96, is_active: 0, deployed_nodes: 0 },
+  { id: 1, name: 'LSTM 水位预测 v2', version: 'v2.3.0', type: 'lstm_prediction', framework: 'pytorch', status: 'active', accuracy: 94.2, training_date: '2026-06-28', size: 128, is_active: 1, deployed_nodes: 3, overall_score: 0.88, health_grade: 'A' },
+  { id: 2, name: 'DQN 调度决策 v3', version: 'v3.0.1', type: 'dqn_decision', framework: 'pytorch', status: 'active', accuracy: 88.7, training_date: '2026-06-30', size: 256, is_active: 1, deployed_nodes: 3, overall_score: 0.82, health_grade: 'A' },
+  { id: 3, name: '故障检测模型', version: 'v1.2.0', type: 'fault_detection', framework: 'onnx', status: 'ready', accuracy: 82.5, training_date: '2026-06-25', size: 64, is_active: 0, deployed_nodes: 0, overall_score: 0.72, health_grade: 'B' },
+  { id: 4, name: 'DQN 调度决策 v2', version: 'v2.9.0', type: 'dqn_decision', framework: 'pytorch', status: 'deprecated', accuracy: 85.1, training_date: '2026-05-15', size: 240, is_active: 0, deployed_nodes: 0, overall_score: 0.68, health_grade: 'B' },
+  { id: 5, name: 'Physics-LSTM v5.1', version: 'v5.1.0', type: 'lstm_prediction', framework: 'pytorch', status: 'validating', accuracy: 76.3, training_date: '2026-07-02', size: 96, is_active: 0, deployed_nodes: 0, overall_score: 0.42, health_grade: 'C' },
 ]
 const MOCK_USERS: SystemUser[] = [
   { id: 1, account: 'admin', realname: '系统管理员', role_id: 4, role_name: '系统管理员', phone: '13800001000', is_enabled: 1, created_at: '2026-06-01 08:00:00' },
@@ -364,8 +377,26 @@ async function handleDelete(row: SystemUser) {
   } catch { /* 取消 */ }
 }
 
+function applySettingsTabQuery() {
+  const tab = route.query.tab as string | undefined
+  if (tab && (SETTINGS_TAB_NAMES as readonly string[]).includes(tab)) {
+    activeTab.value = tab
+  }
+}
+
+watch(() => route.query.tab, applySettingsTabQuery)
+
+watch(activeTab, (tab) => {
+  if (route.path !== '/settings') return
+  if (route.query.tab === tab) return
+  router.replace({ path: '/settings', query: { ...route.query, tab } })
+})
+
 // ── 生命周期 ──
-onMounted(() => { fetchThresholds(); fetchWeights(); fetchModels(); fetchUsers() })
+onMounted(() => {
+  applySettingsTabQuery()
+  fetchThresholds(); fetchWeights(); fetchModels(); fetchUsers()
+})
 </script>
 
 <template>
@@ -497,6 +528,14 @@ onMounted(() => { fetchThresholds(); fetchWeights(); fetchModels(); fetchUsers()
             <template #default="scope">{{ modelTypeMap[(scope.row as ModelInfo).type] ?? (scope.row as ModelInfo).type }}</template>
           </el-table-column>
           <el-table-column prop="version" label="版本" width="80" />
+          <el-table-column label="健康状态" width="100" align="center">
+            <template #default="scope">
+              <el-tag v-if="(scope.row as ModelInfo).health_grade" :color="healthGradeColor[(scope.row as ModelInfo).health_grade!] ?? '#6b7280'" effect="dark" size="small">
+                {{ (scope.row as ModelInfo).health_grade }} · {{ (((scope.row as ModelInfo).overall_score ?? 0) * 100).toFixed(0) }}
+              </el-tag>
+              <span v-else>—</span>
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="90">
             <template #default="scope">
               <el-tag :type="((scope.row as ModelInfo).status === 'active' ? 'success' : (scope.row as ModelInfo).status === 'validating' ? 'warning' : (scope.row as ModelInfo).status === 'deprecated' ? 'danger' : 'info') as 'success' | 'warning' | 'danger' | 'info'">
@@ -521,7 +560,35 @@ onMounted(() => { fetchThresholds(); fetchWeights(); fetchModels(); fetchUsers()
         <el-pagination v-model:current-page="modelsPage" :page-size="10" :total="modelsTotal" layout="total, prev, pager, next" background style="margin-top:12px;justify-content:flex-end" @current-change="fetchModels" />
       </el-tab-pane>
 
-      <!-- ═══ Tab4: 用户管理 ═══ -->
+      <!-- ═══ Tab4: 模型健康度（文档 §1.5） ═══ -->
+      <el-tab-pane label="模型健康度" name="ai-metrics">
+        <div class="gateai-tab-content">
+          <ModelMetricsPanel />
+        </div>
+      </el-tab-pane>
+
+      <!-- ═══ Tab5: 物理防护配置（文档 §2.5） ═══ -->
+      <el-tab-pane label="物理防护配置" name="physics-guard">
+        <div class="gateai-tab-content">
+          <PhysicsGuardPanel />
+        </div>
+      </el-tab-pane>
+
+      <!-- ═══ Tab5b: 配置变更历史 ═══ -->
+      <el-tab-pane label="配置变更历史" name="physics-guard-history">
+        <div class="gateai-tab-content">
+          <PhysicsGuardHistoryPanel />
+        </div>
+      </el-tab-pane>
+
+      <!-- ═══ Tab6: 闸门互锁（文档 §3.6） ═══ -->
+      <el-tab-pane label="闸门互锁规则" name="gate-interlock">
+        <div class="gateai-tab-content">
+          <GateInterlockPanel />
+        </div>
+      </el-tab-pane>
+
+      <!-- ═══ Tab7: 用户管理 ═══ -->
       <el-tab-pane label="用户管理" name="users">
         <div class="settings-page__toolbar">
           <el-input v-model="userKeyword" placeholder="搜索用户名/姓名" :prefix-icon="Search" clearable style="width:220px" @input="usersPage=1;fetchUsers()" />
@@ -608,7 +675,13 @@ onMounted(() => { fetchThresholds(); fetchWeights(); fetchModels(); fetchUsers()
 
   &__tabs {
     :deep(.el-tabs__content) {
-      padding: var(--spacing-lg);
+      padding: 20px 24px;
+    }
+    :deep(.el-tabs__item) {
+      font-size: var(--font-size-base);
+      padding: 0 18px;
+      height: 44px;
+      line-height: 44px;
     }
   }
 
@@ -687,4 +760,7 @@ onMounted(() => { fetchThresholds(); fetchWeights(); fetchModels(); fetchUsers()
   gap: 8px;
   justify-content: center;
 }
+
+
+// 阈值表格编辑按钮区
 </style>
