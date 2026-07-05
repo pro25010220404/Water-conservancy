@@ -2,8 +2,19 @@
 // ── 1. 外部依赖导入 ──
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import {
-  ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput,
-  ElTimeline, ElTimelineItem, ElSlider, ElInputNumber, ElSelect, ElOption, ElTag,
+  ElMessage,
+  ElMessageBox,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElTimeline,
+  ElTimelineItem,
+  ElSlider,
+  ElInputNumber,
+  ElSelect,
+  ElOption,
+  ElTag,
 } from 'element-plus'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import ThreeDamScene from '@/components/cockpit/ThreeDamScene.vue'
@@ -12,32 +23,57 @@ import DamPanoramaModal from '@/components/cockpit/DamPanoramaModal.vue'
 import { useSmoothNumber } from '@/composables/useSmoothNumber'
 import SimulationTabPanel from './components/SimulationTabPanel.vue'
 import type {
-  SimulationScene, SimulationSpeed, SimulationParams,
-  SimulationRealtimeData, AiModel, SimulationReport, FaultReview, FaultConclusion,
+  SimulationScene,
+  SimulationSpeed,
+  SimulationParams,
+  SimulationRealtimeData,
+  AiModel,
+  SimulationReport,
+  FaultReview,
+  FaultConclusion,
 } from '@/types/simulation'
 import { XIANGJIABA_HYDRO, getLevelStatus, levelGaugePercent } from '@/constants/xiangjiaba'
 import {
-  SIMULATION_SCENE_OPTIONS, SIMULATION_SCENE_MAP, getScenePreset,
-  SIMULATION_STATUS_MAP, SPEED_OPTIONS, DEFAULT_TRAINING_CONFIG,
+  SIMULATION_SCENE_OPTIONS,
+  SIMULATION_SCENE_MAP,
+  getScenePreset,
+  SIMULATION_STATUS_MAP,
+  SPEED_OPTIONS,
+  DEFAULT_TRAINING_CONFIG,
   SIMULATION_TABS,
   type SimulationTab,
 } from '@/constants/simulation'
 import {
-  startSimulation, pauseSimulation, resumeSimulation, resetSimulation, getSimulationStatus,
+  startSimulation,
+  pauseSimulation,
+  resumeSimulation,
+  resetSimulation,
+  getSimulationStatus,
   setSimulationGateOpening,
-  getModelList, activateModel, uploadModel, startTraining, generateReport, getReportList,
-  getFaultReviewList, getFaultReviewDetail, importToSimulation, getPhysicsGuardSummary,
+  getModelList,
+  activateModel,
+  uploadModel,
+  startTraining,
+  generateReport,
+  getReportList,
+  getFaultReviewList,
+  getFaultReviewDetail,
+  importToSimulation,
+  getPhysicsGuardSummary,
 } from '@/api/simulation'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 
 // ── 5. 响应式数据 ──
 const activeTab = ref<SimulationTab>('control')
 const simStatus = ref<SimulationRealtimeData>({
-  status: 'idle', elapsedSec: 0,
+  status: 'idle',
+  elapsedSec: 0,
   currentLevel: XIANGJIABA_HYDRO.normalPoolLevel,
   currentDownstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
-  currentFlow: XIANGJIABA_HYDRO.normalInflow, currentOpening: 45,
-  historyLevels: [], historyFlows: [],
+  currentFlow: XIANGJIABA_HYDRO.normalInflow,
+  currentOpening: 45,
+  historyLevels: [],
+  historyFlows: [],
 })
 const simParams = reactive<SimulationParams>({
   scene: 'normal',
@@ -52,15 +88,20 @@ let gateSyncTimer: ReturnType<typeof setTimeout> | null = null
 watch(gateOpening, (v) => {
   if (gateSyncTimer) clearTimeout(gateSyncTimer)
   gateSyncTimer = setTimeout(() => {
-    setSimulationGateOpening(v).catch(() => { /* */ })
+    setSimulationGateOpening(v).catch(() => {
+      /* */
+    })
   }, 400)
 })
 
-watch(() => simStatus.value.status, (status, prev) => {
-  if (status === 'finished' && prev === 'running') {
-    ElMessage.success(`仿真已完成 · 时长 ${simParams.durationMin} min`)
-  }
-})
+watch(
+  () => simStatus.value.status,
+  (status, prev) => {
+    if (status === 'finished' && prev === 'running') {
+      ElMessage.success(`仿真已完成 · 时长 ${simParams.durationMin} min`)
+    }
+  },
+)
 
 const models = ref<AiModel[]>([])
 const reports = ref<SimulationReport[]>([])
@@ -73,7 +114,11 @@ const physicsGuard = ref<PhysicsGuardSummary | null>(null)
 const reviewDetailVisible = ref(false)
 const reviewDetail = ref<FaultReview | null>(null)
 const reviewConclusion = reactive<FaultConclusion>({
-  rootCause: '', improvements: '', responsibleDept: '', reviewedBy: '', reviewedAt: '',
+  rootCause: '',
+  improvements: '',
+  responsibleDept: '',
+  reviewedBy: '',
+  reviewedAt: '',
 })
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -109,18 +154,21 @@ const elapsedLabel = computed(() => {
 })
 const statusInfo = computed(() => SIMULATION_STATUS_MAP[simStatus.value.status])
 const sceneLabel = computed(() => SIMULATION_SCENE_MAP[simScene.value]?.label ?? '')
-const simActive = computed(() =>
-  simStatus.value.status === 'running'
-  || simStatus.value.status === 'paused'
-  || simStatus.value.status === 'finished',
+const simActive = computed(
+  () =>
+    simStatus.value.status === 'running' ||
+    simStatus.value.status === 'paused' ||
+    simStatus.value.status === 'finished',
 )
-const canPause = computed(() =>
-  simStatus.value.status === 'running' || simStatus.value.status === 'paused',
+const canPause = computed(
+  () => simStatus.value.status === 'running' || simStatus.value.status === 'paused',
 )
-const canStart = computed(() =>
-  simStatus.value.status === 'idle' || simStatus.value.status === 'finished',
+const canStart = computed(
+  () => simStatus.value.status === 'idle' || simStatus.value.status === 'finished',
 )
-const activeTabLabel = computed(() => SIMULATION_TABS.find((t) => t.value === activeTab.value)?.label ?? '功能面板')
+const activeTabLabel = computed(
+  () => SIMULATION_TABS.find((t) => t.value === activeTab.value)?.label ?? '功能面板',
+)
 /** 主视窗：2D 剖面示意 / 3D 场景 */
 const viewMode = ref<'2d' | '3d'>('3d')
 const panoramaVisible = ref(false)
@@ -138,25 +186,46 @@ async function fetchSim() {
     if (!gateLocalEdit.value) {
       gateOpening.value = simStatus.value.currentOpening
     }
-  } catch { /* */ }
+  } catch {
+    /* */
+  }
 }
 async function fetchModels() {
   modelLoading.value = true
-  try { models.value = (await getModelList()).data } catch { models.value = [] }
-  finally { modelLoading.value = false }
+  try {
+    models.value = (await getModelList()).data
+  } catch {
+    models.value = []
+  } finally {
+    modelLoading.value = false
+  }
 }
 async function fetchReports() {
   reportLoading.value = true
-  try { reports.value = (await getReportList({ pageNum: 1, pageSize: 10 })).data.list } catch { reports.value = [] }
-  finally { reportLoading.value = false }
+  try {
+    reports.value = (await getReportList({ pageNum: 1, pageSize: 10 })).data.list
+  } catch {
+    reports.value = []
+  } finally {
+    reportLoading.value = false
+  }
 }
 async function fetchPhysicsGuard() {
-  try { physicsGuard.value = (await getPhysicsGuardSummary()).data } catch { physicsGuard.value = null }
+  try {
+    physicsGuard.value = (await getPhysicsGuardSummary()).data
+  } catch {
+    physicsGuard.value = null
+  }
 }
 async function fetchReviews() {
   reviewLoading.value = true
-  try { reviews.value = (await getFaultReviewList({ pageNum: 1, pageSize: 10 })).data.list } catch { reviews.value = [] }
-  finally { reviewLoading.value = false }
+  try {
+    reviews.value = (await getFaultReviewList({ pageNum: 1, pageSize: 10 })).data.list
+  } catch {
+    reviews.value = []
+  } finally {
+    reviewLoading.value = false
+  }
 }
 
 function onTabChange(tab: SimulationTab) {
@@ -242,33 +311,43 @@ async function handleActivateModel(id: number) {
     await activateModel(id)
     ElMessage.success('已激活')
     fetchModels()
-  } catch { /* */ }
+  } catch {
+    /* */
+  }
 }
 async function handleUploadModel() {
   try {
     await uploadModel(new FormData())
     ElMessage.success('模型导入成功')
     fetchModels()
-  } catch { ElMessage.error('导入失败') }
+  } catch {
+    ElMessage.error('导入失败')
+  }
 }
 async function handleTrainModel(modelId: number) {
   try {
     await startTraining({ modelId, ...DEFAULT_TRAINING_CONFIG })
     ElMessage.success('训练任务已提交')
-  } catch { ElMessage.error('训练启动失败') }
+  } catch {
+    ElMessage.error('训练启动失败')
+  }
 }
 async function handleGenerateReport() {
   try {
     await generateReport(101)
     ElMessage.success('报告已生成')
     fetchReports()
-  } catch { ElMessage.error('生成失败') }
+  } catch {
+    ElMessage.error('生成失败')
+  }
 }
 async function openReviewDetail(id: number) {
   try {
     reviewDetail.value = (await getFaultReviewDetail(id)).data
     reviewDetailVisible.value = true
-  } catch { /* */ }
+  } catch {
+    /* */
+  }
 }
 async function handleImportToSim(id: number) {
   try {
@@ -276,7 +355,9 @@ async function handleImportToSim(id: number) {
     Object.assign(simParams, res.data)
     activeTab.value = 'control'
     ElMessage.success('已导入仿真参数')
-  } catch { /* */ }
+  } catch {
+    /* */
+  }
 }
 
 // ── 8. 生命周期 ──
@@ -297,293 +378,385 @@ onUnmounted(() => {
 
 <template>
   <div class="sim-page sim-page--twin sim-page--sky">
-      <div class="sim-page__grid">
-        <!-- 左栏：水情数据 -->
-        <aside class="sim-page__col sim-page__col--left">
-          <GlassPanel3D title="水情实时统计" large>
-            <div class="twin-kpi-row">
-              <div class="twin-kpi">
-                <div class="twin-kpi__ring" :style="{ '--pct': gaugePct + '%', '--c': levelStatus.color }">
-                  <b>{{ waterLevel.toFixed(2) }}</b>
-                  <small>m</small>
-                </div>
-                <span>上游水位</span>
-              </div>
-              <div class="twin-kpi">
-                <div class="twin-kpi__ring twin-kpi__ring--flow">
-                  <b>{{ flowRate }}</b>
-                  <small>m³/s</small>
-                </div>
-                <span>入库流量</span>
-              </div>
-              <div class="twin-kpi">
-                <div class="twin-kpi__ring twin-kpi__ring--gate">
-                  <b>{{ gateOpening }}</b>
-                  <small>%</small>
-                </div>
-                <span>闸门开度</span>
-              </div>
-            </div>
-            <ul class="twin-ref-list">
-              <li><span>正常蓄水</span><b>{{ XIANGJIABA_HYDRO.normalPoolLevel }} m</b></li>
-              <li><span>汛限水位</span><b>{{ XIANGJIABA_HYDRO.floodLimitLevel }} m</b></li>
-              <li><span>坝顶高程</span><b>{{ XIANGJIABA_HYDRO.crestElevation }} m</b></li>
-              <li><span>下游尾水</span><b>{{ downstreamLevel.toFixed(2) }} m</b></li>
-              <li v-if="physicsGuard"><span>防护配置</span><b>v{{ physicsGuard.config_version }}</b></li>
-              <li v-if="physicsGuard"><span>紧急水位线</span><b>{{ physicsGuard.upstream_emergency }} m</b></li>
-            </ul>
-          </GlassPanel3D>
-
-          <GlassPanel3D title="库区水位曲线" compact large class="twin-chart-panel">
-            <div class="twin-bars">
+    <div class="sim-page__grid">
+      <!-- 左栏：水情数据 -->
+      <aside class="sim-page__col sim-page__col--left">
+        <GlassPanel3D
+title="水情实时统计" large>
+          <div class="twin-kpi-row">
+            <div class="twin-kpi">
               <div
-                v-for="(bar, i) in levelHistoryBars"
-                :key="i"
-                class="twin-bars__item"
-                :style="{ height: bar.h + '%' }"
-                :title="bar.v.toFixed(2) + 'm'"
-              />
+                class="twin-kpi__ring"
+                :style="{ '--pct': gaugePct + '%', '--c': levelStatus.color }"
+              >
+                <b>{{ waterLevel.toFixed(2) }}</b>
+                <small>m</small>
+              </div>
+              <span>上游水位</span>
             </div>
-          </GlassPanel3D>
-        </aside>
+            <div class="twin-kpi">
+              <div class="twin-kpi__ring twin-kpi__ring--flow">
+                <b>{{ flowRate }}</b>
+                <small>m³/s</small>
+              </div>
+              <span>入库流量</span>
+            </div>
+            <div class="twin-kpi">
+              <div class="twin-kpi__ring twin-kpi__ring--gate">
+                <b>{{ gateOpening }}</b>
+                <small>%</small>
+              </div>
+              <span>闸门开度</span>
+            </div>
+          </div>
+          <ul class="twin-ref-list">
+            <li>
+              <span>正常蓄水</span><b>{{ XIANGJIABA_HYDRO.normalPoolLevel }} m</b>
+            </li>
+            <li>
+              <span>汛限水位</span><b>{{ XIANGJIABA_HYDRO.floodLimitLevel }} m</b>
+            </li>
+            <li>
+              <span>坝顶高程</span><b>{{ XIANGJIABA_HYDRO.crestElevation }} m</b>
+            </li>
+            <li>
+              <span>下游尾水</span><b>{{ downstreamLevel.toFixed(2) }} m</b>
+            </li>
+            <li v-if="physicsGuard">
+              <span>防护配置</span><b>v{{ physicsGuard.config_version }}</b>
+            </li>
+            <li v-if="physicsGuard">
+              <span>紧急水位线</span><b>{{ physicsGuard.upstream_emergency }} m</b>
+            </li>
+          </ul>
+        </GlassPanel3D>
 
-        <!-- 中栏：仿真视图 + 仿真控制 -->
-        <main class="sim-page__col sim-page__col--center">
-          <div class="sim-viewport-label">仿真视图 · 2D 剖面 / 3D 场景</div>
-          <div
-            class="sim-viewport sim-viewport--twin"
-            :class="{ 'sim-viewport--2d': viewMode === '2d' }"
-            @dblclick="openPanorama"
-          >
-            <div v-if="viewMode === '3d'" class="sim-viewport__ctrl">
-              <button type="button" class="sim-viewport__btn" @click.stop="openPanorama">
-                全景 BIM
-              </button>
-            </div>
-            <div v-if="viewMode === '3d'" class="sim-viewport__fx" aria-hidden="true">
-              <div class="sim-viewport__scanlines" />
-              <div class="sim-viewport__particles" />
-              <div class="sim-viewport__data-beam sim-viewport__data-beam--left" />
-              <div class="sim-viewport__data-beam sim-viewport__data-beam--right" />
-            </div>
-            <div v-if="viewMode === '3d' && simActive && !panoramaVisible" class="sim-viewport__hud">
-              <span class="sim-viewport__hud-badge" :style="{ color: statusInfo?.color }">
-                {{ statusInfo?.label }} · {{ sceneLabel }}
-              </span>
-              <span>水位 <b :style="{ color: levelStatus.color }">{{ waterLevel.toFixed(2) }} m</b></span>
-              <span>开度 <b>{{ gateOpening }}%</b></span>
-              <span>仿真 <b>{{ elapsedLabel }}</b></span>
-              <span>倍速 <b>{{ simSpeed }}x</b></span>
-            </div>
-            <TwinDamSchematic2D
-              v-if="viewMode === '2d'"
-              :water-level="smoothWaterLevel"
-              :downstream-level="smoothDownstreamLevel"
-              :gate-opening="gateOpening"
-              :flow-rate="flowRate"
-            />
-            <ThreeDamScene
-              v-else
-              ref="mainSceneRef"
-              visual-mode="twin"
-              :water-level="smoothWaterLevel"
-              :downstream-level="smoothDownstreamLevel"
-              :gate-opening="gateOpening"
-              :flow-rate="flowRate"
-              :sim-scene="simScene"
-              :sim-running="simActive"
+        <GlassPanel3D
+title="库区水位曲线" compact large class="twin-chart-panel">
+          <div class="twin-bars">
+            <div
+              v-for="(bar, i) in levelHistoryBars"
+              :key="i"
+              class="twin-bars__item"
+              :style="{ height: bar.h + '%' }"
+              :title="bar.v.toFixed(2) + 'm'"
             />
           </div>
+        </GlassPanel3D>
+      </aside>
 
-          <div class="sim-toolbar">
-            <div class="sim-toolbar__view">
-              <button
-                type="button"
-                class="sim-toolbar__btn"
-                :class="{ 'is-active': viewMode === '2d' }"
-                @click="viewMode = '2d'"
-              >
-                2D 剖面
-              </button>
-              <button
-                type="button"
-                class="sim-toolbar__btn"
-                :class="{ 'is-active': viewMode === '3d' }"
-                @click="viewMode = '3d'"
-              >
-                3D 场景
-              </button>
-            </div>
-            <span class="sim-toolbar__sep" />
-            <label class="sim-toolbar__field">
-              <span>场景</span>
-              <select
-                class="sim-toolbar__select"
-                :value="simScene"
-                :disabled="!canStart"
-                @change="onSceneChange(($event.target as HTMLSelectElement).value as SimulationScene)"
-              >
-                <option v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :value="s.value">
-                  {{ s.label }}
-                </option>
-              </select>
-            </label>
-            <label class="sim-toolbar__field">
-              <span>倍速</span>
-              <select
-                v-model.number="simSpeed"
-                class="sim-toolbar__select"
-                :disabled="simStatus.status === 'running'"
-              >
-                <option v-for="s in SPEED_OPTIONS" :key="s.value" :value="s.value">
-                  {{ s.label }}
-                </option>
-              </select>
-            </label>
-            <span class="sim-toolbar__sep" />
-            <button type="button" class="sim-toolbar__btn sim-toolbar__btn--launch" @click="handleOpenSimModal">
-              开始仿真
+      <!-- 中栏：仿真视图 + 仿真控制 -->
+      <main class="sim-page__col sim-page__col--center">
+        <div class="sim-viewport-label">仿真视图 · 2D 剖面 / 3D 场景</div>
+        <div
+          class="sim-viewport sim-viewport--twin"
+          :class="{ 'sim-viewport--2d': viewMode === '2d' }"
+          @dblclick="openPanorama"
+        >
+          <div
+v-if="viewMode === '3d'" class="sim-viewport__ctrl">
+            <button
+type="button" class="sim-viewport__btn" @click.stop="openPanorama">
+              全景 BIM
             </button>
-            <button type="button" class="sim-toolbar__btn" :disabled="!canPause" @click="handlePauseSim">
-              {{ simStatus.status === 'paused' ? '继续' : '暂停' }}
+          </div>
+          <div
+v-if="viewMode === '3d'" class="sim-viewport__fx" aria-hidden="true">
+            <div class="sim-viewport__scanlines" />
+            <div class="sim-viewport__particles" />
+            <div class="sim-viewport__data-beam sim-viewport__data-beam--left" />
+            <div class="sim-viewport__data-beam sim-viewport__data-beam--right" />
+          </div>
+          <div
+v-if="viewMode === '3d' && simActive && !panoramaVisible" class="sim-viewport__hud">
+            <span
+class="sim-viewport__hud-badge" :style="{ color: statusInfo?.color }">
+              {{ statusInfo?.label }} · {{ sceneLabel }}
+            </span>
+            <span
+              >水位 <b :style="{ color: levelStatus.color }">{{ waterLevel.toFixed(2) }} m</b></span
+            >
+            <span
+              >开度 <b>{{ gateOpening }}%</b></span
+            >
+            <span
+              >仿真 <b>{{ elapsedLabel }}</b></span
+            >
+            <span
+              >倍速 <b>{{ simSpeed }}x</b></span
+            >
+          </div>
+          <TwinDamSchematic2D
+            v-if="viewMode === '2d'"
+            :water-level="smoothWaterLevel"
+            :downstream-level="smoothDownstreamLevel"
+            :gate-opening="gateOpening"
+            :flow-rate="flowRate"
+          />
+          <ThreeDamScene
+            v-else
+            ref="mainSceneRef"
+            visual-mode="twin"
+            :water-level="smoothWaterLevel"
+            :downstream-level="smoothDownstreamLevel"
+            :gate-opening="gateOpening"
+            :flow-rate="flowRate"
+            :sim-scene="simScene"
+            :sim-running="simActive"
+          />
+        </div>
+
+        <div class="sim-toolbar">
+          <div class="sim-toolbar__view">
+            <button
+              type="button"
+              class="sim-toolbar__btn"
+              :class="{ 'is-active': viewMode === '2d' }"
+              @click="viewMode = '2d'"
+            >
+              2D 剖面
             </button>
             <button
               type="button"
               class="sim-toolbar__btn"
-              :disabled="simStatus.status === 'idle'"
-              @click="handleResetSim"
+              :class="{ 'is-active': viewMode === '3d' }"
+              @click="viewMode = '3d'"
             >
-              重置
+              3D 场景
             </button>
-            <span class="sim-toolbar__time">仿真 {{ elapsedLabel }} · {{ statusInfo?.label }}</span>
           </div>
-        </main>
-
-        <!-- 右栏：闸门监测 + 功能面板 -->
-        <aside class="sim-page__col sim-page__col--right">
-          <GlassPanel3D title="泄洪闸门监测" compact large class="twin-gate-panel">
-            <ul class="twin-gate-list">
-              <li v-for="n in 5" :key="n">
-                <span>{{ n }} 号表孔闸门</span>
-                <b class="is-open">{{ gateOpening }}% · 运行正常</b>
-              </li>
-            </ul>
-            <p class="twin-alert">
-              运行正常 · 同步泄洪 {{ gateOpening }}%
-            </p>
-          </GlassPanel3D>
-
-          <GlassPanel3D :title="activeTabLabel" large class="sim-func-panel">
-            <SimulationTabPanel
-              :active-tab="activeTab"
-              :sim-scene="simScene"
-              :sim-status="simStatus"
-              :physics-guard="physicsGuard"
-              :models="models"
-              :reports="reports"
-              :reviews="reviews"
-              :model-loading="modelLoading"
-              :report-loading="reportLoading"
-              :review-loading="reviewLoading"
-              compact
-              @tab-change="onTabChange"
-              @activate="handleActivateModel"
-              @upload="handleUploadModel"
-              @train="handleTrainModel"
-              @generate="handleGenerateReport"
-              @open-review="openReviewDetail"
-              @import-review="handleImportToSim"
-            />
-          </GlassPanel3D>
-        </aside>
-      </div>
-
-      <DamPanoramaModal
-        ref="panoramaRef"
-        :visible="panoramaVisible"
-        :water-level="smoothWaterLevel"
-        :downstream-level="smoothDownstreamLevel"
-        :gate-opening="gateOpening"
-        :flow-rate="flowRate"
-        :sim-scene="simScene"
-        :sim-speed="simSpeed"
-        :sim-status="simStatus"
-        :can-start="canStart"
-        :can-pause="canPause"
-        :elapsed-label="elapsedLabel"
-        :scene-label="sceneLabel"
-        :status-label="statusInfo?.label ?? '待机'"
-        :status-color="statusInfo?.color ?? '#6b7280'"
-        :level-status-color="levelStatus.color"
-        :level-status-label="levelStatus.label"
-        @close="panoramaVisible = false"
-        @start="handleStartSim"
-        @pause="handlePauseSim"
-        @reset="handleResetSim"
-        @update:sim-scene="onSceneChange"
-        @update:sim-speed="simSpeed = $event"
-        @update:gate-opening="gateOpening = $event"
-      />
-
-      <ElDialog v-model="showParams" title="仿真参数" width="440px" destroy-on-close>
-        <div class="param-panel__status">
-          <ElTag size="small" :color="statusInfo?.color">{{ statusInfo?.label }}</ElTag>
-          <span>{{ SIMULATION_SCENE_MAP[simScene]?.label }}</span>
+          <span class="sim-toolbar__sep" />
+          <label class="sim-toolbar__field">
+            <span>场景</span>
+            <select
+              class="sim-toolbar__select"
+              :value="simScene"
+              :disabled="!canStart"
+              @change="onSceneChange(($event.target as HTMLSelectElement).value as SimulationScene)"
+            >
+              <option
+v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :value="s.value">
+                {{ s.label }}
+              </option>
+            </select>
+          </label>
+          <label class="sim-toolbar__field">
+            <span>倍速</span>
+            <select
+              v-model.number="simSpeed"
+              class="sim-toolbar__select"
+              :disabled="simStatus.status === 'running'"
+            >
+              <option
+v-for="s in SPEED_OPTIONS" :key="s.value" :value="s.value">
+                {{ s.label }}
+              </option>
+            </select>
+          </label>
+          <span class="sim-toolbar__sep" />
+          <button
+            type="button"
+            class="sim-toolbar__btn sim-toolbar__btn--launch"
+            @click="handleOpenSimModal"
+          >
+            开始仿真
+          </button>
+          <button
+            type="button"
+            class="sim-toolbar__btn"
+            :disabled="!canPause"
+            @click="handlePauseSim"
+          >
+            {{ simStatus.status === 'paused' ? '继续' : '暂停' }}
+          </button>
+          <button
+            type="button"
+            class="sim-toolbar__btn"
+            :disabled="simStatus.status === 'idle'"
+            @click="handleResetSim"
+          >
+            重置
+          </button>
+          <span class="sim-toolbar__time">仿真 {{ elapsedLabel }} · {{ statusInfo?.label }}</span>
         </div>
-        <ElForm label-position="top" class="param-form">
-          <ElFormItem label="预设场景" class="param-form__full">
-            <ElSelect :model-value="simScene" @change="onSceneChange($event as SimulationScene)">
-              <ElOption v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :label="s.label" :value="s.value" />
-            </ElSelect>
-          </ElFormItem>
-          <ElFormItem label="初始水位 (m)">
-            <ElInputNumber v-model="simParams.initialLevel" :min="370" :max="385" :step="0.1" controls-position="right" />
-          </ElFormItem>
-          <ElFormItem label="入库流量 (m³/s)">
-            <ElInputNumber v-model="simParams.inflowRate" :min="500" :max="5000" :step="50" controls-position="right" />
-          </ElFormItem>
-          <ElFormItem label="仿真时长 (min)">
-            <ElInputNumber v-model="simParams.durationMin" :min="10" :max="240" :step="10" controls-position="right" />
-          </ElFormItem>
-          <ElFormItem label="仿真倍速">
-            <ElSelect v-model="simSpeed">
-              <ElOption v-for="s in SPEED_OPTIONS" :key="s.value" :label="s.label" :value="s.value" />
-            </ElSelect>
-          </ElFormItem>
-          <ElFormItem label="闸门开度 (%)" class="param-form__full">
-            <ElSlider
-              v-model="gateOpening"
-              :min="0"
-              :max="100"
-              :step="1"
-              show-input
-              @input="gateLocalEdit = true"
-              @change="gateLocalEdit = false"
-            />
-          </ElFormItem>
-        </ElForm>
-      </ElDialog>
+      </main>
 
-      <ElDialog v-model="reviewDetailVisible" title="历史故障复盘详情" width="720px">
-        <template v-if="reviewDetail">
-          <div class="review-summary">
-            <p><strong>{{ reviewDetail.faultType }}</strong></p>
-            <p class="review-meta">影响范围：{{ reviewDetail.impactScope }} · 关联告警 #{{ reviewDetail.alarmId }}</p>
-          </div>
-          <ElTimeline>
-            <ElTimelineItem v-for="(e, i) in reviewDetail.timeline" :key="i" :timestamp="e.time">{{ e.event }}</ElTimelineItem>
-          </ElTimeline>
-        </template>
-        <ElForm label-position="top">
-          <ElFormItem label="根因分析">
-            <ElInput v-model="reviewConclusion.rootCause" type="textarea" :rows="3" placeholder="填写故障根因" />
-          </ElFormItem>
-          <ElFormItem label="改进措施">
-            <ElInput v-model="reviewConclusion.improvements" type="textarea" :rows="2" placeholder="填写改进措施" />
-          </ElFormItem>
-        </ElForm>
-      </ElDialog>
+      <!-- 右栏：闸门监测 + 功能面板 -->
+      <aside class="sim-page__col sim-page__col--right">
+        <GlassPanel3D
+title="泄洪闸门监测" compact large class="twin-gate-panel">
+          <ul class="twin-gate-list">
+            <li
+v-for="n in 5" :key="n">
+              <span>{{ n }} 号表孔闸门</span>
+              <b class="is-open">{{ gateOpening }}% · 运行正常</b>
+            </li>
+          </ul>
+          <p class="twin-alert">运行正常 · 同步泄洪 {{ gateOpening }}%</p>
+        </GlassPanel3D>
+
+        <GlassPanel3D
+:title="activeTabLabel" large class="sim-func-panel">
+          <SimulationTabPanel
+            :active-tab="activeTab"
+            :sim-scene="simScene"
+            :sim-status="simStatus"
+            :physics-guard="physicsGuard"
+            :models="models"
+            :reports="reports"
+            :reviews="reviews"
+            :model-loading="modelLoading"
+            :report-loading="reportLoading"
+            :review-loading="reviewLoading"
+            compact
+            @tab-change="onTabChange"
+            @activate="handleActivateModel"
+            @upload="handleUploadModel"
+            @train="handleTrainModel"
+            @generate="handleGenerateReport"
+            @open-review="openReviewDetail"
+            @import-review="handleImportToSim"
+          />
+        </GlassPanel3D>
+      </aside>
     </div>
+
+    <DamPanoramaModal
+      ref="panoramaRef"
+      :visible="panoramaVisible"
+      :water-level="smoothWaterLevel"
+      :downstream-level="smoothDownstreamLevel"
+      :gate-opening="gateOpening"
+      :flow-rate="flowRate"
+      :sim-scene="simScene"
+      :sim-speed="simSpeed"
+      :sim-status="simStatus"
+      :can-start="canStart"
+      :can-pause="canPause"
+      :elapsed-label="elapsedLabel"
+      :scene-label="sceneLabel"
+      :status-label="statusInfo?.label ?? '待机'"
+      :status-color="statusInfo?.color ?? '#6b7280'"
+      :level-status-color="levelStatus.color"
+      :level-status-label="levelStatus.label"
+      @close="panoramaVisible = false"
+      @start="handleStartSim"
+      @pause="handlePauseSim"
+      @reset="handleResetSim"
+      @update:sim-scene="onSceneChange"
+      @update:sim-speed="simSpeed = $event"
+      @update:gate-opening="gateOpening = $event"
+    />
+
+    <ElDialog
+v-model="showParams" title="仿真参数" width="440px" destroy-on-close>
+      <div class="param-panel__status">
+        <ElTag size="small"
+:color="statusInfo?.color">
+          {{ statusInfo?.label }}
+        </ElTag>
+        <span>{{ SIMULATION_SCENE_MAP[simScene]?.label }}</span>
+      </div>
+      <ElForm
+label-position="top" class="param-form">
+        <ElFormItem
+label="预设场景" class="param-form__full">
+          <ElSelect
+:model-value="simScene" @change="onSceneChange($event as SimulationScene)">
+            <ElOption
+              v-for="s in SIMULATION_SCENE_OPTIONS"
+              :key="s.value"
+              :label="s.label"
+              :value="s.value"
+            />
+          </ElSelect>
+        </ElFormItem>
+        <ElFormItem label="初始水位 (m)">
+          <ElInputNumber
+            v-model="simParams.initialLevel"
+            :min="370"
+            :max="385"
+            :step="0.1"
+            controls-position="right"
+          />
+        </ElFormItem>
+        <ElFormItem label="入库流量 (m³/s)">
+          <ElInputNumber
+            v-model="simParams.inflowRate"
+            :min="500"
+            :max="5000"
+            :step="50"
+            controls-position="right"
+          />
+        </ElFormItem>
+        <ElFormItem label="仿真时长 (min)">
+          <ElInputNumber
+            v-model="simParams.durationMin"
+            :min="10"
+            :max="240"
+            :step="10"
+            controls-position="right"
+          />
+        </ElFormItem>
+        <ElFormItem label="仿真倍速">
+          <ElSelect v-model="simSpeed">
+            <ElOption
+v-for="s in SPEED_OPTIONS" :key="s.value" :label="s.label" :value="s.value" />
+          </ElSelect>
+        </ElFormItem>
+        <ElFormItem
+label="闸门开度 (%)" class="param-form__full">
+          <ElSlider
+            v-model="gateOpening"
+            :min="0"
+            :max="100"
+            :step="1"
+            show-input
+            @input="gateLocalEdit = true"
+            @change="gateLocalEdit = false"
+          />
+        </ElFormItem>
+      </ElForm>
+    </ElDialog>
+
+    <ElDialog
+v-model="reviewDetailVisible" title="历史故障复盘详情" width="720px">
+      <template v-if="reviewDetail">
+        <div class="review-summary">
+          <p>
+            <strong>{{ reviewDetail.faultType }}</strong>
+          </p>
+          <p class="review-meta">
+            影响范围：{{ reviewDetail.impactScope }} · 关联告警 #{{ reviewDetail.alarmId }}
+          </p>
+        </div>
+        <ElTimeline>
+          <ElTimelineItem v-for="(e, i) in reviewDetail.timeline"
+:key="i" :timestamp="e.time">
+            {{ e.event }}
+          </ElTimelineItem>
+        </ElTimeline>
+      </template>
+      <ElForm label-position="top">
+        <ElFormItem label="根因分析">
+          <ElInput
+            v-model="reviewConclusion.rootCause"
+            type="textarea"
+            :rows="3"
+            placeholder="填写故障根因"
+          />
+        </ElFormItem>
+        <ElFormItem label="改进措施">
+          <ElInput
+            v-model="reviewConclusion.improvements"
+            type="textarea"
+            :rows="2"
+            placeholder="填写改进措施"
+          />
+        </ElFormItem>
+      </ElForm>
+    </ElDialog>
+  </div>
 </template>
 
 <style scoped lang="scss">
@@ -601,10 +774,18 @@ onUnmounted(() => {
   overflow: hidden;
   font-size: $cockpit-font-md;
 
-  :deep(.glass-panel__title) { font-size: 20px; }
-  :deep(.glass-panel__body) { font-size: 17px; }
-  :deep(.glass-panel__header) { padding: 16px 20px; }
-  :deep(.glass-panel__deco) { height: 20px; }
+  :deep(.glass-panel__title) {
+    font-size: 20px;
+  }
+  :deep(.glass-panel__body) {
+    font-size: 17px;
+  }
+  :deep(.glass-panel__header) {
+    padding: 16px 20px;
+  }
+  :deep(.glass-panel__deco) {
+    height: 20px;
+  }
 
   /* 三栏：左右约 24%，中间主视窗约 52% */
   .sim-page__grid {
@@ -627,7 +808,9 @@ onUnmounted(() => {
       gap: 10px;
       overflow: hidden;
 
-      > :first-child { flex-shrink: 0; }
+      > :first-child {
+        flex-shrink: 0;
+      }
 
       .twin-chart-panel {
         flex: 1;
@@ -666,7 +849,9 @@ onUnmounted(() => {
       gap: 10px;
       overflow: hidden;
 
-      .twin-gate-panel { flex-shrink: 0; }
+      .twin-gate-panel {
+        flex-shrink: 0;
+      }
     }
   }
 
@@ -737,11 +922,20 @@ onUnmounted(() => {
       font-size: 16px;
     }
 
-    :deep(.sim-tab-panel__tab) { font-size: 16px; padding: 8px 14px; }
-    :deep(.entity-list__main strong) { font-size: 18px; }
+    :deep(.sim-tab-panel__tab) {
+      font-size: 16px;
+      padding: 8px 14px;
+    }
+    :deep(.entity-list__main strong) {
+      font-size: 18px;
+    }
     :deep(.entity-list__meta),
-    :deep(.entity-list__desc) { font-size: 15px; }
-    :deep(.el-button) { font-size: 15px; }
+    :deep(.entity-list__desc) {
+      font-size: 15px;
+    }
+    :deep(.el-button) {
+      font-size: 15px;
+    }
   }
 
   .sim-viewport--twin {
@@ -814,8 +1008,14 @@ onUnmounted(() => {
       opacity: 0.5;
       animation: data-beam 2.5s ease-in-out infinite;
 
-      &--left { left: 0; animation-delay: 0s; }
-      &--right { right: 0; animation-delay: 1.2s; }
+      &--left {
+        left: 0;
+        animation-delay: 0s;
+      }
+      &--right {
+        right: 0;
+        animation-delay: 1.2s;
+      }
     }
 
     &__hud {
@@ -839,7 +1039,11 @@ onUnmounted(() => {
       color: #64748b;
       box-shadow: 0 2px 12px rgba(24, 144, 255, 0.1);
 
-      b { color: #1e4976; font-weight: 700; font-size: 16px; }
+      b {
+        color: #1e4976;
+        font-weight: 700;
+        font-size: 16px;
+      }
     }
 
     &__hud-badge {
@@ -872,11 +1076,17 @@ onUnmounted(() => {
     flex-wrap: wrap;
     gap: 8px;
     padding: 10px 14px;
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.92) 0%, rgba(232, 244, 252, 0.88) 100%);
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(232, 244, 252, 0.88) 100%
+    );
     border: 1px solid rgba(24, 144, 255, 0.2);
     border-radius: 12px;
     box-shadow: 0 4px 16px rgba(24, 144, 255, 0.08);
-    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+    transition:
+      box-shadow 0.25s ease,
+      border-color 0.25s ease;
 
     &:hover {
       border-color: rgba(24, 144, 255, 0.28);
@@ -923,7 +1133,10 @@ onUnmounted(() => {
         transition-duration: 0.08s;
       }
 
-      &:disabled { opacity: 0.45; cursor: not-allowed; }
+      &:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
 
       &.is-active {
         color: #fff;
@@ -958,7 +1171,9 @@ onUnmounted(() => {
       font-size: $cockpit-font-base;
       color: #64748b;
 
-      span { white-space: nowrap; }
+      span {
+        white-space: nowrap;
+      }
     }
 
     &__select {
@@ -980,23 +1195,43 @@ onUnmounted(() => {
 }
 
 @keyframes holo-scan {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(4px); }
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(4px);
+  }
 }
 
 @keyframes particle-drift {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @keyframes data-beam {
-  0%, 100% { opacity: 0.25; transform: scaleY(0.85); }
-  50% { opacity: 0.7; transform: scaleY(1); }
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scaleY(0.85);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scaleY(1);
+  }
 }
 
 @keyframes bar-shimmer {
-  0% { transform: translateY(100%); }
-  100% { transform: translateY(-100%); }
+  0% {
+    transform: translateY(100%);
+  }
+  100% {
+    transform: translateY(-100%);
+  }
 }
 
 .twin-kpi-row {
@@ -1016,7 +1251,11 @@ onUnmounted(() => {
   @include interactive-card;
   cursor: pointer;
 
-  span { color: #1890ff; font-size: 15px; font-weight: 600; }
+  span {
+    color: #1890ff;
+    font-size: 15px;
+    font-weight: 600;
+  }
 
   &__ring {
     width: 76px;
@@ -1030,7 +1269,9 @@ onUnmounted(() => {
     justify-content: center;
     position: relative;
     box-shadow: 0 0 12px rgba(24, 144, 255, 0.15);
-    transition: box-shadow 0.25s ease, transform 0.25s ease;
+    transition:
+      box-shadow 0.25s ease,
+      transform 0.25s ease;
 
     &::before {
       content: '';
@@ -1041,9 +1282,21 @@ onUnmounted(() => {
       border: 1px solid rgba(24, 144, 255, 0.12);
     }
 
-    b, small { position: relative; z-index: 1; line-height: 1.1; }
-    b { font-size: 18px; color: #1e4976; font-weight: 700; }
-    small { font-size: 13px; color: #64748b; }
+    b,
+    small {
+      position: relative;
+      z-index: 1;
+      line-height: 1.1;
+    }
+    b {
+      font-size: 18px;
+      color: #1e4976;
+      font-weight: 700;
+    }
+    small {
+      font-size: 13px;
+      color: #64748b;
+    }
 
     &--flow {
       background: conic-gradient(#1890ff 65%, #e2e8f0 0);
@@ -1090,8 +1343,14 @@ onUnmounted(() => {
       transform: translateX(2px) scale(0.99);
     }
 
-    span { font-size: 16px; }
-    b { color: #1890ff; font-weight: 700; font-size: 18px; }
+    span {
+      font-size: 16px;
+    }
+    b {
+      color: #1890ff;
+      font-weight: 700;
+      font-size: 18px;
+    }
   }
 }
 
@@ -1137,7 +1396,12 @@ onUnmounted(() => {
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(180deg, transparent 0%, rgba(255, 255, 255, 0.35) 50%, transparent 100%);
+      background: linear-gradient(
+        180deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.35) 50%,
+        transparent 100%
+      );
       animation: bar-shimmer 2.8s linear infinite;
     }
   }
@@ -1165,7 +1429,9 @@ onUnmounted(() => {
       background 0.2s ease,
       box-shadow 0.2s ease;
 
-    span { font-size: 16px; }
+    span {
+      font-size: 16px;
+    }
 
     &:hover {
       transform: translateX(3px);
@@ -1195,7 +1461,9 @@ onUnmounted(() => {
   border: 1px solid rgba(34, 197, 94, 0.22);
   color: #16a34a;
   cursor: default;
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
 
   &:hover {
     transform: translateY(-1px);
@@ -1231,8 +1499,13 @@ onUnmounted(() => {
       overflow-y: auto;
       padding-bottom: 8px;
 
-      &::-webkit-scrollbar { width: 4px; }
-      &::-webkit-scrollbar-thumb { background: rgba(24, 144, 255, 0.25); border-radius: 3px; }
+      &::-webkit-scrollbar {
+        width: 4px;
+      }
+      &::-webkit-scrollbar-thumb {
+        background: rgba(24, 144, 255, 0.25);
+        border-radius: 3px;
+      }
     }
 
     &--right {
@@ -1392,8 +1665,13 @@ onUnmounted(() => {
   border-radius: 8px;
   cursor: pointer;
 
-  &:disabled { opacity: 0.45; cursor: not-allowed; }
-  &:hover:not(:disabled) { background: #d6ebff; }
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  &:hover:not(:disabled) {
+    background: #d6ebff;
+  }
 }
 
 .param-form {
@@ -1401,10 +1679,21 @@ onUnmounted(() => {
   grid-template-columns: 1fr 1fr;
   column-gap: 12px;
 
-  :deep(.el-form-item) { margin-bottom: 12px; }
-  :deep(.el-form-item__label) { color: $cockpit-text-dim; font-size: $cockpit-font-sm; padding-bottom: 4px; font-weight: 500; }
-  :deep(.el-input-number) { width: 100%; }
-  :deep(.el-select) { width: 100%; }
+  :deep(.el-form-item) {
+    margin-bottom: 12px;
+  }
+  :deep(.el-form-item__label) {
+    color: $cockpit-text-dim;
+    font-size: $cockpit-font-sm;
+    padding-bottom: 4px;
+    font-weight: 500;
+  }
+  :deep(.el-input-number) {
+    width: 100%;
+  }
+  :deep(.el-select) {
+    width: 100%;
+  }
 
   &__full {
     grid-column: 1 / -1;
@@ -1442,6 +1731,10 @@ onUnmounted(() => {
   }
 }
 
-:deep(.el-dialog) { --el-bg-color: #ffffff; }
-:deep(.el-slider__bar) { background: linear-gradient(90deg, $cockpit-accent, #3b82f6); }
+:deep(.el-dialog) {
+  --el-bg-color: #ffffff;
+}
+:deep(.el-slider__bar) {
+  background: linear-gradient(90deg, $cockpit-accent, #3b82f6);
+}
 </style>

@@ -318,15 +318,15 @@ onMounted(() => {
 <template>
   <div class="page profile-page">
     <!-- ═══ 卡片1: 个人信息 ═══ -->
-    <ElCard
-v-loading="profileLoading" class="profile-card"
-shadow="never"
->
+    <ElCard v-loading="profileLoading" class="profile-card" shadow="never">
       <template #header>
         <div class="profile-card__header">
           <span>个人信息</span>
-          <ElButton
-type="primary" @click="openInfoDialog"> 编辑 </ElButton>
+          <ElButton type="primary"
+@click="openInfoDialog"
+>
+编辑
+</ElButton>
         </div>
       </template>
       <div class="profile-info">
@@ -379,7 +379,8 @@ type="primary" @click="openInfoDialog"> 编辑 </ElButton>
     </ElCard>
 
     <!-- ═══ 卡片2: 账户安全 ═══ -->
-    <ElCard class="profile-card" shadow="never">
+    <ElCard class="profile-card"
+shadow="never">
       <template #header>
         <span>账户安全</span>
       </template>
@@ -395,7 +396,8 @@ type="primary" @click="openInfoDialog"> 编辑 </ElButton>
     </ElCard>
 
     <!-- ═══ 卡片3: 操作日志 ═══ -->
-    <ElCard class="profile-card" shadow="never">
+    <ElCard class="profile-card"
+shadow="never">
       <template #header>
         <span>我的操作日志</span>
       </template>
@@ -407,10 +409,7 @@ type="primary" @click="openInfoDialog"> 编辑 </ElButton>
           style="width: 160px"
           @change="onLogFilterChange"
         >
-          <ElOption
-v-for="m in logModules" :key="m.value"
-:label="m.label" :value="m.value"
-/>
+          <ElOption v-for="m in logModules" :key="m.value" :label="m.label" :value="m.value" />
         </ElSelect>
         <ElDatePicker
           v-model="logDateRange"
@@ -429,22 +428,13 @@ v-for="m in logModules" :key="m.value"
         class="profile-logs-table"
         style="width: 100%; margin-top: 14px"
       >
-        <ElTableColumn
-prop="time" label="时间"
-width="190"
-/>
-        <ElTableColumn
-prop="module" label="操作模块"
-width="120"
-/>
-        <ElTableColumn
-prop="type" label="操作类型"
-width="130"
-/>
-        <ElTableColumn
-prop="description" label="操作描述" min-width="220" show-overflow-tooltip />
+        <ElTableColumn prop="time" label="时间" width="190" />
+        <ElTableColumn prop="module" label="操作模块" width="120" />
+        <ElTableColumn prop="type" label="操作类型" width="130" />
+        <ElTableColumn prop="description" label="操作描述" min-width="220" show-overflow-tooltip />
         <ElTableColumn label="操作结果"
-width="100">
+width="100"
+>
           <template #default="scope">
             <ElTag :type="(scope.row as OperationLog).result === 1 ? 'success' : 'danger'">
               {{ (scope.row as OperationLog).result === 1 ? '成功' : '失败' }}
@@ -465,40 +455,48 @@ width="100">
     </ElCard>
 
     <!-- ═══ 编辑资料弹窗 ═══ -->
-    <ElDialog v-model="infoVisible" title="编辑个人信息" width="420px">
-      <ElForm
-:model="infoForm" label-width="80px"
->
+    <ElDialog v-model="infoVisible"
+title="编辑个人信息" width="420px">
+      <ElForm :model="infoForm" label-width="80px">
         <ElFormItem label="姓名"
-:rules="FORM_RULES.realname">
+:rules="FORM_RULES.realname"
+>
           <ElInput v-model="infoForm.realname"
-maxlength="20" placeholder="2-20个字符" />
+maxlength="20" placeholder="2-20个字符"
+/>
         </ElFormItem>
         <ElFormItem label="手机号"
-:rules="FORM_RULES.phone">
+:rules="FORM_RULES.phone"
+>
           <ElInput v-model="infoForm.phone"
-maxlength="11" placeholder="11位手机号" />
+maxlength="11" placeholder="11位手机号"
+/>
         </ElFormItem>
         <ElFormItem label="邮箱"
-:rules="FORM_RULES.email">
+:rules="FORM_RULES.email"
+>
           <ElInput v-model="infoForm.email"
-placeholder="请输入邮箱地址" />
+placeholder="请输入邮箱地址"
+/>
         </ElFormItem>
       </ElForm>
       <template #footer>
         <ElButton @click="infoVisible = false"> 取消 </ElButton>
-        <ElButton
-type="primary" :loading="infoSubmitting" @click="submitInfo"> 保存 </ElButton>
+        <ElButton type="primary"
+:loading="infoSubmitting" @click="submitInfo"
+>
+保存
+</ElButton>
       </template>
     </ElDialog>
 
     <!-- ═══ 修改密码弹窗 ═══ -->
-    <ElDialog v-model="pwdVisible" title="修改密码" width="460px">
-      <ElForm
-:model="pwdForm" label-width="100px"
->
+    <ElDialog v-model="pwdVisible"
+title="修改密码" width="460px">
+      <ElForm :model="pwdForm" label-width="100px">
         <ElFormItem label="当前密码"
-required>
+required
+>
           <ElInput
             v-model="pwdForm.old_password"
             type="password"
@@ -507,7 +505,8 @@ required>
           />
         </ElFormItem>
         <ElFormItem label="新密码"
-required>
+required
+>
           <ElInput
             v-model="pwdForm.new_password"
             :type="showNewPwd ? 'text' : 'password'"
@@ -526,24 +525,20 @@ required>
                 :show-text="false"
               />
             </div>
-            <span
-class="pwd-strength__label" :style="{ color: strengthColor }"
->
+            <span class="pwd-strength__label" :style="{ color: strengthColor }">
               {{ strength.level === 'strong' ? '强' : strength.level === 'medium' ? '中' : '弱' }}
             </span>
           </div>
           <ul class="pwd-checklist">
-            <li
-v-for="(c, i) in strength.checks" :key="i"
-:class="{ 'is-passed': c.passed }"
->
+            <li v-for="(c, i) in strength.checks" :key="i" :class="{ 'is-passed': c.passed }">
               <span class="pwd-checklist__icon">{{ c.passed ? '✓' : '×' }}</span>
               {{ c.label }}
             </li>
           </ul>
         </template>
         <ElFormItem label="确认新密码"
-required>
+required
+>
           <ElInput
             v-model="pwdForm.confirm_password"
             type="password"
@@ -558,10 +553,7 @@ required>
       </ElForm>
       <template #footer>
         <ElButton @click="pwdVisible = false"> 取消 </ElButton>
-        <ElButton
-type="primary" :loading="pwdSubmitting"
-@click="submitPassword"
->
+        <ElButton type="primary" :loading="pwdSubmitting" @click="submitPassword">
           确认修改
         </ElButton>
       </template>

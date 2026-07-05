@@ -4,12 +4,7 @@
 // ============================================================
 
 // ---------- 仿真场景 ----------
-export type SimulationScene =
-  | 'normal'
-  | 'flood'
-  | 'dry'
-  | 'rainstorm'
-  | 'custom'
+export type SimulationScene = 'normal' | 'flood' | 'dry' | 'rainstorm' | 'custom'
 
 // ---------- 仿真状态 ----------
 export type SimulationStatus = 'idle' | 'running' | 'paused' | 'finished'
@@ -29,9 +24,9 @@ export type ReviewStatus = 'pending' | 'reviewed'
 // ---------- 仿真参数 ----------
 export interface SimulationParams {
   scene: SimulationScene
-  initialLevel: number       // 初始水位 m
-  inflowRate: number         // 入库流量 m³/s
-  durationMin: number        // 仿真时长 min
+  initialLevel: number // 初始水位 m
+  inflowRate: number // 入库流量 m³/s
+  durationMin: number // 仿真时长 min
 }
 
 /** 启动仿真时的完整载荷（含倍速、闸门开度） */
@@ -107,7 +102,7 @@ export interface TrainingTask {
   taskId: string
   modelId: number
   config: TrainingConfig
-  progress: number           // 0-100
+  progress: number // 0-100
   lossCurve: Array<{ epoch: number; loss: number }>
   status: 'running' | 'completed' | 'failed'
 }

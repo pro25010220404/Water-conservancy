@@ -930,10 +930,62 @@ function todayStartMs() {
 
 // ---------- 闸门动作历史（含互锁标记）----------
 const gateActions: GateAction[] = [
-  { id: 1, equipment_id: 1, previous_opening: 60, target_opening: 50, actual_opening: 50, action_type: 'maintain', action_source: 'dqn_auto', duration_ms: 12000, is_smoothed: 1, acted_at: new Date(Date.now() - 7200000).toISOString().replace('T', ' ').slice(0, 19), interlock_rule_id: 1, interlock_rule_name: '泄洪-发电互斥' },
-  { id: 2, equipment_id: 2, previous_opening: 25, target_opening: 30, actual_opening: 30, action_type: 'open', action_source: 'physics_corrected', duration_ms: 8000, is_smoothed: 0, acted_at: new Date(Date.now() - 10800000).toISOString().replace('T', ' ').slice(0, 19), interlock_rule_id: 3, interlock_rule_name: '对称性约束' },
-  { id: 3, equipment_id: 3, previous_opening: 40, target_opening: 42, actual_opening: 42, action_type: 'maintain', action_source: 'manual', duration_ms: 6000, is_smoothed: 0, acted_at: new Date(Date.now() - 14400000).toISOString().replace('T', ' ').slice(0, 19), interlock_rule_id: null, interlock_rule_name: null },
-  { id: 4, equipment_id: 1, previous_opening: 45, target_opening: 52, actual_opening: 52, action_type: 'open', action_source: 'dqn_auto', duration_ms: 10000, is_smoothed: 0, acted_at: new Date(Date.now() - 18000000).toISOString().replace('T', ' ').slice(0, 19), interlock_rule_id: null, interlock_rule_name: null },
+  {
+    id: 1,
+    equipment_id: 1,
+    previous_opening: 60,
+    target_opening: 50,
+    actual_opening: 50,
+    action_type: 'maintain',
+    action_source: 'dqn_auto',
+    duration_ms: 12000,
+    is_smoothed: 1,
+    acted_at: new Date(Date.now() - 7200000).toISOString().replace('T', ' ').slice(0, 19),
+    interlock_rule_id: 1,
+    interlock_rule_name: '泄洪-发电互斥',
+  },
+  {
+    id: 2,
+    equipment_id: 2,
+    previous_opening: 25,
+    target_opening: 30,
+    actual_opening: 30,
+    action_type: 'open',
+    action_source: 'physics_corrected',
+    duration_ms: 8000,
+    is_smoothed: 0,
+    acted_at: new Date(Date.now() - 10800000).toISOString().replace('T', ' ').slice(0, 19),
+    interlock_rule_id: 3,
+    interlock_rule_name: '对称性约束',
+  },
+  {
+    id: 3,
+    equipment_id: 3,
+    previous_opening: 40,
+    target_opening: 42,
+    actual_opening: 42,
+    action_type: 'maintain',
+    action_source: 'manual',
+    duration_ms: 6000,
+    is_smoothed: 0,
+    acted_at: new Date(Date.now() - 14400000).toISOString().replace('T', ' ').slice(0, 19),
+    interlock_rule_id: null,
+    interlock_rule_name: null,
+  },
+  {
+    id: 4,
+    equipment_id: 1,
+    previous_opening: 45,
+    target_opening: 52,
+    actual_opening: 52,
+    action_type: 'open',
+    action_source: 'dqn_auto',
+    duration_ms: 10000,
+    is_smoothed: 0,
+    acted_at: new Date(Date.now() - 18000000).toISOString().replace('T', ' ').slice(0, 19),
+    interlock_rule_id: null,
+    interlock_rule_name: null,
+  },
 ]
 
 // ---------- 导出 API 函数 ----------
@@ -1033,16 +1085,24 @@ export const mockApi = {
       id: 9000 + alarmPushSeq,
       level: alarmPushSeq % 12 === 0 ? 'URGENT' : 'IMPORTANT',
       type: 'MODEL_HEALTH_DEGRADED',
-      content: alarmPushSeq % 12 === 0
-        ? '模型综合评分连续 3 次 D 级，边缘端已自动回退至上一代模型'
-        : `Physics-LSTM v5.1 健康度降至 ${alarmPushSeq % 12 === 0 ? 'D' : 'C'} 级，已切换 L1 人工模式`,
-      threshold: alarmPushSeq % 12 === 0 ? 0.40 : 0.55,
+      content:
+        alarmPushSeq % 12 === 0
+          ? '模型综合评分连续 3 次 D 级，边缘端已自动回退至上一代模型'
+          : `Physics-LSTM v5.1 健康度降至 ${alarmPushSeq % 12 === 0 ? 'D' : 'C'} 级，已切换 L1 人工模式`,
+      threshold: alarmPushSeq % 12 === 0 ? 0.4 : 0.55,
       currentValue: alarmPushSeq % 12 === 0 ? 0.36 : 0.48,
       durationSec: 32 + (alarmPushSeq % 10),
       status: 'pending',
-      confirmedAt: null, confirmedBy: null, confirmedByName: null,
-      handledAt: null, handledBy: null, handledByName: null, remark: null,
-      createdAt: nowIso(0), pointName: 'AI 推理引擎', deviceType: 'sensor',
+      confirmedAt: null,
+      confirmedBy: null,
+      confirmedByName: null,
+      handledAt: null,
+      handledBy: null,
+      handledByName: null,
+      remark: null,
+      createdAt: nowIso(0),
+      pointName: 'AI 推理引擎',
+      deviceType: 'sensor',
       snapshot: {
         upstreamLevel: stationLive.upstreamLevel,
         downstreamLevel: stationLive.downstreamLevel,
@@ -1125,9 +1185,10 @@ export const mockApi = {
     if (dispatchRecords.length > 100) dispatchRecords.pop()
     return {
       executed: true,
-      message: level === 3
-        ? `L3 全自动：开度 ${currentOpening} → ${target}% 已自动下发`
-        : `L2 半自动：开度 ${currentOpening} → ${target}% 已自动下发`,
+      message:
+        level === 3
+          ? `L3 全自动：开度 ${currentOpening} → ${target}% 已自动下发`
+          : `L2 半自动：开度 ${currentOpening} → ${target}% 已自动下发`,
     }
   },
 
@@ -1333,7 +1394,9 @@ export const mockApi = {
   getGateActions(params?: { keyword?: string }) {
     let list = [...gateActions]
     if (params?.keyword) {
-      list = list.filter((a) => fuzzyMatch(params.keyword!, a.interlock_rule_name ?? '', String(a.target_opening)))
+      list = list.filter((a) =>
+        fuzzyMatch(params.keyword!, a.interlock_rule_name ?? '', String(a.target_opening)),
+      )
     }
     return delay(ok({ list, total: list.length, pageNum: 1, pageSize: list.length || 1 }))
   },

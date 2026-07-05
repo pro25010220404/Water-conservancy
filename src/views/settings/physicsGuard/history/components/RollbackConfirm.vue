@@ -29,15 +29,15 @@ const itemTime = computed(() => props.item?.changed_at?.replace('T', ' ') ?? '--
   >
     <div class="rollback-confirm">
       <div class="confirm-icon">
-        <el-icon :size="48" color="#E6A23C">
+        <el-icon :size="48"
+color="#E6A23C">
           <WarningFilled />
         </el-icon>
       </div>
 
       <div class="confirm-info">
         <p class="confirm-text">
-          确定将配置回滚至版本 <strong>{{ itemVersion }}</strong
-          >？
+          确定将配置回滚至版本 <strong>{{ itemVersion }}</strong>？
         </p>
 
         <div class="info-card">

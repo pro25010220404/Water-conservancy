@@ -6,18 +6,21 @@ export interface BarChartItem {
   value: number
 }
 
-const props = withDefaults(defineProps<{
-  items: BarChartItem[]
-  max?: number
-  unit?: string
-  compact?: boolean
-  showValue?: boolean
-}>(), {
-  max: 100,
-  unit: '%',
-  compact: false,
-  showValue: true,
-})
+const props = withDefaults(
+  defineProps<{
+    items: BarChartItem[]
+    max?: number
+    unit?: string
+    compact?: boolean
+    showValue?: boolean
+  }>(),
+  {
+    max: 100,
+    unit: '%',
+    compact: false,
+    showValue: true,
+  },
+)
 
 const hoveredIndex = ref<number | null>(null)
 
@@ -40,13 +43,16 @@ function onLeave() {
 </script>
 
 <template>
-  <div class="bar-chart" :class="{ 'bar-chart--compact': compact }">
+  <div class="bar-chart"
+:class="{ 'bar-chart--compact': compact }">
     <div class="bar-chart__y-axis">
-      <span v-for="(tick, i) in yTicks" :key="i">{{ tick }}</span>
+      <span v-for="(tick, i) in yTicks"
+:key="i">{{ tick }}</span>
     </div>
     <div class="bar-chart__plot">
       <div class="bar-chart__grid">
-        <div v-for="(_, i) in yTicks" :key="i" class="bar-chart__grid-line" />
+        <div v-for="(_, i) in yTicks"
+:key="i" class="bar-chart__grid-line" />
       </div>
       <div class="bar-chart__bars">
         <div
@@ -57,10 +63,7 @@ function onLeave() {
           @mouseleave="onLeave"
         >
           <Transition name="tooltip-fade">
-            <div
-              v-if="hoveredIndex === i"
-              class="bar-chart__tooltip"
-            >
+            <div v-if="hoveredIndex === i" class="bar-chart__tooltip">
               <strong>{{ item.label }}</strong>
               <span>{{ item.value }}{{ unit }}</span>
             </div>
@@ -71,7 +74,8 @@ function onLeave() {
               :class="{ 'is-hovered': hoveredIndex === i }"
               :style="{ height: barHeight(item.value) }"
             >
-              <span v-if="showValue" class="bar-chart__bar-val">{{ item.value }}</span>
+              <span v-if="showValue"
+class="bar-chart__bar-val">{{ item.value }}</span>
             </div>
           </div>
           <span class="bar-chart__x-label">{{ item.label }}</span>
@@ -180,12 +184,18 @@ function onLeave() {
     align-items: flex-start;
     justify-content: center;
     padding-top: 6px;
-    transition: transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease, background 0.25s ease;
+    transition:
+      transform 0.25s ease,
+      box-shadow 0.25s ease,
+      filter 0.25s ease,
+      background 0.25s ease;
 
     &.is-hovered {
       transform: translateY(-3px) scaleX(1.06);
       background: linear-gradient(180deg, #40a9ff 0%, rgba(24, 144, 255, 0.45) 100%);
-      box-shadow: 0 6px 20px rgba(24, 144, 255, 0.45), 0 0 12px rgba(24, 144, 255, 0.25);
+      box-shadow:
+        0 6px 20px rgba(24, 144, 255, 0.45),
+        0 0 12px rgba(24, 144, 255, 0.25);
       filter: brightness(1.08);
     }
   }
@@ -255,7 +265,9 @@ function onLeave() {
 
 .tooltip-fade-enter-active,
 .tooltip-fade-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 
 .tooltip-fade-enter-from,

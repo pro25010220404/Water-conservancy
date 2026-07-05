@@ -178,5 +178,7 @@ export async function getCockpitKpi(): Promise<ApiResponse<Record<string, unknow
 }
 
 export async function getPhysicsGuardSummary(): Promise<ApiResponse<PhysicsGuardSummary>> {
-  return withMockFallback('/api/v1/settings/physics-guard?reservoir_id=1', () => mockApi.getPhysicsGuardSummary())
+  return withMockFallback('/api/v1/settings/physics-guard?reservoir_id=1', () =>
+    mockApi.getPhysicsGuardSummary(),
+  )
 }

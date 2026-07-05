@@ -18,24 +18,32 @@ const isFlushPage = computed(() => route.path.startsWith('/simulation'))
 </script>
 
 <template>
-  <el-container direction="vertical" class="main-layout" :class="{ 'main-layout--collapsed': collapsed }">
+  <ElContainer
+    direction="vertical"
+    class="main-layout"
+    :class="{ 'main-layout--collapsed': collapsed }"
+  >
     <header class="main-layout__topbar">
       <div class="main-layout__brand">
-        <img :src="logoUrl" alt="logo" class="main-layout__logo" />
+        <img :src="logoUrl"
+alt="logo" class="main-layout__logo"
+/>
         <span v-if="!collapsed" class="main-layout__title">{{ APP_TITLE }}</span>
       </div>
       <AppHeader :collapsed="collapsed" @toggle-collapse="collapsed = !collapsed" />
     </header>
 
-    <el-container class="main-layout__body">
-      <el-aside :width="collapsed ? '64px' : 'var(--sider-width)'" class="main-layout__aside">
+    <ElContainer class="main-layout__body">
+      <ElAside :width="collapsed ? '64px' : 'var(--sider-width)'"
+class="main-layout__aside">
         <AppSidebar :collapsed="collapsed" />
-      </el-aside>
-      <el-main class="main-layout__content" :class="{ 'main-layout__content--flush': isFlushPage }">
+      </ElAside>
+      <ElMain class="main-layout__content"
+:class="{ 'main-layout__content--flush': isFlushPage }">
         <router-view />
-      </el-main>
-    </el-container>
-  </el-container>
+      </ElMain>
+    </ElContainer>
+  </ElContainer>
 </template>
 
 <style scoped lang="scss">
@@ -110,13 +118,7 @@ const isFlushPage = computed(() => route.path.startsWith('/simulation'))
     &--flush {
       padding: 0;
       overflow: hidden;
-      background: linear-gradient(
-        180deg,
-        #f0f4f8 0%,
-        #e8f2fa 6%,
-        #f0f7fc 18%,
-        #f7fbff 100%
-      );
+      background: linear-gradient(180deg, #f0f4f8 0%, #e8f2fa 6%, #f0f7fc 18%, #f7fbff 100%);
     }
   }
 }

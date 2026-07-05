@@ -32,7 +32,9 @@ export function useOperationLog() {
       })
       if (list.length > MAX_LOGS) list.length = MAX_LOGS
       localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   return { loadAll, record }

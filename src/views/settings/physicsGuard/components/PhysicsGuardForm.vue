@@ -53,7 +53,8 @@ function setFieldValue(sectionKey: string, fieldKey: string, val: number | undef
 </script>
 
 <template>
-  <div v-loading="loading" class="physics-guard-form">
+  <div v-loading="loading"
+class="physics-guard-form">
     <ElCollapse v-model="activePanels">
       <ElCollapseItem
         v-for="section in PHYSICS_GUARD_SECTIONS"
@@ -63,7 +64,8 @@ function setFieldValue(sectionKey: string, fieldKey: string, val: number | undef
       >
         <div class="section-fields">
           <div v-for="field in section.fields"
-:key="field.key" class="field-row">
+:key="field.key" class="field-row"
+>
             <label class="field-label">{{ field.label }}</label>
             <ElInputNumber
               :model-value="getFieldValue(section.key, field.key)"

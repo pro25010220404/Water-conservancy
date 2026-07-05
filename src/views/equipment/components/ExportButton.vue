@@ -124,7 +124,8 @@ async function handleExportCSV() {
 </script>
 
 <template>
-  <ElDropdown trigger="click" :disabled="exporting">
+  <ElDropdown trigger="click"
+:disabled="exporting">
     <ElButton type="primary"
 :icon="Download" :loading="exporting"
 >

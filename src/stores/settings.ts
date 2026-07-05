@@ -5,12 +5,7 @@
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
 import { getThresholds, getWeights, getWeightHistory, getModels, getUsers } from '@/api/settings'
-import type {
-  ThresholdRule,
-  WeightConfig,
-  ModelInfo,
-  SystemUser,
-} from '@/shared/types'
+import type { ThresholdRule, WeightConfig, ModelInfo, SystemUser } from '@/shared/types'
 
 export interface WeightHistoryItem {
   id: number
@@ -152,4 +147,3 @@ export const useSettingsStore = defineStore('settings', () => {
     reset,
   }
 })
-

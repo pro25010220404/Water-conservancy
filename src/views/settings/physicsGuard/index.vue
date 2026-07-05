@@ -137,7 +137,9 @@ onMounted(() => {
 <template>
   <div class="physics-guard-page">
     <div class="page-header">
-      <h2 class="page-title">物理防护配置</h2>
+      <h2 class="page-title">
+物理防护配置
+</h2>
       <ElSelect
         v-model="reservoirId"
         placeholder="选择水库"
@@ -185,7 +187,9 @@ onMounted(() => {
 type="primary" :loading="isSaving" @click="handleSave"> 保存配置 </ElButton>
       <ElButton
 :disabled="!isDirty" @click="handleReset"> 重置修改 </ElButton>
-      <ElButton @click="cloneDialogVisible = true"> 克隆配置到其他水库 </ElButton>
+      <ElButton @click="cloneDialogVisible = true">
+克隆配置到其他水库
+</ElButton>
     </div>
 
     <!-- Diff dialog -->

@@ -6,7 +6,8 @@ defineProps<{
 </script>
 
 <template>
-  <div class="twin-panel" :class="`twin-panel--${side ?? 'left'}`">
+  <div class="twin-panel"
+:class="`twin-panel--${side ?? 'left'}`">
     <header class="twin-panel__head">
       <span class="twin-panel__bar" />
       {{ title }}

@@ -160,12 +160,11 @@ watch(
 <template>
   <div class="fault-records">
     <ElTable v-loading="loading"
-:data="list" stripe size="small" class="fault-records__table">
-      <ElTableColumn prop="fault_time" label="故障时间" width="160" />
-      <ElTableColumn
-prop="fault_type" label="故障类型"
-width="120"
+:data="list" stripe size="small" class="fault-records__table"
 >
+      <ElTableColumn prop="fault_time"
+label="故障时间" width="160" />
+      <ElTableColumn prop="fault_type" label="故障类型" width="120">
         <template #default="scope">
           <ElTag
             :color="getFaultTypeColor(scope.row.fault_type as string)"
@@ -177,23 +176,21 @@ width="120"
           </ElTag>
         </template>
       </ElTableColumn>
-      <ElTableColumn prop="description" label="故障描述" min-width="180" show-overflow-tooltip />
-      <ElTableColumn prop="duration" label="持续时长" width="110" />
-      <ElTableColumn
-prop="status" label="处理状态"
-width="100"
->
+      <ElTableColumn prop="description"
+label="故障描述" min-width="180" show-overflow-tooltip />
+      <ElTableColumn prop="duration"
+label="持续时长" width="110" />
+      <ElTableColumn prop="status" label="处理状态" width="100">
         <template #default="scope">
-          <ElTag :type="getStatusType(scope.row.status as string)" size="small" disable-transitions>
+          <ElTag :type="getStatusType(scope.row.status as string)"
+size="small" disable-transitions>
             {{ getStatusLabel(scope.row.status as string) }}
           </ElTag>
         </template>
       </ElTableColumn>
-      <ElTableColumn prop="handler" label="处理人" width="100" />
-      <ElTableColumn
-label="操作" width="180"
-fixed="right"
->
+      <ElTableColumn prop="handler"
+label="处理人" width="100" />
+      <ElTableColumn label="操作" width="180" fixed="right">
         <template #default="scope">
           <div class="fault-records__actions">
             <ElButton
@@ -205,7 +202,8 @@ fixed="right"
             >
               标记修复
             </ElButton>
-            <ElButton text type="primary" size="small" @click="handleAddNote(scope.row)">
+            <ElButton text
+type="primary" size="small" @click="handleAddNote(scope.row)">
               添加备注
             </ElButton>
           </div>

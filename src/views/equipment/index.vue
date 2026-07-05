@@ -14,7 +14,10 @@ import DeviceDetail from './components/DeviceDetail.vue'
 import RestartDialog from './components/RestartDialog.vue'
 import type { Equipment, EquipmentDetail } from '@/shared/types'
 
-onErrorCaptured((err) => { console.error('Equipment page error:', err); return false })
+onErrorCaptured((err) => {
+  console.error('Equipment page error:', err)
+  return false
+})
 
 const { record: recordLog } = useOperationLog()
 const store = useEquipmentStore()
@@ -235,7 +238,9 @@ function fetchList() {
   if (statusFilter.value) filtered = filtered.filter((e) => e.status === statusFilter.value)
   if (keyword.value) {
     const kw = keyword.value.toLowerCase()
-    filtered = filtered.filter((e) => e.name.toLowerCase().includes(kw) || e.code.toLowerCase().includes(kw))
+    filtered = filtered.filter(
+      (e) => e.name.toLowerCase().includes(kw) || e.code.toLowerCase().includes(kw),
+    )
   }
   total.value = filtered.length
   list.value = filtered.slice((page.value - 1) * pageSize.value, page.value * pageSize.value)
@@ -263,20 +268,53 @@ function onRowClick(row: Equipment) {
     ...row,
     install_location: '坝体右侧观测井',
     ip: '192.168.1.' + (100 + row.id),
-    current_alarms: row.status === 'fault'
-      ? [{ id: 1, alarm_no: 'ALM-20260703-000' + row.id, level: 'urgent', type: 'equipment', message: row.name + ' 心跳超时', created_at: '2026-07-03 08:45:00' }]
-      : undefined,
+    current_alarms:
+      row.status === 'fault'
+        ? [
+            {
+              id: 1,
+              alarm_no: 'ALM-20260703-000' + row.id,
+              level: 'urgent',
+              type: 'equipment',
+              message: row.name + ' 心跳超时',
+              created_at: '2026-07-03 08:45:00',
+            },
+          ]
+        : undefined,
     latest_monitoring: ['sensor', 'actuator'].includes(row.type)
-      ? { upstream_level: 92.5, downstream_level: 85.3, inflow_rate: 350.0, outflow_rate: 320.0, gate_opening: 35.0, power_output: 150.3, timestamp: '2026-07-03 10:05:00' }
+      ? {
+          upstream_level: 92.5,
+          downstream_level: 85.3,
+          inflow_rate: 350.0,
+          outflow_rate: 320.0,
+          gate_opening: 35.0,
+          power_output: 150.3,
+          timestamp: '2026-07-03 10:05:00',
+        }
       : null,
   } as EquipmentDetail
   store.detailLoading = false
 }
 
-function onPageChange(p: number) { page.value = p; fetchList() }
-function onSizeChange(s: number) { pageSize.value = s; page.value = 1; fetchList() }
-function handleCloseDetail() { selectedId.value = null; store.currentDevice = null }
-function handleDetailRestart() { openRestartDialog({ name: store.currentDevice?.name ?? '', type: store.currentDevice?.type ?? '' }) }
+function onPageChange(p: number) {
+  page.value = p
+  fetchList()
+}
+function onSizeChange(s: number) {
+  pageSize.value = s
+  page.value = 1
+  fetchList()
+}
+function handleCloseDetail() {
+  selectedId.value = null
+  store.currentDevice = null
+}
+function handleDetailRestart() {
+  openRestartDialog({
+    name: store.currentDevice?.name ?? '',
+    type: store.currentDevice?.type ?? '',
+  })
+}
 
 // ── 操作 ──
 function openRestartDialog(device: { name: string; type: string }) {
@@ -412,24 +450,18 @@ watch([typeFilter, statusFilter, groupFilter], onFilterChange)
         />
       </div>
       <div class="equipment-page__actions">
-        <ElButton :icon="Refresh"
-@click="fetchList"
->
-刷新
-</ElButton>
-        <ElButton type="primary"
-@click="handleExport"
->
-导出台账
-</ElButton>
+        <ElButton
+:icon="Refresh" @click="fetchList"> 刷新 </ElButton>
+        <ElButton
+type="primary" @click="handleExport"> 导出台账 </ElButton>
       </div>
     </div>
 
     <!-- 左右分栏 -->
     <div class="equipment-page__body">
       <!-- 左侧：设备列表 -->
-      <div class="equipment-page__left"
-:class="{ 'has-detail': selectedId }">
+      <div
+class="equipment-page__left" :class="{ 'has-detail': selectedId }">
         <DeviceList
           :data="list"
           :loading="loading"
@@ -446,8 +478,8 @@ watch([typeFilter, statusFilter, groupFilter], onFilterChange)
 
       <!-- 右侧：设备详情 -->
       <transition name="slide">
-        <div v-if="selectedId"
-class="equipment-page__right">
+        <div
+v-if="selectedId" class="equipment-page__right">
           <DeviceDetail
             :detail="store.currentDevice"
             :loading="store.detailLoading"

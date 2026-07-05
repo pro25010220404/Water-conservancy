@@ -13,8 +13,9 @@ const { hasRoutePermission } = usePermission()
 
 const cockpitMenus = computed(() =>
   MENU_ITEMS.filter(
-    (item) => COCKPIT_MODULE_PATHS.includes(item.path as (typeof COCKPIT_MODULE_PATHS)[number])
-      && hasRoutePermission(item.path),
+    (item) =>
+      COCKPIT_MODULE_PATHS.includes(item.path as (typeof COCKPIT_MODULE_PATHS)[number]) &&
+      hasRoutePermission(item.path),
   ),
 )
 
@@ -28,7 +29,8 @@ function navigate(path: string) {
 </script>
 
 <template>
-  <nav class="app-top-nav" aria-label="驾驶舱模块导航">
+  <nav class="app-top-nav"
+aria-label="驾驶舱模块导航">
     <div class="app-top-nav__inner">
       <button
         v-for="item in cockpitMenus"

@@ -2,8 +2,11 @@
  * GateAI 配置统一 Mock 数据源 — mockStore 与 gateaiSettings 共用
  */
 import type {
-  PhysicsGuardConfig, PhysicsGuardHistoryItem, PhysicsGuardHistoryChange,
-  GateInterlockRule, GateInterlockLog,
+  PhysicsGuardConfig,
+  PhysicsGuardHistoryItem,
+  PhysicsGuardHistoryChange,
+  GateInterlockRule,
+  GateInterlockLog,
 } from '@/types/gateai'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 
@@ -28,14 +31,26 @@ function bumpVersion(v: string) {
 }
 
 const FIELD_LABELS: Partial<Record<keyof PhysicsGuardConfig, string>> = {
-  upstream_danger: '危险水位', upstream_emergency: '紧急水位', upstream_warning: '预警水位',
-  upstream_min: '死水位', ideal_min: '理想区间下限', ideal_max: '理想区间上限',
-  downstream_danger: '下游危险', downstream_max: '下游上限', downstream_min: '下游下限',
-  eco_flow_min: '最小生态流量', max_level_change_per_hour: '最大水位变化/h',
-  reservoir_area: '水库水面面积', shadow_lookahead_steps: '影子前瞻步数',
-  shadow_danger_offset: '影子危险偏移', deadband_percent: '死区百分比',
-  max_rate_per_hour: '最大变化率/h', fusion_l3_confidence: 'L3置信度',
-  fusion_l3_risk: 'L3风险概率', fusion_l2_confidence: 'L2置信度', fusion_l2_risk: 'L2风险概率',
+  upstream_danger: '危险水位',
+  upstream_emergency: '紧急水位',
+  upstream_warning: '预警水位',
+  upstream_min: '死水位',
+  ideal_min: '理想区间下限',
+  ideal_max: '理想区间上限',
+  downstream_danger: '下游危险',
+  downstream_max: '下游上限',
+  downstream_min: '下游下限',
+  eco_flow_min: '最小生态流量',
+  max_level_change_per_hour: '最大水位变化/h',
+  reservoir_area: '水库水面面积',
+  shadow_lookahead_steps: '影子前瞻步数',
+  shadow_danger_offset: '影子危险偏移',
+  deadband_percent: '死区百分比',
+  max_rate_per_hour: '最大变化率/h',
+  fusion_l3_confidence: 'L3置信度',
+  fusion_l3_risk: 'L3风险概率',
+  fusion_l2_confidence: 'L2置信度',
+  fusion_l2_risk: 'L2风险概率',
   gate_max_discharge: '闸门最大泄量',
 }
 
@@ -46,7 +61,7 @@ function defaultConfig(reservoirId: number): PhysicsGuardConfig {
     id: reservoirId,
     reservoir_id: reservoirId,
     config_version: reservoirId === 1 ? '1.1.0' : '1.0.0',
-    upstream_danger: +(base).toFixed(1),
+    upstream_danger: +base.toFixed(1),
     upstream_emergency: +(base + 0.5).toFixed(1),
     upstream_warning: +(base - 0.8).toFixed(1),
     upstream_min: +(base - 13).toFixed(1),
@@ -79,50 +94,170 @@ const physicsConfigs: Record<number, PhysicsGuardConfig> = {
 
 const physicsHistory: PhysicsGuardHistoryItem[] = [
   {
-    id: 3, reservoir_id: 1, config_version: '1.1.0', changed_at: nowStr(180), changed_by_name: '张调度',
-    description: '汛期提前：紧急水位 380.5m，L3 置信度维持 0.70', is_active: true,
+    id: 3,
+    reservoir_id: 1,
+    config_version: '1.1.0',
+    changed_at: nowStr(180),
+    changed_by_name: '张调度',
+    description: '汛期提前：紧急水位 380.5m，L3 置信度维持 0.70',
+    is_active: true,
     changes: [
       { field: 'upstream_emergency', label: '紧急水位', before: 381.0, after: 380.5 },
       { field: 'upstream_warning', label: '预警水位', before: 379.5, after: 379.2 },
     ],
   },
   {
-    id: 2, reservoir_id: 1, config_version: '1.0.1', changed_at: nowStr(2880), changed_by_name: '李运维',
-    description: '枯水期保水：死区 2% → 3%，减少老旧闸门微动', is_active: false,
+    id: 2,
+    reservoir_id: 1,
+    config_version: '1.0.1',
+    changed_at: nowStr(2880),
+    changed_by_name: '李运维',
+    description: '枯水期保水：死区 2% → 3%，减少老旧闸门微动',
+    is_active: false,
     changes: [{ field: 'deadband_percent', label: '死区百分比', before: '2%', after: '3%' }],
   },
   {
-    id: 1, reservoir_id: 1, config_version: '1.0.0', changed_at: nowStr(10080), changed_by_name: '系统管理员',
-    description: '初始配置：从 deploy_config 迁移默认值', is_active: false,
+    id: 1,
+    reservoir_id: 1,
+    config_version: '1.0.0',
+    changed_at: nowStr(10080),
+    changed_by_name: '系统管理员',
+    description: '初始配置：从 deploy_config 迁移默认值',
+    is_active: false,
     changes: [
       { field: 'upstream_emergency', label: '紧急水位', before: '—', after: 381.0 },
-      { field: 'fusion_l3_confidence', label: 'L3置信度', before: '—', after: 0.70 },
+      { field: 'fusion_l3_confidence', label: 'L3置信度', before: '—', after: 0.7 },
     ],
   },
 ]
 
 let interlockRules: GateInterlockRule[] = [
-  { id: 1, reservoir_id: null, rule_code: 'spillway_intake_mutex', rule_name: '泄洪-发电互斥', description: '溢洪道大开时限制发电闸开度', enabled: true, priority: 1, trigger_label: '溢洪道 > 80%', action_label: '发电闸 ≤ 50%', trigger_count_7d: 12 },
-  { id: 2, reservoir_id: null, rule_code: 'downstream_impact_protect', rule_name: '下游冲击保护', description: '两闸同向大增时锁第三闸', enabled: true, priority: 2, trigger_label: '任两闸同增 > 30%', action_label: '第三闸禁止同向', trigger_count_7d: 5 },
-  { id: 3, reservoir_id: null, rule_code: 'symmetry_constraint', rule_name: '对称性约束', description: '防止偏流冲刷坝体', enabled: true, priority: 3, trigger_label: '开度差 > 40%', action_label: '强制对齐', trigger_count_7d: 3 },
-  { id: 4, reservoir_id: null, rule_code: 'min_discharge_guarantee', rule_name: '最小下泄保障', description: '保证下游生态基流', enabled: true, priority: 4, trigger_label: '总开度 < 5%', action_label: '禁止再关', trigger_count_7d: 1 },
-  { id: 5, reservoir_id: 1, rule_code: 'downstream_impact_protect', rule_name: '下游冲击保护（向家坝）', description: '城区段更保守阈值 20%', enabled: true, priority: 2, trigger_label: '任闸增开 > 20%', action_label: '锁第三闸', trigger_count_7d: 8 },
+  {
+    id: 1,
+    reservoir_id: null,
+    rule_code: 'spillway_intake_mutex',
+    rule_name: '泄洪-发电互斥',
+    description: '溢洪道大开时限制发电闸开度',
+    enabled: true,
+    priority: 1,
+    trigger_label: '溢洪道 > 80%',
+    action_label: '发电闸 ≤ 50%',
+    trigger_count_7d: 12,
+  },
+  {
+    id: 2,
+    reservoir_id: null,
+    rule_code: 'downstream_impact_protect',
+    rule_name: '下游冲击保护',
+    description: '两闸同向大增时锁第三闸',
+    enabled: true,
+    priority: 2,
+    trigger_label: '任两闸同增 > 30%',
+    action_label: '第三闸禁止同向',
+    trigger_count_7d: 5,
+  },
+  {
+    id: 3,
+    reservoir_id: null,
+    rule_code: 'symmetry_constraint',
+    rule_name: '对称性约束',
+    description: '防止偏流冲刷坝体',
+    enabled: true,
+    priority: 3,
+    trigger_label: '开度差 > 40%',
+    action_label: '强制对齐',
+    trigger_count_7d: 3,
+  },
+  {
+    id: 4,
+    reservoir_id: null,
+    rule_code: 'min_discharge_guarantee',
+    rule_name: '最小下泄保障',
+    description: '保证下游生态基流',
+    enabled: true,
+    priority: 4,
+    trigger_label: '总开度 < 5%',
+    action_label: '禁止再关',
+    trigger_count_7d: 1,
+  },
+  {
+    id: 5,
+    reservoir_id: 1,
+    rule_code: 'downstream_impact_protect',
+    rule_name: '下游冲击保护（向家坝）',
+    description: '城区段更保守阈值 20%',
+    enabled: true,
+    priority: 2,
+    trigger_label: '任闸增开 > 20%',
+    action_label: '锁第三闸',
+    trigger_count_7d: 8,
+  },
 ]
 
 let interlockLogs: GateInterlockLog[] = [
-  { id: 1, trigger_time: nowStr(120), reservoir_id: 1, reservoir_name: '向家坝', rule_name: '泄洪-发电互斥', rule_code: 'spillway_intake_mutex', decision_id: 1, upstream_level: 380.8, downstream_level: 278.4, openings_before: [85, 60, 30], openings_after: [85, 50, 30], changed_gates: [1], reason: '溢洪道85%>80%，发电闸 60%→50%' },
-  { id: 2, trigger_time: nowStr(300), reservoir_id: 1, reservoir_name: '向家坝', rule_name: '对称性约束', rule_code: 'symmetry_constraint', decision_id: 2, upstream_level: 380.5, downstream_level: 278.2, openings_before: [70, 25, 28], openings_after: [70, 30, 30], changed_gates: [1, 2], reason: '溢洪道与泄洪洞开度差 45%>40%' },
-  { id: 3, trigger_time: nowStr(1440), reservoir_id: 1, reservoir_name: '向家坝', rule_name: '下游冲击保护', rule_code: 'downstream_impact_protect', decision_id: 3, upstream_level: 381.0, downstream_level: 278.6, openings_before: [55, 48, 40], openings_after: [55, 48, 40], changed_gates: [], reason: '1、2号闸同增35%，3号闸禁止同向' },
+  {
+    id: 1,
+    trigger_time: nowStr(120),
+    reservoir_id: 1,
+    reservoir_name: '向家坝',
+    rule_name: '泄洪-发电互斥',
+    rule_code: 'spillway_intake_mutex',
+    decision_id: 1,
+    upstream_level: 380.8,
+    downstream_level: 278.4,
+    openings_before: [85, 60, 30],
+    openings_after: [85, 50, 30],
+    changed_gates: [1],
+    reason: '溢洪道85%>80%，发电闸 60%→50%',
+  },
+  {
+    id: 2,
+    trigger_time: nowStr(300),
+    reservoir_id: 1,
+    reservoir_name: '向家坝',
+    rule_name: '对称性约束',
+    rule_code: 'symmetry_constraint',
+    decision_id: 2,
+    upstream_level: 380.5,
+    downstream_level: 278.2,
+    openings_before: [70, 25, 28],
+    openings_after: [70, 30, 30],
+    changed_gates: [1, 2],
+    reason: '溢洪道与泄洪洞开度差 45%>40%',
+  },
+  {
+    id: 3,
+    trigger_time: nowStr(1440),
+    reservoir_id: 1,
+    reservoir_name: '向家坝',
+    rule_name: '下游冲击保护',
+    rule_code: 'downstream_impact_protect',
+    decision_id: 3,
+    upstream_level: 381.0,
+    downstream_level: 278.6,
+    openings_before: [55, 48, 40],
+    openings_after: [55, 48, 40],
+    changed_gates: [],
+    reason: '1、2号闸同增35%，3号闸禁止同向',
+  },
 ]
 
-function diffConfig(before: PhysicsGuardConfig, after: PhysicsGuardConfig): PhysicsGuardHistoryChange[] {
+function diffConfig(
+  before: PhysicsGuardConfig,
+  after: PhysicsGuardConfig,
+): PhysicsGuardHistoryChange[] {
   const changes: PhysicsGuardHistoryChange[] = []
   const keys = Object.keys(FIELD_LABELS) as (keyof PhysicsGuardConfig)[]
   for (const key of keys) {
     const b = before[key]
     const a = after[key]
     if (JSON.stringify(b) !== JSON.stringify(a)) {
-      changes.push({ field: key, label: FIELD_LABELS[key] ?? key, before: b as string | number, after: a as string | number })
+      changes.push({
+        field: key,
+        label: FIELD_LABELS[key] ?? key,
+        before: b as string | number,
+        after: a as string | number,
+      })
     }
   }
   return changes
@@ -130,7 +265,11 @@ function diffConfig(before: PhysicsGuardConfig, after: PhysicsGuardConfig): Phys
 
 function syncHistoryActive(reservoirId: number) {
   const ver = physicsConfigs[reservoirId]?.config_version
-  physicsHistory.filter((h) => h.reservoir_id === reservoirId).forEach((h) => { h.is_active = h.config_version === ver })
+  physicsHistory
+    .filter((h) => h.reservoir_id === reservoirId)
+    .forEach((h) => {
+      h.is_active = h.config_version === ver
+    })
 }
 
 function configToSummary(cfg: PhysicsGuardConfig): PhysicsGuardSummary {
@@ -150,7 +289,9 @@ function configToSummary(cfg: PhysicsGuardConfig): PhysicsGuardSummary {
 }
 
 export const gateaiSharedStore = {
-  getReservoirs() { return RESERVOIR_OPTIONS },
+  getReservoirs() {
+    return RESERVOIR_OPTIONS
+  },
 
   getPhysicsConfig(reservoirId: number) {
     if (!physicsConfigs[reservoirId]) physicsConfigs[reservoirId] = defaultConfig(reservoirId)
@@ -175,7 +316,10 @@ export const gateaiSharedStore = {
     }))
   },
 
-  savePhysicsConfig(config: PhysicsGuardConfig, meta?: { description?: string; changed_by_name?: string }) {
+  savePhysicsConfig(
+    config: PhysicsGuardConfig,
+    meta?: { description?: string; changed_by_name?: string },
+  ) {
     const prev = physicsConfigs[config.reservoir_id]
     const newVersion = bumpVersion(prev?.config_version ?? config.config_version)
     const saved = { ...config, config_version: newVersion }
@@ -220,7 +364,9 @@ export const gateaiSharedStore = {
   clonePhysics(fromId: number, toId: number, version?: string) {
     let src = this.getPhysicsConfig(fromId)
     if (version) {
-      const hist = physicsHistory.find((h) => h.reservoir_id === fromId && h.config_version === version)
+      const hist = physicsHistory.find(
+        (h) => h.reservoir_id === fromId && h.config_version === version,
+      )
       if (hist) {
         src = { ...src, config_version: hist.config_version }
         for (const ch of hist.changes) {
@@ -273,7 +419,12 @@ export const gateaiSharedStore = {
     })
   },
 
-  getInterlockLogs(params?: { reservoirId?: number; ruleCodes?: string[]; startTime?: string; endTime?: string }) {
+  getInterlockLogs(params?: {
+    reservoirId?: number
+    ruleCodes?: string[]
+    startTime?: string
+    endTime?: string
+  }) {
     let list = [...interlockLogs]
     if (params?.reservoirId) {
       const name = RESERVOIR_NAMES[params.reservoirId]
@@ -290,7 +441,9 @@ export const gateaiSharedStore = {
       const e = new Date(params.endTime).getTime()
       list = list.filter((l) => new Date(l.trigger_time).getTime() <= e)
     }
-    return list.sort((a, b) => new Date(b.trigger_time).getTime() - new Date(a.trigger_time).getTime())
+    return list.sort(
+      (a, b) => new Date(b.trigger_time).getTime() - new Date(a.trigger_time).getTime(),
+    )
   },
 
   getInterlockStats(reservoirId: number) {

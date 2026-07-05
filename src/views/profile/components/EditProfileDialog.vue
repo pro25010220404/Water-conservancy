@@ -163,36 +163,33 @@ function onAvatarUpdate(url: string) {
     @update:model-value="emit('update:visible', $event)"
   >
     <ElForm ref="formRef"
-:model="form" :rules="rules" label-width="80px">
+:model="form" :rules="rules" label-width="80px"
+>
       <!-- 头像 -->
       <ElFormItem label="头像">
-        <AvatarUpload :current-avatar="form.avatar" @update:avatar="onAvatarUpdate" />
+        <AvatarUpload :current-avatar="form.avatar"
+@update:avatar="onAvatarUpdate" />
       </ElFormItem>
 
       <!-- 姓名 -->
       <ElFormItem label="姓名"
-prop="realname">
-        <ElInput
-v-model="form.realname" maxlength="20"
-placeholder="2-20个字符"
-/>
+prop="realname"
+>
+        <ElInput v-model="form.realname" maxlength="20" placeholder="2-20个字符" />
       </ElFormItem>
 
       <!-- 邮箱 -->
       <ElFormItem label="邮箱"
-prop="email">
-        <ElInput
-v-model="form.email" placeholder="请输入邮箱地址"
-/>
+prop="email"
+>
+        <ElInput v-model="form.email" placeholder="请输入邮箱地址" />
       </ElFormItem>
 
       <!-- 手机号 -->
       <ElFormItem label="手机号"
-prop="phone">
-        <ElInput
-v-model="form.phone" maxlength="11"
-placeholder="11位手机号（选填）"
-/>
+prop="phone"
+>
+        <ElInput v-model="form.phone" maxlength="11" placeholder="11位手机号（选填）" />
       </ElFormItem>
     </ElForm>
 

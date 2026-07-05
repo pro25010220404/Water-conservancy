@@ -2,7 +2,12 @@
 // 向家坝 — 超写实泄洪大坝 / 丘陵植被 / 远景（禁止 lowpoly 卡通）
 // ============================================================
 import * as THREE from 'three'
-import { createConcreteTextures, createMetalTextures, createTerrainTextures, createForestTextures } from './proceduralTextures'
+import {
+  createConcreteTextures,
+  createMetalTextures,
+  createTerrainTextures,
+  createForestTextures,
+} from './proceduralTextures'
 
 function valleyHeight(x: number, z: number): number {
   const river = Math.exp(-z * z * 0.004) * 3.0
@@ -18,7 +23,11 @@ function valleyHeight(x: number, z: number): number {
   return river + side * Math.min(1, edge / 22 + 0.12) + micro
 }
 
-function makeConcreteMat(tex: ReturnType<typeof createConcreteTextures>, envMap?: THREE.Texture | null, intensity = 0.72) {
+function makeConcreteMat(
+  tex: ReturnType<typeof createConcreteTextures>,
+  envMap?: THREE.Texture | null,
+  intensity = 0.72,
+) {
   return new THREE.MeshStandardMaterial({
     map: tex.map,
     normalMap: tex.normalMap,
@@ -38,7 +47,7 @@ function displaceConcreteSurface(geo: THREE.BufferGeometry, strength = 1) {
     const y = pos.getY(i)
     const z = pos.getZ(i)
     const n = Math.sin(x * 1.8 + z * 2.1) * 0.04 + Math.sin(y * 3.2 + z * 1.4) * 0.03
-    const seam = Math.abs((y * 2.8) % 1 - 0.5) < 0.04 ? -0.06 : 0
+    const seam = Math.abs(((y * 2.8) % 1) - 0.5) < 0.04 ? -0.06 : 0
     pos.setXYZ(i, x + n * strength, y + seam * strength, z + n * 0.5 * strength)
   }
   geo.computeVertexNormals()
@@ -148,8 +157,12 @@ export function buildDistantRidgeline(envMap?: THREE.Texture | null): THREE.Grou
 function addPier(
   group: THREE.Group,
   mat: THREE.MeshStandardMaterial,
-  x: number, y: number, z: number,
-  w: number, h: number, d: number,
+  x: number,
+  y: number,
+  z: number,
+  w: number,
+  h: number,
+  d: number,
   name?: string,
 ) {
   const geo = new THREE.BoxGeometry(w, h, d, 6, 16, 6)
@@ -212,17 +225,26 @@ export function buildDamBody(envMap?: THREE.Texture | null): THREE.Group {
       frame.castShadow = true
       bay.add(frame)
 
-      const gateLeaf = new THREE.Mesh(new THREE.BoxGeometry(0.42, 10, 2.8, 1, 6, 4), steelMat.clone())
+      const gateLeaf = new THREE.Mesh(
+        new THREE.BoxGeometry(0.42, 10, 2.8, 1, 6, 4),
+        steelMat.clone(),
+      )
       gateLeaf.name = `gateLeaf_${i}`
       gateLeaf.position.set(6.2, 6, midZ)
       gateLeaf.castShadow = true
       bay.add(gateLeaf)
 
-      const lintel = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.55, 3.4, 2, 1, 2), darkSteel.clone())
+      const lintel = new THREE.Mesh(
+        new THREE.BoxGeometry(1.0, 0.55, 3.4, 2, 1, 2),
+        darkSteel.clone(),
+      )
       lintel.position.set(6.2, 16.5, midZ)
       bay.add(lintel)
 
-      const hoist = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.36, 2.4, 16), darkSteel.clone())
+      const hoist = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.32, 0.36, 2.4, 16),
+        darkSteel.clone(),
+      )
       hoist.position.set(6.2, 17.8, midZ)
       bay.add(hoist)
 

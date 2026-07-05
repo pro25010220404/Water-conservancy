@@ -130,12 +130,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-loading="loading" class="score-trend-chart">
+  <div v-loading="loading"
+class="score-trend-chart">
     <h3 class="chart-title">7日健康度趋势</h3>
     <div ref="chartContainer"
-class="chart-container" />
-    <div
-v-if="!data.length && !loading" class="chart-empty">暂无趋势数据</div>
+class="chart-container"
+/>
+    <div v-if="!data.length && !loading"
+class="chart-empty"
+>
+暂无趋势数据
+</div>
   </div>
 </template>
 

@@ -55,22 +55,24 @@ const idealMaxLine = computed(() => {
 
 <template>
   <div class="water-level-preview">
-    <h4 class="preview-title">水位标尺预览</h4>
+    <h4 class="preview-title">
+水位标尺预览
+</h4>
     <div class="ruler-container">
       <div class="ruler">
         <!-- Danger zone -->
-        <div class="ruler-zone ruler-zone--danger"
-:style="{ bottom: dangerLine + '%' }">
+        <div
+class="ruler-zone ruler-zone--danger" :style="{ bottom: dangerLine + '%' }">
           <span class="zone-label">危险</span>
         </div>
         <!-- Emergency zone -->
-        <div class="ruler-zone ruler-zone--emergency"
-:style="{ bottom: emergencyLine + '%' }">
+        <div
+class="ruler-zone ruler-zone--emergency" :style="{ bottom: emergencyLine + '%' }">
           <span class="zone-label">紧急</span>
         </div>
         <!-- Warning zone -->
-        <div class="ruler-zone ruler-zone--warning"
-:style="{ bottom: warningLine + '%' }">
+        <div
+class="ruler-zone ruler-zone--warning" :style="{ bottom: warningLine + '%' }">
           <span class="zone-label">预警</span>
         </div>
         <!-- Ideal zone -->
@@ -82,40 +84,40 @@ const idealMaxLine = computed(() => {
         </div>
 
         <!-- Current water level indicator -->
-        <div class="water-level-line"
-:style="{ bottom: waterLevelPercent + '%' }">
+        <div
+class="water-level-line" :style="{ bottom: waterLevelPercent + '%' }">
           <span class="level-text">当前水位</span>
         </div>
 
         <!-- Danger line -->
-        <div class="ruler-line ruler-line--danger"
-:style="{ bottom: dangerLine + '%' }">
+        <div
+class="ruler-line ruler-line--danger" :style="{ bottom: dangerLine + '%' }">
           <span class="line-label"> {{ config?.upstream_danger ?? '--' }}m </span>
         </div>
         <!-- Emergency line -->
-        <div class="ruler-line ruler-line--emergency"
-:style="{ bottom: emergencyLine + '%' }">
+        <div
+class="ruler-line ruler-line--emergency" :style="{ bottom: emergencyLine + '%' }">
           <span class="line-label"> {{ config?.upstream_emergency ?? '--' }}m </span>
         </div>
         <!-- Warning line -->
-        <div class="ruler-line ruler-line--warning"
-:style="{ bottom: warningLine + '%' }">
+        <div
+class="ruler-line ruler-line--warning" :style="{ bottom: warningLine + '%' }">
           <span class="line-label"> {{ config?.upstream_warning ?? '--' }}m </span>
         </div>
         <!-- Ideal min -->
-        <div class="ruler-line ruler-line--ideal-min"
-:style="{ bottom: idealMinLine + '%' }">
+        <div
+class="ruler-line ruler-line--ideal-min" :style="{ bottom: idealMinLine + '%' }">
           <span class="line-label"> {{ config?.ideal_min ?? '--' }}m </span>
         </div>
         <!-- Ideal max -->
-        <div class="ruler-line ruler-line--ideal-max"
-:style="{ bottom: idealMaxLine + '%' }">
+        <div
+class="ruler-line ruler-line--ideal-max" :style="{ bottom: idealMaxLine + '%' }">
           <span class="line-label"> {{ config?.ideal_max ?? '--' }}m </span>
         </div>
 
         <!-- Dead water level -->
-        <div class="ruler-line ruler-line--dead"
-style="bottom: 0%">
+        <div
+class="ruler-line ruler-line--dead" style="bottom: 0%">
           <span class="line-label"> {{ config?.upstream_min ?? '--' }}m (死水位) </span>
         </div>
       </div>

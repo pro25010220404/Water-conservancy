@@ -67,7 +67,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-tabs" :class="{ 'app-tabs--flush-below': flushBelow }">
+  <div class="app-tabs"
+:class="{ 'app-tabs--flush-below': flushBelow }">
     <div class="app-tabs__bar">
       <div class="app-tabs__list">
         <div

@@ -4,8 +4,12 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import {
-  DAM_MODEL_URL, DAM_MODEL_SCALE, DAM_MODEL_OFFSET, DAM_MODEL_ROTATION_Y,
-  DAM_GATE_NAME_PREFIX, DAM_HERO_ANCHOR,
+  DAM_MODEL_URL,
+  DAM_MODEL_SCALE,
+  DAM_MODEL_OFFSET,
+  DAM_MODEL_ROTATION_Y,
+  DAM_GATE_NAME_PREFIX,
+  DAM_HERO_ANCHOR,
 } from '@/constants/damModel'
 import { buildDamBody } from './terrainBuilder'
 import { createConcreteTextures, createMetalTextures } from './proceduralTextures'
@@ -63,8 +67,11 @@ function collectHoverables(root: THREE.Object3D): THREE.Object3D[] {
   root.traverse((obj) => {
     if (!obj.name || obj.name === '坝顶') return
     if (
-      obj.name.includes('坝') || obj.name.includes('闸门') || obj.name.includes('厂房')
-      || obj.name.startsWith(DAM_GATE_NAME_PREFIX) || obj.name.startsWith('pier_')
+      obj.name.includes('坝') ||
+      obj.name.includes('闸门') ||
+      obj.name.includes('厂房') ||
+      obj.name.startsWith(DAM_GATE_NAME_PREFIX) ||
+      obj.name.startsWith('pier_')
     ) {
       list.push(obj)
     }
@@ -184,7 +191,10 @@ export function loadDamModel(
       },
       undefined,
       (err) => {
-        console.warn('[damModelLoader] GLB 加载失败，使用程序化回退模型。请 Ctrl+F5 强刷或检查 public/models/xiangjiaba-dam.glb', err)
+        console.warn(
+          '[damModelLoader] GLB 加载失败，使用程序化回退模型。请 Ctrl+F5 强刷或检查 public/models/xiangjiaba-dam.glb',
+          err,
+        )
         resolve(buildFallbackInstance(envMap))
       },
     )
@@ -198,9 +208,10 @@ export function applyTwinLightBackgroundMaterials(root: THREE.Object3D) {
     const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
     mats.forEach((m) => {
       if (!(m instanceof THREE.MeshStandardMaterial)) return
-      const isSteel = obj.name.startsWith(DAM_GATE_NAME_PREFIX)
-        || obj.name.includes('闸门')
-        || obj.name.startsWith('pier_')
+      const isSteel =
+        obj.name.startsWith(DAM_GATE_NAME_PREFIX) ||
+        obj.name.includes('闸门') ||
+        obj.name.startsWith('pier_')
       if (isSteel) {
         m.color.setHex(0x5a6a7a)
         m.metalness = 0.52
@@ -257,9 +268,10 @@ export function rebakeDamPBR(root: THREE.Object3D, envMap?: THREE.Texture | null
     if (!(obj instanceof THREE.Mesh)) return
     if (obj.name.startsWith('phWindow_')) return
 
-    const isSteel = obj.name.startsWith(DAM_GATE_NAME_PREFIX)
-      || obj.name.includes('闸门')
-      || obj.name.startsWith('pier_')
+    const isSteel =
+      obj.name.startsWith(DAM_GATE_NAME_PREFIX) ||
+      obj.name.includes('闸门') ||
+      obj.name.startsWith('pier_')
 
     if (isSteel) {
       obj.material = new THREE.MeshStandardMaterial({
@@ -411,6 +423,10 @@ export function getDamHeroCamera(root: THREE.Object3D, heroCenter: THREE.Vector3
       heroCenter.y + size.y * 0.55,
       spillFace.z + dist * 0.72,
     ),
-    target: new THREE.Vector3(spillFace.x - size.x * 0.12, heroCenter.y + size.y * 0.35, spillFace.z),
+    target: new THREE.Vector3(
+      spillFace.x - size.x * 0.12,
+      heroCenter.y + size.y * 0.35,
+      spillFace.z,
+    ),
   }
 }

@@ -126,18 +126,19 @@ const reservoirOpts = RESERVOIR_OPTIONS
     :close-on-click-modal="false"
     @update:model-value="(val: boolean) => emit('update:visible', val)"
   >
-    <ElForm
-:model="form" label-width="100px"
->
+    <ElForm :model="form" label-width="100px">
       <ElFormItem label="规则名称"
-required>
+required
+>
         <ElInput v-model="form.name"
-placeholder="请输入规则名称" maxlength="50" />
+placeholder="请输入规则名称" maxlength="50"
+/>
       </ElFormItem>
 
       <ElFormItem label="说明">
         <ElInput v-model="form.description"
-type="textarea" :rows="2" placeholder="规则说明" />
+type="textarea" :rows="2" placeholder="规则说明"
+/>
       </ElFormItem>
 
       <ElFormItem label="作用范围">
@@ -171,7 +172,8 @@ type="textarea" :rows="2" placeholder="规则说明" />
         <div class="section-header">
           <span class="section-title">触发条件</span>
           <ElButton :icon="Plus"
-size="small" type="primary" @click="addCondition">
+size="small" type="primary" @click="addCondition"
+>
             添加条件
           </ElButton>
         </div>
@@ -193,7 +195,8 @@ size="small" type="primary" @click="addCondition">
         <div class="section-header">
           <span class="section-title">约束动作</span>
           <ElButton :icon="Plus"
-size="small" type="primary" @click="addConstraint">
+size="small" type="primary" @click="addConstraint"
+>
             添加动作
           </ElButton>
         </div>
@@ -211,9 +214,7 @@ size="small" type="primary" @click="addConstraint">
 
     <template #footer>
       <ElButton @click="emit('update:visible', false)"> 取消 </ElButton>
-      <ElButton
-type="primary" @click="handleSave"
->
+      <ElButton type="primary" @click="handleSave">
         {{ isEdit ? '保存' : '创建' }}
       </ElButton>
     </template>

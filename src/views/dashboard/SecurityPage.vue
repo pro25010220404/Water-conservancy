@@ -16,7 +16,9 @@ onMounted(async () => {
     const devices = await navigator.mediaDevices.enumerateDevices()
     const hasVideo = devices.some((d) => d.kind === 'videoinput')
     if (hasVideo) await startUSBCamera()
-  } catch { /* 静默失败 */ }
+  } catch {
+    /* 静默失败 */
+  }
 })
 
 async function startUSBCamera() {
@@ -48,22 +50,64 @@ interface CameraDef {
 }
 
 const cameras: CameraDef[] = [
-  { id: 'c1', name: '坝顶 1#', area: '坝顶', status: 'online', motion: '2分钟前', alarmZone: '坝顶' },
+  {
+    id: 'c1',
+    name: '坝顶 1#',
+    area: '坝顶',
+    status: 'online',
+    motion: '2分钟前',
+    alarmZone: '坝顶',
+  },
   { id: 'c2', name: '坝顶 2#', area: '坝顶', status: 'online', motion: '刚刚', alarmZone: '坝顶' },
-  { id: 'c3', name: '厂房入口', area: '厂房', status: 'online', motion: '5分钟前', alarmZone: '厂房' },
+  {
+    id: 'c3',
+    name: '厂房入口',
+    area: '厂房',
+    status: 'online',
+    motion: '5分钟前',
+    alarmZone: '厂房',
+  },
   { id: 'c4', name: '中控室', area: '厂房', status: 'online', motion: '—', alarmZone: '中控室' },
   { id: 'c5', name: '下游河道', area: '下游', status: 'offline', motion: '—', alarmZone: '下游' },
-  { id: 'c6', name: '开关站', area: '下游', status: 'online', motion: '1小时前', alarmZone: '开关站' },
+  {
+    id: 'c6',
+    name: '开关站',
+    area: '下游',
+    status: 'online',
+    motion: '1小时前',
+    alarmZone: '开关站',
+  },
 ]
 
 const ALARM_ZONE_TO_CAMERA: Record<string, string> = {
-  坝顶: 'c1', 厂房: 'c3', 中控室: 'c4', 下游: 'c5', 开关站: 'c6',
+  坝顶: 'c1',
+  厂房: 'c3',
+  中控室: 'c4',
+  下游: 'c5',
+  开关站: 'c6',
 }
 
 // ── 门禁 / 巡检 / 告警 ──
-interface DoorDef { id: string; name: string; status: 'locked' | 'unlocked'; last: string }
-interface PatrolDef { time: string; route: string; person: string; result: string; dur: string }
-interface AlarmDef { time: string; loc: string; type: string; level: 'warning' | 'critical'; status: string }
+interface DoorDef {
+  id: string
+  name: string
+  status: 'locked' | 'unlocked'
+  last: string
+}
+interface PatrolDef {
+  time: string
+  route: string
+  person: string
+  result: string
+  dur: string
+}
+interface AlarmDef {
+  time: string
+  loc: string
+  type: string
+  level: 'warning' | 'critical'
+  status: string
+}
 
 const doors: DoorDef[] = [
   { id: 'd1', name: '主厂房大门', status: 'locked', last: '14:25 张工' },
@@ -74,7 +118,13 @@ const doors: DoorDef[] = [
 
 const patrols: PatrolDef[] = [
   { time: '09:30', route: '坝顶 → 厂房 → 下游', person: '王巡检', result: '正常', dur: '45分钟' },
-  { time: '14:00', route: 'GIS室 → 开关站 → 中控', person: '赵巡检', result: '正常', dur: '38分钟' },
+  {
+    time: '14:00',
+    route: 'GIS室 → 开关站 → 中控',
+    person: '赵巡检',
+    result: '正常',
+    dur: '38分钟',
+  },
   { time: '18:30', route: '坝顶 → 下游河道 → 厂房', person: '王巡检', result: '待执行', dur: '—' },
 ]
 
@@ -90,7 +140,10 @@ const activeCamera = computed(() => cameras[activeCameraIdx.value])
 function switchTab(idx: number) {
   activeCameraIdx.value = idx
   // 手动切 Tab 时清除告警闪烁
-  if (alarmFlashTimer) { clearInterval(alarmFlashTimer); alarmFlashTimer = null }
+  if (alarmFlashTimer) {
+    clearInterval(alarmFlashTimer)
+    alarmFlashTimer = null
+  }
   alarmSwitchedCamera.value = null
   alarmFlashActive.value = false
 }
@@ -114,7 +167,9 @@ async function toggleFullscreen() {
     } else {
       await document.exitFullscreen()
     }
-  } catch { /* 不支持或拒绝 */ }
+  } catch {
+    /* 不支持或拒绝 */
+  }
 }
 
 // ── 截图 ──
@@ -134,10 +189,7 @@ function captureScreenshot() {
   ctx.fillRect(0, 0, canvas.width, 28)
   ctx.fillStyle = '#fff'
   ctx.font = '13px sans-serif'
-  ctx.fillText(
-    `${activeCamera.value.name}  ${new Date().toLocaleString('zh-CN')}`,
-    10, 19,
-  )
+  ctx.fillText(`${activeCamera.value.name}  ${new Date().toLocaleString('zh-CN')}`, 10, 19)
 
   canvas.toBlob((blob) => {
     if (!blob) return
@@ -238,22 +290,29 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
     <!-- KPI 行 -->
     <div class="kpis">
       <div class="kpi">
-        <span class="kpi__d" style="background:#3b82f6" />
+        <span class="kpi__d"
+style="background: #3b82f6" />
         <span class="kpi__l">摄像头</span>
-        <span class="kpi__v">{{ cameras.filter(c => c.status === 'online').length }}<small> / {{ cameras.length }}</small></span>
+        <span class="kpi__v">{{ cameras.filter((c) => c.status === 'online').length
+        }}<small> / {{ cameras.length }}</small></span>
       </div>
       <div class="kpi">
-        <span class="kpi__d" style="background:#22c55e" />
+        <span class="kpi__d"
+style="background: #22c55e" />
         <span class="kpi__l">门禁正常</span>
-        <span class="kpi__v">{{ doors.filter(d => d.status === 'locked').length }}<small> / {{ doors.length }}</small></span>
+        <span class="kpi__v">{{ doors.filter((d) => d.status === 'locked').length
+        }}<small> / {{ doors.length }}</small></span>
       </div>
       <div class="kpi">
-        <span class="kpi__d" style="background:#22c55e" />
+        <span class="kpi__d"
+style="background: #22c55e" />
         <span class="kpi__l">巡检完成</span>
-        <span class="kpi__v">{{ patrols.filter(p => p.result === '正常').length }}<small> / {{ patrols.length }}</small></span>
+        <span class="kpi__v">{{ patrols.filter((p) => p.result === '正常').length
+        }}<small> / {{ patrols.length }}</small></span>
       </div>
       <div class="kpi">
-        <span class="kpi__d" style="background:#d1d5db" />
+        <span class="kpi__d"
+style="background: #d1d5db" />
         <span class="kpi__l">今日告警</span>
         <span class="kpi__v">{{ alarms.length }}<small> 条</small></span>
       </div>
@@ -275,21 +334,19 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
             }"
             @click="switchTab(i)"
           >
-            <span class="cam-tab__dot" :style="{ background: sc[c.status].color }" />
+            <span class="cam-tab__dot"
+:style="{ background: sc[c.status].color }" />
             {{ c.name }}
           </button>
           <span class="cam-tabs__usb">
             <span :class="{ on: usbConnected }">{{ usbConnected ? '● 已连接' : '○ 无信号' }}</span>
-            <button class="btn" @click="startUSBCamera()">重新连接</button>
+            <button class="btn"
+@click="startUSBCamera()">重新连接</button>
           </span>
         </div>
 
         <!-- 主画面 -->
-        <div
-          ref="mainViewRef"
-          class="cam-main"
-          :class="{ 'cam-main--fs': isFullscreen }"
-        >
+        <div ref="mainViewRef" class="cam-main" :class="{ 'cam-main--fs': isFullscreen }">
           <!-- 实时视频（仅坝顶 1# + USB 连接） -->
           <video
             v-if="activeCamera.id === 'c1' && usbConnected"
@@ -301,12 +358,22 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
           />
 
           <!-- 占位（非 c1 或 USB 未连接） -->
-          <div v-else class="cam-main__placeholder">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+          <div v-else
+class="cam-main__placeholder">
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+            >
               <polygon points="23 7 16 12 23 17 23 7" />
-              <rect x="1" y="5" width="15" height="14" rx="2" />
+              <rect x="1"
+y="5" width="15" height="14" rx="2" />
             </svg>
-            <span v-if="activeCamera.status === 'offline'" class="cam-main__offline">无信号</span>
+            <span v-if="activeCamera.status === 'offline'"
+class="cam-main__offline">无信号</span>
           </div>
 
           <!-- 画面叠加信息 -->
@@ -323,9 +390,19 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
               :disabled="!(activeCamera.id === 'c1' && usbConnected)"
               @click="captureScreenshot"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                <circle cx="12" cy="13" r="4" />
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+                />
+                <circle cx="12"
+cy="13" r="4" />
               </svg>
             </button>
             <button
@@ -333,13 +410,35 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
               :title="isFullscreen ? '退出全屏' : '全屏'"
               @click="toggleFullscreen"
             >
-              <svg v-if="!isFullscreen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
-                <line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
+              <svg
+                v-if="!isFullscreen"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="15 3 21 3 21 9" />
+                <polyline points="9 21 3 21 3 15" />
+                <line x1="21"
+y1="3" x2="14" y2="10" />
+                <line x1="3" y1="21" x2="10" y2="14" />
               </svg>
-              <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="4 8 4 3 9 3" /><polyline points="20 16 20 21 15 21" />
-                <line x1="4" y1="3" x2="10" y2="9" /><line x1="20" y1="21" x2="14" y2="15" />
+              <svg
+                v-else
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="4 8 4 3 9 3" />
+                <polyline points="20 16 20 21 15 21" />
+                <line x1="4"
+y1="3" x2="10" y2="9" />
+                <line x1="20" y1="21" x2="14" y2="15" />
               </svg>
             </button>
           </div>
@@ -365,12 +464,17 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
               />
               <svg
                 v-else
-                width="20" height="20" viewBox="0 0 24 24"
-                fill="none" stroke="currentColor" stroke-width="1.5"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
                 class="cam-thumb__icon"
               >
                 <polygon points="23 7 16 12 23 17 23 7" />
-                <rect x="1" y="5" width="15" height="14" rx="2" />
+                <rect x="1"
+y="5" width="15" height="14" rx="2" />
               </svg>
               <span class="cam-thumb__name">{{ c.name }}</span>
             </div>
@@ -383,10 +487,15 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
         <!-- 门禁 -->
         <div class="pn">
           <div class="pn__t">门禁状态</div>
-          <div v-for="d in doors" :key="d.id" class="dr">
-            <span class="dr__d" :style="{ background: sc[d.status].color }" />
+          <div v-for="d in doors"
+:key="d.id" class="dr">
+            <span class="dr__d"
+:style="{ background: sc[d.status].color }" />
             <span class="dr__n">{{ d.name }}</span>
-            <span class="dr__s" :style="{ color: sc[d.status].color }">{{ sc[d.status].label }}</span>
+            <span class="dr__s"
+:style="{ color: sc[d.status].color }">{{
+              sc[d.status].label
+            }}</span>
             <span class="dr__l">{{ d.last }}</span>
           </div>
         </div>
@@ -395,13 +504,20 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
         <div class="pn">
           <div class="pn__t">巡检记录</div>
           <div
-            v-for="p in patrols" :key="p.time"
-            class="pr" :class="{ pen: p.result === '待执行' }"
+            v-for="p in patrols"
+            :key="p.time"
+            class="pr"
+            :class="{ pen: p.result === '待执行' }"
           >
             <span class="pr__t">{{ p.time }}</span>
             <span class="pr__r">{{ p.route }}</span>
             <span>{{ p.person }}</span>
-            <span :style="{ color: p.result === '正常' ? '#22c55e' : p.result === '待执行' ? '#f59e0b' : '#6b7280' }">
+            <span
+              :style="{
+                color:
+                  p.result === '正常' ? '#22c55e' : p.result === '待执行' ? '#f59e0b' : '#6b7280',
+              }"
+            >
               {{ p.result }}
             </span>
           </div>
@@ -411,12 +527,17 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
         <div class="pn">
           <div class="pn__t">
             最近告警
-            <button class="alarm-sim-btn" @click="simulateAlarm">模拟告警</button>
+            <button
+class="alarm-sim-btn" @click="simulateAlarm">模拟告警</button>
           </div>
-          <div v-for="a in alarms" :key="a.time" class="al">
-            <span class="al__d" :style="{ background: alc[a.level] }" />
+          <div v-for="a in alarms"
+:key="a.time" class="al">
+            <span class="al__d"
+:style="{ background: alc[a.level] }" />
             <div>
-              <div class="al__h"><b>{{ a.loc }}</b> · {{ a.type }}</div>
+              <div class="al__h">
+                <b>{{ a.loc }}</b> · {{ a.type }}
+              </div>
               <div class="al__f">{{ a.time }} · {{ a.status }}</div>
             </div>
           </div>
@@ -523,7 +644,10 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
   cursor: pointer;
   transition: all 0.15s;
 
-  &:hover { color: #374151; background: #f9fafb; }
+  &:hover {
+    color: #374151;
+    background: #f9fafb;
+  }
 
   &.active {
     color: #1e293b;
@@ -558,7 +682,10 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
   font-weight: 400;
   color: #94a3b8;
 
-  span.on { color: #22c55e; font-weight: 600; }
+  span.on {
+    color: #22c55e;
+    font-weight: 600;
+  }
 }
 
 .btn {
@@ -569,12 +696,19 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
   border: 1px solid #d1d5db;
   border-radius: 5px;
   cursor: pointer;
-  &:hover { background: #f3f4f6; }
+  &:hover {
+    background: #f3f4f6;
+  }
 }
 
 @keyframes alarm-pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.04); }
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
 }
 
 // ── 主画面 ──
@@ -643,8 +777,12 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
     background: rgba(0, 0, 0, 0.55);
     border-radius: 4px;
 
-    &.online { color: #22c55e; }
-    &.offline { color: #94a3b8; }
+    &.online {
+      color: #22c55e;
+    }
+    &.offline {
+      color: #94a3b8;
+    }
   }
 }
 
@@ -702,11 +840,17 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
   overflow: hidden;
   transition: border-color 0.15s;
 
-  &:hover { border-color: rgba(59, 130, 246, 0.4); }
+  &:hover {
+    border-color: rgba(59, 130, 246, 0.4);
+  }
 
-  &.active { border-color: #3b82f6; }
+  &.active {
+    border-color: #3b82f6;
+  }
 
-  &.off { opacity: 0.5; }
+  &.off {
+    opacity: 0.5;
+  }
 }
 
 .cam-thumb__preview {
@@ -782,8 +926,12 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
   cursor: pointer;
   transition: background 0.15s;
 
-  &:hover { background: #dc2626; }
-  &:active { background: #b91c1c; }
+  &:hover {
+    background: #dc2626;
+  }
+  &:active {
+    background: #b91c1c;
+  }
 }
 
 .dr {
@@ -794,7 +942,9 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
   font-size: 14px;
   line-height: 1.45;
 
-  & + & { border-top: 1px solid #f1f5f9; }
+  & + & {
+    border-top: 1px solid #f1f5f9;
+  }
 }
 
 .dr__d {
@@ -804,9 +954,19 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
   flex-shrink: 0;
 }
 
-.dr__n { flex: 1; font-weight: 500; color: #1e293b; }
-.dr__s { font-size: 13px; font-weight: 600; }
-.dr__l { font-size: 13px; color: #64748b; }
+.dr__n {
+  flex: 1;
+  font-weight: 500;
+  color: #1e293b;
+}
+.dr__s {
+  font-size: 13px;
+  font-weight: 600;
+}
+.dr__l {
+  font-size: 13px;
+  color: #64748b;
+}
 
 .pr {
   display: flex;
@@ -817,8 +977,12 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
   line-height: 1.45;
   color: #475569;
 
-  & + & { border-top: 1px solid #f1f5f9; }
-  &.pen { opacity: 0.55; }
+  & + & {
+    border-top: 1px solid #f1f5f9;
+  }
+  &.pen {
+    opacity: 0.55;
+  }
 }
 
 .pr__t {
@@ -845,7 +1009,9 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
   padding: 10px 0;
   line-height: 1.45;
 
-  & + & { border-top: 1px solid #f1f5f9; }
+  & + & {
+    border-top: 1px solid #f1f5f9;
+  }
 }
 
 .al__d {
@@ -860,7 +1026,9 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
   font-size: 14px;
   color: #1e293b;
 
-  b { font-weight: 600; }
+  b {
+    font-weight: 600;
+  }
 }
 
 .al__f {

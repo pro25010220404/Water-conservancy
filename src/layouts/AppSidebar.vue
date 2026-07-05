@@ -6,8 +6,18 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMenu, ElMenuItem, ElSubMenu, ElIcon } from 'element-plus'
 import {
-  Monitor, Ship, Switch, DataAnalysis, VideoCamera,
-  Clock, Warning, Operation, Cpu, SetUp, Setting, User,
+  Monitor,
+  Ship,
+  Switch,
+  DataAnalysis,
+  VideoCamera,
+  Clock,
+  Warning,
+  Operation,
+  Cpu,
+  SetUp,
+  Setting,
+  User,
 } from '@element-plus/icons-vue'
 import { MENU_ITEMS } from '@/constants'
 import { usePermission } from '@/composables/usePermission'
@@ -20,8 +30,18 @@ const route = useRoute()
 const { hasRoutePermission } = usePermission()
 
 const iconMap: Record<string, any> = {
-  Monitor, Ship, Switch, DataAnalysis, VideoCamera,
-  Clock, Warning, Operation, Cpu, SetUp, Setting, User,
+  Monitor,
+  Ship,
+  Switch,
+  DataAnalysis,
+  VideoCamera,
+  Clock,
+  Warning,
+  Operation,
+  Cpu,
+  SetUp,
+  Setting,
+  User,
 }
 
 const visibleMenus = computed(() =>
@@ -33,8 +53,9 @@ const visibleMenus = computed(() =>
 </script>
 
 <template>
-  <aside class="app-sidebar" :class="{ 'is-collapsed': collapsed }">
-    <el-menu
+  <aside class="app-sidebar"
+:class="{ 'is-collapsed': collapsed }">
+    <ElMenu
       :default-active="route.path"
       :collapse="collapsed"
       :collapse-transition="false"
@@ -44,21 +65,26 @@ const visibleMenus = computed(() =>
       router
     >
       <template v-for="item in visibleMenus" :key="item.path">
-        <el-sub-menu v-if="item.children?.length" :index="item.path">
+        <ElSubMenu
+v-if="item.children?.length" :index="item.path"
+>
           <template #title>
-            <el-icon><component :is="iconMap[item.icon]" /></el-icon>
+            <ElIcon><component :is="iconMap[item.icon]" /></ElIcon>
             <span>{{ item.title }}</span>
           </template>
-          <el-menu-item v-for="c in item.children" :key="c.path" :index="c.path">
+          <ElMenuItem v-for="c in item.children"
+:key="c.path" :index="c.path">
             <span>{{ c.title }}</span>
-          </el-menu-item>
-        </el-sub-menu>
-        <el-menu-item v-else :index="item.path">
-          <el-icon><component :is="iconMap[item.icon]" /></el-icon>
+          </ElMenuItem>
+        </ElSubMenu>
+        <ElMenuItem
+v-else :index="item.path"
+>
+          <ElIcon><component :is="iconMap[item.icon]" /></ElIcon>
           <span>{{ item.title }}</span>
-        </el-menu-item>
+        </ElMenuItem>
       </template>
-    </el-menu>
+    </ElMenu>
   </aside>
 </template>
 

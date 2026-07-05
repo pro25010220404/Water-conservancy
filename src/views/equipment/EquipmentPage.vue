@@ -55,7 +55,9 @@ const list = ref<Equipment[]>([])
 const selectedId = ref<number | null>(null)
 const detail = ref<EquipmentDetail | null>(null)
 const detailLoading = ref(false)
-const edgeSync = ref<{ config_version: string; last_sync_at: string; sync_status: string } | null>(null)
+const edgeSync = ref<{ config_version: string; last_sync_at: string; sync_status: string } | null>(
+  null,
+)
 
 // 筛选条件
 const reservoirFilter = ref<number>(1)
@@ -299,7 +301,8 @@ async function fetchList() {
   }
   // ── Mock 降级 ──
   let filtered = [...MOCK_EQUIPMENT]
-  if (reservoirFilter.value) filtered = filtered.filter((e) => e.reservoir_id === reservoirFilter.value)
+  if (reservoirFilter.value)
+    filtered = filtered.filter((e) => e.reservoir_id === reservoirFilter.value)
   if (typeFilter.value) filtered = filtered.filter((e) => e.type === typeFilter.value)
   if (statusFilter.value) filtered = filtered.filter((e) => e.status === statusFilter.value)
   if (keyword.value) {
@@ -375,17 +378,18 @@ async function onRowClick(row: Equipment) {
               },
             ]
           : undefined,
-    latest_monitoring: row.type === 'sensor'
-      ? {
-          upstream_level: 92.5,
-          downstream_level: 85.3,
-          inflow_rate: 350.0,
-          outflow_rate: 320.0,
-          gate_opening: 35.0,
-          power_output: 150.3,
-          timestamp: '2026-07-03 10:05:00',
-        }
-      : undefined,
+    latest_monitoring:
+      row.type === 'sensor'
+        ? {
+            upstream_level: 92.5,
+            downstream_level: 85.3,
+            inflow_rate: 350.0,
+            outflow_rate: 320.0,
+            gate_opening: 35.0,
+            power_output: 150.3,
+            timestamp: '2026-07-03 10:05:00',
+          }
+        : undefined,
   } as EquipmentDetail
   detailLoading.value = false
   edgeSync.value = null
@@ -531,7 +535,8 @@ watch([typeFilter, statusFilter, reservoirFilter], onFilterChange)
   <div class="page equipment-page">
     <!-- ═══ 左侧：表格区 ═══ -->
     <div class="equipment-page__main"
-:class="{ 'has-detail': selectedId }">
+:class="{ 'has-detail': selectedId }"
+>
       <div class="equipment-page__toolbar">
         <div class="equipment-page__filters">
           <ElSelect
@@ -540,7 +545,8 @@ watch([typeFilter, statusFilter, reservoirFilter], onFilterChange)
             style="width: 160px"
             @change="onFilterChange"
           >
-            <ElOption v-for="r in reservoirs" :key="r.id" :label="r.name" :value="r.id" />
+            <ElOption v-for="r in reservoirs"
+:key="r.id" :label="r.name" :value="r.id" />
           </ElSelect>
           <ElSelect
             v-model="typeFilter"
@@ -608,21 +614,18 @@ watch([typeFilter, statusFilter, reservoirFilter], onFilterChange)
         class="equipment-page__table"
         @row-click="onRowClick"
       >
-        <ElTableColumn type="index" label="#" width="50" />
-        <ElTableColumn prop="name" label="设备名称" min-width="160" show-overflow-tooltip />
-        <ElTableColumn prop="code" label="设备编号" width="120" />
-        <ElTableColumn
-prop="type" label="类型"
-width="130"
->
+        <ElTableColumn type="index"
+label="#" width="50" />
+        <ElTableColumn prop="name"
+label="设备名称" min-width="160" show-overflow-tooltip />
+        <ElTableColumn prop="code"
+label="设备编号" width="120" />
+        <ElTableColumn prop="type" label="类型" width="130">
           <template #default="scope">
             {{ typeLabelMap[scope.row.type] ?? scope.row.type }}
           </template>
         </ElTableColumn>
-        <ElTableColumn
-prop="status" label="状态"
-width="90"
->
+        <ElTableColumn prop="status" label="状态" width="90">
           <template #default="scope">
             <ElTag
               :type="
@@ -641,10 +644,14 @@ width="90"
             </ElTag>
           </template>
         </ElTableColumn>
-        <ElTableColumn prop="manufacturer" label="制造商" width="120" show-overflow-tooltip />
-        <ElTableColumn prop="model" label="型号" width="120" show-overflow-tooltip />
-        <ElTableColumn prop="health_score" label="健康评分" width="90" sortable />
-        <ElTableColumn prop="last_online" label="最后在线" width="170" />
+        <ElTableColumn prop="manufacturer"
+label="制造商" width="120" show-overflow-tooltip />
+        <ElTableColumn prop="model"
+label="型号" width="120" show-overflow-tooltip />
+        <ElTableColumn prop="health_score"
+label="健康评分" width="90" sortable />
+        <ElTableColumn prop="last_online"
+label="最后在线" width="170" />
       </ElTable>
 
       <!-- ═══ 分页 ═══ -->
@@ -665,8 +672,10 @@ width="90"
     <!-- ═══ 右侧详情面板 ═══ -->
     <transition name="slide">
       <div v-if="selectedId"
-class="equipment-page__detail">
-        <ElCard v-loading="detailLoading" shadow="never">
+class="equipment-page__detail"
+>
+        <ElCard v-loading="detailLoading"
+shadow="never">
           <template #header>
             <div class="equipment-page__detail-header">
               <span class="equipment-page__detail-title">{{ detail?.name ?? '设备详情' }}</span>
@@ -681,10 +690,7 @@ class="equipment-page__detail">
           </template>
 
           <template v-if="detail">
-            <ElDescriptions
-:column="1" border
-size="small" class="equipment-page__detail-desc"
->
+            <ElDescriptions :column="1" border size="small" class="equipment-page__detail-desc">
               <ElDescriptionsItem label="设备编号">
                 {{ detail.code }}
               </ElDescriptionsItem>
@@ -741,12 +747,10 @@ size="small" class="equipment-page__detail-desc"
             </ElDescriptions>
 
             <!-- 实时监测 -->
-            <div v-if="detail.latest_monitoring" class="equipment-page__monitor">
+            <div v-if="detail.latest_monitoring"
+class="equipment-page__monitor">
               <h4>实时监测数据</h4>
-              <ElDescriptions
-:column="2" border
-size="small"
->
+              <ElDescriptions :column="2" border size="small">
                 <ElDescriptionsItem label="上游水位">
                   {{ detail.latest_monitoring.upstream_level }} m
                 </ElDescriptionsItem>
@@ -770,8 +774,11 @@ size="small"
 
             <!-- 操作按钮组 -->
             <div class="equipment-page__ops">
-              <ElButton
-type="warning" @click="openStatusDialog"> 状态变更 </ElButton>
+              <ElButton type="warning"
+@click="openStatusDialog"
+>
+状态变更
+</ElButton>
               <ElButton
                 type="danger"
                 @click="openRestartDialog({ name: detail.name, id: detail.id } as Equipment)"
@@ -781,11 +788,10 @@ type="warning" @click="openStatusDialog"> 状态变更 </ElButton>
             </div>
 
             <!-- 故障记录 -->
-            <ElCollapse
-v-if="detail.current_alarms?.length" style="margin-top: 12px"
->
+            <ElCollapse v-if="detail.current_alarms?.length" style="margin-top: 12px">
               <ElCollapseItem title="当前告警"
-name="alarms">
+name="alarms"
+>
                 <div
                   v-for="alarm in detail.current_alarms"
                   :key="alarm.id"
@@ -814,10 +820,12 @@ name="alarms">
     </transition>
 
     <!-- ═══ 状态变更弹窗 ═══ -->
-    <ElDialog v-model="statusVisible" title="设备状态变更" width="420px">
+    <ElDialog v-model="statusVisible"
+title="设备状态变更" width="420px">
       <ElForm label-width="80px">
         <ElFormItem label="新状态">
-          <ElSelect v-model="newStatus" style="width: 100%">
+          <ElSelect v-model="newStatus"
+style="width: 100%">
             <ElOption
               v-for="opt in EQUIPMENT_STATUS_OPTIONS"
               :key="String(opt.value)"
@@ -829,17 +837,15 @@ name="alarms">
       </ElForm>
       <template #footer>
         <ElButton @click="statusVisible = false"> 取消 </ElButton>
-        <ElButton
-type="primary" :loading="submitting"
-@click="handleStatusChange"
->
+        <ElButton type="primary" :loading="submitting" @click="handleStatusChange">
           确认变更
         </ElButton>
       </template>
     </ElDialog>
 
     <!-- ═══ 远程重启弹窗 ═══ -->
-    <ElDialog v-model="restartVisible" title="远程重启设备" width="480px">
+    <ElDialog v-model="restartVisible"
+title="远程重启设备" width="480px">
       <div class="restart-dialog">
         <div class="restart-dialog__warn">
           <el-icon :size="20">
@@ -850,11 +856,10 @@ type="primary" :loading="submitting"
         <p class="restart-dialog__device">
           设备名称：<strong>{{ restartDeviceName }}</strong>
         </p>
-        <ElForm
-label-width="80px" style="margin-top: 16px"
->
+        <ElForm label-width="80px" style="margin-top: 16px">
           <ElFormItem label="重启原因"
-required>
+required
+>
             <ElInput
               v-model="restartForm.reason"
               type="textarea"
@@ -868,8 +873,11 @@ required>
       </div>
       <template #footer>
         <ElButton @click="restartVisible = false"> 取消 </ElButton>
-        <ElButton
-type="danger" :loading="submitting" @click="handleRestart"> 确认重启 </ElButton>
+        <ElButton type="danger"
+:loading="submitting" @click="handleRestart"
+>
+确认重启
+</ElButton>
       </template>
     </ElDialog>
   </div>

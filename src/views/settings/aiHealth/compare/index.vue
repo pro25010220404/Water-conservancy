@@ -112,7 +112,8 @@ onMounted(() => {
           :value="opt.value"
         />
       </ElSelect>
-      <ElSelect v-model="version1" placeholder="版本 1 (基准)" style="width: 220px">
+      <ElSelect v-model="version1"
+placeholder="版本 1 (基准)" style="width: 220px">
         <ElOption
           v-for="opt in versionOptions"
           :key="opt.value"
@@ -121,7 +122,8 @@ onMounted(() => {
         />
       </ElSelect>
       <span class="vs-label">VS</span>
-      <ElSelect v-model="version2" placeholder="版本 2 (对比)" style="width: 220px">
+      <ElSelect v-model="version2"
+placeholder="版本 2 (对比)" style="width: 220px">
         <ElOption
           v-for="opt in versionOptions"
           :key="opt.value"
@@ -129,16 +131,22 @@ onMounted(() => {
           :value="opt.value"
         />
       </ElSelect>
-      <ElButton
-type="primary" :loading="compareLoading" @click="doCompare"> 开始对比 </ElButton>
+      <ElButton type="primary"
+:loading="compareLoading" @click="doCompare"
+>
+开始对比
+</ElButton>
     </div>
 
-    <CompareRadar :data="compareData?.radarData ?? null" :loading="compareLoading" />
+    <CompareRadar :data="compareData?.radarData ?? null"
+:loading="compareLoading" />
 
-    <ScoreDiffTable :data="compareData?.scoreDiff ?? null" :loading="compareLoading" />
+    <ScoreDiffTable :data="compareData?.scoreDiff ?? null"
+:loading="compareLoading" />
 
     <div v-if="compareData"
-class="compare-summary">
+class="compare-summary"
+>
       <div class="summary-row">
         <span>版本1 综合评分:
           <strong>{{ (compareData.version1.overallScore * 100).toFixed(1) }}%</strong></span>

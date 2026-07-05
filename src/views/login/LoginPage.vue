@@ -46,21 +46,27 @@ async function handleLogin() {
 
 <template>
   <div class="login-page">
-    <div ref="sceneContainer" class="login-bg" :class="{ 'login-bg--fallback': !webglSupported }" />
+    <div ref="sceneContainer"
+class="login-bg" :class="{ 'login-bg--fallback': !webglSupported }" />
 
     <div class="login-form">
       <div class="login-form__card">
         <div class="login-form__header">
           <div class="login-form__logo-wrap">
-            <img :src="logoUrl" alt="logo" class="login-form__logo-img" />
+            <img
+:src="logoUrl" alt="logo" class="login-form__logo-img" />
           </div>
 
           <p class="login-form__overline">HYDROPOWER INTELLIGENT SYSTEM</p>
-          <h1 class="login-form__brand-title">{{ APP_TITLE }}</h1>
+          <h1 class="login-form__brand-title">
+            {{ APP_TITLE }}
+          </h1>
           <p class="login-form__brand-desc">
-            基于深度强化学习与数字孪生的<br />水电站闸门智能调度平台
+            基于深度强化学习与数字孪生的<br >水电站闸门智能调度平台
           </p>
-          <p class="login-form__greeting">{{ greeting }}</p>
+          <p class="login-form__greeting">
+            {{ greeting }}
+          </p>
         </div>
 
         <div class="login-form__body">
@@ -68,7 +74,7 @@ async function handleLogin() {
             <div class="login-field__icon">
               <el-icon><User /></el-icon>
             </div>
-            <el-input
+            <ElInput
               v-model="username"
               placeholder="请输入用户名"
               size="large"
@@ -80,7 +86,7 @@ async function handleLogin() {
             <div class="login-field__icon">
               <el-icon><Lock /></el-icon>
             </div>
-            <el-input
+            <ElInput
               v-model="password"
               type="password"
               placeholder="请输入密码"
@@ -92,11 +98,19 @@ async function handleLogin() {
           </div>
 
           <div class="login-form__options">
-            <el-checkbox v-model="rememberMe" class="login-form__checkbox">记住密码</el-checkbox>
-            <el-checkbox v-model="autoLogin" class="login-form__checkbox">自动登录</el-checkbox>
+            <ElCheckbox v-model="rememberMe"
+class="login-form__checkbox"
+>
+记住密码
+</ElCheckbox>
+            <ElCheckbox v-model="autoLogin"
+class="login-form__checkbox"
+>
+自动登录
+</ElCheckbox>
           </div>
 
-          <el-button
+          <ElButton
             type="primary"
             size="large"
             class="login-form__btn"
@@ -104,7 +118,7 @@ async function handleLogin() {
             @click="handleLogin"
           >
             登 录
-          </el-button>
+          </ElButton>
         </div>
       </div>
     </div>
@@ -253,7 +267,9 @@ async function handleLogin() {
     border: none;
     background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
     box-shadow: 0 10px 28px rgba(24, 144, 255, 0.4);
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition:
+      transform 0.2s,
+      box-shadow 0.2s;
 
     &:hover {
       background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%);
@@ -275,7 +291,9 @@ async function handleLogin() {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   overflow: hidden;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 
   &:focus-within {
     border-color: rgba(24, 144, 255, 0.7);
