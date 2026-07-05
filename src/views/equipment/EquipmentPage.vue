@@ -534,9 +534,7 @@ watch([typeFilter, statusFilter, reservoirFilter], onFilterChange)
 <template>
   <div class="page equipment-page">
     <!-- ═══ 左侧：表格区 ═══ -->
-    <div class="equipment-page__main"
-:class="{ 'has-detail': selectedId }"
->
+    <div class="equipment-page__main" :class="{ 'has-detail': selectedId }">
       <div class="equipment-page__toolbar">
         <div class="equipment-page__filters">
           <ElSelect
@@ -545,8 +543,7 @@ watch([typeFilter, statusFilter, reservoirFilter], onFilterChange)
             style="width: 160px"
             @change="onFilterChange"
           >
-            <ElOption v-for="r in reservoirs"
-:key="r.id" :label="r.name" :value="r.id" />
+            <ElOption v-for="r in reservoirs" :key="r.id" :label="r.name" :value="r.id" />
           </ElSelect>
           <ElSelect
             v-model="typeFilter"
@@ -586,16 +583,8 @@ watch([typeFilter, statusFilter, reservoirFilter], onFilterChange)
           />
         </div>
         <div class="equipment-page__actions">
-          <ElButton :icon="Refresh"
-@click="fetchList"
->
-刷新
-</ElButton>
-          <ElButton type="primary"
-:icon="Download" @click="handleExport"
->
-导出台账
-</ElButton>
+          <ElButton :icon="Refresh" @click="fetchList"> 刷新 </ElButton>
+          <ElButton type="primary" :icon="Download" @click="handleExport"> 导出台账 </ElButton>
         </div>
       </div>
 
@@ -614,12 +603,9 @@ watch([typeFilter, statusFilter, reservoirFilter], onFilterChange)
         class="equipment-page__table"
         @row-click="onRowClick"
       >
-        <ElTableColumn type="index"
-label="#" width="50" />
-        <ElTableColumn prop="name"
-label="设备名称" min-width="160" show-overflow-tooltip />
-        <ElTableColumn prop="code"
-label="设备编号" width="120" />
+        <ElTableColumn type="index" label="#" width="50" />
+        <ElTableColumn prop="name" label="设备名称" min-width="160" show-overflow-tooltip />
+        <ElTableColumn prop="code" label="设备编号" width="120" />
         <ElTableColumn prop="type" label="类型" width="130">
           <template #default="scope">
             {{ typeLabelMap[scope.row.type] ?? scope.row.type }}
@@ -644,14 +630,10 @@ label="设备编号" width="120" />
             </ElTag>
           </template>
         </ElTableColumn>
-        <ElTableColumn prop="manufacturer"
-label="制造商" width="120" show-overflow-tooltip />
-        <ElTableColumn prop="model"
-label="型号" width="120" show-overflow-tooltip />
-        <ElTableColumn prop="health_score"
-label="健康评分" width="90" sortable />
-        <ElTableColumn prop="last_online"
-label="最后在线" width="170" />
+        <ElTableColumn prop="manufacturer" label="制造商" width="120" show-overflow-tooltip />
+        <ElTableColumn prop="model" label="型号" width="120" show-overflow-tooltip />
+        <ElTableColumn prop="health_score" label="健康评分" width="90" sortable />
+        <ElTableColumn prop="last_online" label="最后在线" width="170" />
       </ElTable>
 
       <!-- ═══ 分页 ═══ -->
@@ -671,11 +653,8 @@ label="最后在线" width="170" />
 
     <!-- ═══ 右侧详情面板 ═══ -->
     <transition name="slide">
-      <div v-if="selectedId"
-class="equipment-page__detail"
->
-        <ElCard v-loading="detailLoading"
-shadow="never">
+      <div v-if="selectedId" class="equipment-page__detail">
+        <ElCard v-loading="detailLoading" shadow="never">
           <template #header>
             <div class="equipment-page__detail-header">
               <span class="equipment-page__detail-title">{{ detail?.name ?? '设备详情' }}</span>
@@ -747,8 +726,7 @@ shadow="never">
             </ElDescriptions>
 
             <!-- 实时监测 -->
-            <div v-if="detail.latest_monitoring"
-class="equipment-page__monitor">
+            <div v-if="detail.latest_monitoring" class="equipment-page__monitor">
               <h4>实时监测数据</h4>
               <ElDescriptions :column="2" border size="small">
                 <ElDescriptionsItem label="上游水位">
@@ -774,11 +752,7 @@ class="equipment-page__monitor">
 
             <!-- 操作按钮组 -->
             <div class="equipment-page__ops">
-              <ElButton type="warning"
-@click="openStatusDialog"
->
-状态变更
-</ElButton>
+              <ElButton type="warning" @click="openStatusDialog"> 状态变更 </ElButton>
               <ElButton
                 type="danger"
                 @click="openRestartDialog({ name: detail.name, id: detail.id } as Equipment)"
@@ -789,9 +763,7 @@ class="equipment-page__monitor">
 
             <!-- 故障记录 -->
             <ElCollapse v-if="detail.current_alarms?.length" style="margin-top: 12px">
-              <ElCollapseItem title="当前告警"
-name="alarms"
->
+              <ElCollapseItem title="当前告警" name="alarms">
                 <div
                   v-for="alarm in detail.current_alarms"
                   :key="alarm.id"
@@ -820,12 +792,10 @@ name="alarms"
     </transition>
 
     <!-- ═══ 状态变更弹窗 ═══ -->
-    <ElDialog v-model="statusVisible"
-title="设备状态变更" width="420px">
+    <ElDialog v-model="statusVisible" title="设备状态变更" width="420px">
       <ElForm label-width="80px">
         <ElFormItem label="新状态">
-          <ElSelect v-model="newStatus"
-style="width: 100%">
+          <ElSelect v-model="newStatus" style="width: 100%">
             <ElOption
               v-for="opt in EQUIPMENT_STATUS_OPTIONS"
               :key="String(opt.value)"
@@ -844,8 +814,7 @@ style="width: 100%">
     </ElDialog>
 
     <!-- ═══ 远程重启弹窗 ═══ -->
-    <ElDialog v-model="restartVisible"
-title="远程重启设备" width="480px">
+    <ElDialog v-model="restartVisible" title="远程重启设备" width="480px">
       <div class="restart-dialog">
         <div class="restart-dialog__warn">
           <el-icon :size="20">
@@ -857,9 +826,7 @@ title="远程重启设备" width="480px">
           设备名称：<strong>{{ restartDeviceName }}</strong>
         </p>
         <ElForm label-width="80px" style="margin-top: 16px">
-          <ElFormItem label="重启原因"
-required
->
+          <ElFormItem label="重启原因" required>
             <ElInput
               v-model="restartForm.reason"
               type="textarea"
@@ -873,17 +840,14 @@ required
       </div>
       <template #footer>
         <ElButton @click="restartVisible = false"> 取消 </ElButton>
-        <ElButton type="danger"
-:loading="submitting" @click="handleRestart"
->
-确认重启
-</ElButton>
+        <ElButton type="danger" :loading="submitting" @click="handleRestart"> 确认重启 </ElButton>
       </template>
     </ElDialog>
   </div>
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 .equipment-page {
   display: flex;
   gap: var(--spacing-lg);

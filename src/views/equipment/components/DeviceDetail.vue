@@ -77,48 +77,38 @@ function getSyncStatusLabel(status: string): string {
 
 <template>
   <div class="device-detail">
-    <ElSkeleton :loading="loading"
-animated :throttle="0">
+    <ElSkeleton :loading="loading" animated :throttle="0">
       <template v-if="detail">
         <!-- 标题栏 -->
         <div class="device-detail__header">
           <span class="device-detail__title">{{ detail.name }}</span>
-          <ElButton text
-size="small" :icon="Close" @click="handleClose" />
+          <ElButton text size="small" :icon="Close" @click="handleClose" />
         </div>
 
         <!-- 基本参数区 -->
-        <ElCard shadow="never"
-class="device-detail__section">
-          <template #header>
-            <span class="device-detail__section-title">基本参数</span>
-          </template>
+        <ElCard shadow="never" class="device-detail__section">
+          <template #header><span class="device-detail__section-title">基本参数</span></template>
           <DeviceBasicInfo :detail="detail" />
         </ElCard>
 
         <!-- 实时数据区 -->
-        <ElCard v-if="isSensorOrActuator"
-shadow="never" class="device-detail__section">
-          <template #header>
-            <span class="device-detail__section-title">实时数据</span>
-          </template>
+        <ElCard v-if="isSensorOrActuator" shadow="never" class="device-detail__section">
+          <template #header><span class="device-detail__section-title">实时数据</span></template>
           <DeviceRealtimeData :detail="detail" />
         </ElCard>
 
         <!-- 配置同步状态区 -->
-        <ElCard v-if="isGateway"
-shadow="never" class="device-detail__section">
-          <template #header>
-            <span class="device-detail__section-title">配置同步状态</span>
-          </template>
-          <ElDescriptions :column="2"
-border size="small">
-            <ElDescriptionsItem label="最后同步时间">
-              {{ syncInfo?.last_sync_time ?? '-' }}
-            </ElDescriptionsItem>
-            <ElDescriptionsItem label="当前配置版本">
-              {{ syncInfo?.config_version ?? '-' }}
-            </ElDescriptionsItem>
+        <ElCard v-if="isGateway" shadow="never" class="device-detail__section">
+          <template #header
+            ><span class="device-detail__section-title">配置同步状态</span></template
+          >
+          <ElDescriptions :column="2" border size="small">
+            <ElDescriptionsItem label="最后同步时间">{{
+              syncInfo?.last_sync_time ?? '-'
+            }}</ElDescriptionsItem>
+            <ElDescriptionsItem label="当前配置版本">{{
+              syncInfo?.config_version ?? '-'
+            }}</ElDescriptionsItem>
             <ElDescriptionsItem label="同步状态">
               <ElTag
                 v-if="syncInfo"
@@ -136,13 +126,9 @@ border size="small">
         </ElCard>
 
         <!-- 维护操作区 -->
-        <ElCard shadow="never"
-class="device-detail__section">
-          <template #header>
-            <span class="device-detail__section-title">维护操作</span>
-          </template>
-          <DeviceOperations :detail="detail"
-@restart="handleRestart" />
+        <ElCard shadow="never" class="device-detail__section">
+          <template #header><span class="device-detail__section-title">维护操作</span></template>
+          <DeviceOperations :detail="detail" @restart="handleRestart" />
         </ElCard>
       </template>
     </ElSkeleton>

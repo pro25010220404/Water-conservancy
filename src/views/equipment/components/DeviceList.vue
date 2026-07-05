@@ -69,12 +69,9 @@ const pageSizeOptions = [10, 15, 20, 50]
       @row-click="(row: Equipment) => emit('row-click', row)"
       @selection-change="onSelectionChange"
     >
-      <ElTableColumn type="selection"
-width="50" />
-      <ElTableColumn prop="name"
-label="设备名称" min-width="160" show-overflow-tooltip />
-      <ElTableColumn prop="code"
-label="设备编号" width="130" />
+      <ElTableColumn type="selection" width="50" />
+      <ElTableColumn prop="name" label="设备名称" min-width="160" show-overflow-tooltip />
+      <ElTableColumn prop="code" label="设备编号" width="130" />
       <ElTableColumn label="设备类型" width="120">
         <template #default="scope">
           {{ typeLabelMap[scope.row.type] ?? scope.row.type }}
@@ -82,9 +79,7 @@ label="设备编号" width="130" />
       </ElTableColumn>
       <ElTableColumn label="运行状态" width="100">
         <template #default="scope">
-          <ElTag :type="getStatusType(scope.row.status)"
-size="small" disable-transitions
->
+          <ElTag :type="getStatusType(scope.row.status)" size="small" disable-transitions>
             {{ DEVICE_STATUS[scope.row.status]?.label ?? scope.row.status }}
           </ElTag>
         </template>
@@ -99,8 +94,7 @@ size="small" disable-transitions
           {{ scope.row.group ?? '-' }}
         </template>
       </ElTableColumn>
-      <ElTableColumn prop="last_online"
-label="最后心跳时间" width="170" />
+      <ElTableColumn prop="last_online" label="最后心跳时间" width="170" />
     </ElTable>
 
     <div class="device-list__pagination">

@@ -142,13 +142,9 @@ async function submitPassword() {
     width="480px"
     @update:model-value="emit('update:visible', $event)"
   >
-    <ElForm ref="formRef"
-:model="pwdForm" label-width="100px"
->
+    <ElForm ref="formRef" :model="pwdForm" label-width="100px">
       <!-- 当前密码 -->
-      <ElFormItem label="当前密码"
-required
->
+      <ElFormItem label="当前密码" required>
         <ElInput
           v-model="pwdForm.old_password"
           type="password"
@@ -158,9 +154,7 @@ required
       </ElFormItem>
 
       <!-- 新密码 -->
-      <ElFormItem label="新密码"
-required
->
+      <ElFormItem label="新密码" required>
         <ElInput
           v-model="pwdForm.new_password"
           type="password"
@@ -194,9 +188,7 @@ required
       </template>
 
       <!-- 确认新密码 -->
-      <ElFormItem label="确认新密码"
-required
->
+      <ElFormItem label="确认新密码" required>
         <ElInput
           v-model="pwdForm.confirm_password"
           type="password"
@@ -212,11 +204,7 @@ required
 
     <template #footer>
       <ElButton @click="emit('update:visible', false)"> 取消 </ElButton>
-      <ElButton type="primary"
-:loading="submitting" @click="submitPassword"
->
-确认修改
-</ElButton>
+      <ElButton type="primary" :loading="submitting" @click="submitPassword"> 确认修改 </ElButton>
     </template>
   </ElDialog>
 </template>

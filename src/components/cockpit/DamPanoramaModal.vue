@@ -93,16 +93,14 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
         aria-modal="true"
         aria-label="向家坝 BIM 预览"
       >
-        <div class="sim-modal__backdrop"
-@click="emit('close')" />
+        <div class="sim-modal__backdrop" @click="emit('close')" />
 
         <div class="sim-modal__panel">
           <!-- 左侧：仿真控制 / 方案预览 -->
           <aside class="sim-modal__sidebar">
             <div class="sim-modal__sidebar-head">
               <h2>{{ preview ? '方案 BIM 预览' : '仿真推演' }}</h2>
-              <span class="sim-modal__status"
-:style="{ color: statusColor }">
+              <span class="sim-modal__status" :style="{ color: statusColor }">
                 {{ preview ? '调度预览' : statusLabel }}
               </span>
             </div>
@@ -120,7 +118,9 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
                 </div>
                 <div class="sim-modal__kpi">
                   <small>预期上游水位</small>
-                  <strong :style="{ color: levelStatusColor }">{{ waterLevel.toFixed(2) }} m</strong>
+                  <strong :style="{ color: levelStatusColor }"
+                    >{{ waterLevel.toFixed(2) }} m</strong
+                  >
                   <em>{{ levelStatusLabel }}</em>
                 </div>
                 <div class="sim-modal__kpi">
@@ -131,8 +131,7 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
                   <small>入库流量</small>
                   <strong>{{ flowRate }} m³/s</strong>
                 </div>
-                <div v-if="previewSafetyScore != null"
-class="sim-modal__kpi">
+                <div v-if="previewSafetyScore != null" class="sim-modal__kpi">
                   <small>安全评分</small>
                   <strong :style="{ color: previewSafetyScore >= 90 ? '#22c55e' : '#f59e0b' }">
                     {{ previewSafetyScore }}
@@ -161,8 +160,7 @@ class="sim-modal__kpi">
                     )
                   "
                 >
-                  <option
-v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :value="s.value">
+                  <option v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :value="s.value">
                     {{ s.label }}
                   </option>
                 </select>
@@ -181,8 +179,7 @@ v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :value="s.value">
                     )
                   "
                 >
-                  <option
-v-for="s in SPEED_OPTIONS" :key="s.value" :value="s.value">
+                  <option v-for="s in SPEED_OPTIONS" :key="s.value" :value="s.value">
                     {{ s.label }}
                   </option>
                 </select>
@@ -200,7 +197,7 @@ v-for="s in SPEED_OPTIONS" :key="s.value" :value="s.value">
                   @input="
                     emit('update:gateOpening', Number(($event.target as HTMLInputElement).value))
                   "
-                >
+                />
               </div>
 
               <div class="sim-modal__actions">
@@ -256,18 +253,15 @@ v-for="s in SPEED_OPTIONS" :key="s.value" :value="s.value">
                 </div>
               </div>
 
-              <div
-v-if="simStatus.historyLevels.length" class="sim-modal__history">
+              <div v-if="simStatus.historyLevels.length" class="sim-modal__history">
                 <h4>水位变化（最近）</h4>
                 <ul>
-                  <li
-v-for="(p, i) in simStatus.historyLevels.slice(-6)" :key="i">
+                  <li v-for="(p, i) in simStatus.historyLevels.slice(-6)" :key="i">
                     T+{{ p.time }}s · {{ p.value.toFixed(2) }} m
                   </li>
                 </ul>
               </div>
-              <p
-v-else class="sim-modal__hint">点击「开始仿真」后，左侧实时显示运行数据。</p>
+              <p v-else class="sim-modal__hint">点击「开始仿真」后，左侧实时显示运行数据。</p>
             </template>
           </aside>
 
@@ -292,12 +286,9 @@ v-else class="sim-modal__hint">点击「开始仿真」后，左侧实时显示�
               aria-hidden="true"
             >
               <defs>
-                <linearGradient id="simModalGeoGrad"
-x1="0%" y1="100%" x2="100%" y2="30%">
-                  <stop offset="0%"
-stop-color="rgba(24,144,255,0.85)" />
-                  <stop offset="100%"
-stop-color="rgba(64,200,255,0.15)" />
+                <linearGradient id="simModalGeoGrad" x1="0%" y1="100%" x2="100%" y2="30%">
+                  <stop offset="0%" stop-color="rgba(24,144,255,0.85)" />
+                  <stop offset="100%" stop-color="rgba(64,200,255,0.15)" />
                 </linearGradient>
               </defs>
               <path
@@ -315,8 +306,7 @@ stop-color="rgba(64,200,255,0.15)" />
                 stroke-width="0.15"
               />
             </svg>
-            <button type="button"
-class="sim-modal__close" aria-label="关闭" @click="emit('close')">
+            <button type="button" class="sim-modal__close" aria-label="关闭" @click="emit('close')">
               ✕
             </button>
           </main>

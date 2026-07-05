@@ -18,32 +18,28 @@ const isFlushPage = computed(() => route.path.startsWith('/simulation'))
 </script>
 
 <template>
-  <ElContainer
+  <el-container
     direction="vertical"
     class="main-layout"
     :class="{ 'main-layout--collapsed': collapsed }"
   >
     <header class="main-layout__topbar">
       <div class="main-layout__brand">
-        <img :src="logoUrl"
-alt="logo" class="main-layout__logo"
-/>
+        <img :src="logoUrl" alt="logo" class="main-layout__logo" />
         <span v-if="!collapsed" class="main-layout__title">{{ APP_TITLE }}</span>
       </div>
       <AppHeader :collapsed="collapsed" @toggle-collapse="collapsed = !collapsed" />
     </header>
 
-    <ElContainer class="main-layout__body">
-      <ElAside :width="collapsed ? '64px' : 'var(--sider-width)'"
-class="main-layout__aside">
+    <el-container class="main-layout__body">
+      <el-aside :width="collapsed ? '64px' : 'var(--sider-width)'" class="main-layout__aside">
         <AppSidebar :collapsed="collapsed" />
-      </ElAside>
-      <ElMain class="main-layout__content"
-:class="{ 'main-layout__content--flush': isFlushPage }">
+      </el-aside>
+      <el-main class="main-layout__content" :class="{ 'main-layout__content--flush': isFlushPage }">
         <router-view />
-      </ElMain>
-    </ElContainer>
-  </ElContainer>
+      </el-main>
+    </el-container>
+  </el-container>
 </template>
 
 <style scoped lang="scss">
@@ -110,7 +106,7 @@ class="main-layout__aside">
   &__content {
     flex: 1;
     min-height: 0;
-    background: var(--color-bg-dark);
+    background: #fff;
     padding: var(--spacing-lg);
     overflow-y: auto;
     @include hide-scrollbar;

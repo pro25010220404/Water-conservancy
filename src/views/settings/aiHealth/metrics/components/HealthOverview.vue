@@ -24,10 +24,8 @@ function formatPercent(val: number): string {
 </script>
 
 <template>
-  <div v-loading="loading"
-class="health-overview">
-    <ElCard shadow="hover"
-class="overview-card overview-card--score">
+  <div v-loading="loading" class="health-overview">
+    <ElCard shadow="hover" class="overview-card overview-card--score">
       <ElStatistic title="综合评分">
         <template #default>
           <span class="score-value" :style="{ color: scoreColor }">
@@ -45,51 +43,32 @@ class="overview-card overview-card--score">
       <div v-if="gradeInfo" class="grade-sub">
         {{ gradeInfo.scoreRange }} | {{ gradeInfo.level }}
       </div>
-      <div v-if="!overview && !loading"
-class="card-placeholder"
->
-暂无数据
-</div>
+      <div v-if="!overview && !loading" class="card-placeholder">暂无数据</div>
     </ElCard>
 
-    <ElCard shadow="hover"
-class="overview-card">
+    <ElCard shadow="hover" class="overview-card">
       <ElStatistic title="LSTM 水位 MAE" :value="overview?.waterLevelMAE ?? 0" :precision="3">
         <template #suffix>
           <span class="unit-text">m</span>
         </template>
       </ElStatistic>
-      <div v-if="!overview && !loading"
-class="card-placeholder"
->
-暂无数据
-</div>
+      <div v-if="!overview && !loading" class="card-placeholder">暂无数据</div>
     </ElCard>
 
-    <ElCard shadow="hover"
-class="overview-card">
+    <ElCard shadow="hover" class="overview-card">
       <ElStatistic
         title="安全规则覆盖率"
         :value="overview ? formatPercent(overview.safetyCoverageRate) : '--'"
       />
-      <div v-if="!overview && !loading"
-class="card-placeholder"
->
-暂无数据
-</div>
+      <div v-if="!overview && !loading" class="card-placeholder">暂无数据</div>
     </ElCard>
 
-    <ElCard shadow="hover"
-class="overview-card">
+    <ElCard shadow="hover" class="overview-card">
       <ElStatistic
         title="决策自主率 (L3_AUTO占比)"
         :value="overview ? formatPercent(overview.decisionAutoRate) : '--'"
       />
-      <div v-if="!overview && !loading"
-class="card-placeholder"
->
-暂无数据
-</div>
+      <div v-if="!overview && !loading" class="card-placeholder">暂无数据</div>
     </ElCard>
   </div>
 </template>

@@ -2,6 +2,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AiModelHealthRing from './components/AiModelHealthRing.vue'
+import PhysicsGuardSummaryCard from './components/PhysicsGuardSummaryCard.vue'
+import InterlockSummaryCard from './components/InterlockSummaryCard.vue'
 import { fetchPhysicsGuardSummary } from '@/api/dispatchPage'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 
@@ -24,8 +26,12 @@ onMounted(async () => {
     data.value.upstreamLevel = +(data.value.upstreamLevel + (Math.random() - 0.5) * 0.1).toFixed(2)
     data.value.powerOutput = +(data.value.powerOutput + (Math.random() - 0.5) * 15).toFixed(0)
   }, 3000)
+  startInterlockSim()
 })
-onUnmounted(() => clearInterval(t))
+onUnmounted(() => {
+  clearInterval(t)
+  if (interlockTimer) clearInterval(interlockTimer)
+})
 const fmt = (v: number, d = 2) =>
   v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
 
@@ -105,6 +111,20 @@ const sections = [
   },
 ]
 
+// D-101: 模拟闸门互锁约束状态
+const gateInterlocked = ref(false)
+const interlockRuleName = ref('')
+let interlockTimer: ReturnType<typeof setInterval> | null = null
+function startInterlockSim() {
+  interlockTimer = setInterval(() => {
+    gateInterlocked.value = Math.random() > 0.7
+    if (gateInterlocked.value) {
+      const rules = ['泄洪-发电互斥', '下游冲击保护', '对称性约束']
+      interlockRuleName.value = rules[Math.floor(Math.random() * rules.length)]
+    }
+  }, 10000)
+}
+
 const alarms = [
   { time: '14:32', level: 'warning' as const, msg: '1#边缘网关 CPU 使用率 88%', status: '未处理' },
   { time: '12:05', level: 'warning' as const, msg: '下游河道周界入侵告警', status: '已确认' },
@@ -116,8 +136,7 @@ const alarms = [
   <div class="dp">
     <div class="hd">
       <div>
-        <h1>综合概览</h1>
-        <p>
+        <p class="hd__subtitle">
           向家坝水电站 ·
           {{
             new Date().toLocaleDateString('zh-CN', {
@@ -140,10 +159,20 @@ const alarms = [
         <span>入库流量</span><b>{{ fmt(data.inflowRate, 0) }}<small>m³/s</small></b>
       </div>
       <div class="kpi">
-        <span>发电功率</span><b style="color: #3b82f6">{{ fmt(data.powerOutput, 0) }}<small>MW</small></b>
+        <span>发电功率</span
+        ><b style="color: #3b82f6">{{ fmt(data.powerOutput, 0) }}<small>MW</small></b>
       </div>
       <div class="kpi">
-        <span>闸门开度</span><b>{{ fmt(data.gateOpening, 1) }}<small>%</small></b>
+        <span>闸门开度</span
+        ><b
+          >{{ fmt(data.gateOpening, 1) }}<small>%</small
+          ><span
+            v-if="gateInterlocked"
+            class="kpi__interlock"
+            :title="'该闸门受互锁规则约束：' + interlockRuleName"
+            >🔗</span
+          ></b
+        >
       </div>
       <div class="kpi">
         <span>库容</span><b>{{ fmt(data.capacity) }}<small>亿m³</small></b>
@@ -162,27 +191,23 @@ const alarms = [
           >
             <div class="sec__top">
               <span class="sec__t">{{ s.title }}</span>
-              <span
-v-if="expanded !== s.id" class="sec__pre"
->
-                <span
-v-for="p in s.preview" :key="p.l"
-                >{{ p.l }} <b>{{ p.v }}</b></span>
+              <span class="sec__pre" v-if="expanded !== s.id">
+                <span v-for="p in s.preview" :key="p.l"
+                  >{{ p.l }} <b>{{ p.v }}</b></span
+                >
               </span>
               <span class="sec__arr">{{ expanded === s.id ? '收起' : '展开' }}</span>
             </div>
-            <div
-v-if="expanded === s.id" class="sec__body"
->
+            <div class="sec__body" v-if="expanded === s.id">
               <div class="sec__grid">
-                <div v-for="d in s.detail"
-:key="d.l" class="st">
+                <div v-for="d in s.detail" :key="d.l" class="st">
                   <span class="st__l">{{ d.l }}</span>
-                  <span class="st__v">{{ d.v }}<small>{{ d.u }}</small></span>
+                  <span class="st__v"
+                    >{{ d.v }}<small>{{ d.u }}</small></span
+                  >
                 </div>
               </div>
-              <button class="sec__btn"
-@click.stop="router.push(s.path)">
+              <button class="sec__btn" @click.stop="router.push(s.path)">
                 进入 {{ s.title }} 完整页面 →
               </button>
             </div>
@@ -191,27 +216,14 @@ v-if="expanded === s.id" class="sec__body"
       </div>
       <div class="col col--side">
         <AiModelHealthRing />
-        <div v-if="physicsGuard"
-class="panel physics-card">
-          <h2>物理防护配置</h2>
-          <p>v{{ physicsGuard.config_version }} · 紧急 {{ physicsGuard.upstream_emergency }}m</p>
-          <button
-            class="sec__btn"
-            @click="router.push({ path: '/settings', query: { tab: 'physics-guard' } })"
-          >
-            管理配置 →
-          </button>
-        </div>
+        <PhysicsGuardSummaryCard v-if="physicsGuard" :data="physicsGuard" />
+        <InterlockSummaryCard />
         <div class="panel">
           <h2>实时告警</h2>
-          <div v-for="a in alarms"
-:key="a.time" class="al">
-            <span
-class="al__d" :class="a.level" />
+          <div v-for="a in alarms" :key="a.time" class="al">
+            <span class="al__d" :class="a.level" />
             <div>
-              <div class="al__m">
-                {{ a.msg }}
-              </div>
+              <div class="al__m">{{ a.msg }}</div>
               <div class="al__f">{{ a.time }} · {{ a.status }}</div>
             </div>
           </div>
@@ -226,7 +238,7 @@ class="al__d" :class="a.level" />
   height: calc(100vh - 56px);
   display: flex;
   flex-direction: column;
-  background: #f5f6f8;
+  background: #fff;
 }
 
 .hd {
@@ -239,18 +251,12 @@ class="al__d" :class="a.level" />
   flex-shrink: 0;
 }
 
-.hd h1 {
+.hd__subtitle {
   margin: 0;
-  font-size: 26px;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.5px;
-}
-
-.hd p {
-  margin: 4px 0 0;
-  font-size: 14px;
-  color: #64748b;
+  font-size: 22px;
+  font-weight: 600;
+  color: #1e293b;
+  letter-spacing: 0.2px;
 }
 
 .hd__status {
@@ -310,6 +316,19 @@ class="al__d" :class="a.level" />
     font-size: 14px;
     font-weight: 400;
     color: #64748b;
+  }
+}
+
+.kpi__interlock {
+  margin-left: 6px;
+  font-size: 14px;
+  cursor: help;
+  opacity: 0.85;
+  filter: grayscale(0.2);
+
+  &:hover {
+    opacity: 1;
+    filter: none;
   }
 }
 
@@ -374,12 +393,10 @@ class="al__d" :class="a.level" />
   display: flex;
   flex: 1;
   gap: 24px;
-
   span {
     font-size: 14px;
     color: #64748b;
   }
-
   b {
     margin-left: 6px;
     font-weight: 600;
@@ -428,7 +445,6 @@ class="al__d" :class="a.level" />
   font-weight: 700;
   color: #1e293b;
   font-family: 'SF Mono', monospace;
-
   small {
     margin-left: 2px;
     font-size: 13px;
@@ -446,7 +462,6 @@ class="al__d" :class="a.level" />
   border: 1px solid #d1d5db;
   border-radius: 6px;
   cursor: pointer;
-
   &:hover {
     background: #f3f4f6;
     border-color: #9ca3af;
@@ -460,16 +475,6 @@ class="al__d" :class="a.level" />
   border-radius: 8px;
   & + .panel {
     margin-top: 12px;
-  }
-}
-.physics-card {
-  p {
-    margin: 0 0 10px;
-    font-size: 13px;
-    color: #64748b;
-  }
-  .sec__btn {
-    margin-top: 4px;
   }
 }
 

@@ -85,11 +85,7 @@ async function saveEdit() {
     <div class="device-basic-info__header">
       <span class="device-basic-info__label">设备参数</span>
       <template v-if="!editing">
-        <ElButton text
-type="primary" :icon="Edit" size="small" @click="startEdit"
->
-编辑
-</ElButton>
+        <ElButton text type="primary" :icon="Edit" size="small" @click="startEdit"> 编辑 </ElButton>
       </template>
       <template v-else>
         <div class="device-basic-info__actions">
@@ -103,17 +99,12 @@ type="primary" :icon="Edit" size="small" @click="startEdit"
           >
             保存
           </ElButton>
-          <ElButton text
-size="small" :icon="Close" @click="cancelEdit"
->
-取消
-</ElButton>
+          <ElButton text size="small" :icon="Close" @click="cancelEdit"> 取消 </ElButton>
         </div>
       </template>
     </div>
 
-    <ElDescriptions :column="2"
-border size="small">
+    <ElDescriptions :column="2" border size="small">
       <ElDescriptionsItem label="设备名称">
         <template v-if="editing">
           <ElInput v-model="editForm.name" size="small" />

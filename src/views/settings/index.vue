@@ -542,23 +542,19 @@ onMounted(() => {
 
 <template>
   <div class="settings-page">
-    <ElTabs v-model="activeTab"
-type="border-card" class="settings-tabs" @tab-change="onTabChange">
+    <ElTabs v-model="activeTab" type="border-card" class="settings-tabs" @tab-change="onTabChange">
       <!-- ═══ Tab1: 告警阈值 ═══ -->
       <ElTabPane label="告警阈值配置" name="thresholds">
-        <ElTable v-loading="thresholdsLoading"
-:data="thresholds" style="width: 100%">
-          <ElTableColumn label="监控指标"
-min-width="140">
+        <ElTable v-loading="thresholdsLoading" :data="thresholds" style="width: 100%">
+          <ElTableColumn label="监控指标" min-width="140">
             <template #default="scope">
               {{
                 METRIC_LABEL_MAP[(scope.row as ThresholdRule).metric] ??
-                  (scope.row as ThresholdRule).metric
+                (scope.row as ThresholdRule).metric
               }}
             </template>
           </ElTableColumn>
-          <ElTableColumn label="预警上限"
-width="130" align="center">
+          <ElTableColumn label="预警上限" width="130" align="center">
             <template #default="scope">
               <ElInputNumber
                 v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
@@ -570,8 +566,7 @@ width="130" align="center">
               <span v-else>{{ (scope.row as ThresholdRule).warning_upper }}</span>
             </template>
           </ElTableColumn>
-          <ElTableColumn label="预警下限"
-width="130" align="center">
+          <ElTableColumn label="预警下限" width="130" align="center">
             <template #default="scope">
               <ElInputNumber
                 v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
@@ -583,8 +578,7 @@ width="130" align="center">
               <span v-else>{{ (scope.row as ThresholdRule).warning_lower }}</span>
             </template>
           </ElTableColumn>
-          <ElTableColumn label="紧急上限"
-width="130" align="center">
+          <ElTableColumn label="紧急上限" width="130" align="center">
             <template #default="scope">
               <ElInputNumber
                 v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
@@ -596,8 +590,7 @@ width="130" align="center">
               <span v-else>{{ (scope.row as ThresholdRule).critical_upper }}</span>
             </template>
           </ElTableColumn>
-          <ElTableColumn label="紧急下限"
-width="130" align="center">
+          <ElTableColumn label="紧急下限" width="130" align="center">
             <template #default="scope">
               <ElInputNumber
                 v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
@@ -609,8 +602,7 @@ width="130" align="center">
               <span v-else>{{ (scope.row as ThresholdRule).critical_lower }}</span>
             </template>
           </ElTableColumn>
-          <ElTableColumn label="防抖(秒)"
-width="120" align="center">
+          <ElTableColumn label="防抖(秒)" width="120" align="center">
             <template #default="scope">
               <ElInputNumber
                 v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
@@ -624,8 +616,7 @@ width="120" align="center">
               <span v-else>{{ (scope.row as ThresholdRule).debounce_seconds }}s</span>
             </template>
           </ElTableColumn>
-          <ElTableColumn label="启用"
-width="70" align="center">
+          <ElTableColumn label="启用" width="70" align="center">
             <template #default="scope">
               <ElSwitch
                 v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
@@ -638,8 +629,7 @@ width="70" align="center">
               </ElTag>
             </template>
           </ElTableColumn>
-          <ElTableColumn label="操作"
-width="150" fixed="right" align="center">
+          <ElTableColumn label="操作" width="150" fixed="right" align="center">
             <template #default="scope">
               <template v-if="thresholdsEditing[(scope.row as ThresholdRule).id]">
                 <ElButton
@@ -672,9 +662,7 @@ width="150" fixed="right" align="center">
 
       <!-- ═══ Tab2: 多目标权重 ═══ -->
       <ElTabPane label="多目标权重配置" name="weights">
-        <ElCard v-loading="weightLoading"
-shadow="never"
->
+        <ElCard v-loading="weightLoading" shadow="never">
           <div class="weight-section">
             <div class="weight-presets">
               <span class="weight-presets__label">预设方案：</span>
@@ -682,13 +670,11 @@ shadow="never"
                 v-for="p in WEIGHT_PRESETS"
                 :key="p.id"
                 style="margin-right: 8px"
-                @click="
-                  weightForm = {
+                @click="weightForm = {
                     power_weight: p.power,
                     safety_weight: p.safety,
                     ecology_weight: p.eco,
-                  }
-                "
+                  }"
               >
                 {{ p.label }}
               </ElButton>
@@ -704,7 +690,9 @@ shadow="never"
                   style="flex: 1; margin: 0 16px"
                   @input="onSliderChange('power_weight')"
                 />
-                <span class="weight-row__value">{{ (weightForm.power_weight * 100).toFixed(0) }}%</span>
+                <span class="weight-row__value"
+                  >{{ (weightForm.power_weight * 100).toFixed(0) }}%</span
+                >
               </div>
               <div class="weight-row">
                 <span class="weight-row__label">防洪安全</span>
@@ -716,7 +704,9 @@ shadow="never"
                   style="flex: 1; margin: 0 16px"
                   @input="onSliderChange('safety_weight')"
                 />
-                <span class="weight-row__value">{{ (weightForm.safety_weight * 100).toFixed(0) }}%</span>
+                <span class="weight-row__value"
+                  >{{ (weightForm.safety_weight * 100).toFixed(0) }}%</span
+                >
               </div>
               <div class="weight-row">
                 <span class="weight-row__label">生态流量</span>
@@ -728,15 +718,17 @@ shadow="never"
                   style="flex: 1; margin: 0 16px"
                   @input="onSliderChange('ecology_weight')"
                 />
-                <span class="weight-row__value">{{ (weightForm.ecology_weight * 100).toFixed(0) }}%</span>
+                <span class="weight-row__value"
+                  >{{ (weightForm.ecology_weight * 100).toFixed(0) }}%</span
+                >
               </div>
             </div>
             <div class="weight-summary">
               <span>合计：</span>
               <span :class="{ 'weight-summary--invalid': !weightValid }">{{ weightSum }}</span>
-              <span v-if="!weightValid"
-class="weight-summary--warn"
-                ><el-icon><Warning /></el-icon>三权重之和必须等于 1.0 才能保存</span>
+              <span v-if="!weightValid" class="weight-summary--warn"
+                ><el-icon><Warning /></el-icon>三权重之和必须等于 1.0 才能保存</span
+              >
             </div>
             <ElButton
               type="primary"
@@ -762,11 +754,7 @@ class="weight-summary--warn"
             style="width: 220px"
             @input="onModelSearch()"
           />
-          <ElButton :icon="Refresh"
-@click="fetchModels"
->
-刷新
-</ElButton>
+          <ElButton :icon="Refresh" @click="fetchModels"> 刷新 </ElButton>
           <ElUpload
             ref="uploadRef"
             :http-request="handleUpload"
@@ -775,8 +763,7 @@ class="weight-summary--warn"
             :show-file-list="false"
             style="display: inline-block; margin-left: auto"
           >
-            <ElButton type="primary"
-:icon="Upload" :loading="uploading">
+            <ElButton type="primary" :icon="Upload" :loading="uploading">
               {{ uploading ? `上传中 ${uploadProgress}%` : '上传模型' }}
             </ElButton>
           </ElUpload>
@@ -788,20 +775,14 @@ class="weight-summary--warn"
           border
           style="width: 100%; margin-top: 12px"
         >
-          <ElTableColumn prop="name"
-label="模型名称" min-width="150"
-/>
-          <ElTableColumn label="类型"
-width="100">
+          <ElTableColumn prop="name" label="模型名称" min-width="150" />
+          <ElTableColumn label="类型" width="100">
             <template #default="scope">
               {{ MODEL_TYPE_MAP[(scope.row as ModelInfo).type] ?? (scope.row as ModelInfo).type }}
             </template>
           </ElTableColumn>
-          <ElTableColumn prop="version"
-label="版本" width="80"
-/>
-          <ElTableColumn label="状态"
-width="90">
+          <ElTableColumn prop="version" label="版本" width="80" />
+          <ElTableColumn label="状态" width="90">
             <template #default="scope">
               <ElTag
                 :type="
@@ -821,20 +802,12 @@ width="90">
               </ElTag>
             </template>
           </ElTableColumn>
-          <ElTableColumn prop="accuracy"
-label="准确率" width="80">
-            <template #default="scope">
-{{ (scope.row as ModelInfo).accuracy ?? '-' }}%
-</template>
+          <ElTableColumn prop="accuracy" label="准确率" width="80">
+            <template #default="scope"> {{ (scope.row as ModelInfo).accuracy ?? '-' }}% </template>
           </ElTableColumn>
-          <ElTableColumn prop="size"
-label="大小(MB)" width="90"
-/>
-          <ElTableColumn prop="deployed_nodes"
-label="已下发节点" width="100"
-/>
-          <ElTableColumn label="操作"
-width="220" fixed="right">
+          <ElTableColumn prop="size" label="大小(MB)" width="90" />
+          <ElTableColumn prop="deployed_nodes" label="已下发节点" width="100" />
+          <ElTableColumn label="操作" width="220" fixed="right">
             <template #default="scope">
               <ElButton
                 v-if="(scope.row as ModelInfo).status !== 'active'"
@@ -878,16 +851,13 @@ width="220" fixed="right">
       </ElTabPane>
 
       <!-- ═══ Tab4: AI模型健康度 → 跳转子路由 ═══ -->
-      <ElTabPane label="AI模型健康度"
-name="ai-health" />
+      <ElTabPane label="AI模型健康度" name="ai-health" />
 
       <!-- ═══ Tab5: 物理防护配置 → 跳转子路由 ═══ -->
-      <ElTabPane label="物理防护配置"
-name="physics-guard" />
+      <ElTabPane label="物理防护配置" name="physics-guard" />
 
       <!-- ═══ Tab6: 闸门互锁规则 → 跳转子路由 ═══ -->
-      <ElTabPane label="闸门互锁规则"
-name="gate-interlock" />
+      <ElTabPane label="闸门互锁规则" name="gate-interlock" />
 
       <!-- ═══ Tab7: 用户管理 ═══ -->
       <ElTabPane label="用户管理" name="users">
@@ -900,11 +870,7 @@ name="gate-interlock" />
             style="width: 220px"
             @input="onUserSearch()"
           />
-          <ElButton :icon="Refresh"
-@click="fetchUsers"
->
-刷新
-</ElButton>
+          <ElButton :icon="Refresh" @click="fetchUsers"> 刷新 </ElButton>
           <ElButton
             type="primary"
             :icon="Plus"
@@ -921,28 +887,20 @@ name="gate-interlock" />
           border
           style="width: 100%; margin-top: 12px"
         >
-          <ElTableColumn type="index"
-label="#" width="50" align="center"
-/>
-          <ElTableColumn prop="account"
-label="用户名" min-width="100"
-/>
-          <ElTableColumn prop="realname"
-label="姓名" min-width="80"
-/>
-          <ElTableColumn label="角色"
-min-width="120" align="center">
+          <ElTableColumn type="index" label="#" width="50" align="center" />
+          <ElTableColumn prop="account" label="用户名" min-width="100" />
+          <ElTableColumn prop="realname" label="姓名" min-width="80" />
+          <ElTableColumn label="角色" min-width="120" align="center">
             <template #default="scope">
               <ElTag>
                 {{
                   roleLabelMap[String((scope.row as SystemUser).role_id)] ??
-                    (scope.row as SystemUser).role_name
+                  (scope.row as SystemUser).role_name
                 }}
               </ElTag>
             </template>
           </ElTableColumn>
-          <ElTableColumn label="状态"
-width="80" align="center">
+          <ElTableColumn label="状态" width="80" align="center">
             <template #default="scope">
               <ElTag
                 :type="(scope.row as SystemUser).is_enabled === 1 ? 'success' : 'danger'"
@@ -952,14 +910,9 @@ width="80" align="center">
               </ElTag>
             </template>
           </ElTableColumn>
-          <ElTableColumn prop="phone"
-label="手机号" min-width="120"
-/>
-          <ElTableColumn prop="created_at"
-label="注册时间" min-width="150"
-/>
-          <ElTableColumn label="操作"
-width="260" fixed="right" align="center">
+          <ElTableColumn prop="phone" label="手机号" min-width="120" />
+          <ElTableColumn prop="created_at" label="注册时间" min-width="150" />
+          <ElTableColumn label="操作" width="260" fixed="right" align="center">
             <template #default="scope">
               <ElButton
                 type="primary"
@@ -968,11 +921,7 @@ width="260" fixed="right" align="center">
               >
                 编辑
               </ElButton>
-              <ElButton link
-@click="handleResetPwd(scope.row as SystemUser)"
->
-重置密码
-</ElButton>
+              <ElButton link @click="handleResetPwd(scope.row as SystemUser)"> 重置密码 </ElButton>
               <ElButton
                 v-if="(scope.row as SystemUser).is_enabled === 1"
                 type="warning"
@@ -1006,8 +955,7 @@ width="260" fixed="right" align="center">
           :title="userDialogMode === 'create' ? '新增用户' : '编辑用户'"
           width="480px"
         >
-          <ElForm :model="userForm"
-label-width="80px">
+          <ElForm :model="userForm" label-width="80px">
             <ElFormItem v-if="userDialogMode === 'create'" label="用户名" required>
               <ElInput v-model="userForm.account" placeholder="≥3位字母数字下划线" />
             </ElFormItem>
@@ -1023,9 +971,7 @@ label-width="80px">
               <ElInput v-model="userForm.realname" placeholder="2-20个字符" maxlength="20" />
             </ElFormItem>
             <ElFormItem label="角色">
-              <ElSelect v-model="userForm.role_id"
-style="width: 100%"
->
+              <ElSelect v-model="userForm.role_id" style="width: 100%">
                 <ElOption
                   v-for="r in USER_ROLE_OPTIONS"
                   :key="r.value"
@@ -1051,6 +997,7 @@ style="width: 100%"
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 .settings-page {
   :deep(.el-table) {
     font-size: var(--font-size-base, 14px);

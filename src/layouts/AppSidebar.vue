@@ -122,7 +122,7 @@ v-else :index="item.path"
     background: var(--color-layout-blue-active) !important;
     color: var(--color-layout-blue-brand) !important;
     font-weight: 600;
-    border-left: 3px solid var(--color-layout-blue-active-border);
+    border-left: none;
     box-shadow: inset 0 0 24px rgba(110, 179, 255, 0.12);
   }
 }

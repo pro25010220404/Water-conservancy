@@ -66,11 +66,7 @@ color="#E6A23C">
 
     <template #footer>
       <ElButton @click="emit('update:visible', false)"> 取消 </ElButton>
-      <ElButton type="warning"
-:loading="loading" @click="emit('confirm')"
->
-确认回滚
-</ElButton>
+      <ElButton type="warning" :loading="loading" @click="emit('confirm')"> 确认回滚 </ElButton>
     </template>
   </ElDialog>
 </template>

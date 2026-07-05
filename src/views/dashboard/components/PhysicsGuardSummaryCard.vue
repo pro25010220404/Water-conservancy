@@ -25,8 +25,8 @@ const isNewVersion = computed(() => {
 // ── D-97: 同步状态 ──
 const syncStatusInfo = computed(() => {
   const map: Record<string, { label: string; color: string; dot: string }> = {
-    synced:  { label: '已同步', color: '#16a34a', dot: '#22c55e' },
-    stale:   { label: '同步延迟', color: '#d97706', dot: '#f59e0b' },
+    synced: { label: '已同步', color: '#16a34a', dot: '#22c55e' },
+    stale: { label: '同步延迟', color: '#d97706', dot: '#f59e0b' },
     offline: { label: '同步失败', color: '#dc2626', dot: '#ef4444' },
   }
   return map[props.data.sync_status] ?? map.synced
@@ -95,9 +95,7 @@ function goSettings() {
     </div>
 
     <!-- D-98: 快捷入口 -->
-    <button class="pg-card__btn" @click="goSettings">
-      配置管理 →
-    </button>
+    <button class="pg-card__btn" @click="goSettings">配置管理 →</button>
   </div>
 </template>
 

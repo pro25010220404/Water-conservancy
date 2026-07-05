@@ -1,22 +1,25 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElIcon } from 'element-plus'
 import { DataAnalysis } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, MarkLineComponent, MarkPointComponent } from 'echarts/components'
+import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { isReplaying } from '@/composables/useReplayMode'
-use([LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, MarkLineComponent, MarkPointComponent, CanvasRenderer])
+import * as XLSX from 'xlsx'
+use([LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, CanvasRenderer])
 
 // ═══ 主题 ═══
 const darkMode = ref(localStorage.getItem('history-theme') === 'dark')
-watch(darkMode, v => localStorage.setItem('history-theme', v ? 'dark' : 'light'))
+watch(darkMode, (v: boolean) => localStorage.setItem('history-theme', v ? 'dark' : 'light'))
 
 // ═══ 离线检测 ═══
 const isOnline = ref(navigator.onLine)
-onMounted(() => { window.addEventListener('online', () => isOnline.value = true); window.addEventListener('offline', () => isOnline.value = false) })
+onMounted(() => {
+  window.addEventListener('online', () => (isOnline.value = true))
+  window.addEventListener('offline', () => (isOnline.value = false))
+})
 
 // ═══ 筛选 ═══
 const dateRange = ref({ start: '', end: '' })
@@ -30,11 +33,37 @@ const metricOptions = [
   { value: 'gateOpening', label: '闸门开度', unit: '%', color: '#f59e0b' },
   { value: 'powerOutput', label: '发电功率', unit: 'MW', color: '#ef4444' },
 ]
-const granularityOptions = [
-  { value: 'raw', label: '原始' }, { value: '5min', label: '5分钟' },
-  { value: 'hour', label: '小时' }, { value: 'day', label: '日' },
-]
 const queried = ref(false)
+
+// ── 日期快捷选项 ──
+const datePreset = ref('近7天')
+const datePresets = [
+  { label: '今天', days: 1 },
+  { label: '近3天', days: 3 },
+  { label: '近7天', days: 7 },
+  { label: '近30天', days: 30 },
+  { label: '本月', days: -1 },
+]
+function applyDatePreset(p: { label: string; days: number }) {
+  datePreset.value = p.label
+  const end = new Date()
+  let start: Date
+  if (p.days === -1) {
+    start = new Date(end.getFullYear(), end.getMonth(), 1)
+  } else {
+    start = new Date(end.getTime() - p.days * 86400000)
+  }
+  dateRange.value.start = start.toISOString().slice(0, 16)
+  dateRange.value.end = end.toISOString().slice(0, 16)
+}
+
+// 初始化默认日期
+;(() => {
+  const end = new Date()
+  const start = new Date(end.getTime() - 7 * 86400000)
+  dateRange.value.start = start.toISOString().slice(0, 16)
+  dateRange.value.end = end.toISOString().slice(0, 16)
+})()
 
 // ═══ 模拟数据 ═══
 const allData = ref<any[]>([])
@@ -49,7 +78,8 @@ function generateMock() {
   for (let i = 96; i >= 0; i--) {
     const t = now - i * 15 * 60000
     arr.push({
-      time: t, label: new Date(t).toLocaleString('zh-CN'),
+      time: t,
+      label: new Date(t).toLocaleString('zh-CN'),
       upstreamLevel: +(378.5 + Math.sin(i / 8) * 1.2).toFixed(2),
       downstreamLevel: +(269.2 + Math.sin(i / 12) * 0.2).toFixed(2),
       inflowRate: Math.round(6350 + Math.sin(i / 6) * 800),
@@ -67,8 +97,10 @@ function generateMock() {
 
 function applyFilters() {
   let data = [...allData.value]
-  if (dateRange.value.start) data = data.filter(d => d.time >= new Date(dateRange.value.start).getTime())
-  if (dateRange.value.end) data = data.filter(d => d.time <= new Date(dateRange.value.end).getTime())
+  if (dateRange.value.start)
+    data = data.filter((d) => d.time >= new Date(dateRange.value.start).getTime())
+  if (dateRange.value.end)
+    data = data.filter((d) => d.time <= new Date(dateRange.value.end).getTime())
   tableData.value = data
   tablePage.value = 1
   queried.value = true
@@ -82,8 +114,8 @@ function resetFilters() {
   chartZoom.value = null
 }
 
-const metricLabel = (v: string) => metricOptions.find(o => o.value === v)?.label ?? v
-const metricUnit = (v: string) => metricOptions.find(o => o.value === v)?.unit ?? ''
+const metricLabel = (v: string) => metricOptions.find((o) => o.value === v)?.label ?? v
+const metricUnit = (v: string) => metricOptions.find((o) => o.value === v)?.unit ?? ''
 
 const pagedData = computed(() => {
   const s = (tablePage.value - 1) * tablePageSize
@@ -96,228 +128,168 @@ function onChartZoom(params: any) {
   if (params.batch?.[0]) {
     const z = params.batch[0]
     chartZoom.value = [z.start, z.end]
-    const startIdx = Math.floor(z.start / 100 * tableData.value.length)
-    const endIdx = Math.floor(z.end / 100 * tableData.value.length)
+    const startIdx = Math.floor((z.start / 100) * tableData.value.length)
+    const endIdx = Math.floor((z.end / 100) * tableData.value.length)
     tableData.value = allData.value.slice(startIdx, endIdx + 1)
     tablePage.value = 1
   }
 }
 
-// ═══ 时光机回放 ═══
-const replayMode = ref(false)
-const replayTime = ref(0)
-const replayPlaying = ref(false)
-const replaySpeed = ref(1)
-let replayTimer: ReturnType<typeof setInterval> | null = null
-
-const replayTimeMin = computed(() => allData.value[0]?.time ?? 0)
-const replayTimeMax = computed(() => allData.value[allData.value.length - 1]?.time ?? 0)
-const replayTimeLabel = computed(() => new Date(replayTime.value).toLocaleString('zh-CN'))
-
-// 快照：最接近 replayTime 的数据点
-const replaySnapshot = computed(() => {
-  const ts = replayTime.value
-  let best = allData.value[0]
-  let bestDiff = Infinity
-  for (const d of allData.value) {
-    const diff = Math.abs(d.time - ts)
-    if (diff < bestDiff) { bestDiff = diff; best = d }
-  }
-  return best
-})
-
-function toggleReplayPlay() {
-  if (replayPlaying.value) {
-    stopReplayTimer()
-  } else {
-    startReplayTimer()
-  }
-}
-
-function startReplayTimer() {
-  replayPlaying.value = true
-  replayTimer = setInterval(() => {
-    const step = replaySpeed.value * 15 * 60000 // 每 100ms 推进 speed×15min
-    replayTime.value += step
-    if (replayTime.value >= replayTimeMax.value) {
-      replayTime.value = replayTimeMax.value
-      stopReplayTimer()
-    }
-  }, 100)
-}
-
-function stopReplayTimer() {
-  replayPlaying.value = false
-  if (replayTimer) { clearInterval(replayTimer); replayTimer = null }
-}
-
-function seekReplay(e: Event) {
-  const target = e.target as HTMLInputElement
-  replayTime.value = Number(target.value)
-}
-
-function jumpReplay(delta: number) {
-  const step = 5 * 15 * 60000 // 一次跳 5 个数据点
-  replayTime.value = Math.min(replayTimeMax.value, Math.max(replayTimeMin.value, replayTime.value + delta * step))
-}
-
-// 退出回放时清理
-onUnmounted(() => {
-  if (replayTimer) clearInterval(replayTimer)
-  if (replayMode.value) isReplaying.value = false
-})
 
 // ═══ 图表配置 ═══
 const chartOpt = computed(() => {
-  const data = tableData.value.length > 0 ? tableData.value.slice(0, 200) : allData.value.slice(0, 200)
+  const data =
+    tableData.value.length > 0 ? tableData.value.slice(0, 200) : allData.value.slice(0, 200)
   if (data.length === 0) return {}
-  const series: any[] = selectedMetrics.value.map(m => {
-    const cfg = metricOptions.find(o => o.value === m)
-    if (!cfg) return null
-    const s: any = { name: cfg.label, type: 'line', data: data.map(d => [d.label, d[m]]), smooth: true, symbol: 'none', lineStyle: { color: cfg.color, width: 2 } }
-    if (m === 'upstreamLevel' || m === 'downstreamLevel') s.yAxisIndex = 0; else s.yAxisIndex = 1
-    return s
-  }).filter(Boolean)
+  const series: any[] = selectedMetrics.value
+    .map((m) => {
+      const cfg = metricOptions.find((o) => o.value === m)
+      if (!cfg) return null
+      const s: any = {
+        name: cfg.label,
+        type: 'line',
+        data: data.map((d) => [d.label, d[m]]),
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { color: cfg.color, width: 2 },
+      }
+      if (m === 'upstreamLevel' || m === 'downstreamLevel') s.yAxisIndex = 0
+      else s.yAxisIndex = 1
+      return s
+    })
+    .filter(Boolean)
 
-  const events = data.filter(d => d.event)
+  const events = data.filter((d) => d.event)
   if (series.length > 0 && events.length > 0) {
     series[0].markPoint = {
-      data: events.map(d => ({ name: d.event.label, coord: [d.label, d.upstreamLevel], symbol: 'pin', symbolSize: 32, itemStyle: { color: d.event.color }, label: { show: true, fontSize: 12 } })),
+      data: events.map((d) => ({
+        name: d.event.label,
+        coord: [d.label, d.upstreamLevel],
+        symbol: 'pin',
+        symbolSize: 32,
+        itemStyle: { color: d.event.color },
+        label: { show: true, fontSize: 12 },
+      })),
     }
-  }
-
-  // 回放模式下添加 markLine 竖线
-  if (replayMode.value && replaySnapshot.value) {
-    const cursorLabel = replaySnapshot.value.label
-    series.forEach((s: any) => {
-      s.markLine = {
-        silent: true,
-        symbol: 'none',
-        lineStyle: { color: '#f59e0b', width: 2, type: 'dashed' },
-        data: [{ xAxis: cursorLabel }],
-        label: { show: false },
-      }
-    })
   }
 
   return {
     backgroundColor: 'transparent',
-    legend: { data: selectedMetrics.value.map(m => metricLabel(m)), textStyle: { color: '#64748b', fontSize: 14 }, top: 0 },
+    legend: {
+      data: selectedMetrics.value.map((m) => metricLabel(m)),
+      textStyle: { color: '#64748b', fontSize: 14 },
+      top: 0,
+    },
     grid: { left: 56, right: 56, top: 36, bottom: 60 },
     tooltip: { trigger: 'axis', textStyle: { fontSize: 14 } },
-    animation: !replayMode.value,
-    xAxis: { type: 'category', data: data.map(d => d.label), axisLabel: { fontSize: 12, interval: Math.max(1, Math.floor(data.length / 6)) } },
-    yAxis: [{ type: 'value', splitLine: { lineStyle: { color: '#f1f5f9' } }, axisLabel: { fontSize: 12 } }, { type: 'value', splitLine: { show: false }, axisLabel: { fontSize: 12 } }],
-    dataZoom: [{ type: 'slider', start: 0, end: 100, height: 24, bottom: 0, textStyle: { fontSize: 11 } }],
+    animation: true,
+    xAxis: {
+      type: 'category',
+      data: data.map((d) => d.label),
+      axisLabel: { fontSize: 14, interval: Math.max(1, Math.floor(data.length / 6)) },
+    },
+    yAxis: [
+      {
+        type: 'value',
+        splitLine: { lineStyle: { color: '#f1f5f9' } },
+        axisLabel: { fontSize: 12 },
+      },
+      { type: 'value', splitLine: { show: false }, axisLabel: { fontSize: 12 } },
+    ],
+    dataZoom: [
+      { type: 'slider', start: 0, end: 100, height: 24, bottom: 0, textStyle: { fontSize: 11 } },
+    ],
     series,
   }
 })
 
 // ═══ 导出 ═══
-const exporting = ref(false)
+const exporting = ref('')
 function doExport(format: 'csv' | 'xlsx') {
-  exporting.value = true
+  exporting.value = format
   setTimeout(() => {
-    const headers = ['时间', ...selectedMetrics.value.map(m => metricLabel(m))]
-    const rows = tableData.value.map(d => [d.label, ...selectedMetrics.value.map(m => d[m])])
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `历史数据_${new Date().toISOString().slice(0, 10)}.${format === 'csv' ? 'csv' : 'csv'}`
-    a.click()
-    exporting.value = false
-  }, 800)
+    const headers = ['时间', ...selectedMetrics.value.map((m) => metricLabel(m))]
+    const data = tableData.value.length > 0 ? tableData.value : allData.value
+    const rows = data.map((d) => [d.label, ...selectedMetrics.value.map((m) => d[m])])
+    const dateStr = new Date().toISOString().slice(0, 10)
+
+    if (format === 'xlsx') {
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+      ws['!cols'] = headers.map(() => ({ wch: 18 }))
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, '历史数据')
+      XLSX.writeFile(wb, `历史数据_${dateStr}.xlsx`)
+    } else {
+      const csv = ['﻿' + headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `历史数据_${dateStr}.csv`
+      a.click()
+    }
+    exporting.value = ''
+  }, 100)
 }
 
 // ═══ 智能报告 ═══
+import SmartReportModal from './SmartReportModal.vue'
 const reportVisible = ref(false)
-const reportData = computed(() => {
-  const data = tableData.value.length > 0 ? tableData.value : allData.value.slice(-100)
-  const calc = (key: string) => ({ max: Math.max(...data.map(d => d[key])).toFixed(2), min: Math.min(...data.map(d => d[key])).toFixed(2), avg: (data.reduce((s, d) => s + d[key], 0) / data.length).toFixed(2) })
-  return { upstreamLevel: calc('upstreamLevel'), inflowRate: calc('inflowRate'), powerOutput: calc('powerOutput'), gateOpening: calc('gateOpening'), anomalies: data.filter(d => d.event).length, total: data.length }
-})
 
 generateMock()
 tableData.value = [...allData.value]
 </script>
 
 <template>
-  <div class="hp" :class="{ dark: darkMode, 'hp--replaying': replayMode }">
+  <div class="hp" :class="{ dark: darkMode }">
     <!-- 筛选区 -->
     <div class="filter">
       <div class="filter__row">
         <label>日期范围</label>
-        <input type="datetime-local" v-model="dateRange.start" class="inp" :disabled="replayMode" />
-        <span>—</span>
-        <input type="datetime-local" v-model="dateRange.end" class="inp" :disabled="replayMode" />
+        <div class="date-presets">
+          <span
+            v-for="d in datePresets"
+            :key="d.label"
+            class="date-preset"
+            :class="{ on: datePreset === d.label }"
+            @click="applyDatePreset(d)"
+            >{{ d.label }}</span
+          >
+        </div>
+        <input type="datetime-local" v-model="dateRange.start" class="inp" />
+        <span class="filter__sep">—</span>
+        <input type="datetime-local" v-model="dateRange.end" class="inp" />
       </div>
       <div class="filter__row">
         <label>数据项</label>
         <div class="tags">
-          <span v-for="m in metricOptions" :key="m.value" class="tag" :class="{ on: selectedMetrics.includes(m.value) }" @click="!replayMode && (selectedMetrics.includes(m.value) ? selectedMetrics = selectedMetrics.filter(x => x !== m.value) : selectedMetrics.push(m.value))" :style="{ '--c': m.color }">{{ m.label }}</span>
-        </div>
-      </div>
-      <div class="filter__row">
-        <label>粒度</label>
-        <div class="tags">
-          <span v-for="g in granularityOptions" :key="g.value" class="tag" :class="{ on: granularity === g.value }" @click="!replayMode && (granularity = g.value as any)">{{ g.label }}</span>
+          <span
+            v-for="m in metricOptions"
+            :key="m.value"
+            class="tag"
+            :class="{ on: selectedMetrics.includes(m.value) }"
+            @click="selectedMetrics.includes(m.value)
+                ? (selectedMetrics = selectedMetrics.filter((x) => x !== m.value))
+                : selectedMetrics.push(m.value)"
+            :style="{ '--c': m.color }"
+            >{{ m.label }}</span
+          >
         </div>
       </div>
       <div class="filter__btns">
         <button class="btn btn--q" @click="applyFilters" :disabled="!isOnline">查询</button>
         <button class="btn" @click="resetFilters">重置</button>
-        <button class="btn" @click="darkMode = !darkMode">{{ darkMode ? '☀' : '☾' }}</button>
-        <span v-if="!isOnline" class="offline">离线 · 查询导出已禁用</span>
-      </div>
-    </div>
-
-    <!-- 回放控制栏 -->
-    <div v-if="replayMode" class="replay-bar">
-      <div class="replay-bar__controls">
-        <button class="replay-btn" title="快退" @click="jumpReplay(-1)">⏮</button>
-        <button class="replay-btn replay-btn--play" @click="toggleReplayPlay">
-          {{ replayPlaying ? '⏸' : '▶' }}
-        </button>
-        <button class="replay-btn" title="快进" @click="jumpReplay(1)">⏭</button>
-        <span class="replay-bar__time">{{ replayTimeLabel }}</span>
-      </div>
-      <div class="replay-bar__speed">
-        <button
-          v-for="s in [1, 2, 5, 10]"
-          :key="s"
-          class="replay-speed-btn"
-          :class="{ active: replaySpeed === s }"
-          @click="replaySpeed = s"
-        >
-          {{ s }}x
-        </button>
-      </div>
-      <div class="replay-bar__slider">
-        <input
-          type="range"
-          class="replay-slider"
-          :min="replayTimeMin"
-          :max="replayTimeMax"
-          :value="replayTime"
-          @input="seekReplay"
-        />
-      </div>
-    </div>
-
-    <!-- 回放快照面板 -->
-    <div v-if="replayMode && replaySnapshot" class="replay-snapshot">
-      <div class="replay-snapshot__item" v-for="m in metricOptions" :key="m.value">
-        <span class="replay-snapshot__label">{{ m.label }}</span>
-        <span class="replay-snapshot__value" :style="{ color: m.color }">
-          {{ replaySnapshot[m.value] }} {{ m.unit }}
-        </span>
       </div>
     </div>
 
     <!-- 图表区 -->
     <div class="chart-wrap">
-      <v-chart class="chart" :class="{ 'chart--replay': replayMode }" :option="chartOpt" autoresize @datazoom="onChartZoom" />
+      <v-chart
+        class="chart"
+        :option="chartOpt"
+        autoresize
+        @datazoom="onChartZoom"
+      />
+      <div class="chart-hint">↔ 拖动底部滑块缩放时间范围，框选图表区域可聚焦查看</div>
     </div>
 
     <!-- 表格区 -->
@@ -325,7 +297,16 @@ tableData.value = [...allData.value]
       <div class="tbl__hd">
         <span>数据点 · {{ tableData.length }} 条</span>
         <div class="tbl__acts">
-          <button class="btn btn--sm" @click="doExport('csv')" :disabled="!isOnline || exporting || replayMode">{{ exporting ? '导出中...' : 'CSV 导出' }}</button>
+          <button class="btn btn--sm" @click="doExport('csv')" :disabled="!isOnline || !!exporting">
+            导出 CSV
+          </button>
+          <button
+            class="btn btn--sm"
+            @click="doExport('xlsx')"
+            :disabled="!isOnline || !!exporting"
+          >
+            导出 Excel
+          </button>
           <button class="btn btn--sm btn--with-icon" @click="reportVisible = true">
             <el-icon><DataAnalysis /></el-icon>
             智能报告
@@ -334,9 +315,17 @@ tableData.value = [...allData.value]
       </div>
       <div class="tbl__body">
         <table class="tbl">
-          <thead><tr><th>时间</th><th v-for="m in selectedMetrics" :key="m">{{ metricLabel(m) }}</th></tr></thead>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th v-for="m in selectedMetrics" :key="m">{{ metricLabel(m) }}</th>
+            </tr>
+          </thead>
           <tbody>
-            <tr v-for="d in pagedData" :key="d.time" :class="{ 'tbl__row--replay-cursor': replayMode && replaySnapshot && d.time === replaySnapshot.time }">
+            <tr
+              v-for="d in pagedData"
+              :key="d.time"
+            >
               <td>{{ d.label }}</td>
               <td v-for="m in selectedMetrics" :key="m">{{ d[m] }} {{ metricUnit(m) }}</td>
             </tr>
@@ -351,312 +340,94 @@ tableData.value = [...allData.value]
     </div>
 
     <!-- 智能报告弹窗 -->
-    <Transition name="fade">
-      <div v-if="reportVisible" class="modal" @click.self="reportVisible = false">
-        <div class="modal__box">
-          <h2>智能分析报告</h2>
-          <div class="rep">
-            <div class="rep__item"><span>数据点数</span><b>{{ reportData.total }}</b></div>
-            <div class="rep__item"><span>异常点数</span><b style="color:#ef4444">{{ reportData.anomalies }}</b></div>
-            <div class="rep__item"><span>上游水位</span><b>最大 {{ reportData.upstreamLevel.max }}m / 最小 {{ reportData.upstreamLevel.min }}m / 平均 {{ reportData.upstreamLevel.avg }}m</b></div>
-            <div class="rep__item"><span>入库流量</span><b>最大 {{ reportData.inflowRate.max }}m³/s / 最小 {{ reportData.inflowRate.min }}m³/s / 平均 {{ reportData.inflowRate.avg }}m³/s</b></div>
-            <div class="rep__item"><span>发电功率</span><b>最大 {{ reportData.powerOutput.max }}MW / 最小 {{ reportData.powerOutput.min }}MW / 平均 {{ reportData.powerOutput.avg }}MW</b></div>
-            <div class="rep__item"><span>闸门开度</span><b>最大 {{ reportData.gateOpening.max }}% / 最小 {{ reportData.gateOpening.min }}% / 平均 {{ reportData.gateOpening.avg }}%</b></div>
-          </div>
-          <button class="btn" @click="reportVisible = false">关闭</button>
-        </div>
-      </div>
-    </Transition>
+    <SmartReportModal
+      :visible="reportVisible"
+      :table-data="tableData"
+      :all-data="allData"
+      @close="reportVisible = false"
+    />
   </div>
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
+
 .hp {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background: #f8f9fb;
-  transition: border-color 0.3s, box-shadow 0.3s;
-
-  &.dark {
-    background: #0f172a;
-    color: #e2e8f0;
-  }
-
-  // ── 琥珀色回放边框 ──
-  &--replaying {
-    border: 3px solid #f59e0b;
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
-    animation: replay-glow 2s ease-in-out infinite;
-    border-radius: 0;
-  }
-}
-
-@keyframes replay-glow {
-  0%, 100% { box-shadow: 0 0 16px rgba(245, 158, 11, 0.25); }
-  50% { box-shadow: 0 0 32px rgba(245, 158, 11, 0.55); }
-}
-
-// ── 回放控制栏 ──
-.replay-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 24px;
-  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-  border-bottom: 2px solid #f59e0b;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-}
-
-.dark .replay-bar {
-  background: linear-gradient(135deg, #1c1917 0%, #292010 100%);
-  border-color: #b45309;
-}
-
-.replay-bar__controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.replay-btn {
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  color: #92400e;
   background: #fff;
-  border: 1px solid #f59e0b;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s;
-
-  &:hover { background: #fffbeb; color: #78350f; }
-
-  &--play {
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
-    background: #f59e0b;
-    color: #fff;
-    border-color: transparent;
-    border-radius: 50%;
-
-    &:hover { background: #d97706; color: #fff; }
-  }
 }
 
-.dark .replay-btn {
-  color: #fbbf24;
-  background: #292524;
-  border-color: #b45309;
-
-  &:hover { background: #3a2f1f; }
-
-  &--play {
-    background: #d97706;
-    color: #fff;
-    border-color: transparent;
-
-    &:hover { background: #b45309; }
-  }
-}
-
-.replay-bar__time {
-  margin-left: 8px;
-  font-size: 15px;
-  font-weight: 700;
-  font-family: 'SF Mono', monospace;
-  color: #92400e;
-  min-width: 180px;
-}
-
-.dark .replay-bar__time {
-  color: #f59e0b;
-}
-
-.replay-bar__speed {
-  display: flex;
-  gap: 3px;
-  flex-shrink: 0;
-}
-
-.replay-speed-btn {
-  padding: 5px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #92400e;
-  background: #fff;
-  border: 1px solid #fcd34d;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: all 0.15s;
-
-  &:hover { background: #fffbeb; }
-
-  &.active {
-    color: #fff;
-    background: #f59e0b;
-    border-color: #f59e0b;
-  }
-}
-
-.dark .replay-speed-btn {
-  color: #fbbf24;
-  background: #292524;
-  border-color: #78350f;
-
-  &.active {
-    color: #fff;
-    background: #d97706;
-    border-color: #d97706;
-  }
-}
-
-.replay-bar__slider {
-  flex: 1;
-  min-width: 160px;
-
-  .replay-slider {
-    width: 100%;
-    height: 6px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: linear-gradient(90deg, #fcd34d 0%, #f59e0b 100%);
-    border-radius: 3px;
-    outline: none;
-    cursor: pointer;
-
-    &::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: #f59e0b;
-      border: 3px solid #fff;
-      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.5);
-      cursor: pointer;
-      transition: transform 0.15s;
-
-      &:hover { transform: scale(1.2); }
-    }
-  }
-}
-
-// ── 回放快照面板 ──
-.replay-snapshot {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 8px;
-  padding: 10px 24px;
-  background: rgba(245, 158, 11, 0.06);
-  border-bottom: 1px solid rgba(245, 158, 11, 0.15);
-  flex-shrink: 0;
-}
-
-.dark .replay-snapshot {
-  background: rgba(245, 158, 11, 0.08);
-  border-color: rgba(245, 158, 11, 0.2);
-}
-
-.replay-snapshot__item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  text-align: center;
-}
-
-.replay-snapshot__label {
-  font-size: 12px;
-  color: #92400e;
-  font-weight: 500;
-}
-
-.dark .replay-snapshot__label {
-  color: #a16207;
-}
-
-.replay-snapshot__value {
-  font-size: 16px;
-  font-weight: 700;
-  font-family: 'SF Mono', monospace;
-}
-
-// ── 图表回放光标 ──
-.chart--replay {
-  border-left: 2px dashed #f59e0b;
-}
-
-// ── 表格回放行高亮 ──
-.tbl__row--replay-cursor {
-  background: rgba(245, 158, 11, 0.12) !important;
-
-  td {
-    font-weight: 600;
-  }
-}
-
-// ═══ 原有样式 ═══
 .filter {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
   align-items: flex-end;
   padding: 18px 24px;
-  background: var(--bg, #fff);
-  border-bottom: 1px solid var(--br, #eef0f2);
+  background: #fff;
+  border-bottom: 1px solid #eef0f2;
   flex-shrink: 0;
-}
-
-.dark .filter {
-  --bg: #1e293b;
-  --br: #334155;
 }
 
 .filter__row {
   display: flex;
   align-items: center;
   gap: 10px;
-
+  flex-wrap: wrap;
   label {
-    font-size: 14px;
+    @include text-tag;
     font-weight: 600;
-    color: var(--tx, #64748b);
     white-space: nowrap;
   }
-
   > span {
     font-size: 14px;
     color: #94a3b8;
   }
 }
 
-.dark .filter__row label {
-  --tx: #94a3b8;
+.filter__sep {
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.date-presets {
+  display: flex;
+  gap: 4px;
+}
+.date-preset {
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  &:hover {
+    border-color: #93c5fd;
+    color: #3b82f6;
+  }
+  &.on {
+    color: #fff;
+    background: #3b82f6;
+    border-color: #3b82f6;
+  }
 }
 
 .inp {
   padding: 8px 12px;
-  font-size: 14px;
-  color: #374151;
+  @include text-input;
   background: #fff;
   border: 1px solid #d1d5db;
   border-radius: 6px;
-
-  &:disabled { opacity: 0.45; cursor: not-allowed; }
-}
-
-.dark .inp {
-  color: #e2e8f0;
-  background: #334155;
-  border-color: #475569;
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 }
 
 .tags {
@@ -666,33 +437,20 @@ tableData.value = [...allData.value]
 }
 
 .tag {
-  padding: 7px 14px;
-  font-size: 14px;
-  color: #64748b;
+  padding: 7px 16px;
+  @include text-tag;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 100px;
   cursor: pointer;
   transition: all 0.15s;
-
-  &:hover { border-color: #93c5fd; }
-
-  &.on {
-    color: #fff;
-    background: var(--c);
-    border-color: var(--c);
+  &:hover {
+    border-color: #93c5fd;
   }
-}
-
-.dark .tag {
-  color: #94a3b8;
-  background: #334155;
-  border-color: #475569;
-
   &.on {
-    color: #fff;
-    background: var(--c);
-    border-color: var(--c);
+    @include text-tag-active;
+    background: var(--c, #3b82f6);
+    border-color: var(--c, #3b82f6);
   }
 }
 
@@ -704,94 +462,58 @@ tableData.value = [...allData.value]
 }
 
 .btn {
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #64748b;
+  padding: 9px 18px;
+  @include text-btn;
+  color: #475569;
   background: #fff;
   border: 1px solid #d1d5db;
   border-radius: 6px;
   cursor: pointer;
-
-  &:hover:not(:disabled) { background: #f3f4f6; }
-  &:disabled { opacity: 0.4; cursor: not-allowed; }
+  &:hover:not(:disabled) {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+  }
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 }
 
 .btn--q {
   color: #fff;
   background: #3b82f6;
   border-color: #3b82f6;
-
-  &:hover:not(:disabled) { background: #2563eb; }
-}
-
-.btn--replay {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: #fff;
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  border-color: transparent;
-  font-weight: 600;
-
   &:hover:not(:disabled) {
-    background: linear-gradient(135deg, #fbbf24, #f59e0b);
-  }
-}
-
-.btn--replay-exit {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: #92400e;
-  background: #fef3c7;
-  border-color: #f59e0b;
-  font-weight: 600;
-
-  &:hover:not(:disabled) {
-    background: #fde68a;
+    background: #2563eb;
   }
 }
 
 .btn--sm {
   padding: 7px 14px;
-  font-size: 14px;
+  @include text-btn;
 }
-
 .btn--with-icon {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-
-  .el-icon { font-size: 16px; }
-}
-
-.dark .btn {
-  color: #94a3b8;
-  background: #334155;
-  border-color: #475569;
-}
-
-.dark .btn--q {
-  color: #fff;
-  background: #3b82f6;
-  border-color: #3b82f6;
-}
-
-.offline {
-  margin-left: 4px;
-  font-size: 13px;
-  color: #ef4444;
+  .el-icon {
+    font-size: 16px;
+  }
 }
 
 .chart-wrap {
   flex-shrink: 0;
-  padding: 12px 24px 8px;
+  padding: 12px 24px 0;
 }
-
 .chart {
   width: 100%;
-  height: 240px;
+  height: 260px;
+}
+.chart-hint {
+  text-align: center;
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 4px 0 8px;
 }
 
 .tbl-wrap {
@@ -801,14 +523,9 @@ tableData.value = [...allData.value]
   min-height: 0;
   margin: 0 24px 12px;
   overflow: hidden;
-  background: var(--bg, #fff);
-  border: 1px solid var(--br, #eef0f4);
+  background: #fff;
+  border: 1px solid #eef0f4;
   border-radius: 10px;
-}
-
-.dark .tbl-wrap {
-  --bg: #1e293b;
-  --br: #334155;
 }
 
 .tbl__hd {
@@ -816,16 +533,13 @@ tableData.value = [...allData.value]
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1e293b;
-  border-bottom: 1px solid var(--br, #eef0f4);
+  @include text-section-title;
+  border-bottom: 1px solid #eef0f4;
 }
-
-.dark .tbl__hd { color: #e2e8f0; }
-
-.tbl__acts { display: flex; gap: 8px; }
-
+.tbl__acts {
+  display: flex;
+  gap: 8px;
+}
 .tbl__body {
   flex: 1;
   min-height: 0;
@@ -835,30 +549,28 @@ tableData.value = [...allData.value]
 .tbl {
   width: 100%;
   border-collapse: collapse;
-
   th {
     padding: 11px 14px;
-    font-size: 14px;
-    font-weight: 600;
+    @include text-table-header;
     text-align: left;
-    color: #64748b;
-    border-bottom: 1px solid var(--br, #f1f5f9);
+    border-bottom: 1px solid #eef0f2;
+    background: #fff;
   }
-
   td {
     padding: 12px 14px;
-    font-size: 15px;
-    color: var(--tx, #334155);
+    @include text-table-number;
     line-height: 1.45;
     white-space: nowrap;
     border-bottom: 1px solid #f8fafc;
   }
-
-  tr:hover td { background: var(--hb, #fafbfc); }
+  td:first-child {
+    @include text-table-label;
+    font-family: inherit;
+  }
+  tr:hover td {
+    background: #f8fafc;
+  }
 }
-
-.dark .tbl td { --tx: #cbd5e1; border-color: #1e293b; }
-.dark .tbl tr:hover td { --hb: #283448; }
 
 .tbl__pg {
   display: flex;
@@ -869,9 +581,8 @@ tableData.value = [...allData.value]
   padding: 12px 14px;
   font-size: 14px;
   color: #64748b;
-  background: var(--bg, #fff);
-  border-top: 1px solid var(--br, #eef0f4);
-
+  background: #fff;
+  border-top: 1px solid #eef0f4;
   button {
     padding: 6px 14px;
     font-size: 16px;
@@ -879,71 +590,13 @@ tableData.value = [...allData.value]
     background: #fff;
     border: 1px solid #d1d5db;
     border-radius: 4px;
-
-    &:disabled { opacity: 0.3; cursor: default; }
+    &:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
   }
 }
 
-.dark .tbl__pg button {
-  color: #e2e8f0;
-  background: #334155;
-  border-color: #475569;
-}
-
-.modal {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
-}
-
-.modal__box {
-  width: 560px;
-  max-height: 80vh;
-  padding: 28px;
-  overflow-y: auto;
-  background: #fff;
-  border-radius: 12px;
-
-  h2 { margin: 0 0 20px; font-size: 17px; font-weight: 600; color: #1e293b; }
-}
-
-.dark .modal__box {
-  color: #e2e8f0;
-  background: #1e293b;
-
-  h2 { color: #f1f5f9; }
-}
-
-.rep {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.rep__item {
-  display: flex;
-  gap: 12px;
-  padding: 12px 14px;
-  font-size: 15px;
-  line-height: 1.45;
-  background: #f8fafc;
-  border-radius: 6px;
-
-  span { min-width: 88px; font-weight: 500; color: #64748b; }
-  b { font-weight: 600; color: #1e293b; }
-}
-
-.dark .rep__item { background: #334155; b { color: #e2e8f0; } }
-
-.fade-enter-active,
-.fade-leave-active { transition: opacity 0.2s; }
-.fade-enter-from,
-.fade-leave-to { opacity: 0; }
 </style>
 
 <style lang="scss">

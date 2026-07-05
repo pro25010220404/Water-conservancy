@@ -91,10 +91,8 @@ function formatDuration(sec: number) {
 </script>
 
 <template>
-  <div class="sim-tab-panel"
-:class="{ 'sim-tab-panel--compact': compact }">
-    <div v-if="!hideTabs"
-class="sim-tab-panel__tabs">
+  <div class="sim-tab-panel" :class="{ 'sim-tab-panel--compact': compact }">
+    <div v-if="!hideTabs" class="sim-tab-panel__tabs">
       <button
         v-for="t in SIMULATION_TABS"
         :key="t.value"
@@ -106,10 +104,8 @@ class="sim-tab-panel__tabs">
         {{ t.label }}
       </button>
     </div>
-    <GlassPanel3D v-if="!compact"
-:title="tabTitle" large>
-      <div v-if="showSearch"
-class="panel-search">
+    <GlassPanel3D v-if="!compact" :title="tabTitle" large>
+      <div v-if="showSearch" class="panel-search">
         <ElInput
           v-model="searchKeyword"
           placeholder="模糊搜索..."
@@ -151,32 +147,25 @@ class="panel-search">
             </div>
           </template>
         </dl>
-        <div v-if="simStatus.historyLevels.length"
-class="history-block">
+        <div v-if="simStatus.historyLevels.length" class="history-block">
           <h5>水位变化（最近）</h5>
           <ul class="history-list">
-            <li v-for="(p, i) in simStatus.historyLevels.slice(-5)"
-:key="i">
+            <li v-for="(p, i) in simStatus.historyLevels.slice(-5)" :key="i">
               T+{{ p.time }}s · {{ p.value.toFixed(2) }} m
             </li>
           </ul>
         </div>
-        <p
-v-else class="hint-text">启动仿真后，此处显示运行摘要与历史曲线采样。</p>
+        <p v-else class="hint-text">启动仿真后，此处显示运行摘要与历史曲线采样。</p>
       </template>
 
       <template v-else-if="activeTab === 'model'">
         <div class="panel-actions">
-          <ElButton
-type="primary" @click="emit('upload')"> 导入模型 </ElButton>
+          <ElButton type="primary" @click="emit('upload')">导入模型</ElButton>
         </div>
         <p class="hint-text">支持 LSTM / DQN 模型导入与在线训练，健康等级来自三维评判体系。</p>
-        <ElEmpty v-if="!filteredModels.length && !modelLoading"
-description="暂无模型，请先导入" />
-        <ul v-else
-class="entity-list">
-          <li v-for="m in filteredModels"
-:key="m.id" class="entity-list__item">
+        <ElEmpty v-if="!filteredModels.length && !modelLoading" description="暂无模型，请先导入" />
+        <ul v-else class="entity-list">
+          <li v-for="m in filteredModels" :key="m.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ m.type }} {{ m.version }}</strong>
               <div class="entity-list__tags">
@@ -188,8 +177,7 @@ class="entity-list">
                 >
                   健康 {{ m.metrics.healthGrade }}
                 </ElTag>
-                <ElTag :color="MODEL_STATUS_MAP[m.status]?.color"
-effect="dark" size="small">
+                <ElTag :color="MODEL_STATUS_MAP[m.status]?.color" effect="dark" size="small">
                   {{ MODEL_STATUS_MAP[m.status]?.label }}
                 </ElTag>
               </div>
@@ -197,24 +185,19 @@ effect="dark" size="small">
             <div class="entity-list__meta">
               {{ m.createdAt }}
               <template v-if="m.metrics?.overallScore != null">
-                · 综合分 {{ (m.metrics.overallScore * 100).toFixed(0) }}
-              </template>
+                · 综合分 {{ (m.metrics.overallScore * 100).toFixed(0) }}</template
+              >
             </div>
-            <p v-if="m.remark"
-class="entity-list__desc">
-              {{ m.remark }}
-            </p>
+            <p v-if="m.remark" class="entity-list__desc">{{ m.remark }}</p>
             <div class="entity-list__actions">
               <ElButton
                 v-if="m.status !== 'active'"
                 link
                 type="primary"
                 @click="emit('activate', m.id)"
+                >激活</ElButton
               >
-                激活
-              </ElButton>
-              <ElButton
-link type="primary" @click="emit('train', m.id)"> 训练 </ElButton>
+              <ElButton link type="primary" @click="emit('train', m.id)">训练</ElButton>
             </div>
           </li>
         </ul>
@@ -222,24 +205,18 @@ link type="primary" @click="emit('train', m.id)"> 训练 </ElButton>
 
       <template v-else-if="activeTab === 'report'">
         <div class="panel-actions">
-          <ElButton
-type="primary" @click="emit('generate')"> 生成方案评估报告 </ElButton>
+          <ElButton type="primary" @click="emit('generate')">生成方案评估报告</ElButton>
         </div>
         <p class="hint-text">基于仿真运行结果自动生成方案评估报告。</p>
-        <ElEmpty v-if="!filteredReports.length && !reportLoading"
-description="暂无方案评估报告" />
-        <ul v-else
-class="entity-list">
-          <li v-for="r in filteredReports"
-:key="r.id" class="entity-list__item">
+        <ElEmpty v-if="!filteredReports.length && !reportLoading" description="暂无方案评估报告" />
+        <ul v-else class="entity-list">
+          <li v-for="r in filteredReports" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ SIMULATION_SCENE_MAP[r.scene]?.label ?? r.scene }}</strong>
               <span class="entity-list__tag">最高 {{ r.summary.maxLevel.toFixed(2) }} m</span>
             </div>
             <div class="entity-list__meta">{{ r.createdAt }} · {{ r.operatorName }}</div>
-            <p class="entity-list__desc">
-              {{ r.content }}
-            </p>
+            <p class="entity-list__desc">{{ r.content }}</p>
           </li>
         </ul>
       </template>
@@ -250,34 +227,25 @@ class="entity-list">
           v-if="!filteredReviews.length && !reviewLoading"
           description="暂无历史故障复盘记录"
         />
-        <ul v-else
-class="entity-list">
-          <li v-for="r in filteredReviews"
-:key="r.id" class="entity-list__item">
+        <ul v-else class="entity-list">
+          <li v-for="r in filteredReviews" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ r.faultType }}</strong>
-              <ElTag :color="REVIEW_STATUS_MAP[r.status]?.color"
-effect="dark">
+              <ElTag :color="REVIEW_STATUS_MAP[r.status]?.color" effect="dark">
                 {{ REVIEW_STATUS_MAP[r.status]?.label }}
               </ElTag>
             </div>
             <div class="entity-list__meta">{{ r.impactScope }} · {{ r.createdAt }}</div>
             <div class="entity-list__actions">
-              <ElButton
-link type="primary" @click="emit('open-review', r.id)"> 详情 </ElButton>
-              <ElButton link
-type="primary" @click="emit('import-review', r.id)">
-                导入仿真
-              </ElButton>
+              <ElButton link type="primary" @click="emit('open-review', r.id)">详情</ElButton>
+              <ElButton link type="primary" @click="emit('import-review', r.id)">导入仿真</ElButton>
             </div>
           </li>
         </ul>
       </template>
     </GlassPanel3D>
-    <div v-else
-class="sim-tab-panel__compact-body">
-      <div v-if="showSearch"
-class="panel-search">
+    <div v-else class="sim-tab-panel__compact-body">
+      <div v-if="showSearch" class="panel-search">
         <ElInput
           v-model="searchKeyword"
           placeholder="模糊搜索..."
@@ -319,32 +287,25 @@ class="panel-search">
             </div>
           </template>
         </dl>
-        <div v-if="simStatus.historyLevels.length"
-class="history-block">
+        <div v-if="simStatus.historyLevels.length" class="history-block">
           <h5>水位变化（最近）</h5>
           <ul class="history-list">
-            <li v-for="(p, i) in simStatus.historyLevels.slice(-5)"
-:key="i">
+            <li v-for="(p, i) in simStatus.historyLevels.slice(-5)" :key="i">
               T+{{ p.time }}s · {{ p.value.toFixed(2) }} m
             </li>
           </ul>
         </div>
-        <p
-v-else class="hint-text">启动仿真后，此处显示运行摘要与历史曲线采样。</p>
+        <p v-else class="hint-text">启动仿真后，此处显示运行摘要与历史曲线采样。</p>
       </template>
 
       <template v-else-if="activeTab === 'model'">
         <div class="panel-actions">
-          <ElButton
-type="primary" @click="emit('upload')"> 导入模型 </ElButton>
+          <ElButton type="primary" @click="emit('upload')">导入模型</ElButton>
         </div>
         <p class="hint-text">支持 LSTM / DQN 模型导入与在线训练，健康等级来自三维评判体系。</p>
-        <ElEmpty v-if="!filteredModels.length && !modelLoading"
-description="暂无模型，请先导入" />
-        <ul v-else
-class="entity-list">
-          <li v-for="m in filteredModels"
-:key="m.id" class="entity-list__item">
+        <ElEmpty v-if="!filteredModels.length && !modelLoading" description="暂无模型，请先导入" />
+        <ul v-else class="entity-list">
+          <li v-for="m in filteredModels" :key="m.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ m.type }} {{ m.version }}</strong>
               <div class="entity-list__tags">
@@ -356,8 +317,7 @@ class="entity-list">
                 >
                   健康 {{ m.metrics.healthGrade }}
                 </ElTag>
-                <ElTag :color="MODEL_STATUS_MAP[m.status]?.color"
-effect="dark" size="small">
+                <ElTag :color="MODEL_STATUS_MAP[m.status]?.color" effect="dark" size="small">
                   {{ MODEL_STATUS_MAP[m.status]?.label }}
                 </ElTag>
               </div>
@@ -365,24 +325,19 @@ effect="dark" size="small">
             <div class="entity-list__meta">
               {{ m.createdAt }}
               <template v-if="m.metrics?.overallScore != null">
-                · 综合分 {{ (m.metrics.overallScore * 100).toFixed(0) }}
-              </template>
+                · 综合分 {{ (m.metrics.overallScore * 100).toFixed(0) }}</template
+              >
             </div>
-            <p v-if="m.remark"
-class="entity-list__desc">
-              {{ m.remark }}
-            </p>
+            <p v-if="m.remark" class="entity-list__desc">{{ m.remark }}</p>
             <div class="entity-list__actions">
               <ElButton
                 v-if="m.status !== 'active'"
                 link
                 type="primary"
                 @click="emit('activate', m.id)"
+                >激活</ElButton
               >
-                激活
-              </ElButton>
-              <ElButton
-link type="primary" @click="emit('train', m.id)"> 训练 </ElButton>
+              <ElButton link type="primary" @click="emit('train', m.id)">训练</ElButton>
             </div>
           </li>
         </ul>
@@ -390,24 +345,18 @@ link type="primary" @click="emit('train', m.id)"> 训练 </ElButton>
 
       <template v-else-if="activeTab === 'report'">
         <div class="panel-actions">
-          <ElButton
-type="primary" @click="emit('generate')"> 生成方案评估报告 </ElButton>
+          <ElButton type="primary" @click="emit('generate')">生成方案评估报告</ElButton>
         </div>
         <p class="hint-text">基于仿真运行结果自动生成方案评估报告。</p>
-        <ElEmpty v-if="!filteredReports.length && !reportLoading"
-description="暂无方案评估报告" />
-        <ul v-else
-class="entity-list">
-          <li v-for="r in filteredReports"
-:key="r.id" class="entity-list__item">
+        <ElEmpty v-if="!filteredReports.length && !reportLoading" description="暂无方案评估报告" />
+        <ul v-else class="entity-list">
+          <li v-for="r in filteredReports" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ SIMULATION_SCENE_MAP[r.scene]?.label ?? r.scene }}</strong>
               <span class="entity-list__tag">最高 {{ r.summary.maxLevel.toFixed(2) }} m</span>
             </div>
             <div class="entity-list__meta">{{ r.createdAt }} · {{ r.operatorName }}</div>
-            <p class="entity-list__desc">
-              {{ r.content }}
-            </p>
+            <p class="entity-list__desc">{{ r.content }}</p>
           </li>
         </ul>
       </template>
@@ -418,25 +367,18 @@ class="entity-list">
           v-if="!filteredReviews.length && !reviewLoading"
           description="暂无历史故障复盘记录"
         />
-        <ul v-else
-class="entity-list">
-          <li v-for="r in filteredReviews"
-:key="r.id" class="entity-list__item">
+        <ul v-else class="entity-list">
+          <li v-for="r in filteredReviews" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ r.faultType }}</strong>
-              <ElTag :color="REVIEW_STATUS_MAP[r.status]?.color"
-effect="dark">
+              <ElTag :color="REVIEW_STATUS_MAP[r.status]?.color" effect="dark">
                 {{ REVIEW_STATUS_MAP[r.status]?.label }}
               </ElTag>
             </div>
             <div class="entity-list__meta">{{ r.impactScope }} · {{ r.createdAt }}</div>
             <div class="entity-list__actions">
-              <ElButton
-link type="primary" @click="emit('open-review', r.id)"> 详情 </ElButton>
-              <ElButton link
-type="primary" @click="emit('import-review', r.id)">
-                导入仿真
-              </ElButton>
+              <ElButton link type="primary" @click="emit('open-review', r.id)">详情</ElButton>
+              <ElButton link type="primary" @click="emit('import-review', r.id)">导入仿真</ElButton>
             </div>
           </li>
         </ul>

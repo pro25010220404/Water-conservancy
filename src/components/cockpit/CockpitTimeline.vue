@@ -37,8 +37,7 @@ const speeds = [0.5, 1, 2, 5]
 <template>
   <footer class="cockpit-timeline">
     <div class="cockpit-timeline__controls">
-      <button
-class="tl-btn" title="重置" @click="emit('reset')">⟲</button>
+      <button class="tl-btn" title="重置" @click="emit('reset')">⟲</button>
       <button
         class="tl-btn tl-btn--primary"
         :title="playing ? '暂停' : '播放'"
@@ -59,10 +58,8 @@ class="tl-btn" title="重置" @click="emit('reset')">⟲</button>
       </div>
     </div>
     <div class="cockpit-timeline__track">
-      <div class="cockpit-timeline__fill"
-:style="{ width: progress + '%' }" />
-      <div class="cockpit-timeline__marker"
-:style="{ left: progress + '%' }" />
+      <div class="cockpit-timeline__fill" :style="{ width: progress + '%' }" />
+      <div class="cockpit-timeline__marker" :style="{ left: progress + '%' }" />
       <div class="cockpit-timeline__labels">
         <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span>
       </div>

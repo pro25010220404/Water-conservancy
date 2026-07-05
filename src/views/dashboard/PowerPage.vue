@@ -135,35 +135,37 @@ const lineOpt = computed(() => ({
   <div class="gp">
     <!-- KPI 数字条 -->
     <div class="kpis">
-      <span class="kpis__label">总出力</span><span class="kpis__val">{{ stats.totalMW }}<small> MW</small></span>
+      <span class="kpis__label">总出力</span
+      ><span class="kpis__val">{{ stats.totalMW }}<small> MW</small></span>
       <span class="kpis__sep" />
-      <span class="kpis__label">平均效率</span><span class="kpis__val">{{ stats.avgEff }}<small> %</small></span>
+      <span class="kpis__label">平均效率</span
+      ><span class="kpis__val">{{ stats.avgEff }}<small> %</small></span>
       <span class="kpis__sep" />
-      <span class="kpis__label">今日发电</span><span class="kpis__val">{{ stats.today }}<small> 万kWh</small></span>
+      <span class="kpis__label">今日发电</span
+      ><span class="kpis__val">{{ stats.today }}<small> 万kWh</small></span>
       <span class="kpis__sep" />
-      <span class="kpis__label">运行机组</span><span class="kpis__val"
-style="color: #16a34a">{{ stats.running }}<small> / 8</small></span>
+      <span class="kpis__label">运行机组</span
+      ><span class="kpis__val" style="color: #16a34a">{{ stats.running }}<small> / 8</small></span>
       <span
         class="kpis__badge"
         :style="{
           background: stats.running > 0 ? '#f0fdf4' : '#fef2f2',
           color: stats.running > 0 ? '#16a34a' : '#ef4444',
         }"
-      >{{ stats.running > 0 ? '已并网' : '离网' }}</span>
+        >{{ stats.running > 0 ? '已并网' : '离网' }}</span
+      >
     </div>
 
     <div class="main">
       <!-- 上：机组出力柱状图 -->
       <div class="section">
         <div class="section__title">机组出力对比</div>
-        <VChart
-class="chart-bar" :option="barOpt" autoresize />
+        <v-chart class="chart-bar" :option="barOpt" autoresize />
       </div>
 
       <!-- 下：数据表 + 趋势图 -->
       <div class="bottom">
-        <div class="section"
-style="flex: 1">
+        <div class="section" style="flex: 1">
           <div class="section__title">机组详情</div>
           <table class="tbl">
             <thead>
@@ -178,12 +180,9 @@ style="flex: 1">
               </tr>
             </thead>
             <tbody>
-              <tr v-for="u in units"
-:key="u.name" :class="{ off: u.status !== 'running' }">
+              <tr v-for="u in units" :key="u.name" :class="{ off: u.status !== 'running' }">
                 <td class="td-n">{{ u.name }} 机组</td>
-                <td class="td-v">
-                  {{ u.status === 'running' ? u.mw + ' MW' : '—' }}
-                </td>
+                <td class="td-v">{{ u.status === 'running' ? u.mw + ' MW' : '—' }}</td>
                 <td>{{ u.status === 'running' ? u.eff + '%' : '—' }}</td>
                 <td>{{ u.status === 'running' ? u.rpm : '—' }}<small> rpm</small></td>
                 <td>{{ u.temp }}<small> °C</small></td>
@@ -198,11 +197,9 @@ style="flex: 1">
           </table>
         </div>
 
-        <div class="section"
-style="width: 360px; flex-shrink: 0">
+        <div class="section" style="width: 360px; flex-shrink: 0">
           <div class="section__title">出力趋势 · 60 分钟</div>
-          <VChart
-class="chart-line" :option="lineOpt" autoresize />
+          <v-chart class="chart-line" :option="lineOpt" autoresize />
         </div>
       </div>
     </div>
@@ -214,7 +211,7 @@ class="chart-line" :option="lineOpt" autoresize />
   height: calc(100vh - 56px);
   display: flex;
   flex-direction: column;
-  background: #f5f6f8;
+  background: #fff;
   overflow: hidden;
 }
 
