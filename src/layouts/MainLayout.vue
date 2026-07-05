@@ -7,7 +7,6 @@ import { useRoute } from 'vue-router'
 import { ElContainer, ElAside, ElMain } from 'element-plus'
 import AppHeader from './AppHeader.vue'
 import AppSidebar from './AppSidebar.vue'
-import GlobalEmergencyStop from '@/components/GlobalEmergencyStop.vue'
 
 const route = useRoute()
 const collapsed = ref(false)
