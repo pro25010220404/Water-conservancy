@@ -1,27 +1,19 @@
 <script setup lang="ts">
 // ============================================================
-// 主布局 — 侧边栏 + 顶栏 + 标签栏 + 内容区
+// 主布局 — 侧边栏 + 顶栏 + 内容区
 // ============================================================
-import { ref, watch, computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElContainer, ElAside, ElMain } from 'element-plus'
 import AppHeader from './AppHeader.vue'
 import AppSidebar from './AppSidebar.vue'
-import AppTabs from './AppTabs.vue'
-import { useTabsStore } from '@/stores/tabs'
+import GlobalEmergencyStop from '@/components/GlobalEmergencyStop.vue'
 
 const route = useRoute()
-const tabsStore = useTabsStore()
 const collapsed = ref(false)
 
-/** 数字孪生等全幅驾驶舱页：内容区与标签栏无缝衔接，去掉双层边距 */
+/** 数字孪生等全幅驾驶舱页：内容区与顶栏无缝衔接，去掉双层边距 */
 const isFlushPage = computed(() => route.path.startsWith('/simulation'))
-
-watch(
-  () => route.path,
-  () => tabsStore.syncFromRoute(route),
-  { immediate: true },
-)
 </script>
 
 <template>
@@ -31,7 +23,6 @@ watch(
     </el-aside>
     <el-container direction="vertical" class="main-layout__body">
       <AppHeader :collapsed="collapsed" @toggle-collapse="collapsed = !collapsed" />
-      <AppTabs :flush-below="isFlushPage" />
       <el-main class="main-layout__content" :class="{ 'main-layout__content--flush': isFlushPage }">
         <router-view />
       </el-main>
@@ -53,10 +44,6 @@ watch(
   &__body {
     min-width: 0;
     flex-direction: column;
-  }
-
-  :deep(.app-tabs) {
-    flex-shrink: 0;
   }
 
   &__content {
