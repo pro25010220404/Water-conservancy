@@ -114,12 +114,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '用户管理' },
       },
       {
-        path: 'dispatch/gate-actions',
-        name: 'DispatchGateActions',
-        component: () => import('@/views/dispatch/components/GateActionsPanel.vue'),
-        meta: { title: '闸门动作历史' },
-      },
-      {
         path: 'settings/ai/models',
         name: 'SettingsAiModels',
         redirect: '/settings/models',
@@ -128,13 +122,13 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'settings/ai/metrics',
         name: 'SettingsAiMetrics',
-        component: () => import('@/views/settings/gateai/ModelMetricsPage.vue'),
+        component: () => import('@/views/settings/SettingsPage.vue'),
         meta: { title: '模型健康度仪表盘' },
       },
       {
         path: 'settings/ai/compare',
         name: 'SettingsAiCompare',
-        component: () => import('@/views/settings/gateai/ModelComparePage.vue'),
+        redirect: '/settings/ai/metrics',
         meta: { title: '模型版本对比' },
       },
       {
@@ -158,7 +152,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'settings/gate-interlock/logs',
         name: 'SettingsGateInterlockLogs',
-        component: () => import('@/views/settings/gateai/GateInterlockLogsPage.vue'),
+        redirect: '/settings/gate-interlock',
         meta: { title: '互锁触发日志' },
       },
       {

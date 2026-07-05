@@ -14,7 +14,6 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   '/history': ['dispatcher', 'manager', 'admin'],
   '/warning': ['operator', 'dispatcher', 'manager', 'admin'],
   '/dispatch': ['dispatcher', 'manager', 'admin', 'algorithm_engineer'],
-  '/dispatch/gate-actions': ['dispatcher', 'manager', 'admin'],
   '/simulation': ['manager', 'admin', 'algorithm_engineer'],
   '/equipment': ['operator', 'manager', 'admin'],
   '/settings': ['admin'],

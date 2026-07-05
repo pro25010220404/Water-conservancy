@@ -645,10 +645,7 @@ class="equipment-page__detail">
               <ElButton
                 text
                 size="small"
-                @click="
-                  selectedId = null
-                  detail = null
-                "
+                @click="selectedId = null; detail = null"
               >
                 ✕
               </ElButton>

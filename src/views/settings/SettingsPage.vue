@@ -63,6 +63,7 @@ const PATH_TAB_MAP: Record<string, string> = {
   '/settings/thresholds': 'thresholds',
   '/settings/weights': 'weights',
   '/settings/models': 'models',
+  '/settings/ai/metrics': 'ai-metrics',
   '/settings/ai-metrics': 'ai-metrics',
   '/settings/physics-guard': 'physics-guard',
   '/settings/physics-guard/history': 'physics-guard-history',
