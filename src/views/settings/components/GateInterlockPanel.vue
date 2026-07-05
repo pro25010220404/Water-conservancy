@@ -244,60 +244,50 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-loading="loading"
-class="gateai-panel">
+  <div v-loading="loading" class="gateai-panel">
     <div class="gateai-panel__toolbar">
       <span>水库</span>
-      <ElSelect v-model="reservoirId"
-style="width: 200px">
-        <ElOption v-for="r in reservoirs"
-:key="r.id" :label="r.name" :value="r.id" />
+      <ElSelect v-model="reservoirId" style="width: 200px">
+        <ElOption v-for="r in reservoirs" :key="r.id" :label="r.name" :value="r.id" />
       </ElSelect>
-      <div v-if="fixedView === 'both'"
-class="view-toggle">
-        <button type="button"
-:class="{ active: view === 'rules' }" @click="view = 'rules'">
+      <div v-if="fixedView === 'both'" class="view-toggle">
+        <button type="button" :class="{ active: view === 'rules' }" @click="view = 'rules'">
           互锁规则
         </button>
-        <button type="button"
-:class="{ active: view === 'logs' }" @click="view = 'logs'">
+        <button type="button" :class="{ active: view === 'logs' }" @click="view = 'logs'">
           触发日志
         </button>
       </div>
-      <ElButton
-v-if="fixedView !== 'logs'" type="primary" @click="openCreate"> 新建规则 </ElButton>
+      <ElButton v-if="fixedView !== 'logs'" type="primary" @click="openCreate">新建规则</ElButton>
       <ElButton
         v-if="standalone && fixedView !== 'logs'"
         type="primary"
         link
-        @click="
-          router.push({
+        @click="router.push({
             path: '/settings/gate-interlock/logs',
             query: { reservoir_id: String(reservoirId) },
-          })
-        "
+          })"
+        >查看触发日志</ElButton
       >
-        查看触发日志
-      </ElButton>
       <ElButton
         v-if="standalone && fixedView === 'logs'"
         type="primary"
         link
         @click="router.push('/settings/gate-interlock')"
+        >返回规则配置</ElButton
       >
-        返回规则配置
-      </ElButton>
     </div>
 
     <div
       v-if="fixedView === 'logs' || (fixedView === 'both' && view === 'logs')"
       class="log-filters"
     >
-      <div v-if="logRuleFilter.length"
-class="log-drill-hint">
-        <span>已筛选：<strong>{{ drillRuleLabel }}</strong><template v-if="logTimeRange"> · 近7天</template></span>
-        <ElButton
-link type="primary" @click="clearLogFilters"> 清除筛选 </ElButton>
+      <div v-if="logRuleFilter.length" class="log-drill-hint">
+        <span
+          >已筛选：<strong>{{ drillRuleLabel }}</strong
+          ><template v-if="logTimeRange"> · 近7天</template></span
+        >
+        <ElButton link type="primary" @click="clearLogFilters">清除筛选</ElButton>
       </div>
       <ElSelect
         v-model="logRuleFilter"
@@ -306,8 +296,7 @@ link type="primary" @click="clearLogFilters"> 清除筛选 </ElButton>
         placeholder="筛选规则"
         style="width: 240px"
       >
-        <ElOption v-for="o in ruleOptions"
-:key="o.value" :label="o.label" :value="o.value" />
+        <ElOption v-for="o in ruleOptions" :key="o.value" :label="o.label" :value="o.value" />
       </ElSelect>
       <ElDatePicker
         v-model="logTimeRange"
@@ -327,16 +316,14 @@ link type="primary" @click="clearLogFilters"> 清除筛选 </ElButton>
       row-key="id"
       style="width: 100%"
     >
-      <ElTableColumn label="作用范围"
-min-width="110">
+      <ElTableColumn label="作用范围" min-width="110">
         <template #default="{ row }">
           <ElTag :type="(row as GateInterlockRule).reservoir_id ? 'warning' : 'info'">
             {{ (row as GateInterlockRule).reservoir_id ? '水库专属' : '全局默认' }}
           </ElTag>
         </template>
       </ElTableColumn>
-      <ElTableColumn label="优先级"
-width="88" align="center">
+      <ElTableColumn label="优先级" width="88" align="center">
         <template #default="scope">
           <span
             class="priority-badge"
@@ -345,19 +332,15 @@ width="88" align="center">
             @dragstart="onDragStart(scope.row as GateInterlockRule)"
             @dragover="onDragOver"
             @drop="onDrop(scope.row as GateInterlockRule)"
-          >{{ (scope.row as GateInterlockRule).priority }}</span>
+            >{{ (scope.row as GateInterlockRule).priority }}</span
+          >
         </template>
       </ElTableColumn>
-      <ElTableColumn prop="rule_name"
-label="规则名称" min-width="150" />
-      <ElTableColumn prop="description"
-label="说明" min-width="200" show-overflow-tooltip />
-      <ElTableColumn prop="trigger_label"
-label="触发条件" min-width="160" />
-      <ElTableColumn prop="action_label"
-label="约束动作" min-width="160" />
-      <ElTableColumn label="近7天"
-min-width="96" align="center">
+      <ElTableColumn prop="rule_name" label="规则名称" min-width="150" />
+      <ElTableColumn prop="description" label="说明" min-width="200" show-overflow-tooltip />
+      <ElTableColumn prop="trigger_label" label="触发条件" min-width="160" />
+      <ElTableColumn prop="action_label" label="约束动作" min-width="160" />
+      <ElTableColumn label="近7天" min-width="96" align="center">
         <template #header>
           <span title="点击查看该规则近7天触发记录">近7天</span>
         </template>
@@ -372,8 +355,7 @@ min-width="96" align="center">
           </ElTag>
         </template>
       </ElTableColumn>
-      <ElTableColumn label="启用"
-min-width="90" align="center">
+      <ElTableColumn label="启用" min-width="90" align="center">
         <template #default="scope">
           <ElSwitch
             :model-value="(scope.row as GateInterlockRule).enabled"
@@ -381,33 +363,23 @@ min-width="90" align="center">
           />
         </template>
       </ElTableColumn>
-      <ElTableColumn label="操作"
-min-width="90" align="center" fixed="right">
+      <ElTableColumn label="操作" min-width="90" align="center" fixed="right">
         <template #default="{ row }">
-          <ElButton link
-type="primary" @click="openEdit(row as GateInterlockRule)">
-            编辑
-          </ElButton>
+          <ElButton link type="primary" @click="openEdit(row as GateInterlockRule)">编辑</ElButton>
         </template>
       </ElTableColumn>
     </ElTable>
 
-    <ElTable v-else
-:data="filteredLogs" stripe border style="width: 100%">
-      <ElTableColumn prop="trigger_time"
-label="触发时间" min-width="190" />
-      <ElTableColumn prop="reservoir_name"
-label="水库" min-width="100" />
-      <ElTableColumn prop="rule_name"
-label="规则" min-width="150" />
-      <ElTableColumn label="水位快照"
-min-width="170">
-        <template #default="{ row }">
-          上 {{ row.upstream_level }} / 下 {{ row.downstream_level }}
-        </template>
+    <ElTable v-else :data="filteredLogs" stripe border style="width: 100%">
+      <ElTableColumn prop="trigger_time" label="触发时间" min-width="190" />
+      <ElTableColumn prop="reservoir_name" label="水库" min-width="100" />
+      <ElTableColumn prop="rule_name" label="规则" min-width="150" />
+      <ElTableColumn label="水位快照" min-width="170">
+        <template #default="{ row }"
+          >上 {{ row.upstream_level }} / 下 {{ row.downstream_level }}</template
+        >
       </ElTableColumn>
-      <ElTableColumn label="开度变化"
-min-width="260">
+      <ElTableColumn label="开度变化" min-width="260">
         <template #default="{ row }">
           <span
             v-for="idx in 3"
@@ -421,22 +393,19 @@ min-width="260">
           </span>
         </template>
       </ElTableColumn>
-      <ElTableColumn label="关联决策"
-min-width="110" align="center">
+      <ElTableColumn label="关联决策" min-width="110" align="center">
         <template #default="{ row }">
           <ElButton
             v-if="row.decision_id"
             link
             type="primary"
             @click="goDispatchDecision(row.decision_id)"
+            >#{{ row.decision_id }}</ElButton
           >
-            #{{ row.decision_id }}
-          </ElButton>
           <span v-else>—</span>
         </template>
       </ElTableColumn>
-      <ElTableColumn prop="reason"
-label="原因" min-width="220" show-overflow-tooltip />
+      <ElTableColumn prop="reason" label="原因" min-width="220" show-overflow-tooltip />
     </ElTable>
 
     <ElDialog
@@ -444,14 +413,11 @@ label="原因" min-width="220" show-overflow-tooltip />
       :title="editMode === 'create' ? '新建互锁规则' : '编辑互锁规则'"
       width="580px"
     >
-      <ElForm :model="editForm"
-label-width="100px">
-        <ElFormItem label="规则名称">
-          <ElInput v-model="editForm.rule_name" />
-        </ElFormItem>
-        <ElFormItem label="说明">
-          <ElInput v-model="editForm.description" type="textarea" :rows="2" />
-        </ElFormItem>
+      <ElForm :model="editForm" label-width="100px">
+        <ElFormItem label="规则名称"><ElInput v-model="editForm.rule_name" /></ElFormItem>
+        <ElFormItem label="说明"
+          ><ElInput v-model="editForm.description" type="textarea" :rows="2"
+        /></ElFormItem>
         <ElFormItem label="作用范围">
           <ElSelect
             v-model="editForm.reservoir_id"
@@ -459,24 +425,22 @@ label-width="100px">
             clearable
             placeholder="留空=全局默认"
           >
-            <ElOption v-for="r in reservoirs"
-:key="r.id" :label="`${r.name}专属`" :value="r.id" />
+            <ElOption v-for="r in reservoirs" :key="r.id" :label="`${r.name}专属`" :value="r.id" />
           </ElSelect>
         </ElFormItem>
-        <ElFormItem label="触发条件">
-          <ElInput v-model="editForm.trigger_label" placeholder="如：溢洪道 > 80%" />
-        </ElFormItem>
-        <ElFormItem label="约束动作">
-          <ElInput v-model="editForm.action_label" placeholder="如：发电闸 ≤ 50%" />
-        </ElFormItem>
-        <ElFormItem label="优先级">
-          <ElInputNumber v-model="editForm.priority" :min="1" :max="99" />
-        </ElFormItem>
+        <ElFormItem label="触发条件"
+          ><ElInput v-model="editForm.trigger_label" placeholder="如：溢洪道 > 80%"
+        /></ElFormItem>
+        <ElFormItem label="约束动作"
+          ><ElInput v-model="editForm.action_label" placeholder="如：发电闸 ≤ 50%"
+        /></ElFormItem>
+        <ElFormItem label="优先级"
+          ><ElInputNumber v-model="editForm.priority" :min="1" :max="99"
+        /></ElFormItem>
       </ElForm>
       <template #footer>
-        <ElButton @click="editVisible = false"> 取消 </ElButton>
-        <ElButton
-type="primary" @click="submitEdit"> 保存 </ElButton>
+        <ElButton @click="editVisible = false">取消</ElButton>
+        <ElButton type="primary" @click="submitEdit">保存</ElButton>
       </template>
     </ElDialog>
   </div>

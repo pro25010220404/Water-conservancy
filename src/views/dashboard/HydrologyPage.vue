@@ -378,10 +378,10 @@ watch(
 
 <template>
   <div class="hydro">
-    <div
-ref="mapEl" class="hydro__map" />
+    <div ref="mapEl" class="hydro__map" />
     <div class="hydro__top">
       <div
+        class="kpi"
         v-for="k in [
           {
             l: '上游水位',
@@ -395,24 +395,21 @@ ref="mapEl" class="hydro__map" />
           { l: '出库流量', v: snapshot.outflowRate, u: 'm³/s', d: 0, w: false },
         ]"
         :key="k.l"
-        class="kpi"
       >
         <span class="kpi__l">{{ k.l }}</span>
-        <span
-class="kpi__v" :class="{ warn: k.w }"
-        >{{ fmt(k.v, k.d) }}<small>{{ k.u }}</small></span>
+        <span class="kpi__v" :class="{ warn: k.w }"
+          >{{ fmt(k.v, k.d) }}<small>{{ k.u }}</small></span
+        >
       </div>
-      <span
-class="hydro__badge" :class="{ mock: useMock, live: connected && !useMock }"
-      ><span class="hydro__badge-dot" />{{ useMock ? '模拟' : '实时' }}</span>
+      <span class="hydro__badge" :class="{ mock: useMock, live: connected && !useMock }"
+        ><span class="hydro__badge-dot" />{{ useMock ? '模拟' : '实时' }}</span
+      >
     </div>
-    <button class="hydro__btn"
-@click="drawerOpen = !drawerOpen">
+    <button class="hydro__btn" @click="drawerOpen = !drawerOpen">
       {{ drawerOpen ? '✕' : '☰' }}
     </button>
     <Transition name="dr">
-      <div v-if="drawerOpen"
-class="hydro__dr">
+      <div v-if="drawerOpen" class="hydro__dr">
         <div class="hydro__dr-tt">趋势图表</div>
         <div class="hydro__range">
           <button
@@ -427,16 +424,15 @@ class="hydro__dr">
           </button>
         </div>
         <div class="hydro__cb">
-          <VChart class="hydro__ch"
-:option="trendOpt" autoresize />
+          <v-chart class="hydro__ch" :option="trendOpt" autoresize />
         </div>
         <div class="hydro__dr-tt hydro__dr-tt--spaced">监测站点</div>
-        <div v-for="s in SS"
-:key="s.id" class="hydro__stn">
-          <span class="hydro__stn-d"
-:style="{ background: SC[status(s)] }" />
+        <div v-for="s in SS" :key="s.id" class="hydro__stn">
+          <span class="hydro__stn-d" :style="{ background: SC[status(s)] }" />
           <span class="hydro__stn-n">{{ s.name }}</span>
-          <span class="hydro__stn-v">{{ fmt(sv(s), s.cat === '流量' ? 0 : 2) }}<small>{{ su(s.cat) }}</small></span>
+          <span class="hydro__stn-v"
+            >{{ fmt(sv(s), s.cat === '流量' ? 0 : 2) }}<small>{{ su(s.cat) }}</small></span
+          >
         </div>
       </div>
     </Transition>
@@ -449,7 +445,7 @@ class="hydro__dr">
   width: 100%;
   height: calc(100vh - 56px);
   overflow: hidden;
-  background: #e8ecf0;
+  background: #fff;
 }
 
 .hydro__map {

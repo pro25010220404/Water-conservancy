@@ -152,8 +152,7 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
       <span><i class="dot dot--up" />上游库区 {{ waterLevel.toFixed(2) }} m</span>
       <span><i class="dot dot--down" />下游尾水 {{ downstreamLevel.toFixed(2) }} m</span>
       <span><i class="dot dot--flow" />入库 {{ flowRate }} m³/s</span>
-      <span class="twin-2d__status"
-:style="{ color: levelStatus.color }">{{
+      <span class="twin-2d__status" :style="{ color: levelStatus.color }">{{
         levelStatus.label
       }}</span>
     </div>
@@ -165,42 +164,26 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
       aria-label="向家坝大坝 2D 剖面示意"
     >
       <defs>
-        <linearGradient id="skyGrad"
-x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"
-stop-color="#e8f4ff" />
-          <stop offset="100%"
-stop-color="#f7fbff" />
+        <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#e8f4ff" />
+          <stop offset="100%" stop-color="#f7fbff" />
         </linearGradient>
-        <linearGradient id="waterUp"
-x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"
-stop-color="#93c5fd" stop-opacity="0.95" />
-          <stop offset="55%"
-stop-color="#60a5fa" stop-opacity="0.9" />
-          <stop offset="100%"
-stop-color="#3b82f6" stop-opacity="0.92" />
+        <linearGradient id="waterUp" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#93c5fd" stop-opacity="0.95" />
+          <stop offset="55%" stop-color="#60a5fa" stop-opacity="0.9" />
+          <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.92" />
         </linearGradient>
-        <linearGradient id="waterDown"
-x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"
-stop-color="#7dd3fc" stop-opacity="0.85" />
-          <stop offset="100%"
-stop-color="#0ea5e9" stop-opacity="0.88" />
+        <linearGradient id="waterDown" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#7dd3fc" stop-opacity="0.85" />
+          <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0.88" />
         </linearGradient>
-        <linearGradient id="concrete"
-x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%"
-stop-color="#cbd5e1" />
-          <stop offset="100%"
-stop-color="#94a3b8" />
+        <linearGradient id="concrete" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#cbd5e1" />
+          <stop offset="100%" stop-color="#94a3b8" />
         </linearGradient>
-        <pattern id="waterShimmer"
-width="40" height="8" patternUnits="userSpaceOnUse">
-          <rect width="40"
-height="8" fill="transparent" />
-          <line x1="0"
-y1="4" x2="40" y2="4" stroke="#fff" stroke-width="1.5" opacity="0.25" />
+        <pattern id="waterShimmer" width="40" height="8" patternUnits="userSpaceOnUse">
+          <rect width="40" height="8" fill="transparent" />
+          <line x1="0" y1="4" x2="40" y2="4" stroke="#fff" stroke-width="1.5" opacity="0.25" />
         </pattern>
         <clipPath id="upstreamClip">
           <path :d="upstreamBodyPath" />
@@ -211,8 +194,7 @@ y1="4" x2="40" y2="4" stroke="#fff" stroke-width="1.5" opacity="0.25" />
       </defs>
 
       <!-- 背景 -->
-      <rect :x="PAD.l"
-:y="PAD.t" :width="innerW" :height="innerH" fill="url(#skyGrad)" rx="6" />
+      <rect :x="PAD.l" :y="PAD.t" :width="innerW" :height="innerH" fill="url(#skyGrad)" rx="6" />
 
       <!-- 高程标尺 -->
       <g class="twin-2d__axis">
@@ -224,19 +206,16 @@ y1="4" x2="40" y2="4" stroke="#fff" stroke-width="1.5" opacity="0.25" />
           stroke="#94a3b8"
           stroke-width="1"
         />
-        <text :x="PAD.l - 8"
-:y="PAD.t + 4" text-anchor="end" class="axis-label">
+        <text :x="PAD.l - 8" :y="PAD.t + 4" text-anchor="end" class="axis-label">
           {{ ELEV_MAX }}m
         </text>
-        <text :x="PAD.l - 8"
-:y="PAD.t + innerH" text-anchor="end" class="axis-label">
+        <text :x="PAD.l - 8" :y="PAD.t + innerH" text-anchor="end" class="axis-label">
           {{ ELEV_MIN }}m
         </text>
       </g>
 
       <!-- 参考水位线 -->
-      <g v-for="line in refLines"
-:key="line.label">
+      <g v-for="line in refLines" :key="line.label">
         <line
           :x1="PAD.l"
           :y1="elevToY(line.v)"
@@ -282,8 +261,7 @@ y1="4" x2="40" y2="4" stroke="#fff" stroke-width="1.5" opacity="0.25" />
             repeatCount="indefinite"
           />
         </rect>
-        <g v-for="(fl, i) in flowLines"
-:key="'flow-' + i">
+        <g v-for="(fl, i) in flowLines" :key="'flow-' + i">
           <line
             :x1="fl.x"
             :y1="fl.yStart"
@@ -346,8 +324,7 @@ y1="4" x2="40" y2="4" stroke="#fff" stroke-width="1.5" opacity="0.25" />
         stroke-dasharray="6 4"
         opacity="0.5"
       />
-      <text :x="PAD.l + 8"
-:y="upstreamY - 6" class="level-tag level-tag--up">
+      <text :x="PAD.l + 8" :y="upstreamY - 6" class="level-tag level-tag--up">
         当前 {{ waterLevel.toFixed(2) }} m
       </text>
 
@@ -366,14 +343,12 @@ y1="4" x2="40" y2="4" stroke="#fff" stroke-width="1.5" opacity="0.25" />
         stroke="#64748b"
         stroke-width="1.5"
       />
-      <text :x="damX + damW / 2"
-:y="crestY - 10" text-anchor="middle" class="dam-label">
+      <text :x="damX + damW / 2" :y="crestY - 10" text-anchor="middle" class="dam-label">
         向家坝大坝
       </text>
 
       <!-- 闸门 -->
-      <g v-for="g in gates"
-:key="g.idx">
+      <g v-for="g in gates" :key="g.idx">
         <rect
           :x="g.x"
           :y="crestY + 10"
@@ -393,17 +368,14 @@ y1="4" x2="40" y2="4" stroke="#fff" stroke-width="1.5" opacity="0.25" />
           stroke="#94a3b8"
           stroke-width="0.6"
         />
-        <text :x="g.x + g.w / 2"
-:y="baseY + 14" text-anchor="middle" class="gate-label">
+        <text :x="g.x + g.w / 2" :y="baseY + 14" text-anchor="middle" class="gate-label">
           {{ g.idx }}#
         </text>
       </g>
 
       <!-- 泄洪（动态水柱 + 水雾） -->
-      <g v-if="dischargeVisible"
-opacity="0.9">
-        <g v-for="g in gates"
-:key="'jet-' + g.idx">
+      <g v-if="dischargeVisible" opacity="0.9">
+        <g v-for="g in gates" :key="'jet-' + g.idx">
           <template v-if="gateOpening > (g.idx - 1) * 18">
             <path
               :d="`M ${g.x + g.w * 0.2} ${baseY - 2} Q ${g.x + g.w * 0.5} ${baseY + 28 + openRatio * 40} ${g.x + g.w * 0.8} ${baseY + 18 + openRatio * 30}`"
@@ -501,8 +473,7 @@ opacity="0.9">
         stroke-dasharray="6 4"
         opacity="0.45"
       />
-      <text :x="damX + damW + 8"
-:y="downstreamY - 6" class="level-tag level-tag--down">
+      <text :x="damX + damW + 8" :y="downstreamY - 6" class="level-tag level-tag--down">
         尾水 {{ downstreamLevel.toFixed(2) }} m
       </text>
 

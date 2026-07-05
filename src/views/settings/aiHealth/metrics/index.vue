@@ -121,9 +121,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="ai-health-metrics">
     <div class="page-header">
-      <h2 class="page-title">
-AI 模型健康度
-</h2>
+      <h2 class="page-title">AI 模型健康度</h2>
       <ElSelect
         v-model="reservoirId"
         placeholder="选择水库"
@@ -139,11 +137,9 @@ AI 模型健康度
       </ElSelect>
     </div>
 
-    <HealthOverviewCards
-:overview="overview" :loading="overviewLoading" />
+    <HealthOverviewCards :overview="overview" :loading="overviewLoading" />
 
-    <ScoreTrendChart
-:data="trendData" :loading="trendLoading" />
+    <ScoreTrendChart :data="trendData" :loading="trendLoading" />
 
     <MetricsDetailTable :reservoir-id="reservoirId" />
 
@@ -155,6 +151,7 @@ AI 模型健康度
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 .ai-health-metrics {
   padding: var(--spacing-md);
 }

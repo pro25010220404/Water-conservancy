@@ -46,77 +46,74 @@ onMounted(load)
 </script>
 
 <template>
-  <ElCard v-loading="loading"
-shadow="never" class="reservoir-panel">
+  <ElCard v-loading="loading" shadow="never" class="reservoir-panel">
     <template #header>
       <div class="reservoir-panel__head">
         <span class="reservoir-panel__title">水库详情</span>
-        <span
-v-if="detail" class="reservoir-panel__sub"
-        >{{ detail.name }} · {{ detail.code }}</span>
+        <span v-if="detail" class="reservoir-panel__sub"
+          >{{ detail.name }} · {{ detail.code }}</span
+        >
       </div>
     </template>
 
     <template v-if="detail">
-      <ElDescriptions :column="3"
-border size="small" class="reservoir-panel__base">
-        <ElDescriptionsItem label="调节类型">
-          {{ detail.type_label }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="正常蓄水位">
-          {{ detail.normal_water_level }} m
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="装机容量">
-          {{ (detail.installed_capacity / 10000).toFixed(0) }} 万 kW
-        </ElDescriptionsItem>
+      <ElDescriptions :column="3" border size="small" class="reservoir-panel__base">
+        <ElDescriptionsItem label="调节类型">{{ detail.type_label }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="正常蓄水位"
+          >{{ detail.normal_water_level }} m</ElDescriptionsItem
+        >
+        <ElDescriptionsItem label="装机容量"
+          >{{ (detail.installed_capacity / 10000).toFixed(0) }} 万 kW</ElDescriptionsItem
+        >
         <ElDescriptionsItem label="运行状态">
-          <ElTag :type="detail.status === 'normal' ? 'success' : 'warning'"
-size="small">
+          <ElTag :type="detail.status === 'normal' ? 'success' : 'warning'" size="small">
             {{ detail.status === 'normal' ? '正常运行' : '维护中' }}
           </ElTag>
         </ElDescriptionsItem>
-        <ElDescriptionsItem label="边缘节点"> {{ detail.edge_node_count }} 个 </ElDescriptionsItem>
-        <ElDescriptionsItem label="关联设备"> {{ detail.equipment_count }} 台 </ElDescriptionsItem>
+        <ElDescriptionsItem label="边缘节点">{{ detail.edge_node_count }} 个</ElDescriptionsItem>
+        <ElDescriptionsItem label="关联设备">{{ detail.equipment_count }} 台</ElDescriptionsItem>
       </ElDescriptions>
 
-      <div v-if="physics"
-class="reservoir-panel__physics">
+      <div v-if="physics" class="reservoir-panel__physics">
         <div class="reservoir-panel__physics-head">
           <h4>物理防护配置摘要</h4>
           <ElButton
             type="primary"
             link
             size="small"
-            @click="
-              router.push({
+            @click="router.push({
                 path: '/settings',
                 query: { tab: 'physics-guard', reservoir_id: String(props.reservoirId) },
-              })
-            "
+              })"
           >
             管理配置 →
           </ElButton>
         </div>
         <div class="reservoir-panel__physics-bar">
-          <ElTag
-type="info" effect="plain"> v{{ physics.config_version }} </ElTag>
-          <ElTag :type="SYNC_STATUS_MAP[physics.sync_status]?.type ?? 'info'"
-size="small">
+          <ElTag type="info" effect="plain">v{{ physics.config_version }}</ElTag>
+          <ElTag :type="SYNC_STATUS_MAP[physics.sync_status]?.type ?? 'info'" size="small">
             {{ SYNC_STATUS_MAP[physics.sync_status]?.label ?? physics.sync_status }}
           </ElTag>
-          <span>紧急 <strong>{{ physics.upstream_emergency }} m</strong></span>
-          <span>危险 <strong>{{ physics.upstream_danger }} m</strong></span>
-          <span>预警 <strong>{{ physics.upstream_warning }} m</strong></span>
-          <span>L3 置信度 <strong>{{ physics.fusion_l3_confidence }}</strong></span>
           <span
-v-if="physics.last_sync_at" class="reservoir-panel__sync"
-          >同步 {{ physics.last_sync_at }}</span>
+            >紧急 <strong>{{ physics.upstream_emergency }} m</strong></span
+          >
+          <span
+            >危险 <strong>{{ physics.upstream_danger }} m</strong></span
+          >
+          <span
+            >预警 <strong>{{ physics.upstream_warning }} m</strong></span
+          >
+          <span
+            >L3 置信度 <strong>{{ physics.fusion_l3_confidence }}</strong></span
+          >
+          <span v-if="physics.last_sync_at" class="reservoir-panel__sync"
+            >同步 {{ physics.last_sync_at }}</span
+          >
         </div>
       </div>
     </template>
 
-    <ElSkeleton v-else-if="loading"
-:rows="3" animated />
+    <ElSkeleton v-else-if="loading" :rows="3" animated />
   </ElCard>
 </template>
 

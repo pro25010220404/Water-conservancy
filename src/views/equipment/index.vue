@@ -450,18 +450,15 @@ watch([typeFilter, statusFilter, groupFilter], onFilterChange)
         />
       </div>
       <div class="equipment-page__actions">
-        <ElButton
-:icon="Refresh" @click="fetchList"> 刷新 </ElButton>
-        <ElButton
-type="primary" @click="handleExport"> 导出台账 </ElButton>
+        <ElButton :icon="Refresh" @click="fetchList"> 刷新 </ElButton>
+        <ElButton type="primary" @click="handleExport"> 导出台账 </ElButton>
       </div>
     </div>
 
     <!-- 左右分栏 -->
     <div class="equipment-page__body">
       <!-- 左侧：设备列表 -->
-      <div
-class="equipment-page__left" :class="{ 'has-detail': selectedId }">
+      <div class="equipment-page__left" :class="{ 'has-detail': selectedId }">
         <DeviceList
           :data="list"
           :loading="loading"
@@ -478,8 +475,7 @@ class="equipment-page__left" :class="{ 'has-detail': selectedId }">
 
       <!-- 右侧：设备详情 -->
       <transition name="slide">
-        <div
-v-if="selectedId" class="equipment-page__right">
+        <div v-if="selectedId" class="equipment-page__right">
           <DeviceDetail
             :detail="store.currentDevice"
             :loading="store.detailLoading"
@@ -502,6 +498,7 @@ v-if="selectedId" class="equipment-page__right">
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 .equipment-page {
   display: flex;
   flex-direction: column;

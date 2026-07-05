@@ -361,7 +361,7 @@ const chartOption = computed(() => {
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       axisLabel: {
         color: '#64748b',
-        fontSize: 11,
+        fontSize: 14,
         interval: Math.max(0, Math.floor(times.length / 8)),
       },
     },
@@ -371,7 +371,7 @@ const chartOption = computed(() => {
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       axisLabel: {
         color: '#64748b',
-        fontSize: 11,
+        fontSize: 14,
         formatter: (v: number) => (isWater ? v.toFixed(1) : String(Math.round(v))),
       },
       splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } },
@@ -652,8 +652,7 @@ onUnmounted(() => {
     <!-- §3.2 上行：运行控制区（三合一）+ 调度建议 -->
     <div class="dispatch-top">
       <div class="dispatch-control-group">
-        <GlassPanel3D title="当前运行状态"
-class="panel-status">
+        <GlassPanel3D title="当前运行状态" class="panel-status">
           <div class="mode-row">
             <span class="lbl">运行模式</span>
             <div class="mode-btns">
@@ -674,10 +673,9 @@ class="panel-status">
                 手动
               </button>
             </div>
-            <ElTag v-if="status.isExecuting"
-type="warning" size="small" effect="plain">
-              执行中
-            </ElTag>
+            <ElTag v-if="status.isExecuting" type="warning" size="small" effect="plain"
+              >执行中</ElTag
+            >
           </div>
           <div class="metric-grid metric-grid--compact">
             <div class="metric">
@@ -703,26 +701,23 @@ type="warning" size="small" effect="plain">
             class="level-card"
             :class="{ active: status.autoLevel === lv.value }"
             :style="{ '--lv-color': lv.color }"
-            @click="
-              canModifyLevel &&
-                status.autoLevel !== lv.value &&
-                ((pendingLevel = lv.value as 1 | 2 | 3), (levelDialogVisible = true))
-            "
+            @click="canModifyLevel &&
+              status.autoLevel !== lv.value &&
+              ((pendingLevel = lv.value as 1 | 2 | 3), (levelDialogVisible = true))"
           >
             <strong>{{ lv.label }}</strong>
             <p>{{ lv.description }}</p>
           </div>
-          <p
-v-if="!canModifyLevel" class="readonly-tip">仅管理员/算法工程师可修改</p>
+          <p v-if="!canModifyLevel" class="readonly-tip">仅管理员/算法工程师可修改</p>
         </GlassPanel3D>
 
         <GlassPanel3D title="手动干预">
-          <p
-v-if="!canManualControl" class="manual-tip">自动模式且非 L1 时，手动控制已锁定</p>
-          <div v-if="status.isExecuting"
-class="manual-exec-banner">
-            <span>执行中：目标 <strong>{{ executingTarget ?? targetOpening }}%</strong> · 当前开度
-              {{ status.gateOpening }}%</span>
+          <p v-if="!canManualControl" class="manual-tip">自动模式且非 L1 时，手动控制已锁定</p>
+          <div v-if="status.isExecuting" class="manual-exec-banner">
+            <span
+              >执行中：目标 <strong>{{ executingTarget ?? targetOpening }}%</strong> · 当前开度
+              {{ status.gateOpening }}%</span
+            >
           </div>
           <div class="manual-row">
             <span>目标开度</span>
@@ -737,8 +732,10 @@ class="manual-exec-banner">
               @change="onTargetInput"
             />
             <span class="unit">%</span>
-            <span class="delta">Δ {{ targetOpening - status.gateOpening >= 0 ? '+' : ''
-            }}{{ targetOpening - status.gateOpening }}%</span>
+            <span class="delta"
+              >Δ {{ targetOpening - status.gateOpening >= 0 ? '+' : ''
+              }}{{ targetOpening - status.gateOpening }}%</span
+            >
           </div>
           <ElSlider
             v-model="targetOpening"
@@ -756,18 +753,16 @@ class="manual-exec-banner">
           </p>
           <div class="manual-actions">
             <template v-if="status.isExecuting">
-              <ElButton type="warning"
-class="manual-action-btn" @click="handleCancelExecute">
-                取消执行
-              </ElButton>
+              <ElButton type="warning" class="manual-action-btn" @click="handleCancelExecute"
+                >取消执行</ElButton
+              >
               <ElButton
                 v-if="canReDispatch"
                 type="primary"
                 class="manual-action-btn"
                 @click="handleReDispatch"
+                >改派执行</ElButton
               >
-                改派执行
-              </ElButton>
             </template>
             <ElButton
               v-else
@@ -776,15 +771,13 @@ class="manual-action-btn" @click="handleCancelExecute">
               class="manual-exec"
               :disabled="!canSubmitExecute"
               @click="handleExecute"
+              >执行</ElButton
             >
-              执行
-            </ElButton>
           </div>
         </GlassPanel3D>
       </div>
 
-      <GlassPanel3D v-if="decision"
-title="调度建议" class="panel-decision">
+      <GlassPanel3D v-if="decision" title="调度建议" class="panel-decision">
         <div class="decision-summary">
           <div class="decision-action">
             <span class="lbl">推荐动作</span>
@@ -793,9 +786,7 @@ title="调度建议" class="panel-decision">
               <em>{{ openingDirection }}</em>
             </p>
             <span class="lbl">预期效果</span>
-            <p class="effect-val">
-              {{ expectedEffect }}
-            </p>
+            <p class="effect-val">{{ expectedEffect }}</p>
           </div>
           <div class="decision-conf">
             <div class="conf-head">
@@ -808,87 +799,75 @@ title="调度建议" class="panel-decision">
               :stroke-width="10"
               :show-text="false"
             />
-            <p
-v-if="confidenceValue < 60" class="conf-warn">建议人工复核后再执行</p>
+            <p v-if="confidenceValue < 60" class="conf-warn">建议人工复核后再执行</p>
           </div>
         </div>
         <div class="decision-btns">
-          <ElButton type="primary"
-:icon="View" @click="decisionDialogVisible = true">
-            查看详情
-          </ElButton>
+          <ElButton type="primary" :icon="View" @click="decisionDialogVisible = true"
+            >查看详情</ElButton
+          >
           <ElButton
             type="success"
             :icon="CircleCheck"
             :disabled="status.isExecuting"
             @click="handleAccept"
+            >采纳建议</ElButton
           >
-            采纳建议
-          </ElButton>
-          <ElButton
-:icon="CircleClose" @click="ignoreVisible = true"> 忽略 </ElButton>
+          <ElButton :icon="CircleClose" @click="ignoreVisible = true">忽略</ElButton>
         </div>
       </GlassPanel3D>
     </div>
 
     <!-- §3.6 LSTM 预测图 -->
-    <GlassPanel3D title="LSTM 预测"
-class="panel-chart">
+    <GlassPanel3D title="LSTM 预测" class="panel-chart">
       <div class="chart-toolbar">
-        <ElSelect v-model="predictTerm"
-size="small" style="width: 72px">
-          <ElOption :value="1"
-label="1h" /><ElOption :value="2"
-label="3h" /><ElOption
+        <ElSelect v-model="predictTerm" size="small" style="width: 72px">
+          <ElOption :value="1" label="1h" /><ElOption :value="2" label="3h" /><ElOption
             :value="3"
             label="6h"
           />
         </ElSelect>
-        <ElSelect v-model="metricKey"
-size="small" style="width: 80px">
-          <ElOption label="水位"
-value="water" /><ElOption label="流量"
-value="flow" />
+        <ElSelect v-model="metricKey" size="small" style="width: 80px">
+          <ElOption label="水位" value="water" /><ElOption label="流量" value="flow" />
         </ElSelect>
-        <ElButton :icon="Refresh"
-circle size="small" @click="refreshAll" />
-        <span v-if="prediction"
-class="chart-meta">
+        <ElButton :icon="Refresh" circle size="small" @click="refreshAll" />
+        <span v-if="prediction" class="chart-meta">
           准确率 {{ prediction.predict_accuracy }}% · 更新 {{ formatTime(prediction.created_at) }}
         </span>
       </div>
-      <VChart class="lstm-chart"
-:option="chartOption" autoresize />
+      <VChart class="lstm-chart" :option="chartOption" autoresize />
     </GlassPanel3D>
 
     <!-- 物理防护配置摘要（文档 §2.5） -->
-    <GlassPanel3D title="物理防护配置"
-class="panel-physics-guard">
+    <GlassPanel3D title="物理防护配置" class="panel-physics-guard">
       <template v-if="physicsGuard">
         <div class="physics-guard-bar">
-          <ElTag
-type="info" effect="plain"> v{{ physicsGuard.config_version }} </ElTag>
-          <ElTag :type="SYNC_STATUS_MAP[physicsGuard.sync_status]?.type ?? 'info'"
-size="small">
+          <ElTag type="info" effect="plain">v{{ physicsGuard.config_version }}</ElTag>
+          <ElTag :type="SYNC_STATUS_MAP[physicsGuard.sync_status]?.type ?? 'info'" size="small">
             {{ SYNC_STATUS_MAP[physicsGuard.sync_status]?.label ?? physicsGuard.sync_status }}
           </ElTag>
-          <span>紧急 <strong>{{ physicsGuard.upstream_emergency }} m</strong></span>
-          <span>危险 <strong>{{ physicsGuard.upstream_danger }} m</strong></span>
-          <span>预警 <strong>{{ physicsGuard.upstream_warning }} m</strong></span>
-          <span>L3 置信度 <strong>{{ physicsGuard.fusion_l3_confidence }}</strong></span>
-          <span v-if="physicsGuard.last_sync_at"
-class="physics-sync">
+          <span
+            >紧急 <strong>{{ physicsGuard.upstream_emergency }} m</strong></span
+          >
+          <span
+            >危险 <strong>{{ physicsGuard.upstream_danger }} m</strong></span
+          >
+          <span
+            >预警 <strong>{{ physicsGuard.upstream_warning }} m</strong></span
+          >
+          <span
+            >L3 置信度 <strong>{{ physicsGuard.fusion_l3_confidence }}</strong></span
+          >
+          <span v-if="physicsGuard.last_sync_at" class="physics-sync">
             同步 {{ formatTime(physicsGuard.last_sync_at) }}
           </span>
-          <ElButton
-size="small" @click="historyVisible = true"> 变更历史 </ElButton>
+          <ElButton size="small" @click="historyVisible = true">变更历史</ElButton>
         </div>
       </template>
     </GlassPanel3D>
 
     <!-- §3.8 调度记录 — 底部全宽 -->
-    <GlassPanel3D title="调度记录"
-class="panel-records">
+    <GlassPanel3D title="调度记录" class="panel-records">
       <ElInput
         v-model="recordKeyword"
         placeholder="搜索模式、动作、操作人、结果..."
@@ -897,12 +876,11 @@ class="panel-records">
       />
       <div class="record-table-wrap">
         <div class="record-head">
-          <span>时间</span><span>模式</span><span>动作</span><span>目标开度</span><span>互锁</span><span>结果</span><span>操作人</span>
+          <span>时间</span><span>模式</span><span>动作</span><span>目标开度</span><span>互锁</span
+          ><span>结果</span><span>操作人</span>
         </div>
-        <template v-for="row in pagedRecords"
-:key="row.id">
-          <div class="record-row"
-@click="toggleRecordExpand(row.id)">
+        <template v-for="row in pagedRecords" :key="row.id">
+          <div class="record-row" @click="toggleRecordExpand(row.id)">
             <span class="mono">{{ formatTime(row.decision_time) }}</span>
             <span>{{ row.decision_mode }}</span>
             <span>{{ row.action ?? '—' }}</span>
@@ -916,31 +894,33 @@ class="panel-records">
               >
                 {{ interlockRecordLabel(row.physics_validation) }}
               </ElTag>
-              <span v-else
-class="record-interlock--ok">—</span>
+              <span v-else class="record-interlock--ok">—</span>
             </span>
-            <span><ElTag :type="statusTagType(row.execution_status)"
-size="default">{{
+            <span
+              ><ElTag :type="statusTagType(row.execution_status)" size="default">{{
                 statusLabel(row.execution_status)
-            }}</ElTag></span>
+              }}</ElTag></span
+            >
             <span>{{ row.operator_name ?? '—' }}</span>
           </div>
-          <div v-if="expandedRecordId === row.id && row.snapshot"
-class="record-expand">
+          <div v-if="expandedRecordId === row.id && row.snapshot" class="record-expand">
             <p>
               <strong>决策快照</strong> · 置信度 {{ row.snapshot.confidence }}% · 推荐开度
               {{ row.snapshot.recommended_opening }}%
             </p>
-            <div v-if="row.physics_validation"
-class="snap-validation">
+            <div v-if="row.physics_validation" class="snap-validation">
               <span>推理指标</span>
-              <span>等级
+              <span
+                >等级
                 {{
                   DECISION_LEVEL_MAP[row.physics_validation.decision_level] ??
-                    row.physics_validation.decision_level
-                }}</span>
-              <span>综合贡献
-                {{ formatContribution(row.physics_validation.contribution.overall) }}</span>
+                  row.physics_validation.decision_level
+                }}</span
+              >
+              <span
+                >综合贡献
+                {{ formatContribution(row.physics_validation.contribution.overall) }}</span
+              >
               <ElTag
                 v-if="row.physics_validation.interlock?.triggered"
                 type="warning"
@@ -954,27 +934,23 @@ class="snap-validation">
                     .join(' / ')
                 }}
               </ElTag>
-              <ElTag
-v-else type="success" size="small" effect="plain"> 互锁通过 </ElTag>
+              <ElTag v-else type="success" size="small" effect="plain">互锁通过</ElTag>
             </div>
             <div class="snap-factors">
-              <span
-v-for="f in row.snapshot.factors" :key="f.name"
-              >{{ f.name }} {{ f.value }} ({{ (f.weight * 100).toFixed(0) }}%)</span>
+              <span v-for="f in row.snapshot.factors" :key="f.name"
+                >{{ f.name }} {{ f.value }} ({{ (f.weight * 100).toFixed(0) }}%)</span
+              >
             </div>
             <div class="snap-plans">
-              <span
-v-for="p in row.snapshot.plans" :key="p.id" :class="{ rec: p.recommended }"
+              <span v-for="p in row.snapshot.plans" :key="p.id" :class="{ rec: p.recommended }"
                 >{{ p.id }} {{ p.opening }}% 得分{{ p.totalScore }}</span
               >
             </div>
           </div>
         </template>
-        <div
-v-if="filteredRecords.length === 0" class="record-empty">暂无匹配记录</div>
+        <div v-if="filteredRecords.length === 0" class="record-empty">暂无匹配记录</div>
       </div>
-      <div v-if="recordTotal > 0"
-class="record-footer">
+      <div v-if="recordTotal > 0" class="record-footer">
         <ElPagination
           v-model:current-page="recordPageNum"
           :page-size="RECORD_PAGE_SIZE"
@@ -986,8 +962,7 @@ class="record-footer">
       </div>
     </GlassPanel3D>
 
-    <GlassPanel3D title="闸门动作历史"
-class="panel-gate-actions">
+    <GlassPanel3D title="闸门动作历史" class="panel-gate-actions">
       <GateActionsPanel />
     </GlassPanel3D>
 
@@ -1010,24 +985,20 @@ class="panel-gate-actions">
         </div>
         <div class="detail-block">
           <h4>影响因素</h4>
-          <ElTable :data="decision.factors"
-border stripe class="detail-table">
-            <ElTableColumn prop="name"
-label="名称" width="180" />
-            <ElTableColumn prop="value"
-label="当前值" min-width="160" />
-            <ElTableColumn label="方向"
-width="90" align="center">
+          <ElTable :data="decision.factors" border stripe class="detail-table">
+            <ElTableColumn prop="name" label="名称" width="180" />
+            <ElTableColumn prop="value" label="当前值" min-width="160" />
+            <ElTableColumn label="方向" width="90" align="center">
               <template #default="{ row }">
                 <span
                   class="factor-dir"
                   :style="{ color: FACTOR_DIRECTION_MAP[row.direction]?.color }"
-                >{{ FACTOR_DIRECTION_MAP[row.direction]?.icon }}</span>
+                  >{{ FACTOR_DIRECTION_MAP[row.direction]?.icon }}</span
+                >
               </template>
             </ElTableColumn>
-            <ElTableColumn label="权重"
-width="100" align="right">
-              <template #default="{ row }"> {{ (row.weight * 100).toFixed(0) }}% </template>
+            <ElTableColumn label="权重" width="100" align="right">
+              <template #default="{ row }">{{ (row.weight * 100).toFixed(0) }}%</template>
             </ElTableColumn>
           </ElTable>
         </div>
@@ -1040,44 +1011,31 @@ width="100" align="right">
             class="detail-table"
             :row-class-name="({ row }) => (row.recommended ? 'row-rec' : '')"
           >
-            <ElTableColumn prop="id"
-label="方案" width="120" />
-            <ElTableColumn prop="opening"
-label="目标开度(%)" width="130" align="right" />
-            <ElTableColumn prop="expectedLevel"
-label="预期水位(m)" width="140" align="right" />
-            <ElTableColumn prop="power"
-label="发电量(kW)" width="130" align="right" />
-            <ElTableColumn prop="safetyScore"
-label="安全评分" width="110" align="right" />
-            <ElTableColumn prop="totalScore"
-label="综合得分" width="110" align="right" />
-            <ElTableColumn label="推荐"
-width="90" align="center">
-              <template #default="{ row }">
-                {{ row.recommended ? '是' : '—' }}
-              </template>
+            <ElTableColumn prop="id" label="方案" width="120" />
+            <ElTableColumn prop="opening" label="目标开度(%)" width="130" align="right" />
+            <ElTableColumn prop="expectedLevel" label="预期水位(m)" width="140" align="right" />
+            <ElTableColumn prop="power" label="发电量(kW)" width="130" align="right" />
+            <ElTableColumn prop="safetyScore" label="安全评分" width="110" align="right" />
+            <ElTableColumn prop="totalScore" label="综合得分" width="110" align="right" />
+            <ElTableColumn label="推荐" width="90" align="center">
+              <template #default="{ row }">{{ row.recommended ? '是' : '—' }}</template>
             </ElTableColumn>
           </ElTable>
         </div>
         <div class="detail-block detail-conf">
           <h4>置信度</h4>
-          <ElProgress :percentage="confidenceValue"
-:color="confidenceColor" :stroke-width="20" />
-          <p
-v-if="confidenceValue < 60" class="conf-warn">建议人工复核后再执行</p>
+          <ElProgress :percentage="confidenceValue" :color="confidenceColor" :stroke-width="20" />
+          <p v-if="confidenceValue < 60" class="conf-warn">建议人工复核后再执行</p>
           <p class="detail-meta">
             trace: {{ decision.trace_id }} · 决策时间 {{ formatTime(decision.decision_time) }}
           </p>
         </div>
 
         <!-- 本次推理指标 — 三维评判体系 -->
-        <div v-if="physicsValidation"
-class="detail-block inference-metrics">
+        <div v-if="physicsValidation" class="detail-block inference-metrics">
           <h4>本次推理指标</h4>
           <ElCollapse v-model="metricsCollapse">
-            <ElCollapseItem title="预测准确性（LSTM 这一步的表现）"
-name="prediction">
+            <ElCollapseItem title="预测准确性（LSTM 这一步的表现）" name="prediction">
               <dl class="metric-dl">
                 <div class="metric-dl__row">
                   <dt>物理校验</dt>
@@ -1112,8 +1070,7 @@ name="prediction">
               </dl>
             </ElCollapseItem>
 
-            <ElCollapseItem title="决策可靠性（DQN + 安全层这一步的表现）"
-name="decision">
+            <ElCollapseItem title="决策可靠性（DQN + 安全层这一步的表现）" name="decision">
               <dl class="metric-dl">
                 <div class="metric-dl__row">
                   <dt>安全约束</dt>
@@ -1136,7 +1093,7 @@ name="decision">
                   >
                     {{
                       DECISION_LEVEL_MAP[physicsValidation.decision_level] ??
-                        physicsValidation.decision_level
+                      physicsValidation.decision_level
                     }}
                   </dd>
                 </div>
@@ -1176,8 +1133,7 @@ name="decision">
               </dl>
             </ElCollapseItem>
 
-            <ElCollapseItem title="物理合规性（设备 + 物理边界这一步的表现）"
-name="compliance">
+            <ElCollapseItem title="物理合规性（设备 + 物理边界这一步的表现）" name="compliance">
               <dl class="metric-dl">
                 <div class="metric-dl__row">
                   <dt>水量平衡偏差</dt>
@@ -1209,8 +1165,7 @@ name="compliance">
             </ElCollapseItem>
           </ElCollapse>
 
-          <div class="inference-overall"
-:class="overallContributionMeta(physicsValidation).cls">
+          <div class="inference-overall" :class="overallContributionMeta(physicsValidation).cls">
             <span class="inference-overall__icon">{{
               overallContributionMeta(physicsValidation).icon
             }}</span>
@@ -1222,119 +1177,91 @@ name="compliance">
         </div>
       </template>
       <template #footer>
-        <ElButton
-size="large" @click="ignoreVisible = true"> 忽略 </ElButton>
-        <ElButton
-size="large" @click="decisionDialogVisible = false"> 关闭 </ElButton>
-        <ElButton size="large"
-type="primary" :disabled="status.isExecuting" @click="handleAccept">
-          采纳建议
-        </ElButton>
+        <ElButton size="large" @click="ignoreVisible = true">忽略</ElButton>
+        <ElButton size="large" @click="decisionDialogVisible = false">关闭</ElButton>
+        <ElButton size="large" type="primary" :disabled="status.isExecuting" @click="handleAccept"
+          >采纳建议</ElButton
+        >
       </template>
     </ElDialog>
 
-    <ElDialog v-model="levelDialogVisible"
-title="变更自动执行权限" width="480px">
+    <ElDialog v-model="levelDialogVisible" title="变更自动执行权限" width="480px">
       <p>
         确认切换为：<strong>{{ AUTO_LEVEL_MAP[pendingLevel]?.label }}</strong>
       </p>
-      <p class="sub">
-        {{ AUTO_LEVEL_MAP[pendingLevel]?.description }}
-      </p>
+      <p class="sub">{{ AUTO_LEVEL_MAP[pendingLevel]?.description }}</p>
       <template #footer>
-        <ElButton @click="levelDialogVisible = false"> 取消 </ElButton>
-        <ElButton
-type="primary" @click="submitLevel"> 确认 </ElButton>
+        <ElButton @click="levelDialogVisible = false">取消</ElButton>
+        <ElButton type="primary" @click="submitLevel">确认</ElButton>
       </template>
     </ElDialog>
 
-    <ElDialog v-model="ignoreVisible"
-title="忽略建议" width="420px">
-      <ElFormItem label="原因（选填）">
-        <ElInput v-model="ignoreReason" type="textarea" :rows="3" placeholder="可填写忽略原因" />
-      </ElFormItem>
+    <ElDialog v-model="ignoreVisible" title="忽略建议" width="420px">
+      <ElFormItem label="原因（选填）"
+        ><ElInput v-model="ignoreReason" type="textarea" :rows="3" placeholder="可填写忽略原因"
+      /></ElFormItem>
       <template #footer>
-        <ElButton @click="ignoreVisible = false"> 取消 </ElButton>
-        <ElButton
-type="warning" @click="handleIgnore"> 确认忽略 </ElButton>
+        <ElButton @click="ignoreVisible = false">取消</ElButton>
+        <ElButton type="warning" @click="handleIgnore">确认忽略</ElButton>
       </template>
     </ElDialog>
 
     <!-- 物理防护配置变更历史（当前水库快捷查看） -->
-    <ElDialog v-model="historyVisible"
-title="物理防护配置变更历史" width="860px">
+    <ElDialog v-model="historyVisible" title="物理防护配置变更历史" width="860px">
       <p class="history-dialog-hint">当前水库的配置版本记录，可在此查看详情或回滚。</p>
-      <ElTable :data="physicsHistory"
-border stripe size="small">
-        <ElTableColumn prop="config_version"
-label="版本号" width="96" />
-        <ElTableColumn prop="changed_at"
-label="变更时间" width="168">
+      <ElTable :data="physicsHistory" border stripe size="small">
+        <ElTableColumn prop="config_version" label="版本号" width="96" />
+        <ElTableColumn prop="changed_at" label="变更时间" width="168">
+          <template #default="{ row }">{{ formatTime(row.changed_at) }}</template>
+        </ElTableColumn>
+        <ElTableColumn prop="changed_by_name" label="变更人" width="100" />
+        <ElTableColumn prop="description" label="变更说明" min-width="200" show-overflow-tooltip />
+        <ElTableColumn label="状态" width="88" align="center">
           <template #default="{ row }">
-            {{ formatTime(row.changed_at) }}
+            <ElTag :type="row.is_active ? 'success' : 'info'" size="small">{{
+              row.is_active ? '生效中' : '历史'
+            }}</ElTag>
           </template>
         </ElTableColumn>
-        <ElTableColumn prop="changed_by_name"
-label="变更人" width="100" />
-        <ElTableColumn prop="description"
-label="变更说明" min-width="200" show-overflow-tooltip />
-        <ElTableColumn label="状态"
-width="88" align="center">
-          <template #default="{ row }">
-            <ElTag :type="row.is_active ? 'success' : 'info'"
-size="small">
-              {{ row.is_active ? '生效中' : '历史' }}
-            </ElTag>
-          </template>
-        </ElTableColumn>
-        <ElTableColumn label="操作"
-width="140" align="center" fixed="right">
+        <ElTableColumn label="操作" width="140" align="center" fixed="right">
           <template #default="scope">
             <ElButton
               link
               type="primary"
               @click="openHistoryDetail(scope.row as PhysicsGuardHistoryItem)"
+              >详情</ElButton
             >
-              详情
-            </ElButton>
             <ElButton
               v-if="!(scope.row as PhysicsGuardHistoryItem).is_active"
               link
               type="warning"
               @click="handleRollback(scope.row as PhysicsGuardHistoryItem)"
+              >回滚</ElButton
             >
-              回滚
-            </ElButton>
           </template>
         </ElTableColumn>
       </ElTable>
       <template #footer>
         <div class="history-dialog-footer">
           <span class="history-dialog-footer-hint">需切换水库或编辑配置？</span>
-          <ElButton link
-type="primary" @click="goPhysicsGuardHistorySettings">
-            前往设置页管理 →
-          </ElButton>
+          <ElButton link type="primary" @click="goPhysicsGuardHistorySettings"
+            >前往设置页管理 →</ElButton
+          >
         </div>
       </template>
     </ElDialog>
 
-    <ElDialog v-model="historyDetailVisible"
-title="配置变更详情" width="520px">
+    <ElDialog v-model="historyDetailVisible" title="配置变更详情" width="520px">
       <template v-if="historyDetailRow">
         <p class="history-detail-meta">
           <strong>v{{ historyDetailRow.config_version }}</strong>
           · {{ historyDetailRow.changed_by_name }} · {{ formatTime(historyDetailRow.changed_at) }}
         </p>
         <p>{{ historyDetailRow.description }}</p>
-        <ElTable :data="historyDetailRow.changes"
-border size="small" style="margin-top: 12px">
-          <ElTableColumn prop="label"
-label="字段" width="120" />
-          <ElTableColumn prop="before"
-label="变更前" width="100" />
-          <ElTableColumn prop="after"
-label="变更后" width="100" />
+        <ElTable :data="historyDetailRow.changes" border size="small" style="margin-top: 12px">
+          <ElTableColumn prop="label" label="字段" width="120" />
+          <ElTableColumn prop="before" label="变更前" width="100" />
+          <ElTableColumn prop="after" label="变更后" width="100" />
         </ElTable>
       </template>
     </ElDialog>
@@ -1342,6 +1269,7 @@ label="变更后" width="100" />
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 @use '@/assets/styles/cockpit.scss' as *;
 
 .dispatch-page {

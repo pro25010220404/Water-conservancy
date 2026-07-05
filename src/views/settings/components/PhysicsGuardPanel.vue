@@ -169,18 +169,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div v-loading="loading"
-class="gateai-panel physics-panel">
+  <div v-loading="loading" class="gateai-panel physics-panel">
     <div class="gateai-panel__toolbar">
       <span>水库</span>
-      <ElSelect v-model="reservoirId"
-style="width: 200px">
-        <ElOption v-for="r in reservoirs"
-:key="r.id" :label="r.name" :value="r.id" />
+      <ElSelect v-model="reservoirId" style="width: 200px">
+        <ElOption v-for="r in reservoirs" :key="r.id" :label="r.name" :value="r.id" />
       </ElSelect>
       <span>克隆到</span>
-      <ElSelect v-model="cloneTargetId"
-style="width: 180px">
+      <ElSelect v-model="cloneTargetId" style="width: 180px">
         <ElOption
           v-for="r in reservoirs.filter((x) => x.id !== reservoirId)"
           :key="r.id"
@@ -188,173 +184,148 @@ style="width: 180px">
           :value="r.id"
         />
       </ElSelect>
-      <ElButton @click="openCloneDialog"> 克隆自其他水库 </ElButton>
-      <ElButton type="primary"
-link @click="goSettingsTab('physics-guard-history')">
-        变更历史
-      </ElButton>
-      <div v-if="isDirty"
-class="physics-dirty">
+      <ElButton @click="openCloneDialog">克隆自其他水库</ElButton>
+      <ElButton type="primary" link @click="goSettingsTab('physics-guard-history')"
+        >变更历史</ElButton
+      >
+      <div v-if="isDirty" class="physics-dirty">
         配置已修改，保存后将生成新版本 v{{ bumpVersion(original?.config_version ?? '1.0.0') }}
       </div>
-      <ElButton @click="handleReset"> 重置 </ElButton>
-      <ElButton
-type="primary" :disabled="!isDirty" @click="openSaveDialog"> 保存 </ElButton>
+      <ElButton @click="handleReset">重置</ElButton>
+      <ElButton type="primary" :disabled="!isDirty" @click="openSaveDialog">保存</ElButton>
     </div>
 
-    <div v-if="form"
-class="physics-layout">
+    <div v-if="form" class="physics-layout">
       <ElCollapse :model-value="['upstream', 'downstream', 'shadow', 'fusion', 'gate']">
-        <ElCollapseItem title="上游水位阈值"
-name="upstream">
+        <ElCollapseItem title="上游水位阈值" name="upstream">
           <div class="form-grid">
-            <ElFormItem label="危险水位(m)">
-              <ElInputNumber v-model="form.upstream_danger" :step="0.1" controls-position="right" />
-            </ElFormItem>
-            <ElFormItem label="紧急水位(m)">
-              <ElInputNumber
+            <ElFormItem label="危险水位(m)"
+              ><ElInputNumber v-model="form.upstream_danger" :step="0.1" controls-position="right"
+            /></ElFormItem>
+            <ElFormItem label="紧急水位(m)"
+              ><ElInputNumber
                 v-model="form.upstream_emergency"
                 :step="0.1"
                 controls-position="right"
-              />
-            </ElFormItem>
-            <ElFormItem label="预警水位(m)">
-              <ElInputNumber
-                v-model="form.upstream_warning"
-                :step="0.1"
-                controls-position="right"
-              />
-            </ElFormItem>
-            <ElFormItem label="死水位(m)">
-              <ElInputNumber v-model="form.upstream_min" :step="0.1" controls-position="right" />
-            </ElFormItem>
-            <ElFormItem label="理想区间下限">
-              <ElInputNumber v-model="form.ideal_min" :step="0.1" controls-position="right" />
-            </ElFormItem>
-            <ElFormItem label="理想区间上限">
-              <ElInputNumber v-model="form.ideal_max" :step="0.1" controls-position="right" />
-            </ElFormItem>
-            <ElFormItem label="最大变化/h(m)">
-              <ElInputNumber
+            /></ElFormItem>
+            <ElFormItem label="预警水位(m)"
+              ><ElInputNumber v-model="form.upstream_warning" :step="0.1" controls-position="right"
+            /></ElFormItem>
+            <ElFormItem label="死水位(m)"
+              ><ElInputNumber v-model="form.upstream_min" :step="0.1" controls-position="right"
+            /></ElFormItem>
+            <ElFormItem label="理想区间下限"
+              ><ElInputNumber v-model="form.ideal_min" :step="0.1" controls-position="right"
+            /></ElFormItem>
+            <ElFormItem label="理想区间上限"
+              ><ElInputNumber v-model="form.ideal_max" :step="0.1" controls-position="right"
+            /></ElFormItem>
+            <ElFormItem label="最大变化/h(m)"
+              ><ElInputNumber
                 v-model="form.max_level_change_per_hour"
                 :step="0.1"
                 :min="0"
                 controls-position="right"
-              />
-            </ElFormItem>
+            /></ElFormItem>
           </div>
         </ElCollapseItem>
-        <ElCollapseItem title="下游 / 生态"
-name="downstream">
+        <ElCollapseItem title="下游 / 生态" name="downstream">
           <div class="form-grid">
-            <ElFormItem label="下游危险(m)">
-              <ElInputNumber
+            <ElFormItem label="下游危险(m)"
+              ><ElInputNumber
                 v-model="form.downstream_danger"
                 :step="0.1"
                 controls-position="right"
-              />
-            </ElFormItem>
-            <ElFormItem label="下游上限(m)">
-              <ElInputNumber v-model="form.downstream_max" :step="0.1" controls-position="right" />
-            </ElFormItem>
-            <ElFormItem label="下游下限(m)">
-              <ElInputNumber v-model="form.downstream_min" :step="0.1" controls-position="right" />
-            </ElFormItem>
-            <ElFormItem label="最小生态流量">
-              <ElInputNumber v-model="form.eco_flow_min" :step="1" controls-position="right" />
-            </ElFormItem>
+            /></ElFormItem>
+            <ElFormItem label="下游上限(m)"
+              ><ElInputNumber v-model="form.downstream_max" :step="0.1" controls-position="right"
+            /></ElFormItem>
+            <ElFormItem label="下游下限(m)"
+              ><ElInputNumber v-model="form.downstream_min" :step="0.1" controls-position="right"
+            /></ElFormItem>
+            <ElFormItem label="最小生态流量"
+              ><ElInputNumber v-model="form.eco_flow_min" :step="1" controls-position="right"
+            /></ElFormItem>
           </div>
         </ElCollapseItem>
-        <ElCollapseItem title="物理参数 / 影子模型"
-name="shadow">
+        <ElCollapseItem title="物理参数 / 影子模型" name="shadow">
           <div class="form-grid">
-            <ElFormItem label="水面面积(m²)">
-              <ElInputNumber
+            <ElFormItem label="水面面积(m²)"
+              ><ElInputNumber
                 v-model="form.reservoir_area"
                 :step="100000"
                 :min="0"
                 controls-position="right"
-              />
-            </ElFormItem>
-            <ElFormItem label="影子前瞻步数">
-              <ElInputNumber
+            /></ElFormItem>
+            <ElFormItem label="影子前瞻步数"
+              ><ElInputNumber
                 v-model="form.shadow_lookahead_steps"
                 :step="1"
                 :min="1"
                 :max="12"
                 controls-position="right"
-              />
-            </ElFormItem>
-            <ElFormItem label="影子危险偏移">
-              <ElInputNumber
+            /></ElFormItem>
+            <ElFormItem label="影子危险偏移"
+              ><ElInputNumber
                 v-model="form.shadow_danger_offset"
                 :step="0.1"
                 controls-position="right"
-              />
-            </ElFormItem>
-            <ElFormItem label="死区(%)">
-              <ElInputNumber
+            /></ElFormItem>
+            <ElFormItem label="死区(%)"
+              ><ElInputNumber
                 v-model="form.deadband_percent"
                 :step="0.01"
                 :min="0"
                 :max="0.2"
                 controls-position="right"
-              />
-            </ElFormItem>
-            <ElFormItem label="最大变化率/h">
-              <ElInputNumber
+            /></ElFormItem>
+            <ElFormItem label="最大变化率/h"
+              ><ElInputNumber
                 v-model="form.max_rate_per_hour"
                 :step="0.01"
                 :min="0"
                 :max="0.5"
                 controls-position="right"
-              />
-            </ElFormItem>
+            /></ElFormItem>
           </div>
         </ElCollapseItem>
-        <ElCollapseItem title="融合决策阈值"
-name="fusion">
+        <ElCollapseItem title="融合决策阈值" name="fusion">
           <div class="form-grid">
-            <ElFormItem label="L3置信度">
-              <ElInputNumber
+            <ElFormItem label="L3置信度"
+              ><ElInputNumber
                 v-model="form.fusion_l3_confidence"
                 :step="0.01"
                 :min="0"
                 :max="1"
                 controls-position="right"
-              />
-            </ElFormItem>
-            <ElFormItem label="L3风险概率">
-              <ElInputNumber
+            /></ElFormItem>
+            <ElFormItem label="L3风险概率"
+              ><ElInputNumber
                 v-model="form.fusion_l3_risk"
                 :step="0.01"
                 :min="0"
                 :max="1"
                 controls-position="right"
-              />
-            </ElFormItem>
-            <ElFormItem label="L2置信度">
-              <ElInputNumber
+            /></ElFormItem>
+            <ElFormItem label="L2置信度"
+              ><ElInputNumber
                 v-model="form.fusion_l2_confidence"
                 :step="0.01"
                 :min="0"
                 :max="1"
                 controls-position="right"
-              />
-            </ElFormItem>
-            <ElFormItem label="L2风险概率">
-              <ElInputNumber
+            /></ElFormItem>
+            <ElFormItem label="L2风险概率"
+              ><ElInputNumber
                 v-model="form.fusion_l2_risk"
                 :step="0.01"
                 :min="0"
                 :max="1"
                 controls-position="right"
-              />
-            </ElFormItem>
+            /></ElFormItem>
           </div>
         </ElCollapseItem>
-        <ElCollapseItem title="闸门最大泄量"
-name="gate">
+        <ElCollapseItem title="闸门最大泄量" name="gate">
           <div class="form-grid">
             <ElFormItem
               v-for="(_, idx) in form.gate_max_discharge"
@@ -376,8 +347,7 @@ name="gate">
         <h4>水位尺预览</h4>
         <p class="ver">v{{ form.config_version }}</p>
         <ul>
-          <li v-for="m in levelMarks"
-:key="m.label">
+          <li v-for="m in levelMarks" :key="m.label">
             <span :style="{ color: m.color }">{{ m.label }}</span>
             <strong>{{ m.value }} m</strong>
           </li>
@@ -388,35 +358,25 @@ name="gate">
             启用 {{ interlockStats.enabled_count }} 条 · 近24h 触发
             {{ interlockStats.trigger_24h }} 次 · 近7天 {{ interlockStats.trigger_7d }} 次
           </p>
-          <ElButton type="primary"
-link @click="goSettingsTab('gate-interlock')">
-            查看全部规则 →
-          </ElButton>
+          <ElButton type="primary" link @click="goSettingsTab('gate-interlock')"
+            >查看全部规则 →</ElButton
+          >
         </div>
       </aside>
     </div>
 
-    <ElDialog v-model="saveDialogVisible"
-title="保存物理防护配置" width="520px">
+    <ElDialog v-model="saveDialogVisible" title="保存物理防护配置" width="520px">
       <p class="save-hint">
         版本 {{ original?.config_version }} → {{ bumpVersion(original?.config_version ?? '1.0.0') }}
       </p>
-      <ElTable v-if="diffRows.length"
-:data="diffRows" stripe border style="margin-bottom: 14px">
-        <ElTableColumn prop="field"
-label="字段" width="160" />
-        <ElTableColumn label="变更前"
-min-width="90">
-          <template #default="{ row }">
-            {{ row.before }}
-          </template>
-        </ElTableColumn>
-        <ElTableColumn label="变更后"
-min-width="90">
-          <template #default="{ row }">
-            {{ row.after }}
-          </template>
-        </ElTableColumn>
+      <ElTable v-if="diffRows.length" :data="diffRows" stripe border style="margin-bottom: 14px">
+        <ElTableColumn prop="field" label="字段" width="160" />
+        <ElTableColumn label="变更前" min-width="90"
+          ><template #default="{ row }">{{ row.before }}</template></ElTableColumn
+        >
+        <ElTableColumn label="变更后" min-width="90"
+          ><template #default="{ row }">{{ row.after }}</template></ElTableColumn
+        >
       </ElTable>
       <ElFormItem label="变更说明">
         <ElInput
@@ -427,24 +387,19 @@ min-width="90">
         />
       </ElFormItem>
       <template #footer>
-        <ElButton @click="saveDialogVisible = false"> 取消 </ElButton>
-        <ElButton
-type="primary" :loading="saving" @click="confirmSave"> 确认保存 </ElButton>
+        <ElButton @click="saveDialogVisible = false">取消</ElButton>
+        <ElButton type="primary" :loading="saving" @click="confirmSave">确认保存</ElButton>
       </template>
     </ElDialog>
 
-    <ElDialog v-model="cloneDialogVisible"
-title="克隆物理防护配置" width="480px">
+    <ElDialog v-model="cloneDialogVisible" title="克隆物理防护配置" width="480px">
       <ElFormItem label="源水库">
-        <ElSelect v-model="cloneSourceId"
-style="width: 100%">
-          <ElOption v-for="r in reservoirs"
-:key="r.id" :label="r.name" :value="r.id" />
+        <ElSelect v-model="cloneSourceId" style="width: 100%">
+          <ElOption v-for="r in reservoirs" :key="r.id" :label="r.name" :value="r.id" />
         </ElSelect>
       </ElFormItem>
       <ElFormItem label="源版本">
-        <ElSelect v-model="cloneVersion"
-style="width: 100%">
+        <ElSelect v-model="cloneVersion" style="width: 100%">
           <ElOption
             v-for="v in historyVersions"
             :key="v.config_version"
@@ -454,8 +409,7 @@ style="width: 100%">
         </ElSelect>
       </ElFormItem>
       <ElFormItem label="目标水库">
-        <ElSelect v-model="cloneTargetId"
-style="width: 100%">
+        <ElSelect v-model="cloneTargetId" style="width: 100%">
           <ElOption
             v-for="r in reservoirs.filter((x) => x.id !== cloneSourceId)"
             :key="r.id"
@@ -465,9 +419,8 @@ style="width: 100%">
         </ElSelect>
       </ElFormItem>
       <template #footer>
-        <ElButton @click="cloneDialogVisible = false"> 取消 </ElButton>
-        <ElButton
-type="primary" @click="confirmClone"> 确认克隆 </ElButton>
+        <ElButton @click="cloneDialogVisible = false">取消</ElButton>
+        <ElButton type="primary" @click="confirmClone">确认克隆</ElButton>
       </template>
     </ElDialog>
   </div>

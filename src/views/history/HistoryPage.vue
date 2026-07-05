@@ -279,7 +279,7 @@ const chartOpt = computed(() => {
     xAxis: {
       type: 'category',
       data: data.map((d) => d.label),
-      axisLabel: { fontSize: 12, interval: Math.max(1, Math.floor(data.length / 6)) },
+      axisLabel: { fontSize: 14, interval: Math.max(1, Math.floor(data.length / 6)) },
     },
     yAxis: [
       {
@@ -337,19 +337,14 @@ tableData.value = [...allData.value]
 </script>
 
 <template>
-  <div class="hp"
-:class="{ dark: darkMode, 'hp--replaying': replayMode }">
+  <div class="hp" :class="{ dark: darkMode, 'hp--replaying': replayMode }">
     <!-- 筛选区 -->
     <div class="filter">
       <div class="filter__row">
         <label>日期范围</label>
-        <input v-model="dateRange.start"
-type="datetime-local" class="inp" :disabled="replayMode"
-/>
+        <input type="datetime-local" v-model="dateRange.start" class="inp" :disabled="replayMode" />
         <span>—</span>
-        <input v-model="dateRange.end"
-type="datetime-local" class="inp" :disabled="replayMode"
-/>
+        <input type="datetime-local" v-model="dateRange.end" class="inp" :disabled="replayMode" />
       </div>
       <div class="filter__row">
         <label>数据项</label>
@@ -359,14 +354,13 @@ type="datetime-local" class="inp" :disabled="replayMode"
             :key="m.value"
             class="tag"
             :class="{ on: selectedMetrics.includes(m.value) }"
-            :style="{ '--c': m.color }"
-            @click="
-              !replayMode &&
+            @click="!replayMode &&
               (selectedMetrics.includes(m.value)
                 ? (selectedMetrics = selectedMetrics.filter((x) => x !== m.value))
-                : selectedMetrics.push(m.value))
-            "
-          >{{ m.label }}</span>
+                : selectedMetrics.push(m.value))"
+            :style="{ '--c': m.color }"
+            >{{ m.label }}</span
+          >
         </div>
       </div>
       <div class="filter__row">
@@ -378,47 +372,36 @@ type="datetime-local" class="inp" :disabled="replayMode"
             class="tag"
             :class="{ on: granularity === g.value }"
             @click="!replayMode && (granularity = g.value as any)"
-          >{{ g.label }}</span>
+            >{{ g.label }}</span
+          >
         </div>
       </div>
       <div class="filter__btns">
-        <button v-if="!replayMode"
-class="btn btn--replay" @click="enterReplay">
-          <ElIcon><VideoPlay /></ElIcon>
+        <button v-if="!replayMode" class="btn btn--replay" @click="enterReplay">
+          <el-icon><VideoPlay /></el-icon>
           时光机回放
         </button>
-        <button v-if="replayMode"
-class="btn btn--replay-exit" @click="exitReplay">
-          <ElIcon><Close /></ElIcon>
+        <button v-if="replayMode" class="btn btn--replay-exit" @click="exitReplay">
+          <el-icon><Close /></el-icon>
           退出回放
         </button>
-        <button class="btn btn--q"
-@click="applyFilters" :disabled="!isOnline || replayMode">
+        <button class="btn btn--q" @click="applyFilters" :disabled="!isOnline || replayMode">
           查询
         </button>
-        <button
-class="btn" @click="resetFilters" :disabled="replayMode">重置</button>
-        <button class="btn"
-@click="darkMode = !darkMode">
-          {{ darkMode ? '☀' : '☾' }}
-        </button>
-        <span v-if="!isOnline"
-class="offline">离线 · 查询导出已禁用</span>
+        <button class="btn" @click="resetFilters" :disabled="replayMode">重置</button>
+        <button class="btn" @click="darkMode = !darkMode">{{ darkMode ? '☀' : '☾' }}</button>
+        <span v-if="!isOnline" class="offline">离线 · 查询导出已禁用</span>
       </div>
     </div>
 
     <!-- 回放控制栏 -->
-    <div v-if="replayMode"
-class="replay-bar">
+    <div v-if="replayMode" class="replay-bar">
       <div class="replay-bar__controls">
-        <button
-class="replay-btn" title="快退" @click="jumpReplay(-1)">⏮</button>
-        <button class="replay-btn replay-btn--play"
-@click="toggleReplayPlay">
+        <button class="replay-btn" title="快退" @click="jumpReplay(-1)">⏮</button>
+        <button class="replay-btn replay-btn--play" @click="toggleReplayPlay">
           {{ replayPlaying ? '⏸' : '▶' }}
         </button>
-        <button
-class="replay-btn" title="快进" @click="jumpReplay(1)">⏭</button>
+        <button class="replay-btn" title="快进" @click="jumpReplay(1)">⏭</button>
         <span class="replay-bar__time">{{ replayTimeLabel }}</span>
       </div>
       <div class="replay-bar__speed">
@@ -445,12 +428,10 @@ class="replay-btn" title="快进" @click="jumpReplay(1)">⏭</button>
     </div>
 
     <!-- 回放快照面板 -->
-    <div v-if="replayMode && replaySnapshot"
-class="replay-snapshot">
-      <div v-for="m in metricOptions" class="replay-snapshot__item" :key="m.value">
+    <div v-if="replayMode && replaySnapshot" class="replay-snapshot">
+      <div class="replay-snapshot__item" v-for="m in metricOptions" :key="m.value">
         <span class="replay-snapshot__label">{{ m.label }}</span>
-        <span class="replay-snapshot__value"
-:style="{ color: m.color }">
+        <span class="replay-snapshot__value" :style="{ color: m.color }">
           {{ replaySnapshot[m.value] }} {{ m.unit }}
         </span>
       </div>
@@ -458,7 +439,7 @@ class="replay-snapshot">
 
     <!-- 图表区 -->
     <div class="chart-wrap">
-      <VChart
+      <v-chart
         class="chart"
         :class="{ 'chart--replay': replayMode }"
         :option="chartOpt"
@@ -474,14 +455,13 @@ class="replay-snapshot">
         <div class="tbl__acts">
           <button
             class="btn btn--sm"
-            :disabled="!isOnline || exporting || replayMode"
             @click="doExport('csv')"
+            :disabled="!isOnline || exporting || replayMode"
           >
             {{ exporting ? '导出中...' : 'CSV 导出' }}
           </button>
-          <button class="btn btn--sm btn--with-icon"
-@click="reportVisible = true">
-            <ElIcon><DataAnalysis /></ElIcon>
+          <button class="btn btn--sm btn--with-icon" @click="reportVisible = true">
+            <el-icon><DataAnalysis /></el-icon>
             智能报告
           </button>
         </div>
@@ -491,9 +471,7 @@ class="replay-snapshot">
           <thead>
             <tr>
               <th>时间</th>
-              <th v-for="m in selectedMetrics" :key="m">
-                {{ metricLabel(m) }}
-              </th>
+              <th v-for="m in selectedMetrics" :key="m">{{ metricLabel(m) }}</th>
             </tr>
           </thead>
           <tbody>
@@ -506,25 +484,21 @@ class="replay-snapshot">
               }"
             >
               <td>{{ d.label }}</td>
-              <td
-v-for="m in selectedMetrics" :key="m">{{ d[m] }} {{ metricUnit(m) }}</td>
+              <td v-for="m in selectedMetrics" :key="m">{{ d[m] }} {{ metricUnit(m) }}</td>
             </tr>
           </tbody>
         </table>
       </div>
       <div class="tbl__pg">
-        <button
-:disabled="tablePage <= 1" @click="tablePage--">‹</button>
+        <button :disabled="tablePage <= 1" @click="tablePage--">‹</button>
         <span>{{ tablePage }} / {{ totalPages }}</span>
-        <button
-:disabled="tablePage >= totalPages" @click="tablePage++">›</button>
+        <button :disabled="tablePage >= totalPages" @click="tablePage++">›</button>
       </div>
     </div>
 
     <!-- 智能报告弹窗 -->
     <Transition name="fade">
-      <div v-if="reportVisible"
-class="modal" @click.self="reportVisible = false">
+      <div v-if="reportVisible" class="modal" @click.self="reportVisible = false">
         <div class="modal__box">
           <h2>智能分析报告</h2>
           <div class="rep">
@@ -535,24 +509,35 @@ class="modal" @click.self="reportVisible = false">
               <span>异常点数</span><b style="color: #ef4444">{{ reportData.anomalies }}</b>
             </div>
             <div class="rep__item">
-              <span>上游水位</span><b>最大 {{ reportData.upstreamLevel.max }}m / 最小 {{ reportData.upstreamLevel.min }}m
-                / 平均 {{ reportData.upstreamLevel.avg }}m</b>
+              <span>上游水位</span
+              ><b
+                >最大 {{ reportData.upstreamLevel.max }}m / 最小 {{ reportData.upstreamLevel.min }}m
+                / 平均 {{ reportData.upstreamLevel.avg }}m</b
+              >
             </div>
             <div class="rep__item">
-              <span>入库流量</span><b>最大 {{ reportData.inflowRate.max }}m³/s / 最小 {{ reportData.inflowRate.min }}m³/s
-                / 平均 {{ reportData.inflowRate.avg }}m³/s</b>
+              <span>入库流量</span
+              ><b
+                >最大 {{ reportData.inflowRate.max }}m³/s / 最小 {{ reportData.inflowRate.min }}m³/s
+                / 平均 {{ reportData.inflowRate.avg }}m³/s</b
+              >
             </div>
             <div class="rep__item">
-              <span>发电功率</span><b>最大 {{ reportData.powerOutput.max }}MW / 最小 {{ reportData.powerOutput.min }}MW /
-                平均 {{ reportData.powerOutput.avg }}MW</b>
+              <span>发电功率</span
+              ><b
+                >最大 {{ reportData.powerOutput.max }}MW / 最小 {{ reportData.powerOutput.min }}MW /
+                平均 {{ reportData.powerOutput.avg }}MW</b
+              >
             </div>
             <div class="rep__item">
-              <span>闸门开度</span><b>最大 {{ reportData.gateOpening.max }}% / 最小 {{ reportData.gateOpening.min }}% /
-                平均 {{ reportData.gateOpening.avg }}%</b>
+              <span>闸门开度</span
+              ><b
+                >最大 {{ reportData.gateOpening.max }}% / 最小 {{ reportData.gateOpening.min }}% /
+                平均 {{ reportData.gateOpening.avg }}%</b
+              >
             </div>
           </div>
-          <button
-class="btn" @click="reportVisible = false">关闭</button>
+          <button class="btn" @click="reportVisible = false">关闭</button>
         </div>
       </div>
     </Transition>
@@ -566,7 +551,7 @@ class="btn" @click="reportVisible = false">关闭</button>
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background: #f8f9fb;
+  background: #fff;
   transition:
     border-color 0.3s,
     box-shadow 0.3s;

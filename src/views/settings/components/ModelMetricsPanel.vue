@@ -9,10 +9,7 @@ import {
   ElDialog,
   ElDescriptions,
   ElDescriptionsItem,
-  ElDatePicker,
-  ElButton,
 } from 'element-plus'
-import { Search, RefreshLeft } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart, RadarChart } from 'echarts/charts'
@@ -80,7 +77,6 @@ const versionOptions = ref<{ version: string; source: string }[]>([])
 const currentVersion = ref('')
 const previousVersion = ref('')
 const detailHours = ref(24)
-const timeRange = ref<[string, string] | null>(null)
 const loading = ref(false)
 const history = ref<Awaited<ReturnType<typeof fetchModelMetricsHistory>>>([])
 const drillVisible = ref(false)
@@ -160,20 +156,6 @@ const radarOption = computed(() => {
     ],
   }
 })
-
-const filteredDetail = computed(() => {
-  if (!timeRange.value || timeRange.value.length !== 2) return detail.value
-  const [start, end] = timeRange.value
-  return detail.value.filter((row) => row.metric_time >= start && row.metric_time <= end)
-})
-
-function searchByTime() {
-  // 触发 computed 重新计算（timeRange 已通过 v-model 绑定）
-}
-
-function resetTimeFilter() {
-  timeRange.value = null
-}
 
 const drillContent = computed(() => {
   if (!latest.value || !drillDim.value) return null
@@ -266,10 +248,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-loading="loading"
-class="gateai-panel">
-    <div v-if="fixedMode !== 'compare' && healthOverview.length"
-class="health-overview">
+  <div v-loading="loading" class="gateai-panel">
+    <div v-if="fixedMode !== 'compare' && healthOverview.length" class="health-overview">
       <span class="health-overview__title">全局健康概览</span>
       <div class="health-overview__list">
         <div
@@ -279,25 +259,21 @@ class="health-overview">
           @click="reservoirId = h.reservoir_id"
         >
           <span>{{ h.reservoir_name }}</span>
-          <ElTag :color="GRADE_COLOR[h.health_grade]"
-effect="dark">
-            {{ h.health_grade }} · {{ (h.overall_score * 100).toFixed(0) }}
-          </ElTag>
+          <ElTag :color="GRADE_COLOR[h.health_grade]" effect="dark"
+            >{{ h.health_grade }} · {{ (h.overall_score * 100).toFixed(0) }}</ElTag
+          >
         </div>
       </div>
     </div>
 
     <div class="gateai-panel__toolbar">
       <span>水库</span>
-      <ElSelect v-model="reservoirId"
-style="width: 200px">
-        <ElOption v-for="r in reservoirs"
-:key="r.id" :label="r.name" :value="r.id" />
+      <ElSelect v-model="reservoirId" style="width: 200px">
+        <ElOption v-for="r in reservoirs" :key="r.id" :label="r.name" :value="r.id" />
       </ElSelect>
       <template v-if="fixedMode === 'compare'">
         <span>当前版</span>
-        <ElSelect v-model="currentVersion"
-style="width: 200px">
+        <ElSelect v-model="currentVersion" style="width: 200px">
           <ElOption
             v-for="v in versionOptions"
             :key="v.version"
@@ -306,8 +282,7 @@ style="width: 200px">
           />
         </ElSelect>
         <span>对比版</span>
-        <ElSelect v-model="previousVersion"
-style="width: 200px">
+        <ElSelect v-model="previousVersion" style="width: 200px">
           <ElOption
             v-for="v in versionOptions"
             :key="v.version"
@@ -316,8 +291,7 @@ style="width: 200px">
           />
         </ElSelect>
       </template>
-      <div v-if="fixedMode === 'both'"
-class="view-toggle">
+      <div v-if="fixedMode === 'both'" class="view-toggle">
         <button
           type="button"
           :class="{ active: viewMode === 'dashboard' }"
@@ -337,14 +311,10 @@ class="view-toggle">
         v-if="fixedMode === 'dashboard' || (fixedMode === 'both' && viewMode === 'dashboard')"
       >
         <span>明细范围</span>
-        <ElSelect v-model="detailHours"
-style="width: 120px">
-          <ElOption :value="8"
-label="近 8 小时" />
-          <ElOption :value="24"
-label="近 24 小时" />
-          <ElOption :value="48"
-label="近 48 小时" />
+        <ElSelect v-model="detailHours" style="width: 120px">
+          <ElOption :value="8" label="近 8 小时" />
+          <ElOption :value="24" label="近 24 小时" />
+          <ElOption :value="48" label="近 48 小时" />
         </ElSelect>
       </template>
     </div>
@@ -352,77 +322,49 @@ label="近 48 小时" />
     <template
       v-if="fixedMode === 'dashboard' || (fixedMode === 'both' && viewMode === 'dashboard')"
     >
-      <div v-if="latest"
-class="metric-cards">
+      <div v-if="latest" class="metric-cards">
         <div
           class="metric-card clickable"
           :style="{ borderColor: GRADE_COLOR[latest.health_grade] }"
           @click="openDrill('overall')"
         >
           <span>综合评分</span>
-          <strong :style="{ color: GRADE_COLOR[latest.health_grade] }">{{ (latest.overall_score * 100).toFixed(0) }} · {{ latest.health_grade }}级</strong>
+          <strong :style="{ color: GRADE_COLOR[latest.health_grade] }"
+            >{{ (latest.overall_score * 100).toFixed(0) }} · {{ latest.health_grade }}级</strong
+          >
         </div>
-        <div class="metric-card clickable"
-@click="openDrill('mae')">
-          <span>LSTM 水位 MAE(24h)</span><strong>{{ latest.water_level_mae_24h.toFixed(3) }} m</strong>
+        <div class="metric-card clickable" @click="openDrill('mae')">
+          <span>LSTM 水位 MAE(24h)</span
+          ><strong>{{ latest.water_level_mae_24h.toFixed(3) }} m</strong>
         </div>
-        <div class="metric-card clickable"
-@click="openDrill('safety')">
-          <span>安全规则覆盖率</span><strong>{{ (latest.safety_override_rate * 100).toFixed(1) }}%</strong>
+        <div class="metric-card clickable" @click="openDrill('safety')">
+          <span>安全规则覆盖率</span
+          ><strong>{{ (latest.safety_override_rate * 100).toFixed(1) }}%</strong>
         </div>
-        <div class="metric-card clickable"
-@click="openDrill('l3')">
+        <div class="metric-card clickable" @click="openDrill('l3')">
           <span>决策自主率 L3</span><strong>{{ (latest.l3_auto_rate * 100).toFixed(0) }}%</strong>
         </div>
       </div>
 
       <div class="metric-chart">
         <h4>近 7 天三维评分趋势</h4>
-        <VChart :option="chartOption"
-autoresize style="height: 320px; width: 100%" />
+        <VChart :option="chartOption" autoresize style="height: 320px; width: 100%" />
       </div>
 
-
-      <div class="time-search-bar">
-        <span class="time-search-bar__label">按时间筛选：</span>
-        <ElDatePicker
-          v-model="timeRange"
-          type="datetimerange"
-          range-separator="至"
-          start-placeholder="开始时间"
-          end-placeholder="结束时间"
-          format="YYYY-MM-DD HH:mm"
-          value-format="YYYY-MM-DD HH:mm:ss"
-          style="width: 380px"
-        />
-        <ElButton type="primary" :icon="Search" @click="searchByTime"> 搜索 </ElButton>
-        <ElButton :icon="RefreshLeft" @click="resetTimeFilter"> 重置 </ElButton>
-      </div>
-      <ElTable :data="filteredDetail"
-stripe border>
-        <ElTableColumn prop="metric_time"
-label="时间" min-width="200" />
-        <ElTableColumn prop="water_level_mae_24h"
-label="水位MAE(m)" min-width="130" />
-        <ElTableColumn prop="safety_override_rate"
-label="安全覆盖" min-width="120" />
-        <ElTableColumn prop="physics_correction_rate"
-label="物理修正率" min-width="130" />
-        <ElTableColumn prop="gate_limit_touch_rate"
-label="限位触碰" min-width="120" />
-        <ElTableColumn label="综合分"
-min-width="100" align="center">
-          <template #default="{ row }">
-            {{ (row.overall_score * 100).toFixed(0) }}
-          </template>
+      <ElTable :data="detail" stripe border>
+        <ElTableColumn prop="metric_time" label="时间" min-width="200" />
+        <ElTableColumn prop="water_level_mae_24h" label="水位MAE(m)" min-width="130" />
+        <ElTableColumn prop="safety_override_rate" label="安全覆盖" min-width="120" />
+        <ElTableColumn prop="physics_correction_rate" label="物理修正率" min-width="130" />
+        <ElTableColumn prop="gate_limit_touch_rate" label="限位触碰" min-width="120" />
+        <ElTableColumn label="综合分" min-width="100" align="center">
+          <template #default="{ row }">{{ (row.overall_score * 100).toFixed(0) }}</template>
         </ElTableColumn>
-        <ElTableColumn label="等级"
-min-width="90" align="center">
+        <ElTableColumn label="等级" min-width="90" align="center">
           <template #default="{ row }">
-            <ElTag :color="GRADE_COLOR[row.health_grade]"
-effect="dark">
-              {{ row.health_grade }}
-            </ElTag>
+            <ElTag :color="GRADE_COLOR[row.health_grade]" effect="dark">{{
+              row.health_grade
+            }}</ElTag>
           </template>
         </ElTableColumn>
       </ElTable>
@@ -438,9 +380,9 @@ effect="dark">
           <h4>{{ compare.current.version }}</h4>
           <small>{{ compare.current.source }}</small>
           <ul>
-            <li v-for="(val, dim) in compare.current.scores"
-:key="dim">
-              <span>{{ dim }}</span><strong>{{ (val * 100).toFixed(0) }}</strong>
+            <li v-for="(val, dim) in compare.current.scores" :key="dim">
+              <span>{{ dim }}</span
+              ><strong>{{ (val * 100).toFixed(0) }}</strong>
             </li>
           </ul>
         </div>
@@ -449,48 +391,37 @@ effect="dark">
           <h4>{{ compare.previous.version }}</h4>
           <small>{{ compare.previous.source }}</small>
           <ul>
-            <li v-for="(val, dim) in compare.previous.scores"
-:key="dim">
-              <span>{{ dim }}</span><strong>{{ (val * 100).toFixed(0) }}</strong>
+            <li v-for="(val, dim) in compare.previous.scores" :key="dim">
+              <span>{{ dim }}</span
+              ><strong>{{ (val * 100).toFixed(0) }}</strong>
             </li>
           </ul>
         </div>
       </div>
-      <VChart :option="radarOption"
-autoresize style="height: 340px; width: 100%" />
-      <ElTable :data="compareRows"
-stripe border>
-        <ElTableColumn prop="dim"
-label="维度" min-width="200" />
-        <ElTableColumn label="当前版"
-min-width="120" align="right">
-          <template #default="{ row }">
-            {{ (row.current * 100).toFixed(0) }}
-          </template>
+      <VChart :option="radarOption" autoresize style="height: 340px; width: 100%" />
+      <ElTable :data="compareRows" stripe border>
+        <ElTableColumn prop="dim" label="维度" min-width="200" />
+        <ElTableColumn label="当前版" min-width="120" align="right">
+          <template #default="{ row }">{{ (row.current * 100).toFixed(0) }}</template>
         </ElTableColumn>
-        <ElTableColumn label="对比版"
-min-width="120" align="right">
-          <template #default="{ row }">
-            {{ (row.previous * 100).toFixed(0) }}
-          </template>
+        <ElTableColumn label="对比版" min-width="120" align="right">
+          <template #default="{ row }">{{ (row.previous * 100).toFixed(0) }}</template>
         </ElTableColumn>
-        <ElTableColumn label="差值"
-min-width="120" align="right">
+        <ElTableColumn label="差值" min-width="120" align="right">
           <template #default="{ row }">
-            <span :class="row.delta >= 0 ? 'delta-pos' : 'delta-neg'">{{ row.delta >= 0 ? '+' : '' }}{{ (row.delta * 100).toFixed(0) }}</span>
+            <span :class="row.delta >= 0 ? 'delta-pos' : 'delta-neg'"
+              >{{ row.delta >= 0 ? '+' : '' }}{{ (row.delta * 100).toFixed(0) }}</span
+            >
           </template>
         </ElTableColumn>
       </ElTable>
     </template>
 
-    <ElDialog v-model="drillVisible"
-:title="drillContent?.title ?? '指标详情'" width="440px">
-      <ElDescriptions v-if="drillContent"
-:column="1" border>
-        <ElDescriptionsItem v-for="r in drillContent.rows"
-:key="r.label" :label="r.label">
-          {{ r.value }}
-        </ElDescriptionsItem>
+    <ElDialog v-model="drillVisible" :title="drillContent?.title ?? '指标详情'" width="440px">
+      <ElDescriptions v-if="drillContent" :column="1" border>
+        <ElDescriptionsItem v-for="r in drillContent.rows" :key="r.label" :label="r.label">{{
+          r.value
+        }}</ElDescriptionsItem>
       </ElDescriptions>
     </ElDialog>
   </div>
@@ -564,24 +495,6 @@ min-width="120" align="right">
     }
   }
 }
-.time-search-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 16px;
-  padding: 14px 16px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-
-  &__label {
-    font-size: 14px;
-    font-weight: 600;
-    color: #475569;
-    white-space: nowrap;
-  }
-}
-
 .metric-chart {
   width: 100%;
   h4 {

@@ -1219,8 +1219,7 @@ onUnmounted(() => {
       'three-scene--panorama': visualMode === 'panorama',
     }"
   >
-    <div v-if="visualMode === 'default'"
-class="three-scene__data-panel">
+    <div v-if="visualMode === 'default'" class="three-scene__data-panel">
       <div class="three-scene__data-title">{{ XIANGJIABA_HYDRO.name }} · 实时水情</div>
       <div class="three-scene__data-row three-scene__data-row--main">
         <span>上游水位</span>
@@ -1241,10 +1240,8 @@ class="three-scene__data-panel">
       </div>
       <div class="three-scene__gauge">
         <div class="three-scene__gauge-track">
-          <div class="three-scene__gauge-fill"
-:style="{ height: gaugePct + '%' }" />
-          <div class="three-scene__gauge-marker"
-style="bottom: 60%" title="正常蓄水 380m" />
+          <div class="three-scene__gauge-fill" :style="{ height: gaugePct + '%' }" />
+          <div class="three-scene__gauge-marker" style="bottom: 60%" title="正常蓄水 380m" />
           <div
             class="three-scene__gauge-marker three-scene__gauge-marker--warn"
             style="bottom: 75%"
@@ -1283,14 +1280,10 @@ style="bottom: 60%" title="正常蓄水 380m" />
         aria-hidden="true"
       >
         <defs>
-          <linearGradient id="geoFlowGrad"
-x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%"
-stop-color="rgba(64,200,255,0.15)" />
-            <stop offset="45%"
-stop-color="rgba(64,200,255,0.75)" />
-            <stop offset="100%"
-stop-color="rgba(64,200,255,0.2)" />
+          <linearGradient id="geoFlowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="rgba(64,200,255,0.15)" />
+            <stop offset="45%" stop-color="rgba(64,200,255,0.75)" />
+            <stop offset="100%" stop-color="rgba(64,200,255,0.2)" />
           </linearGradient>
         </defs>
         <path
@@ -1317,17 +1310,14 @@ stop-color="rgba(64,200,255,0.2)" />
       </svg>
       <div class="three-scene__scan-sweep" />
     </div>
-    <div v-if="visualMode === 'twin' || visualMode === 'panorama'"
-class="three-scene__title-tag">
-      <div class="three-scene__title-ring"
-aria-hidden="true" />
+    <div v-if="visualMode === 'twin' || visualMode === 'panorama'" class="three-scene__title-tag">
+      <div class="three-scene__title-ring" aria-hidden="true" />
       <div>
         <strong>向家坝大坝</strong>
         <em>向家坝水电站 BIM 工程构件</em>
       </div>
     </div>
-    <div v-if="visualMode === 'twin' || visualMode === 'panorama'"
-class="three-scene__geo-tag">
+    <div v-if="visualMode === 'twin' || visualMode === 'panorama'" class="three-scene__geo-tag">
       <span class="three-scene__geo-tag-icon" />
       <div>
         <strong>四川省宜宾市 · 向家坝水电站</strong>

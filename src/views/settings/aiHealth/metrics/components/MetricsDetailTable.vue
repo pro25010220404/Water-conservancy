@@ -106,8 +106,7 @@ onMounted(() => {
     </div>
 
     <ElTable v-loading="loading" :data="data" border stripe style="width: 100%">
-      <ElTableColumn prop="hour"
-label="时间段" min-width="150" align="center" />
+      <ElTableColumn prop="hour" label="时间段" min-width="150" align="center" />
       <ElTableColumn prop="prediction_score" label="预测准确性得分" min-width="120" align="center">
         <template #default="scope">
           {{ ((scope.row as MetricsDetailItem).prediction_score * 100).toFixed(1) }}%

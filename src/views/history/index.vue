@@ -17,3 +17,12 @@
   }
 }
 </style>
+
+<style lang="scss">
+.history-shell > * {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+</style>

@@ -124,13 +124,8 @@ async function handleExportCSV() {
 </script>
 
 <template>
-  <ElDropdown trigger="click"
-:disabled="exporting">
-    <ElButton type="primary"
-:icon="Download" :loading="exporting"
->
-导出台账
-</ElButton>
+  <ElDropdown trigger="click" :disabled="exporting">
+    <ElButton type="primary" :icon="Download" :loading="exporting"> 导出台账 </ElButton>
     <template #dropdown>
       <ElDropdownMenu>
         <ElDropdownItem @click="handleExportExcel">

@@ -41,25 +41,23 @@ onUnmounted(() => clearInterval(t))
     <!-- KPI + 标题 -->
     <div class="kpis">
       <div class="kpi">
-        <span class="kpi__dot"
-style="background: #3b82f6"
-/><span class="kpi__l">闸门总数</span><span class="kpi__v">{{ gates.length }}<small> 扇</small></span>
+        <span class="kpi__dot" style="background: #3b82f6" /><span class="kpi__l">闸门总数</span
+        ><span class="kpi__v">{{ gates.length }}<small> 扇</small></span>
       </div>
       <div class="kpi">
-        <span class="kpi__dot"
-style="background: #22c55e"
-/><span class="kpi__l">开启中</span><span class="kpi__v">{{ gates.filter((g) => g.v > 0).length }}<small> 扇</small></span>
+        <span class="kpi__dot" style="background: #22c55e" /><span class="kpi__l">开启中</span
+        ><span class="kpi__v">{{ gates.filter((g) => g.v > 0).length }}<small> 扇</small></span>
       </div>
       <div class="kpi">
-        <span class="kpi__dot"
-style="background: #f59e0b"
-/><span class="kpi__l">平均开度</span><span class="kpi__v">{{ (gates.reduce((s, g) => s + g.v, 0) / gates.length).toFixed(1)
-        }}<small> %</small></span>
+        <span class="kpi__dot" style="background: #f59e0b" /><span class="kpi__l">平均开度</span
+        ><span class="kpi__v"
+          >{{ (gates.reduce((s, g) => s + g.v, 0) / gates.length).toFixed(1)
+          }}<small> %</small></span
+        >
       </div>
       <div class="kpi">
-        <span class="kpi__dot"
-style="background: #d1d5db"
-/><span class="kpi__l">告警</span><span class="kpi__v">0<small> 条</small></span>
+        <span class="kpi__dot" style="background: #d1d5db" /><span class="kpi__l">告警</span
+        ><span class="kpi__v">0<small> 条</small></span>
       </div>
     </div>
 
@@ -78,23 +76,16 @@ style="background: #d1d5db"
             <div class="diagram__dam-inner">
               <div class="diagram__slots">
                 <div v-for="g in gates.slice(0, 8)" :key="g.name" class="dslot">
-                  <div class="dslot__leaf"
-:style="{ height: 100 - g.v + '%' }" />
-                  <div class="dslot__water"
-:style="{ opacity: g.v / 100 }" />
+                  <div class="dslot__leaf" :style="{ height: 100 - g.v + '%' }" />
+                  <div class="dslot__water" :style="{ opacity: g.v / 100 }" />
                   <span class="dslot__lbl">{{ g.name }}</span>
                 </div>
               </div>
-              <div class="diagram__divider">
-                <span>中孔 / 底孔</span>
-              </div>
+              <div class="diagram__divider"><span>中孔 / 底孔</span></div>
               <div class="diagram__slots diagram__slots--sub">
-                <div v-for="g in gates.slice(8)"
-:key="g.name" class="dslot dslot--sub">
-                  <div class="dslot__leaf"
-:style="{ height: 100 - g.v + '%' }" />
-                  <div class="dslot__water"
-:style="{ opacity: g.v / 100 }" />
+                <div v-for="g in gates.slice(8)" :key="g.name" class="dslot dslot--sub">
+                  <div class="dslot__leaf" :style="{ height: 100 - g.v + '%' }" />
+                  <div class="dslot__water" :style="{ opacity: g.v / 100 }" />
                   <span class="dslot__lbl">{{ g.name }}</span>
                 </div>
               </div>
@@ -106,12 +97,9 @@ style="background: #d1d5db"
           </div>
         </div>
         <div class="diagram__legend">
-          <span><span class="leg-dot"
-style="background: #64748b" /> 闸门叶片</span>
-          <span><span class="leg-dot"
-style="background: #3b82f6" /> 过流区</span>
-          <span><span class="leg-dot"
-style="background: #22c55e" /> 正常</span>
+          <span><span class="leg-dot" style="background: #64748b" /> 闸门叶片</span>
+          <span><span class="leg-dot" style="background: #3b82f6" /> 过流区</span>
+          <span><span class="leg-dot" style="background: #22c55e" /> 正常</span>
         </div>
       </div>
 
@@ -128,11 +116,8 @@ style="background: #22c55e" /> 正常</span>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="g in gates"
-:key="g.name">
-              <td class="td-name">
-                {{ g.name }}
-              </td>
+            <tr v-for="g in gates" :key="g.name">
+              <td class="td-name">{{ g.name }}</td>
               <td class="td-val">{{ g.v }}%</td>
               <td>
                 <span class="td-st" :class="{ off: g.v === 0 }">{{
@@ -140,23 +125,20 @@ style="background: #22c55e" /> 正常</span>
                 }}</span>
               </td>
               <td>
-                <div class="td-bar">
-                  <div :style="{ width: g.v + '%' }" />
-                </div>
+                <div class="td-bar"><div :style="{ width: g.v + '%' }" /></div>
               </td>
             </tr>
           </tbody>
         </table>
 
-        <div class="panel__title"
-style="margin-top: 20px"
->
-操作记录
-</div>
+        <div class="panel__title" style="margin-top: 20px">操作记录</div>
         <div class="log">
-          <div v-for="l in logs"
-:key="l.time" class="log__row">
-            <span class="log__t">{{ l.time }}</span><b>{{ l.gate }}</b><span>{{ l.action }}</span><span class="log__d">{{ l.dur }}</span><span class="log__by">{{ l.by }}</span>
+          <div v-for="l in logs" :key="l.time" class="log__row">
+            <span class="log__t">{{ l.time }}</span
+            ><b>{{ l.gate }}</b
+            ><span>{{ l.action }}</span
+            ><span class="log__d">{{ l.dur }}</span
+            ><span class="log__by">{{ l.by }}</span>
           </div>
         </div>
       </div>
@@ -169,7 +151,7 @@ style="margin-top: 20px"
   height: calc(100vh - 56px);
   display: flex;
   flex-direction: column;
-  background: #f0f4f8;
+  background: #fff;
   overflow: hidden;
 }
 
@@ -354,7 +336,7 @@ style="margin-top: 20px"
   align-items: center;
   width: 64px;
   overflow: hidden;
-  background: #f8f9fb;
+  background: #fff;
   border: 1.5px solid #d5d9de;
   border-radius: 5px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);

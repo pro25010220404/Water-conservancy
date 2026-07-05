@@ -29,13 +29,10 @@ const dataSources: Record<string, string> = {
 </script>
 
 <template>
-  <div v-loading="loading"
-class="score-diff-table">
+  <div v-loading="loading" class="score-diff-table">
     <h3 class="diff-title">评分差异明细</h3>
-    <ElTable :data="data ?? []"
-border stripe style="width: 100%">
-      <ElTableColumn prop="dimension"
-label="评估维度" min-width="140" align="center" />
+    <ElTable :data="data ?? []" border stripe style="width: 100%">
+      <ElTableColumn prop="dimension" label="评估维度" min-width="140" align="center" />
       <ElTableColumn label="版本1" width="120" align="center">
         <template #default="scope">
           {{ ((scope.row as CompareResult['scoreDiff'][number]).v1 * 100).toFixed(1) }}%
@@ -61,11 +58,7 @@ label="评估维度" min-width="140" align="center" />
         </template>
       </ElTableColumn>
     </ElTable>
-    <div v-if="!data && !loading"
-class="table-empty"
->
-暂无对比数据
-</div>
+    <div v-if="!data && !loading" class="table-empty">暂无对比数据</div>
   </div>
 </template>
 

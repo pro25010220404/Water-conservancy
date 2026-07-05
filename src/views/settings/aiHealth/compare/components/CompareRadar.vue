@@ -108,16 +108,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-loading="loading"
-class="compare-radar">
-    <div ref="chartContainer"
-class="radar-container"
-/>
-    <div v-if="!data && !loading"
-class="radar-empty"
->
-请选择两个版本进行对比
-</div>
+  <div v-loading="loading" class="compare-radar">
+    <div ref="chartContainer" class="radar-container" />
+    <div v-if="!data && !loading" class="radar-empty">请选择两个版本进行对比</div>
   </div>
 </template>
 

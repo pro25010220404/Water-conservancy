@@ -295,64 +295,54 @@ onUnmounted(() => {
     <GlassPanel3D class="filter-panel">
       <div class="filter-grid">
         <div class="filter-item">
-          <label>告警级别</label><ElSelect
+          <label>告警级别</label
+          ><ElSelect
             v-model="filter.level"
             placeholder="全部"
             clearable
             @change="handleFilterChange"
-          >
-            <ElOption
+            ><ElOption
               v-for="o in ALARM_LEVEL_OPTIONS"
               :key="String(o.value)"
               :label="o.label"
               :value="o.value"
-            />
-          </ElSelect>
+          /></ElSelect>
         </div>
         <div class="filter-item">
-          <label>处理状态</label><ElSelect
+          <label>处理状态</label
+          ><ElSelect
             v-model="filter.status"
             placeholder="全部"
             clearable
             @change="handleFilterChange"
-          >
-            <ElOption
+            ><ElOption
               v-for="o in ALARM_STATUS_OPTIONS"
               :key="String(o.value)"
               :label="o.label"
               :value="o.value"
-            />
-          </ElSelect>
+          /></ElSelect>
         </div>
         <div class="filter-item">
-          <label>告警类型</label><ElSelect
-            v-model="filter.type"
-            placeholder="全部"
-            clearable
-            @change="handleFilterChange"
-          >
-            <ElOption
+          <label>告警类型</label
+          ><ElSelect v-model="filter.type" placeholder="全部" clearable @change="handleFilterChange"
+            ><ElOption
               v-for="o in ALARM_TYPE_OPTIONS"
               :key="String(o.value)"
               :label="o.label"
               :value="o.value"
-            />
-          </ElSelect>
+          /></ElSelect>
         </div>
         <div class="filter-item">
-          <label>时间范围</label><ElSelect
-v-model="timePreset"
-placeholder="全部" clearable @change="handleTimePreset">
-            <ElOption
+          <label>时间范围</label
+          ><ElSelect v-model="timePreset" placeholder="全部" clearable @change="handleTimePreset"
+            ><ElOption
               v-for="o in TIME_RANGE_OPTIONS"
               :key="o.value"
               :label="o.label"
               :value="o.value"
-            />
-          </ElSelect>
+          /></ElSelect>
         </div>
-        <div v-if="timePreset === 'custom'"
-class="filter-item filter-item--range">
+        <div v-if="timePreset === 'custom'" class="filter-item filter-item--range">
           <label>自定义时段</label>
           <ElDatePicker
             v-model="customRange"
@@ -364,7 +354,8 @@ class="filter-item filter-item--range">
           />
         </div>
         <div class="filter-item filter-item--wide">
-          <label>关键词</label><ElInput
+          <label>关键词</label
+          ><ElInput
             v-model="filter.keyword"
             placeholder="搜索告警内容或监测点位"
             clearable
@@ -374,66 +365,64 @@ class="filter-item filter-item--range">
           />
         </div>
         <div class="filter-actions">
-          <ElButton
-type="primary" :icon="Search" @click="handleFilterChange"> 查询 </ElButton>
-          <ElButton
-:icon="Refresh" @click="handleReset"> 重置 </ElButton>
+          <ElButton type="primary" :icon="Search" @click="handleFilterChange">查询</ElButton>
+          <ElButton :icon="Refresh" @click="handleReset">重置</ElButton>
           <ElButton
             :icon="soundEnabled ? VideoPlay : VideoPause"
             circle
             title="告警声音提示"
             @click="toggleSound"
           />
-          <span class="pending-badge">待处理 <strong>{{ pendingAlarmCount }}</strong></span>
+          <span class="pending-badge"
+            >待处理 <strong>{{ pendingAlarmCount }}</strong></span
+          >
         </div>
       </div>
     </GlassPanel3D>
 
     <!-- 告警表格 + 分页 -->
-    <GlassPanel3D title="告警列表"
-class="table-panel">
+    <GlassPanel3D title="告警列表" class="table-panel">
       <template #extra>
         <ElTooltip
           content="本列表仅含需处置的正式告警；短暂超限（&lt;30s）记入瞬时日志"
           placement="top"
         >
-          <ElButton
-link type="primary" size="small" @click="openExceedDialog"> 瞬时日志 </ElButton>
+          <ElButton link type="primary" size="small" @click="openExceedDialog">瞬时日志</ElButton>
         </ElTooltip>
       </template>
-      <div v-loading="loading" class="table-3d">
+      <div class="table-3d" v-loading="loading">
         <div class="table-3d__head">
-          <span>时间</span><span>级别</span><span>类型</span><span>内容</span><span>当前值/阈值</span><span>持续时长</span><span>状态</span><span>操作</span>
+          <span>时间</span><span>级别</span><span>类型</span><span>内容</span
+          ><span>当前值/阈值</span><span>持续时长</span><span>状态</span><span>操作</span>
         </div>
-        <div
-v-if="list.length === 0 && !loading" class="table-empty">暂无符合条件的告警记录</div>
-        <template v-for="row in list"
-:key="row.id">
+        <div v-if="list.length === 0 && !loading" class="table-empty">暂无符合条件的告警记录</div>
+        <template v-for="row in list" :key="row.id">
           <div
             class="table-3d__row"
             :class="{ expanded: expandedId === row.id }"
             @click="toggleExpand(row)"
           >
             <span class="mono">{{ formatTime(row.createdAt) }}</span>
-            <span><span class="level-badge"
-:class="levelClass(row.level)">{{
+            <span
+              ><span class="level-badge" :class="levelClass(row.level)">{{
                 ALARM_LEVEL_MAP[row.level]?.label
-            }}</span></span>
+              }}</span></span
+            >
             <span>{{ ALARM_TYPE_MAP[row.type]?.label }}</span>
             <span class="content">{{ row.content }}</span>
             <span class="mono val-threshold">{{ row.currentValue }} / {{ row.threshold }}</span>
             <span
               class="duration"
               :class="{ 'duration--formal': row.durationSec >= DEFAULT_EXCEED_WINDOW_SEC }"
-            >{{ row.durationSec }}s</span>
-            <span><span class="status-dot"
-:class="statusClass(row.status)" />{{
+              >{{ row.durationSec }}s</span
+            >
+            <span
+              ><span class="status-dot" :class="statusClass(row.status)" />{{
                 ALARM_STATUS_MAP[row.status]?.label
-            }}</span>
-            <span class="actions"
-@click.stop>
-              <template v-for="act in getAlarmActions(row.status)"
-:key="act.type">
+              }}</span
+            >
+            <span class="actions" @click.stop>
+              <template v-for="act in getAlarmActions(row.status)" :key="act.type">
                 <button
                   v-if="act.type !== 'detail'"
                   class="act-btn"
@@ -451,8 +440,7 @@ v-if="list.length === 0 && !loading" class="table-empty">暂无符合条件的�
               </template>
             </span>
           </div>
-          <div v-if="expandedId === row.id"
-class="table-3d__expand">
+          <div v-if="expandedId === row.id" class="table-3d__expand">
             <div class="expand-title">监测快照</div>
             <template v-if="row.snapshot">
               <div class="expand-grid">
@@ -460,11 +448,11 @@ class="table-3d__expand">
                 <span>下游水位</span><strong>{{ row.snapshot.downstreamLevel }} m</strong>
                 <span>流量</span><strong>{{ row.snapshot.flowRate }} m³/s</strong>
                 <span>闸门开度</span><strong>{{ row.snapshot.gateOpening }}%</strong>
-                <span>快照时间</span><strong class="mono">{{ formatTime(row.snapshot.recordedAt) }}</strong>
+                <span>快照时间</span
+                ><strong class="mono">{{ formatTime(row.snapshot.recordedAt) }}</strong>
               </div>
             </template>
-            <div
-v-else class="expand-empty">暂无监测快照</div>
+            <div v-else class="expand-empty">暂无监测快照</div>
           </div>
         </template>
       </div>
@@ -499,16 +487,15 @@ v-else class="expand-empty">暂无监测快照</div>
       <p class="exceed-dialog__hint">
         持续不足 {{ DEFAULT_EXCEED_WINDOW_SEC }} 秒的短暂超限，仅作记录、不触发告警
       </p>
-      <div v-loading="exceedLoading" class="exceed-table">
+      <div class="exceed-table" v-loading="exceedLoading">
         <div class="exceed-table__head">
-          <span>时间</span><span>监测点位</span><span>类型</span><span>当前值/阈值</span><span>持续时长</span>
+          <span>时间</span><span>监测点位</span><span>类型</span><span>当前值/阈值</span
+          ><span>持续时长</span>
         </div>
-        <div v-if="exceedLogs.length === 0 && !exceedLoading"
-class="table-empty">
+        <div v-if="exceedLogs.length === 0 && !exceedLoading" class="table-empty">
           暂无瞬时超限记录
         </div>
-        <div v-for="log in exceedLogs"
-:key="log.id" class="exceed-table__row">
+        <div v-for="log in exceedLogs" :key="log.id" class="exceed-table__row">
           <span class="mono">{{ formatTime(log.createdAt) }}</span>
           <span>{{ log.point }}</span>
           <span>{{ ALARM_TYPE_MAP[log.type]?.label }}</span>
@@ -519,132 +506,112 @@ class="table-empty">
     </ElDialog>
 
     <!-- 确认弹窗 -->
-    <ElDialog v-model="confirmVisible"
-title="确认告警" width="540px" class="glass-dialog">
-      <ElDescriptions v-if="confirmRow"
-:column="1" border size="small">
-        <ElDescriptionsItem label="级别">
-          <span class="level-badge" :class="levelClass(confirmRow.level)">{{
+    <ElDialog v-model="confirmVisible" title="确认告警" width="540px" class="glass-dialog">
+      <ElDescriptions v-if="confirmRow" :column="1" border size="small">
+        <ElDescriptionsItem label="级别"
+          ><span class="level-badge" :class="levelClass(confirmRow.level)">{{
             ALARM_LEVEL_MAP[confirmRow.level]?.label
-          }}</span>
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="类型">
-          {{ ALARM_TYPE_MAP[confirmRow.type]?.label }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="内容">
-          {{ confirmRow.content }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="当前值/阈值">
-          {{ confirmRow.currentValue }} / {{ confirmRow.threshold }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="触发时间">
-          {{ formatTime(confirmRow.createdAt) }}
-        </ElDescriptionsItem>
+          }}</span></ElDescriptionsItem
+        >
+        <ElDescriptionsItem label="类型">{{
+          ALARM_TYPE_MAP[confirmRow.type]?.label
+        }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="内容">{{ confirmRow.content }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="当前值/阈值"
+          >{{ confirmRow.currentValue }} / {{ confirmRow.threshold }}</ElDescriptionsItem
+        >
+        <ElDescriptionsItem label="触发时间">{{
+          formatTime(confirmRow.createdAt)
+        }}</ElDescriptionsItem>
         <template v-if="confirmRow.snapshot">
-          <ElDescriptionsItem label="快照水位">
-            上游 {{ confirmRow.snapshot.upstreamLevel }} m / 下游
-            {{ confirmRow.snapshot.downstreamLevel }} m
-          </ElDescriptionsItem>
-          <ElDescriptionsItem label="快照流量/开度">
-            {{ confirmRow.snapshot.flowRate }} m³/s · 开度 {{ confirmRow.snapshot.gateOpening }}%
-          </ElDescriptionsItem>
+          <ElDescriptionsItem label="快照水位"
+            >上游 {{ confirmRow.snapshot.upstreamLevel }} m / 下游
+            {{ confirmRow.snapshot.downstreamLevel }} m</ElDescriptionsItem
+          >
+          <ElDescriptionsItem label="快照流量/开度"
+            >{{ confirmRow.snapshot.flowRate }} m³/s · 开度
+            {{ confirmRow.snapshot.gateOpening }}%</ElDescriptionsItem
+          >
         </template>
       </ElDescriptions>
-      <template #footer>
-        <ElButton @click="confirmVisible = false"> 取消 </ElButton
-        ><ElButton type="primary" @click="submitConfirm"> 确认已知悉 </ElButton>
-      </template>
+      <template #footer
+        ><ElButton @click="confirmVisible = false">取消</ElButton
+        ><ElButton type="primary" @click="submitConfirm">确认已知悉</ElButton></template
+      >
     </ElDialog>
 
     <!-- 处置弹窗 -->
-    <ElDialog v-model="handleVisible"
-title="处置告警" width="540px">
-      <ElDescriptions v-if="handleRow"
-:column="1" border size="small" class="handle-preview">
-        <ElDescriptionsItem label="告警内容">
-          {{ handleRow.content }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="监测点位">
-          {{ handleRow.pointName }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="当前值/阈值">
-          {{ handleRow.currentValue }} / {{ handleRow.threshold }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="持续时长"> {{ handleRow.durationSec }}s </ElDescriptionsItem>
+    <ElDialog v-model="handleVisible" title="处置告警" width="540px">
+      <ElDescriptions v-if="handleRow" :column="1" border size="small" class="handle-preview">
+        <ElDescriptionsItem label="告警内容">{{ handleRow.content }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="监测点位">{{ handleRow.pointName }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="当前值/阈值"
+          >{{ handleRow.currentValue }} / {{ handleRow.threshold }}</ElDescriptionsItem
+        >
+        <ElDescriptionsItem label="持续时长">{{ handleRow.durationSec }}s</ElDescriptionsItem>
       </ElDescriptions>
-      <ElForm label-position="top">
-        <ElFormItem label="处置措施" required>
-          <ElInput
+      <ElForm label-position="top"
+        ><ElFormItem label="处置措施" required
+          ><ElInput
             v-model="remark"
             type="textarea"
             :rows="4"
             :placeholder="`处置措施（${REMARK_MIN_LENGTH}~${REMARK_MAX_LENGTH}字）`"
             :maxlength="REMARK_MAX_LENGTH"
-            show-word-limit
-          />
-        </ElFormItem>
-      </ElForm>
-      <template #footer>
-        <ElButton @click="handleVisible = false"> 取消 </ElButton
-        ><ElButton type="primary" @click="submitHandle"> 提交处置 </ElButton>
-      </template>
+            show-word-limit /></ElFormItem
+      ></ElForm>
+      <template #footer
+        ><ElButton @click="handleVisible = false">取消</ElButton
+        ><ElButton type="primary" @click="submitHandle">提交处置</ElButton></template
+      >
     </ElDialog>
 
     <!-- 已处置详情 -->
-    <ElDialog v-model="detailVisible"
-title="告警详情" width="560px">
-      <ElDescriptions v-if="detailRow"
-:column="1" border size="small">
-        <ElDescriptionsItem label="级别">
-          <span class="level-badge" :class="levelClass(detailRow.level)">{{
+    <ElDialog v-model="detailVisible" title="告警详情" width="560px">
+      <ElDescriptions v-if="detailRow" :column="1" border size="small">
+        <ElDescriptionsItem label="级别"
+          ><span class="level-badge" :class="levelClass(detailRow.level)">{{
             ALARM_LEVEL_MAP[detailRow.level]?.label
-          }}</span>
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="类型">
-          {{ ALARM_TYPE_MAP[detailRow.type]?.label }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="监测点位">
-          {{ detailRow.pointName }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="内容">
-          {{ detailRow.content }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="当前值/阈值">
-          {{ detailRow.currentValue }} / {{ detailRow.threshold }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="持续时长"> {{ detailRow.durationSec }}s </ElDescriptionsItem>
-        <ElDescriptionsItem label="状态">
-          <span class="status-dot" :class="statusClass(detailRow.status)" />{{
+          }}</span></ElDescriptionsItem
+        >
+        <ElDescriptionsItem label="类型">{{
+          ALARM_TYPE_MAP[detailRow.type]?.label
+        }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="监测点位">{{ detailRow.pointName }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="内容">{{ detailRow.content }}</ElDescriptionsItem>
+        <ElDescriptionsItem label="当前值/阈值"
+          >{{ detailRow.currentValue }} / {{ detailRow.threshold }}</ElDescriptionsItem
+        >
+        <ElDescriptionsItem label="持续时长">{{ detailRow.durationSec }}s</ElDescriptionsItem>
+        <ElDescriptionsItem label="状态"
+          ><span class="status-dot" :class="statusClass(detailRow.status)" />{{
             ALARM_STATUS_MAP[detailRow.status]?.label
-          }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem label="触发时间">
-          {{ formatTime(detailRow.createdAt) }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem v-if="detailRow.confirmedByName"
-label="确认人">
-          {{ detailRow.confirmedByName }} ·
-          {{ detailRow.confirmedAt ? formatTime(detailRow.confirmedAt) : '' }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem v-if="detailRow.handledByName"
-label="处置人">
-          {{ detailRow.handledByName }} ·
-          {{ detailRow.handledAt ? formatTime(detailRow.handledAt) : '' }}
-        </ElDescriptionsItem>
-        <ElDescriptionsItem v-if="detailRow.remark"
-label="处置备注">
-          {{ detailRow.remark }}
-        </ElDescriptionsItem>
+          }}</ElDescriptionsItem
+        >
+        <ElDescriptionsItem label="触发时间">{{
+          formatTime(detailRow.createdAt)
+        }}</ElDescriptionsItem>
+        <ElDescriptionsItem v-if="detailRow.confirmedByName" label="确认人"
+          >{{ detailRow.confirmedByName }} ·
+          {{ detailRow.confirmedAt ? formatTime(detailRow.confirmedAt) : '' }}</ElDescriptionsItem
+        >
+        <ElDescriptionsItem v-if="detailRow.handledByName" label="处置人"
+          >{{ detailRow.handledByName }} ·
+          {{ detailRow.handledAt ? formatTime(detailRow.handledAt) : '' }}</ElDescriptionsItem
+        >
+        <ElDescriptionsItem v-if="detailRow.remark" label="处置备注">{{
+          detailRow.remark
+        }}</ElDescriptionsItem>
         <template v-if="detailRow.type === 'MODEL_HEALTH_DEGRADED' && physicsGuardCtx">
-          <ElDescriptionsItem label="关联配置版本">
-            v{{ physicsGuardCtx.config_version }}（{{
+          <ElDescriptionsItem label="关联配置版本"
+            >v{{ physicsGuardCtx.config_version }}（{{
               physicsGuardCtx.sync_status === 'synced' ? '边缘已同步' : '待同步'
-            }}）
-          </ElDescriptionsItem>
-          <ElDescriptionsItem label="L3 熔断阈值">
-            置信度 ≥ {{ physicsGuardCtx.fusion_l3_confidence }} · 风险概率 &lt;
-            {{ physicsGuardCtx.fusion_l3_risk }}
-          </ElDescriptionsItem>
+            }}）</ElDescriptionsItem
+          >
+          <ElDescriptionsItem label="L3 熔断阈值"
+            >置信度 ≥ {{ physicsGuardCtx.fusion_l3_confidence }} · 风险概率 &lt;
+            {{ physicsGuardCtx.fusion_l3_risk }}</ElDescriptionsItem
+          >
           <ElDescriptionsItem label="处置建议">
             <div class="alarm-actions">
               <span>核查模型健康度后，可回滚物理防护配置或切换 L1 人工模式</span>
@@ -654,38 +621,34 @@ label="处置备注">
                   type="primary"
                   link
                   @click="router.push('/settings/ai/metrics')"
+                  >模型健康度</ElButton
                 >
-                  模型健康度
-                </ElButton>
-                <ElButton size="small"
-type="primary" link @click="router.push('/dispatch')">
-                  调度决策
-                </ElButton>
+                <ElButton size="small" type="primary" link @click="router.push('/dispatch')"
+                  >调度决策</ElButton
+                >
                 <ElButton
                   size="small"
                   type="primary"
                   link
-                  @click="
-                    router.push({
+                  @click="router.push({
                       path: '/settings',
                       query: { tab: 'physics-guard-history', reservoir_id: '1' },
-                    })
-                  "
+                    })"
+                  >配置回滚</ElButton
                 >
-                  配置回滚
-                </ElButton>
               </div>
             </div>
           </ElDescriptionsItem>
         </template>
         <template v-if="detailRow.snapshot">
-          <ElDescriptionsItem label="快照水位">
-            上游 {{ detailRow.snapshot.upstreamLevel }} m / 下游
-            {{ detailRow.snapshot.downstreamLevel }} m
-          </ElDescriptionsItem>
-          <ElDescriptionsItem label="快照流量/开度">
-            {{ detailRow.snapshot.flowRate }} m³/s · 开度 {{ detailRow.snapshot.gateOpening }}%
-          </ElDescriptionsItem>
+          <ElDescriptionsItem label="快照水位"
+            >上游 {{ detailRow.snapshot.upstreamLevel }} m / 下游
+            {{ detailRow.snapshot.downstreamLevel }} m</ElDescriptionsItem
+          >
+          <ElDescriptionsItem label="快照流量/开度"
+            >{{ detailRow.snapshot.flowRate }} m³/s · 开度
+            {{ detailRow.snapshot.gateOpening }}%</ElDescriptionsItem
+          >
         </template>
       </ElDescriptions>
     </ElDialog>
@@ -693,6 +656,7 @@ type="primary" link @click="router.push('/dispatch')">
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 @use '@/assets/styles/cockpit.scss' as *;
 
 .alarm-page {

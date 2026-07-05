@@ -116,24 +116,18 @@ watch(
 
 <template>
   <div class="maintenance-logs">
-    <ElTable v-loading="loading"
-:data="list" stripe size="small" class="maintenance-logs__table"
->
-      <ElTableColumn prop="time"
-label="时间" width="160" />
+    <ElTable v-loading="loading" :data="list" stripe size="small" class="maintenance-logs__table">
+      <ElTableColumn prop="time" label="时间" width="160" />
       <ElTableColumn prop="type" label="操作类型" width="120">
         <template #default="scope">
           {{ getTypeLabel(scope.row.type as string) }}
         </template>
       </ElTableColumn>
-      <ElTableColumn prop="content"
-label="操作内容" min-width="220" show-overflow-tooltip />
-      <ElTableColumn prop="operator"
-label="操作人" width="100" />
+      <ElTableColumn prop="content" label="操作内容" min-width="220" show-overflow-tooltip />
+      <ElTableColumn prop="operator" label="操作人" width="100" />
       <ElTableColumn prop="result" label="操作结果" width="90">
         <template #default="scope">
-          <ElTag :type="getResultType(scope.row.result as number)"
-size="small" disable-transitions>
+          <ElTag :type="getResultType(scope.row.result as number)" size="small" disable-transitions>
             {{ getResultLabel(scope.row.result as number) }}
           </ElTag>
         </template>

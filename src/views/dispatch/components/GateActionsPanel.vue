@@ -34,44 +34,36 @@ onMounted(load)
         style="width: 220px"
         @keyup.enter="load"
       />
-      <ElButton @click="load"> 查询 </ElButton>
+      <ElButton @click="load">查询</ElButton>
     </div>
-    <ElTable v-loading="loading"
-:data="list" stripe border class="gate-actions-panel__table">
-      <ElTableColumn prop="acted_at"
-label="动作时间" min-width="180" />
-      <ElTableColumn label="设备"
-min-width="90">
-        <template #default="{ row }"> {{ (row as GateAction).equipment_id }}#闸 </template>
+    <ElTable v-loading="loading" :data="list" stripe border class="gate-actions-panel__table">
+      <ElTableColumn prop="acted_at" label="动作时间" min-width="180" />
+      <ElTableColumn label="设备" min-width="90">
+        <template #default="{ row }">{{ (row as GateAction).equipment_id }}#闸</template>
       </ElTableColumn>
-      <ElTableColumn label="开度变化"
-min-width="150">
-        <template #default="{ row }">
-          {{ (row as GateAction).previous_opening }}% → {{ (row as GateAction).actual_opening }}%
-        </template>
+      <ElTableColumn label="开度变化" min-width="150">
+        <template #default="{ row }"
+          >{{ (row as GateAction).previous_opening }}% →
+          {{ (row as GateAction).actual_opening }}%</template
+        >
       </ElTableColumn>
-      <ElTableColumn label="来源"
-min-width="120">
+      <ElTableColumn label="来源" min-width="120">
         <template #default="{ row }">
           {{
             ACTION_SOURCE_MAP[(row as GateAction).action_source] ??
-              (row as GateAction).action_source
+            (row as GateAction).action_source
           }}
         </template>
       </ElTableColumn>
-      <ElTableColumn label="互锁标记"
-min-width="160">
+      <ElTableColumn label="互锁标记" min-width="160">
         <template #default="{ row }">
-          <ElTag v-if="(row as GateAction).interlock_rule_name"
-type="warning" effect="plain">
+          <ElTag v-if="(row as GateAction).interlock_rule_name" type="warning" effect="plain">
             {{ (row as GateAction).interlock_rule_name }}
           </ElTag>
-          <span v-else
-class="muted">—</span>
+          <span v-else class="muted">—</span>
         </template>
       </ElTableColumn>
-      <ElTableColumn prop="duration_ms"
-label="耗时(ms)" min-width="110" align="right" />
+      <ElTableColumn prop="duration_ms" label="耗时(ms)" min-width="110" align="right" />
     </ElTable>
   </div>
 </template>

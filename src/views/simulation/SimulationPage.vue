@@ -760,6 +760,7 @@ v-model="reviewDetailVisible" title="历史故障复盘详情" width="720px">
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/text-mixins.scss' as *;
 @use '@/assets/styles/cockpit.scss' as *;
 
 .sim-page--twin.sim-page--sky {
