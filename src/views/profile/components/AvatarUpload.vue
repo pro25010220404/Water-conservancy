@@ -4,7 +4,7 @@
 // ============================================================
 import { ref, watch } from 'vue'
 import { ElAvatar, ElUpload, ElProgress, ElMessage } from 'element-plus'
-import type { UploadFile, UploadRawFile } from 'element-plus'
+import type { UploadFile, UploadRawFile, UploadRequestOptions } from 'element-plus'
 import { uploadAvatar } from '@/api/profile'
 import { AVATAR_MAX_SIZE, AVATAR_ACCEPT } from '@/constants/profile'
 
@@ -23,7 +23,6 @@ const emit = defineEmits<{
 const previewUrl = ref<string>(props.currentAvatar || '')
 const uploading = ref(false)
 const uploadProgress = ref(0)
-const uploadRef = ref<InstanceType<typeof ElUpload>>()
 
 // ── 外部同步 ──
 
@@ -64,12 +63,7 @@ function onFileChange(file: UploadFile) {
 }
 
 /** 自定义上传 */
-async function customUpload(options: {
-  file: UploadRawFile
-  onProgress: (e: { percent: number }) => void
-  onSuccess: (res: unknown) => void
-  onError: (err: Error) => void
-}) {
+async function customUpload(options: UploadRequestOptions) {
   uploading.value = true
   uploadProgress.value = 0
 
@@ -130,7 +124,6 @@ async function customUpload(options: {
     <!-- 上传区域 -->
     <div class="avatar-upload__action">
       <ElUpload
-        ref="uploadRef"
         drag
         action="#"
         :accept="AVATAR_ACCEPT"

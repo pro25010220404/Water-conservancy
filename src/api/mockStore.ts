@@ -6,15 +6,20 @@ import type {
   AlarmExceedLog,
   AlarmFilterParams,
   AlarmStatsResult,
+  AlarmPushMessage,
 } from '@/types/alarm'
 import { ALARM_TYPE_MAP } from '@/constants/alarm'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import { createAlarmSeed, createExceedLogSeed } from './mock/alarmSeed'
+import { gateaiSharedStore } from './gateaiSharedStore'
 import type {
   DispatchStatus,
   DecisionDetail,
   PredictionData,
   DispatchRecord,
+  PhysicsValidation,
+  PhysicsGuardSummary,
+  GateAction,
 } from '@/types/dispatch'
 import type {
   SimulationRealtimeData,
@@ -107,6 +112,7 @@ function ensureAlarmStore() {
 }
 
 const exceedLogs: AlarmExceedLog[] = createExceedLogSeed(nowIso)
+let alarmPushSeq = 0
 
 // ---------- 调度 ----------
 type AutoLevel = 1 | 2 | 3
@@ -121,6 +127,34 @@ let dispatchStatus: DispatchStatus = {
   lastDispatchAt: nowIso(30),
   isExecuting: false,
   executingTarget: null,
+}
+
+const MOCK_PHYSICS_VALIDATION: PhysicsValidation = {
+  passed: true,
+  physics_violation_m: 0.12,
+  physics_correction_steps: 0,
+  trend_direction: 'match',
+  risk_level: 'safe',
+  risk_probability: 0.08,
+  shadow_levels: [380.2, 380.3, 380.5],
+  command_smoothed: false,
+  smooth_reason: '',
+  safety_overridden: false,
+  safety_override_reason: '',
+  decision_level: 'L2_SUGGEST',
+  gate_limit_touched: false,
+  rate_exceeded: false,
+  interlock: {
+    triggered: false,
+    rules: [],
+    reason: '',
+  },
+  contribution: {
+    prediction: 0.01,
+    decision: 0.02,
+    compliance: 0.01,
+    overall: 0.04,
+  },
 }
 
 const decisionBase: DecisionDetail = {
@@ -183,7 +217,7 @@ const decisionBase: DecisionDetail = {
   ],
   weights_used: { power_weight: 0.4, safety_weight: 0.35, ecology_weight: 0.25 },
   reward_score: 0.87,
-  physics_validation: null,
+  physics_validation: MOCK_PHYSICS_VALIDATION,
   execution_status: 'pending',
   executed_opening: null,
   actual_level_after: null,
@@ -214,7 +248,7 @@ const dispatchRecords: DispatchRecord[] = [
     confidence: 87,
     risk_rank: 1,
     execution_status: 'executed',
-    physics_validation: null,
+    physics_validation: MOCK_PHYSICS_VALIDATION,
     action: '采纳调度建议',
     operator_name: '张调度',
     snapshot: buildRecordSnapshot(52, 87),
@@ -240,7 +274,10 @@ const dispatchRecords: DispatchRecord[] = [
     confidence: 91,
     risk_rank: 1,
     execution_status: 'executed',
-    physics_validation: null,
+    physics_validation: {
+      ...MOCK_PHYSICS_VALIDATION,
+      interlock: { triggered: false, rules: [], reason: '' },
+    },
     action: '自动执行',
     operator_name: '系统',
     snapshot: buildRecordSnapshot(48, 91),
@@ -659,7 +696,7 @@ const models: AiModel[] = [
     version: 'v2.1.0',
     filePath: '/models/lstm_v210.pt',
     status: 'active',
-    metrics: { mae: 0.042, rmse: 0.068, accuracy: 94.2 },
+    metrics: { mae: 0.042, rmse: 0.068, accuracy: 94.2, overallScore: 0.88, healthGrade: 'A' },
     remark: '向家坝水位预测主模型',
     createdAt: nowIso(43200),
     activatedAt: nowIso(1440),
@@ -670,7 +707,7 @@ const models: AiModel[] = [
     version: 'v2.3.1',
     filePath: '/models/dqn_v231.pt',
     status: 'active',
-    metrics: { mae: 0.035, accuracy: 91.8 },
+    metrics: { mae: 0.035, accuracy: 91.8, overallScore: 0.82, healthGrade: 'A' },
     remark: '闸门调度决策模型',
     createdAt: nowIso(21600),
     activatedAt: nowIso(720),
@@ -681,8 +718,8 @@ const models: AiModel[] = [
     version: 'v2.0.5',
     filePath: '/models/lstm_v205.pt',
     status: 'inactive',
-    metrics: { mae: 0.055, rmse: 0.082, accuracy: 89.5 },
-    remark: '上一版本',
+    metrics: { mae: 0.055, rmse: 0.082, accuracy: 89.5, overallScore: 0.72, healthGrade: 'B' },
+    remark: '上一版本（可回退）',
     createdAt: nowIso(86400),
     activatedAt: null,
   },
@@ -858,7 +895,7 @@ function ok<T>(data: T) {
 }
 
 function filterAlarms(params: AlarmFilterParams) {
-  let list = [...alarmStore]
+  let list = alarmStore.filter((a) => a.durationSec >= 30)
   if (params.level) list = list.filter((a) => a.level === params.level)
   if (params.status) list = list.filter((a) => a.status === params.status)
   if (params.type) list = list.filter((a) => a.type === params.type)
@@ -890,6 +927,14 @@ function todayStartMs() {
   d.setHours(0, 0, 0, 0)
   return d.getTime()
 }
+
+// ---------- 闸门动作历史（含互锁标记）----------
+const gateActions: GateAction[] = [
+  { id: 1, equipment_id: 1, previous_opening: 60, target_opening: 50, actual_opening: 50, action_type: 'maintain', action_source: 'dqn_auto', duration_ms: 12000, is_smoothed: 1, acted_at: new Date(Date.now() - 7200000).toISOString().replace('T', ' ').slice(0, 19), interlock_rule_id: 1, interlock_rule_name: '泄洪-发电互斥' },
+  { id: 2, equipment_id: 2, previous_opening: 25, target_opening: 30, actual_opening: 30, action_type: 'open', action_source: 'physics_corrected', duration_ms: 8000, is_smoothed: 0, acted_at: new Date(Date.now() - 10800000).toISOString().replace('T', ' ').slice(0, 19), interlock_rule_id: 3, interlock_rule_name: '对称性约束' },
+  { id: 3, equipment_id: 3, previous_opening: 40, target_opening: 42, actual_opening: 42, action_type: 'maintain', action_source: 'manual', duration_ms: 6000, is_smoothed: 0, acted_at: new Date(Date.now() - 14400000).toISOString().replace('T', ' ').slice(0, 19), interlock_rule_id: null, interlock_rule_name: null },
+  { id: 4, equipment_id: 1, previous_opening: 45, target_opening: 52, actual_opening: 52, action_type: 'open', action_source: 'dqn_auto', duration_ms: 10000, is_smoothed: 0, acted_at: new Date(Date.now() - 18000000).toISOString().replace('T', ' ').slice(0, 19), interlock_rule_id: null, interlock_rule_name: null },
+]
 
 // ---------- 导出 API 函数 ----------
 export const mockApi = {
@@ -980,8 +1025,114 @@ export const mockApi = {
     return delay(ok(stats))
   },
 
+  /** 模拟 WebSocket 推送：模型健康降级等新告警 */
+  pollAlarmPush() {
+    alarmPushSeq++
+    if (alarmPushSeq % 6 !== 0) return delay(ok(null as AlarmPushMessage | null))
+    const newAlarm: AlarmRecord = {
+      id: 9000 + alarmPushSeq,
+      level: alarmPushSeq % 12 === 0 ? 'URGENT' : 'IMPORTANT',
+      type: 'MODEL_HEALTH_DEGRADED',
+      content: alarmPushSeq % 12 === 0
+        ? '模型综合评分连续 3 次 D 级，边缘端已自动回退至上一代模型'
+        : `Physics-LSTM v5.1 健康度降至 ${alarmPushSeq % 12 === 0 ? 'D' : 'C'} 级，已切换 L1 人工模式`,
+      threshold: alarmPushSeq % 12 === 0 ? 0.40 : 0.55,
+      currentValue: alarmPushSeq % 12 === 0 ? 0.36 : 0.48,
+      durationSec: 32 + (alarmPushSeq % 10),
+      status: 'pending',
+      confirmedAt: null, confirmedBy: null, confirmedByName: null,
+      handledAt: null, handledBy: null, handledByName: null, remark: null,
+      createdAt: nowIso(0), pointName: 'AI 推理引擎', deviceType: 'sensor',
+      snapshot: {
+        upstreamLevel: stationLive.upstreamLevel,
+        downstreamLevel: stationLive.downstreamLevel,
+        flowRate: stationLive.inflowRate,
+        gateOpening: stationLive.gateOpening,
+        recordedAt: nowIso(0),
+      },
+    }
+    alarmStore = persistAlarmStore([newAlarm, ...alarmStore])
+    const msg: AlarmPushMessage = {
+      type: 'alarm_new',
+      data: newAlarm,
+      pendingCount: alarmStore.filter((a) => a.status === 'pending').length,
+    }
+    return delay(ok(msg))
+  },
+
   // 调度
+  getAutoExecuteBlockReason() {
+    if (dispatchStatus.mode !== 'auto') return '当前为手动模式'
+    if (dispatchStatus.isExecuting) return '指令执行中'
+    if (decisionBase.execution_status !== 'pending') return '当前建议已处理'
+    const target = decisionBase.recommended_opening
+    const current = dispatchStatus.gateOpening
+    if (target === current) return '建议开度与当前一致'
+    if (decisionBase.physics_validation?.interlock?.triggered) {
+      return `互锁触发：${decisionBase.physics_validation.interlock.reason}`
+    }
+    if (['danger', 'critical'].includes(decisionBase.physics_validation?.risk_level ?? '')) {
+      return '风险等级过高，等待人工介入'
+    }
+    const confidence = decisionBase.confidence
+    const delta = Math.abs(target - current)
+    if (dispatchStatus.autoLevel === 1) return 'L1 仅建议，需人工确认'
+    if (dispatchStatus.autoLevel === 2) {
+      if (confidence < 80) return `置信度 ${confidence}% 不足 80%，降级为仅建议`
+      if (delta > 10) return `开度变化 ${delta}% 超过 10%，降级为仅建议`
+    }
+    return null
+  },
+
+  tryAutoExecute() {
+    const blockReason = this.getAutoExecuteBlockReason()
+    if (blockReason) return { executed: false, message: blockReason }
+    const target = decisionBase.recommended_opening
+    const level = dispatchStatus.autoLevel
+    const currentOpening = dispatchStatus.gateOpening
+    const modeLabel = `L${level}` as 'L1' | 'L2' | 'L3'
+    decisionBase.decision_mode = modeLabel
+    if (decisionBase.physics_validation) {
+      decisionBase.physics_validation.decision_level =
+        level === 3 ? 'L3_AUTO' : level === 2 ? 'L2_SUGGEST' : 'L1_MANUAL'
+    }
+    dispatchStatus.isExecuting = true
+    dispatchStatus.executingTarget = target
+    dispatchStatus.lastDispatchAt = nowIso(0)
+    setTimeout(() => {
+      dispatchStatus.gateOpening = target
+      stationLive.gateOpening = target
+      simState.currentOpening = target
+      decisionBase.current_opening = target
+      decisionBase.executed_opening = target
+      decisionBase.execution_status = 'executed'
+      dispatchStatus.isExecuting = false
+      dispatchStatus.executingTarget = null
+    }, 4000)
+    dispatchRecords.unshift({
+      id: Date.now(),
+      decision_time: nowIso(0),
+      decision_mode: modeLabel,
+      recommended_opening: target,
+      confidence: decisionBase.confidence,
+      risk_rank: decisionBase.risk_rank,
+      execution_status: 'executed',
+      physics_validation: decisionBase.physics_validation,
+      action: level === 3 ? '自动执行' : '半自动执行',
+      operator_name: '系统',
+      snapshot: buildRecordSnapshot(target, decisionBase.confidence),
+    })
+    if (dispatchRecords.length > 100) dispatchRecords.pop()
+    return {
+      executed: true,
+      message: level === 3
+        ? `L3 全自动：开度 ${currentOpening} → ${target}% 已自动下发`
+        : `L2 半自动：开度 ${currentOpening} → ${target}% 已自动下发`,
+    }
+  },
+
   getDispatchStatus() {
+    this.tryAutoExecute()
     return delay(ok({ ...dispatchStatus }))
   },
 
@@ -1115,14 +1266,19 @@ export const mockApi = {
 
   changeAutoLevel(params: { level: AutoLevel }) {
     dispatchStatus.autoLevel = params.level
-    return delay(ok(null))
+    const result = this.tryAutoExecute()
+    return delay(ok(result))
   },
 
   acceptDecision() {
-    dispatchStatus.gateOpening = decisionBase.recommended_opening
+    const target = decisionBase.recommended_opening
+    dispatchStatus.gateOpening = target
     dispatchStatus.lastDispatchAt = nowIso(0)
-    stationLive.gateOpening = decisionBase.recommended_opening
-    simState.currentOpening = decisionBase.recommended_opening
+    stationLive.gateOpening = target
+    simState.currentOpening = target
+    decisionBase.current_opening = target
+    decisionBase.executed_opening = target
+    decisionBase.execution_status = 'executed'
     dispatchRecords.unshift({
       id: Date.now(),
       decision_time: nowIso(0),
@@ -1156,6 +1312,28 @@ export const mockApi = {
           String(r.confidence),
         ),
       )
+    }
+    return delay(ok({ list, total: list.length, pageNum: 1, pageSize: list.length || 1 }))
+  },
+
+  getPhysicsGuardSummary() {
+    return delay(ok(gateaiSharedStore.getPhysicsSummary(1) as PhysicsGuardSummary))
+  },
+
+  getPhysicsGuardHistory() {
+    const list = gateaiSharedStore.getPhysicsHistory(1)
+    return delay(ok({ list, total: list.length }))
+  },
+
+  rollbackPhysicsGuardConfig(id: number) {
+    gateaiSharedStore.rollbackPhysics(1, id)
+    return delay(ok(gateaiSharedStore.getPhysicsSummary(1) as PhysicsGuardSummary))
+  },
+
+  getGateActions(params?: { keyword?: string }) {
+    let list = [...gateActions]
+    if (params?.keyword) {
+      list = list.filter((a) => fuzzyMatch(params.keyword!, a.interlock_rule_name ?? '', String(a.target_opening)))
     }
     return delay(ok({ list, total: list.length, pageNum: 1, pageSize: list.length || 1 }))
   },

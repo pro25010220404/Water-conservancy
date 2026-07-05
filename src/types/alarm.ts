@@ -17,6 +17,7 @@ export type AlarmType =
   | 'DEVICE_OFFLINE'
   | 'EXEC_TIMEOUT'
   | 'EXEC_FAIL'
+  | 'MODEL_HEALTH_DEGRADED'
 
 // ---------- 告警处理状态 ----------
 export type AlarmStatus = 'pending' | 'confirmed' | 'handled'

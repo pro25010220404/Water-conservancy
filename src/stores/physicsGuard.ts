@@ -3,7 +3,7 @@
 // 按需求文档 5.11 节结构
 // ============================================================
 import { defineStore } from 'pinia'
-import { ref, reactive } from 'vue'
+import { ref } from 'vue'
 
 export interface PhysicsGuardConfig {
   id: number

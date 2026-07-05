@@ -8,10 +8,18 @@ import { getThresholds, getWeights, getWeightHistory, getModels, getUsers } from
 import type {
   ThresholdRule,
   WeightConfig,
-  WeightHistoryItem,
   ModelInfo,
   SystemUser,
 } from '@/shared/types'
+
+export interface WeightHistoryItem {
+  id: number
+  power_weight: number
+  safety_weight: number
+  ecology_weight: number
+  operator: string
+  changed_at: string
+}
 
 export const useSettingsStore = defineStore('settings', () => {
   // ── Tab1: 告警阈值 ──
@@ -145,12 +153,3 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 })
 
-// 权重历史项类型（未在 shared/types 中定义，作为补充）
-export interface WeightHistoryItem {
-  id: number
-  power_weight: number
-  safety_weight: number
-  ecology_weight: number
-  operator: string
-  changed_at: string
-}

@@ -12,11 +12,13 @@ import type {
   SimulationScene, SimulationRealtimeData,
   AiModel, SimulationReport, FaultReview,
 } from '@/types/simulation'
+import type { PhysicsGuardSummary } from '@/types/dispatch'
 
 const props = defineProps<{
   activeTab: SimulationTab
   simScene: SimulationScene
   simStatus: SimulationRealtimeData
+  physicsGuard?: PhysicsGuardSummary | null
   models: AiModel[]
   reports: SimulationReport[]
   reviews: FaultReview[]
@@ -58,6 +60,14 @@ const filteredReviews = computed(() => {
   return props.reviews.filter((r) => fuzzyMatch(kw, r.faultType, r.impactScope, r.status))
 })
 const showSearch = computed(() => props.activeTab !== 'control')
+
+const HEALTH_GRADE_COLOR: Record<string, string> = {
+  S: '#16a34a', A: '#22c55e', B: '#f59e0b', C: '#f97316', D: '#dc2626',
+}
+
+function healthGradeColor(grade?: string) {
+  return HEALTH_GRADE_COLOR[grade ?? ''] ?? '#6b7280'
+}
 
 function formatDuration(sec: number) {
   const m = Math.floor(sec / 60)
@@ -112,6 +122,16 @@ function formatDuration(sec: number) {
             <dt>闸门开度</dt>
             <dd>{{ simStatus.currentOpening }}%</dd>
           </div>
+          <template v-if="physicsGuard">
+            <div class="summary-list__row">
+              <dt>防护配置</dt>
+              <dd>v{{ physicsGuard.config_version }}</dd>
+            </div>
+            <div class="summary-list__row">
+              <dt>L3 置信度阈值</dt>
+              <dd>{{ physicsGuard.fusion_l3_confidence }}</dd>
+            </div>
+          </template>
         </dl>
         <div v-if="simStatus.historyLevels.length" class="history-block">
           <h5>水位变化（最近）</h5>
@@ -128,16 +148,26 @@ function formatDuration(sec: number) {
         <div class="panel-actions">
           <ElButton type="primary" @click="emit('upload')">导入模型</ElButton>
         </div>
+        <p class="hint-text">支持 LSTM / DQN 模型导入与在线训练，健康等级来自三维评判体系。</p>
         <ElEmpty v-if="!filteredModels.length && !modelLoading" description="暂无模型，请先导入" />
         <ul v-else class="entity-list">
           <li v-for="m in filteredModels" :key="m.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ m.type }} {{ m.version }}</strong>
-              <ElTag :color="MODEL_STATUS_MAP[m.status]?.color" effect="dark">
-                {{ MODEL_STATUS_MAP[m.status]?.label }}
-              </ElTag>
+              <div class="entity-list__tags">
+                <ElTag v-if="m.metrics?.healthGrade" :color="healthGradeColor(m.metrics.healthGrade)" effect="dark" size="small">
+                  健康 {{ m.metrics.healthGrade }}
+                </ElTag>
+                <ElTag :color="MODEL_STATUS_MAP[m.status]?.color" effect="dark" size="small">
+                  {{ MODEL_STATUS_MAP[m.status]?.label }}
+                </ElTag>
+              </div>
             </div>
-            <div class="entity-list__meta">{{ m.createdAt }}</div>
+            <div class="entity-list__meta">
+              {{ m.createdAt }}
+              <template v-if="m.metrics?.overallScore != null"> · 综合分 {{ (m.metrics.overallScore * 100).toFixed(0) }}</template>
+            </div>
+            <p v-if="m.remark" class="entity-list__desc">{{ m.remark }}</p>
             <div class="entity-list__actions">
               <ElButton v-if="m.status !== 'active'" link type="primary" @click="emit('activate', m.id)">激活</ElButton>
               <ElButton link type="primary" @click="emit('train', m.id)">训练</ElButton>
@@ -148,9 +178,10 @@ function formatDuration(sec: number) {
 
       <template v-else-if="activeTab === 'report'">
         <div class="panel-actions">
-          <ElButton type="primary" @click="emit('generate')">生成报告</ElButton>
+          <ElButton type="primary" @click="emit('generate')">生成方案评估报告</ElButton>
         </div>
-        <ElEmpty v-if="!filteredReports.length && !reportLoading" description="暂无评估报告" />
+        <p class="hint-text">基于仿真运行结果自动生成方案评估报告。</p>
+        <ElEmpty v-if="!filteredReports.length && !reportLoading" description="暂无方案评估报告" />
         <ul v-else class="entity-list">
           <li v-for="r in filteredReports" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
@@ -164,7 +195,8 @@ function formatDuration(sec: number) {
       </template>
 
       <template v-else>
-        <ElEmpty v-if="!filteredReviews.length && !reviewLoading" description="暂无故障复盘记录" />
+        <p class="hint-text">关联历史告警事件，复盘根因并一键导入仿真参数复现。</p>
+        <ElEmpty v-if="!filteredReviews.length && !reviewLoading" description="暂无历史故障复盘记录" />
         <ul v-else class="entity-list">
           <li v-for="r in filteredReviews" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
@@ -214,6 +246,16 @@ function formatDuration(sec: number) {
             <dt>闸门开度</dt>
             <dd>{{ simStatus.currentOpening }}%</dd>
           </div>
+          <template v-if="physicsGuard">
+            <div class="summary-list__row">
+              <dt>防护配置</dt>
+              <dd>v{{ physicsGuard.config_version }}</dd>
+            </div>
+            <div class="summary-list__row">
+              <dt>L3 置信度阈值</dt>
+              <dd>{{ physicsGuard.fusion_l3_confidence }}</dd>
+            </div>
+          </template>
         </dl>
         <div v-if="simStatus.historyLevels.length" class="history-block">
           <h5>水位变化（最近）</h5>
@@ -230,16 +272,26 @@ function formatDuration(sec: number) {
         <div class="panel-actions">
           <ElButton type="primary" @click="emit('upload')">导入模型</ElButton>
         </div>
+        <p class="hint-text">支持 LSTM / DQN 模型导入与在线训练，健康等级来自三维评判体系。</p>
         <ElEmpty v-if="!filteredModels.length && !modelLoading" description="暂无模型，请先导入" />
         <ul v-else class="entity-list">
           <li v-for="m in filteredModels" :key="m.id" class="entity-list__item">
             <div class="entity-list__main">
               <strong>{{ m.type }} {{ m.version }}</strong>
-              <ElTag :color="MODEL_STATUS_MAP[m.status]?.color" effect="dark">
-                {{ MODEL_STATUS_MAP[m.status]?.label }}
-              </ElTag>
+              <div class="entity-list__tags">
+                <ElTag v-if="m.metrics?.healthGrade" :color="healthGradeColor(m.metrics.healthGrade)" effect="dark" size="small">
+                  健康 {{ m.metrics.healthGrade }}
+                </ElTag>
+                <ElTag :color="MODEL_STATUS_MAP[m.status]?.color" effect="dark" size="small">
+                  {{ MODEL_STATUS_MAP[m.status]?.label }}
+                </ElTag>
+              </div>
             </div>
-            <div class="entity-list__meta">{{ m.createdAt }}</div>
+            <div class="entity-list__meta">
+              {{ m.createdAt }}
+              <template v-if="m.metrics?.overallScore != null"> · 综合分 {{ (m.metrics.overallScore * 100).toFixed(0) }}</template>
+            </div>
+            <p v-if="m.remark" class="entity-list__desc">{{ m.remark }}</p>
             <div class="entity-list__actions">
               <ElButton v-if="m.status !== 'active'" link type="primary" @click="emit('activate', m.id)">激活</ElButton>
               <ElButton link type="primary" @click="emit('train', m.id)">训练</ElButton>
@@ -250,9 +302,10 @@ function formatDuration(sec: number) {
 
       <template v-else-if="activeTab === 'report'">
         <div class="panel-actions">
-          <ElButton type="primary" @click="emit('generate')">生成报告</ElButton>
+          <ElButton type="primary" @click="emit('generate')">生成方案评估报告</ElButton>
         </div>
-        <ElEmpty v-if="!filteredReports.length && !reportLoading" description="暂无评估报告" />
+        <p class="hint-text">基于仿真运行结果自动生成方案评估报告。</p>
+        <ElEmpty v-if="!filteredReports.length && !reportLoading" description="暂无方案评估报告" />
         <ul v-else class="entity-list">
           <li v-for="r in filteredReports" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
@@ -266,7 +319,8 @@ function formatDuration(sec: number) {
       </template>
 
       <template v-else>
-        <ElEmpty v-if="!filteredReviews.length && !reviewLoading" description="暂无故障复盘记录" />
+        <p class="hint-text">关联历史告警事件，复盘根因并一键导入仿真参数复现。</p>
+        <ElEmpty v-if="!filteredReviews.length && !reviewLoading" description="暂无历史故障复盘记录" />
         <ul v-else class="entity-list">
           <li v-for="r in filteredReviews" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
@@ -505,6 +559,13 @@ function formatDuration(sec: number) {
     margin-bottom: 6px;
 
     strong { font-size: $cockpit-font-md; color: $cockpit-text; }
+  }
+
+  &__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
   }
 
   &__tag {

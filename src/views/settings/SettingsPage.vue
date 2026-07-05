@@ -4,7 +4,8 @@
 // ============================================================
 
 // ── 1. 外部依赖 ──
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ElTabs,
   ElTabPane,
@@ -28,6 +29,10 @@ import {
   ElMessageBox,
 } from 'element-plus'
 import { Plus, Upload, Search, Refresh, Warning } from '@element-plus/icons-vue'
+import ModelMetricsPanel from './components/ModelMetricsPanel.vue'
+import PhysicsGuardPanel from './components/PhysicsGuardPanel.vue'
+import PhysicsGuardHistoryPanel from './components/PhysicsGuardHistoryPanel.vue'
+import GateInterlockPanel from './components/GateInterlockPanel.vue'
 import { FORM_RULES } from '@/constants/validation'
 import { useOperationLog } from '@/composables/useOperationLog'
 import {
@@ -52,6 +57,13 @@ import {
 import type { ThresholdRule, WeightConfig, ModelInfo, SystemUser } from '@/shared/types'
 
 const { record: recordLog } = useOperationLog()
+const route = useRoute()
+const router = useRouter()
+
+const SETTINGS_TAB_NAMES = [
+  'thresholds', 'weights', 'models', 'ai-metrics',
+  'physics-guard', 'physics-guard-history', 'gate-interlock', 'users',
+] as const
 
 // ── 5. 响应式数据 ──
 const activeTab = ref('thresholds')
@@ -93,6 +105,13 @@ const modelStatusMap: Record<string, string> = {
   ready: '就绪',
   active: '激活中',
   deprecated: '已废弃',
+}
+const healthGradeColor: Record<string, string> = {
+  S: '#16a34a',
+  A: '#22c55e',
+  B: '#f59e0b',
+  C: '#f97316',
+  D: '#dc2626',
 }
 
 // 阈值指标映射
@@ -278,6 +297,8 @@ const MOCK_MODELS: ModelInfo[] = [
     size: 128,
     is_active: 1,
     deployed_nodes: 3,
+    overall_score: 0.88,
+    health_grade: 'A',
   },
   {
     id: 2,
@@ -291,6 +312,8 @@ const MOCK_MODELS: ModelInfo[] = [
     size: 256,
     is_active: 1,
     deployed_nodes: 3,
+    overall_score: 0.82,
+    health_grade: 'A',
   },
   {
     id: 3,
@@ -304,6 +327,8 @@ const MOCK_MODELS: ModelInfo[] = [
     size: 64,
     is_active: 0,
     deployed_nodes: 0,
+    overall_score: 0.72,
+    health_grade: 'B',
   },
   {
     id: 4,
@@ -317,19 +342,23 @@ const MOCK_MODELS: ModelInfo[] = [
     size: 240,
     is_active: 0,
     deployed_nodes: 0,
+    overall_score: 0.68,
+    health_grade: 'B',
   },
   {
     id: 5,
-    name: '通用水位预测',
-    version: 'v1.0.0',
-    type: 'general',
-    framework: 'tensorflow',
+    name: 'Physics-LSTM v5.1',
+    version: 'v5.1.0',
+    type: 'lstm_prediction',
+    framework: 'pytorch',
     status: 'validating',
     accuracy: 76.3,
     training_date: '2026-07-02',
     size: 96,
     is_active: 0,
     deployed_nodes: 0,
+    overall_score: 0.42,
+    health_grade: 'C',
   },
 ]
 const MOCK_USERS: SystemUser[] = [
@@ -728,8 +757,24 @@ async function handleDelete(row: SystemUser) {
   }
 }
 
+function applySettingsTabQuery() {
+  const tab = route.query.tab as string | undefined
+  if (tab && (SETTINGS_TAB_NAMES as readonly string[]).includes(tab)) {
+    activeTab.value = tab
+  }
+}
+
+watch(() => route.query.tab, applySettingsTabQuery)
+
+watch(activeTab, (tab) => {
+  if (route.path !== '/settings') return
+  if (route.query.tab === tab) return
+  router.replace({ path: '/settings', query: { ...route.query, tab } })
+})
+
 // ── 生命周期 ──
 onMounted(() => {
+  applySettingsTabQuery()
   fetchThresholds()
   fetchWeights()
   fetchModels()
@@ -957,10 +1002,7 @@ label="模型管理" name="models"
             :prefix-icon="Search"
             clearable
             style="width: 220px"
-            @input="
-              modelsPage = 1
-              fetchModels()
-            "
+            @input="modelsPage = 1; fetchModels()"
           />
           <ElButton :icon="Refresh"
 @click="fetchModels"
@@ -997,15 +1039,27 @@ label="模型管理" name="models"
           style="width: 100%; margin-top: 12px"
           table-layout="auto"
         >
-          <ElTableColumn prop="name"
-label="模型名称" min-width="150" />
+          <ElTableColumn prop="name" label="模型名称" min-width="150" />
           <ElTableColumn label="类型" width="100">
             <template #default="scope">
               {{ modelTypeMap[(scope.row as ModelInfo).type] ?? (scope.row as ModelInfo).type }}
             </template>
           </ElTableColumn>
-          <ElTableColumn prop="version"
-label="版本" width="80" />
+          <ElTableColumn prop="version" label="版本" width="80" />
+          <ElTableColumn label="健康状态" width="100" align="center">
+            <template #default="scope">
+              <ElTag
+                v-if="(scope.row as ModelInfo).health_grade"
+                :color="healthGradeColor[(scope.row as ModelInfo).health_grade!] ?? '#6b7280'"
+                effect="dark"
+                size="small"
+              >
+                {{ (scope.row as ModelInfo).health_grade }} ·
+                {{ (((scope.row as ModelInfo).overall_score ?? 0) * 100).toFixed(0) }}
+              </ElTag>
+              <span v-else>—</span>
+            </template>
+          </ElTableColumn>
           <ElTableColumn label="状态" width="90">
             <template #default="scope">
               <ElTag
@@ -1078,10 +1132,36 @@ type="primary" link
         />
       </ElTabPane>
 
-      <!-- ═══ Tab4: 用户管理 ═══ -->
-      <ElTabPane
-label="用户管理" name="users"
->
+      <!-- ═══ Tab4: 模型健康度（文档 §1.5） ═══ -->
+      <ElTabPane label="模型健康度" name="ai-metrics">
+        <div class="gateai-tab-content">
+          <ModelMetricsPanel />
+        </div>
+      </ElTabPane>
+
+      <!-- ═══ Tab5: 物理防护配置（文档 §2.5） ═══ -->
+      <ElTabPane label="物理防护配置" name="physics-guard">
+        <div class="gateai-tab-content">
+          <PhysicsGuardPanel />
+        </div>
+      </ElTabPane>
+
+      <!-- ═══ Tab5b: 配置变更历史 ═══ -->
+      <ElTabPane label="配置变更历史" name="physics-guard-history">
+        <div class="gateai-tab-content">
+          <PhysicsGuardHistoryPanel />
+        </div>
+      </ElTabPane>
+
+      <!-- ═══ Tab6: 闸门互锁（文档 §3.6） ═══ -->
+      <ElTabPane label="闸门互锁规则" name="gate-interlock">
+        <div class="gateai-tab-content">
+          <GateInterlockPanel />
+        </div>
+      </ElTabPane>
+
+      <!-- ═══ Tab7: 用户管理 ═══ -->
+      <ElTabPane label="用户管理" name="users">
         <div class="settings-page__toolbar">
           <ElInput
             v-model="userKeyword"
@@ -1089,10 +1169,7 @@ label="用户管理" name="users"
             :prefix-icon="Search"
             clearable
             style="width: 220px"
-            @input="
-              usersPage = 1
-              fetchUsers()
-            "
+            @input="usersPage = 1; fetchUsers()"
           />
           <ElButton :icon="Refresh"
 @click="fetchUsers"
@@ -1288,7 +1365,13 @@ maxlength="11"
 
   &__tabs {
     :deep(.el-tabs__content) {
-      padding: var(--spacing-lg);
+      padding: 20px 24px;
+    }
+    :deep(.el-tabs__item) {
+      font-size: var(--font-size-base);
+      padding: 0 18px;
+      height: 44px;
+      line-height: 44px;
     }
   }
 
@@ -1394,4 +1477,7 @@ maxlength="11"
   gap: 8px;
   justify-content: center;
 }
+
+
+// 阈值表格编辑按钮区
 </style>

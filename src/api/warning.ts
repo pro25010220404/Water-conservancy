@@ -7,7 +7,9 @@ import type {
   AlarmFilterParams,
   AlarmExceedLog,
   AlarmStatsResult,
+  AlarmPushMessage,
 } from '@/types/alarm'
+import type { PhysicsGuardSummary } from '@/types/dispatch'
 import { mockApi } from './mockStore'
 
 async function fetchMock<T>(_url: string, _options?: RequestInit): Promise<ApiResponse<T>> {
@@ -89,4 +91,13 @@ export async function getAlarmStats(): Promise<ApiResponse<AlarmStatsResult>> {
   } catch {
     return mockApi.getAlarmStats()
   }
+}
+
+/** 轮询告警推送（后端未就绪时由 mock 模拟 WebSocket） */
+export async function pollAlarmPush(): Promise<ApiResponse<AlarmPushMessage | null>> {
+  try { return fetchMock('/ws/alarms/poll') } catch { return mockApi.pollAlarmPush() }
+}
+
+export async function getPhysicsGuardSummary(): Promise<ApiResponse<PhysicsGuardSummary>> {
+  try { return fetchMock('/api/v1/settings/physics-guard?reservoir_id=1') } catch { return mockApi.getPhysicsGuardSummary() }
 }

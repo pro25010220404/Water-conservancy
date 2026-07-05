@@ -38,6 +38,9 @@ import {
   restartEquipment,
   updateEquipmentStatus,
 } from '@/api/equipment'
+import { fetchReservoirList } from '@/api/reservoir'
+import { fetchEdgeSyncStatus } from '@/api/gateaiSettings'
+import ReservoirDetailPanel from './components/ReservoirDetailPanel.vue'
 import { useOperationLog } from '@/composables/useOperationLog'
 import type { Equipment, EquipmentDetail } from '@/shared/types'
 
@@ -52,8 +55,11 @@ const list = ref<Equipment[]>([])
 const selectedId = ref<number | null>(null)
 const detail = ref<EquipmentDetail | null>(null)
 const detailLoading = ref(false)
+const edgeSync = ref<{ config_version: string; last_sync_at: string; sync_status: string } | null>(null)
 
 // 筛选条件
+const reservoirFilter = ref<number>(1)
+const reservoirs = ref<{ id: number; name: string }[]>([])
 const typeFilter = ref('')
 const statusFilter = ref('')
 const keyword = ref('')
@@ -88,7 +94,7 @@ const MOCK_EQUIPMENT: Equipment[] = [
     id: 1,
     name: '1# 超声波液位计',
     code: 'LS-001',
-    type: 'level_sensor',
+    type: 'sensor',
     reservoir_id: 1,
     reservoir_name: '示范水库',
     status: 'online',
@@ -101,7 +107,7 @@ const MOCK_EQUIPMENT: Equipment[] = [
     id: 2,
     name: '2# 超声波液位计',
     code: 'LS-002',
-    type: 'level_sensor',
+    type: 'sensor',
     reservoir_id: 1,
     reservoir_name: '示范水库',
     status: 'online',
@@ -114,7 +120,7 @@ const MOCK_EQUIPMENT: Equipment[] = [
     id: 3,
     name: '超声波流量计',
     code: 'FS-001',
-    type: 'flow_sensor',
+    type: 'sensor',
     reservoir_id: 1,
     reservoir_name: '示范水库',
     status: 'online',
@@ -153,7 +159,7 @@ const MOCK_EQUIPMENT: Equipment[] = [
     id: 6,
     name: 'Jetson Orin Nano',
     code: 'EG-001',
-    type: 'edge_gateway',
+    type: 'gateway',
     reservoir_id: 1,
     reservoir_name: '示范水库',
     status: 'online',
@@ -205,7 +211,7 @@ const MOCK_EQUIPMENT: Equipment[] = [
     id: 10,
     name: 'USB 转 RS485',
     code: 'COM-001',
-    type: 'edge_gateway',
+    type: 'gateway',
     reservoir_id: 1,
     reservoir_name: '示范水库',
     status: 'online',
@@ -218,7 +224,7 @@ const MOCK_EQUIPMENT: Equipment[] = [
     id: 11,
     name: '折叠蓄水池',
     code: 'TNK-001',
-    type: 'flow_sensor',
+    type: 'sensor',
     reservoir_id: 1,
     reservoir_name: '示范水库',
     status: 'online',
@@ -275,6 +281,7 @@ async function fetchList() {
     const res = await getEquipmentList({
       page: page.value,
       page_size: pageSize.value,
+      reservoir_id: reservoirFilter.value || undefined,
       type: typeFilter.value || undefined,
       status: statusFilter.value || undefined,
       keyword: keyword.value || undefined,
@@ -287,9 +294,12 @@ async function fetchList() {
     }
   } catch {
     /* API 不可用时使用 mock */
+  } finally {
+    loading.value = false
   }
   // ── Mock 降级 ──
   let filtered = [...MOCK_EQUIPMENT]
+  if (reservoirFilter.value) filtered = filtered.filter((e) => e.reservoir_id === reservoirFilter.value)
   if (typeFilter.value) filtered = filtered.filter((e) => e.type === typeFilter.value)
   if (statusFilter.value) filtered = filtered.filter((e) => e.status === statusFilter.value)
   if (keyword.value) {
@@ -301,7 +311,6 @@ async function fetchList() {
   total.value = filtered.length
   const start = (page.value - 1) * pageSize.value
   list.value = filtered.slice(start, start + pageSize.value)
-  loading.value = false
 }
 
 /** 搜索（防抖重置页码） */
@@ -366,7 +375,7 @@ async function onRowClick(row: Equipment) {
               },
             ]
           : undefined,
-    latest_monitoring: ['level_sensor', 'flow_sensor'].includes(row.type)
+    latest_monitoring: row.type === 'sensor'
       ? {
           upstream_level: 92.5,
           downstream_level: 85.3,
@@ -377,8 +386,12 @@ async function onRowClick(row: Equipment) {
           timestamp: '2026-07-03 10:05:00',
         }
       : undefined,
-  }
+  } as EquipmentDetail
   detailLoading.value = false
+  edgeSync.value = null
+  if (row.type === 'gateway') {
+    edgeSync.value = await fetchEdgeSyncStatus(row.id)
+  }
 }
 
 /** 翻页 */
@@ -506,11 +519,12 @@ function handleExport() {
 }
 
 // ── 8. 生命周期 ──
-onMounted(() => {
+onMounted(async () => {
+  reservoirs.value = await fetchReservoirList()
   fetchList()
 })
 
-watch([typeFilter, statusFilter], onFilterChange)
+watch([typeFilter, statusFilter, reservoirFilter], onFilterChange)
 </script>
 
 <template>
@@ -520,6 +534,14 @@ watch([typeFilter, statusFilter], onFilterChange)
 :class="{ 'has-detail': selectedId }">
       <div class="equipment-page__toolbar">
         <div class="equipment-page__filters">
+          <ElSelect
+            v-model="reservoirFilter"
+            placeholder="所属水库"
+            style="width: 160px"
+            @change="onFilterChange"
+          >
+            <ElOption v-for="r in reservoirs" :key="r.id" :label="r.name" :value="r.id" />
+          </ElSelect>
           <ElSelect
             v-model="typeFilter"
             placeholder="设备类型"
@@ -570,6 +592,12 @@ watch([typeFilter, statusFilter], onFilterChange)
 </ElButton>
         </div>
       </div>
+
+      <ReservoirDetailPanel
+        v-if="reservoirFilter"
+        :reservoir-id="reservoirFilter"
+        :equipment-count="total"
+      />
 
       <!-- ═══ 表格 ═══ -->
       <ElTable
@@ -645,10 +673,7 @@ class="equipment-page__detail">
               <ElButton
                 text
                 size="small"
-                @click="
-                  selectedId = null
-                  detail = null
-                "
+                @click="selectedId = null; detail = null"
               >
                 ✕
               </ElButton>
@@ -697,6 +722,22 @@ size="small" class="equipment-page__detail-desc"
               <ElDescriptionsItem label="最后在线">
                 {{ detail.last_online || '-' }}
               </ElDescriptionsItem>
+              <template v-if="detail.type === 'gateway' && edgeSync">
+                <ElDescriptionsItem label="配置版本">
+                  v{{ edgeSync.config_version }}
+                </ElDescriptionsItem>
+                <ElDescriptionsItem label="最后同步">
+                  {{ edgeSync.last_sync_at }}
+                </ElDescriptionsItem>
+                <ElDescriptionsItem label="同步状态">
+                  <ElTag
+                    :type="edgeSync.sync_status === 'synced' ? 'success' : 'warning'"
+                    size="small"
+                  >
+                    {{ edgeSync.sync_status === 'synced' ? '已同步' : edgeSync.sync_status }}
+                  </ElTag>
+                </ElDescriptionsItem>
+              </template>
             </ElDescriptions>
 
             <!-- 实时监测 -->
@@ -839,6 +880,7 @@ type="danger" :loading="submitting" @click="handleRestart"> 确认重启 </ElBut
   display: flex;
   gap: var(--spacing-lg);
   height: calc(100vh - var(--header-height) - 2 * var(--spacing-lg));
+  overflow: hidden;
 
   &__main {
     flex: 1;
@@ -846,7 +888,7 @@ type="danger" :loading="submitting" @click="handleRestart"> 确认重启 </ElBut
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
-    overflow: hidden;
+    overflow-y: auto;
 
     &.has-detail {
       flex: 1 1 65%;

@@ -14,6 +14,7 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   '/history': ['dispatcher', 'manager', 'admin'],
   '/warning': ['operator', 'dispatcher', 'manager', 'admin'],
   '/dispatch': ['dispatcher', 'manager', 'admin', 'algorithm_engineer'],
+  '/dispatch/gate-actions': ['dispatcher', 'manager', 'admin'],
   '/simulation': ['manager', 'admin', 'algorithm_engineer'],
   '/equipment': ['operator', 'manager', 'admin'],
   '/settings': ['admin'],
@@ -52,7 +53,18 @@ export const MENU_ITEMS: MenuItem[] = [
   { path: '/dispatch', title: '调度决策', icon: 'Operation' },
   { path: '/simulation', title: '数字孪生', icon: 'Cpu' },
   { path: '/equipment', title: '设备管理', icon: 'SetUp' },
-  { path: '/settings', title: '系统设置', icon: 'Setting' },
+  {
+    path: '/settings',
+    title: '系统设置',
+    icon: 'Setting',
+    children: [
+      { path: '/settings', title: '基础设置', icon: 'Setting' },
+      { path: '/settings/ai/metrics', title: '模型健康度', icon: 'Setting' },
+      { path: '/settings/ai/compare', title: '模型版本对比', icon: 'Setting' },
+      { path: '/settings/gate-interlock', title: '闸门互锁规则', icon: 'Setting' },
+      { path: '/settings/gate-interlock/logs', title: '互锁触发日志', icon: 'Setting' },
+    ],
+  },
   { path: '/profile', title: '个人中心', icon: 'User' },
 ]
 

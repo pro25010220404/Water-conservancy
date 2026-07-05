@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // ============================================================
-// 第 3 层 — 标签页栏（固定 8 格等宽，不滚动）
+// 第 3 层 — 标签页栏（固定 10 格等宽，不滚动）
 // ============================================================
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
@@ -141,7 +141,7 @@ onUnmounted(() => {
     flex: 1;
     min-width: 0;
     display: grid;
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-columns: repeat(10, minmax(0, 1fr));
     gap: 8px;
     height: 100%;
     padding: 6px 0;

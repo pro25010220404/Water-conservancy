@@ -29,6 +29,7 @@ export interface DictOption {
   label: string
   value: string | number
   color?: string
+  icon?: string
 }
 
 // ---------- 字典映射表 ----------
@@ -192,6 +193,10 @@ export interface ModelInfo {
   size: number
   is_active: number
   deployed_nodes: number
+  /** 三维评判综合分 0~1 */
+  overall_score?: number
+  /** 健康等级 S/A/B/C/D */
+  health_grade?: string
 }
 
 /** 模型上传参数 */

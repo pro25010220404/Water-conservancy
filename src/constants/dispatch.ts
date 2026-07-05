@@ -4,6 +4,14 @@
 // ============================================================
 import type { DictOption } from '@/shared/types'
 
+// ---------- 闸门动作来源 ----------
+export const ACTION_SOURCE_MAP: Record<string, string> = {
+  dqn_auto: 'DQN 自动',
+  manual: '手动操作',
+  emergency_override: '紧急覆盖',
+  physics_corrected: '物理修正',
+}
+
 // ---------- 运行模式 ----------
 export const DISPATCH_MODE_MAP: Record<string, DictOption> = {
   auto: { label: '自动', value: 'auto', color: '#22c55e' },

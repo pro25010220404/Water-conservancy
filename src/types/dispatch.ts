@@ -40,6 +40,43 @@ export interface WeightsUsed {
   ecology_weight: number
 }
 
+// ---------- 本次推理指标（physics_validation）----------
+export interface PhysicsValidationContribution {
+  prediction: number
+  decision: number
+  compliance: number
+  overall: number
+}
+
+export interface PhysicsValidationInterlock {
+  triggered: boolean
+  rules: string[]
+  reason: string
+}
+
+export type TrendDirection = 'pending' | 'match' | 'mismatch'
+export type ShadowRiskLevel = 'safe' | 'warning' | 'danger' | 'critical'
+export type InferenceDecisionLevel = 'L3_AUTO' | 'L2_SUGGEST' | 'L1_MANUAL' | 'OVERRIDE'
+
+export interface PhysicsValidation {
+  passed: boolean
+  physics_violation_m: number
+  physics_correction_steps?: number
+  trend_direction?: TrendDirection
+  risk_level: ShadowRiskLevel
+  risk_probability: number
+  shadow_levels?: number[]
+  command_smoothed: boolean
+  smooth_reason: string
+  safety_overridden: boolean
+  safety_override_reason: string
+  decision_level: InferenceDecisionLevel
+  gate_limit_touched: boolean
+  rate_exceeded: boolean
+  interlock?: PhysicsValidationInterlock
+  contribution: PhysicsValidationContribution
+}
+
 // ---------- AI 决策详情（§4.2）----------
 export interface DecisionDetail {
   id: number
@@ -59,7 +96,7 @@ export interface DecisionDetail {
   alternatives: DispatchPlan[]       // 文档中为 alternatives
   weights_used: WeightsUsed
   reward_score: number
-  physics_validation: Record<string, unknown> | null
+  physics_validation: PhysicsValidation | null
   execution_status: ExecutionStatus
   executed_opening: number | null
   actual_level_after: number | null
@@ -99,7 +136,7 @@ export interface DispatchRecord {
   confidence: number
   risk_rank: RiskRank
   execution_status: ExecutionStatus
-  physics_validation: Record<string, unknown> | null
+  physics_validation: PhysicsValidation | null
   /** 动作描述 */
   action?: string
   /** 操作人 */
@@ -120,6 +157,8 @@ export interface GateAction {
   duration_ms: number
   is_smoothed: number
   acted_at: string
+  interlock_rule_id?: number | null
+  interlock_rule_name?: string | null
 }
 
 // ---------- 急停日志（§4.9）----------
@@ -160,4 +199,38 @@ export interface ExecuteParams {
 export interface EmergencyStopParams {
   reservoir_id: number
   stop_reason: string
+}
+
+// ---------- 物理防护配置（§2.5 — 调度/孪生/告警页展示）----------
+export type PhysicsGuardSyncStatus = 'synced' | 'stale' | 'offline'
+
+export interface PhysicsGuardSummary {
+  reservoir_id: number
+  reservoir_name: string
+  config_version: string
+  is_active: boolean
+  upstream_emergency: number
+  upstream_danger: number
+  upstream_warning: number
+  fusion_l3_confidence: number
+  fusion_l3_risk: number
+  last_sync_at: string | null
+  sync_status: PhysicsGuardSyncStatus
+}
+
+export interface PhysicsGuardHistoryChange {
+  field: string
+  label: string
+  before: string | number
+  after: string | number
+}
+
+export interface PhysicsGuardHistoryItem {
+  id: number
+  config_version: string
+  changed_at: string
+  changed_by_name: string
+  description: string
+  is_active: boolean
+  changes: PhysicsGuardHistoryChange[]
 }

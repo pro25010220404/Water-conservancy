@@ -111,10 +111,10 @@ export const DEFAULT_SIMULATION_PARAMS = {
 
 // ---------- 报告 Tab 枚举 ----------
 export const SIMULATION_TABS = [
-  { label: '仿真控制', value: 'control' },
-  { label: '模型训练', value: 'model' },
-  { label: '评估报告', value: 'report' },
-  { label: '故障复盘', value: 'review' },
+  { label: '仿真视图', value: 'control' },
+  { label: 'AI 模型导入训练', value: 'model' },
+  { label: '方案评估报告', value: 'report' },
+  { label: '历史故障复盘', value: 'review' },
 ] as const
 
 export type SimulationTab = (typeof SIMULATION_TABS)[number]['value']
