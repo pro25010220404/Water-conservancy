@@ -70,33 +70,33 @@ export function getModels(params?: {
   status?: string
   keyword?: string
 }) {
-  return http.get<ApiResponse<PageResult<ModelInfo>>>('/models/list', { params })
+  return http.get<ApiResponse<PageResult<ModelInfo>>>('/settings/models', { params })
 }
 
 export function uploadModel(formData: FormData) {
-  return http.post<ApiResponse<ModelInfo>>('/models/upload', formData, {
+  return http.post<ApiResponse<ModelInfo>>('/settings/models/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
 
 export function activateModel(id: number, data?: ModelActivateParams) {
-  return http.put<ApiResponse<null>>(`/models/${id}/activate`, data)
+  return http.post<ApiResponse<null>>(`/settings/models/${id}/activate`, data)
 }
 
 export function rollbackModel(id: number, data?: ModelRollbackParams) {
-  return http.post<ApiResponse<null>>(`/models/${id}/rollback`, data)
+  return http.post<ApiResponse<null>>(`/settings/models/${id}/rollback`, data)
 }
 
 export function deleteModel(id: number) {
-  return http.delete<ApiResponse<null>>(`/models/${id}`)
+  return http.delete<ApiResponse<null>>(`/settings/models/${id}`)
 }
 
 export function deployModel(id: number, data: ModelDeployParams) {
-  return http.post<ApiResponse<null>>(`/models/${id}/deploy`, data)
+  return http.post<ApiResponse<null>>(`/settings/models/${id}/deploy`, data)
 }
 
 export function getModelDetail(id: number) {
-  return http.get<ApiResponse<ModelInfo>>(`/models/${id}`)
+  return http.get<ApiResponse<ModelInfo>>(`/settings/models/${id}`)
 }
 
 // ════════════════════════════════════════════════════════════
@@ -210,29 +210,29 @@ export function getUsers(params?: {
   is_enabled?: number
   keyword?: string
 }) {
-  return http.get<ApiResponse<PageResult<SystemUser>>>('/users', { params })
+  return http.get<ApiResponse<PageResult<SystemUser>>>('/settings/users', { params })
 }
 
 export function createUser(data: CreateUserParams) {
-  return http.post<ApiResponse<null>>('/users', data)
+  return http.post<ApiResponse<null>>('/settings/users', data)
 }
 
 export function updateUser(id: number, data: UpdateUserParams) {
-  return http.put<ApiResponse<null>>(`/users/${id}`, data)
+  return http.put<ApiResponse<null>>(`/settings/users/${id}`, data)
 }
 
 export function resetUserPassword(id: number, data?: ResetPasswordParams) {
-  return http.put<ApiResponse<null>>(`/users/${id}/reset-password`, data)
+  return http.post<ApiResponse<null>>(`/settings/users/${id}/reset-password`, data)
 }
 
 export function lockUser(id: number, data: LockUserParams) {
-  return http.put<ApiResponse<null>>(`/users/${id}/lock`, data)
+  return http.post<ApiResponse<null>>(`/settings/users/${id}/lock`, data)
 }
 
 export function unlockUser(id: number, data?: UnlockUserParams) {
-  return http.put<ApiResponse<null>>(`/users/${id}/unlock`, data)
+  return http.post<ApiResponse<null>>(`/settings/users/${id}/unlock`, data)
 }
 
 export function deleteUser(id: number) {
-  return http.delete<ApiResponse<null>>(`/users/${id}`)
+  return http.delete<ApiResponse<null>>(`/settings/users/${id}`)
 }

@@ -31,7 +31,7 @@ export function uploadAvatar(formData: FormData) {
 
 /** 修改密码 */
 export function changePassword(data: ChangePasswordParams) {
-  return http.put<ApiResponse<null>>('/profile/password', data)
+  return http.post<ApiResponse<null>>('/auth/change-pwd', data)
 }
 
 /** 操作日志列表 */
@@ -42,5 +42,5 @@ export function getOperationLogs(params?: {
   start?: string
   end?: string
 }) {
-  return http.get<ApiResponse<PageResult<OperationLog>>>('/profile/operation-logs', { params })
+  return http.get<ApiResponse<PageResult<OperationLog>>>('/login-logs', { params })
 }
