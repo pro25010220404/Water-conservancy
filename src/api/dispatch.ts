@@ -4,9 +4,13 @@
 import http from './request'
 import type { ApiResponse, PageResult } from '@/shared/types'
 import type {
-  PredictionData, DecisionDetail, DispatchRecord,
-  GateAction, EmergencyStopLog,
-  ExecuteParams, EmergencyStopParams,
+  PredictionData,
+  DecisionDetail,
+  DispatchRecord,
+  GateAction,
+  EmergencyStopLog,
+  ExecuteParams,
+  EmergencyStopParams,
 } from '@/types/dispatch'
 
 // ── §4.1 LSTM 预测数据 ──
@@ -23,9 +27,13 @@ export function getDecisionDetail(id: number) {
 
 // ── §4.3 调度决策历史列表 ──
 export function getDecisions(params: {
-  page?: number; page_size?: number; reservoir_id?: number
-  decision_mode?: string; execution_status?: string
-  start_time?: string; end_time?: string
+  page?: number
+  page_size?: number
+  reservoir_id?: number
+  decision_mode?: string
+  execution_status?: string
+  start_time?: string
+  end_time?: string
 }) {
   return http.get<ApiResponse<PageResult<DispatchRecord>>>('/dispatch/decisions', { params })
 }
@@ -42,15 +50,22 @@ export function getCommandTrace(command_id: string) {
 
 // ── §4.6 闸门动作历史 ──
 export function getGateActions(params: {
-  page?: number; page_size?: number; equipment_id?: number
-  action_type?: string; start_time?: string; end_time?: string
+  page?: number
+  page_size?: number
+  equipment_id?: number
+  action_type?: string
+  start_time?: string
+  end_time?: string
 }) {
   return http.get<ApiResponse<PageResult<GateAction>>>('/dispatch/gate-actions', { params })
 }
 
 // ── §4.7 全局急停 ──
 export function emergencyStop(data: EmergencyStopParams) {
-  return http.post<ApiResponse<{ stop_log_id: number; command_id: string }>>('/dispatch/emergency-stop', data)
+  return http.post<ApiResponse<{ stop_log_id: number; command_id: string }>>(
+    '/dispatch/emergency-stop',
+    data,
+  )
 }
 
 // ── §4.8 恢复自动模式 ──
@@ -60,8 +75,13 @@ export function recoverStop(id: number) {
 
 // ── §4.9 急停日志列表 ──
 export function getEmergencyStops(params: {
-  page?: number; page_size?: number; reservoir_id?: number
-  start_time?: string; end_time?: string
+  page?: number
+  page_size?: number
+  reservoir_id?: number
+  start_time?: string
+  end_time?: string
 }) {
-  return http.get<ApiResponse<PageResult<EmergencyStopLog>>>('/dispatch/emergency-stops', { params })
+  return http.get<ApiResponse<PageResult<EmergencyStopLog>>>('/dispatch/emergency-stops', {
+    params,
+  })
 }

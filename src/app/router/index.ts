@@ -55,9 +55,41 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'history',
-        name: 'History',
-        component: () => import('@/views/history/HistoryPage.vue'),
+        component: () => import('@/views/history/index.vue'),
         meta: { title: '历史查询' },
+        redirect: '/history/query',
+        children: [
+          {
+            path: 'query',
+            name: 'HistoryQuery',
+            component: () => import('@/views/history/components/DataQueryTab.vue'),
+            meta: { title: '数据查询' },
+          },
+          {
+            path: 'compare',
+            name: 'HistoryCompare',
+            component: () => import('@/views/history/components/DualCompareTab.vue'),
+            meta: { title: '双时段对比' },
+          },
+          {
+            path: 'model-score',
+            name: 'HistoryModelScore',
+            component: () => import('@/views/history/components/ModelScoreTab.vue'),
+            meta: { title: '模型评分历史' },
+          },
+          {
+            path: 'interlock',
+            name: 'HistoryInterlock',
+            component: () => import('@/views/history/components/InterlockEventTab.vue'),
+            meta: { title: '互锁事件回溯' },
+          },
+          {
+            path: 'replay',
+            name: 'HistoryReplay',
+            component: () => import('@/views/history/components/ReplayTab.vue'),
+            meta: { title: '时光机回放' },
+          },
+        ],
       },
       {
         path: 'warning',
@@ -75,7 +107,10 @@ const routes: RouteRecordRaw[] = [
         path: 'simulation',
         name: 'Simulation',
         component: () => import('@/views/simulation/SimulationPage.vue'),
-        meta: { title: '智慧水利数字孪生驾驶舱 - 向家坝水电站闸门智能调度系统', shortTitle: '数字孪生' },
+        meta: {
+          title: '智慧水利数字孪生驾驶舱 - 向家坝水电站闸门智能调度系统',
+          shortTitle: '数字孪生',
+        },
       },
       {
         path: 'equipment',
@@ -86,19 +121,48 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'settings',
         name: 'Settings',
-        component: () => import('@/views/settings/SettingsPage.vue'),
-        meta: { title: '系统设置' },
+        redirect: '/settings/thresholds',
       },
       {
-        path: 'dispatch/gate-actions',
-        name: 'DispatchGateActions',
-        component: () => import('@/views/dispatch/components/GateActionsPanel.vue'),
-        meta: { title: '闸门动作历史' },
+        path: 'settings/thresholds',
+        name: 'SettingsThresholds',
+        component: () => import('@/views/settings/SettingsPage.vue'),
+        meta: { title: '告警阈值配置', settingsTab: 'thresholds' },
+      },
+      {
+        path: 'settings/weights',
+        name: 'SettingsWeights',
+        component: () => import('@/views/settings/SettingsPage.vue'),
+        meta: { title: '多目标权重配置', settingsTab: 'weights' },
+      },
+      {
+        path: 'settings/models',
+        name: 'SettingsModels',
+        component: () => import('@/views/settings/SettingsPage.vue'),
+        meta: { title: '模型管理', settingsTab: 'models' },
+      },
+      {
+        path: 'settings/users',
+        name: 'SettingsUsers',
+        component: () => import('@/views/settings/SettingsPage.vue'),
+        meta: { title: '用户管理', settingsTab: 'users' },
+      },
+      {
+        path: 'settings/physics-guard',
+        name: 'SettingsPhysicsGuard',
+        component: () => import('@/views/settings/SettingsPage.vue'),
+        meta: { title: '物理防护配置', settingsTab: 'physics-guard' },
+      },
+      {
+        path: 'settings/physics-guard-history',
+        name: 'SettingsPhysicsGuardHistory',
+        component: () => import('@/views/settings/SettingsPage.vue'),
+        meta: { title: '配置变更历史', settingsTab: 'physics-guard-history' },
       },
       {
         path: 'settings/ai/models',
         name: 'SettingsAiModels',
-        redirect: '/settings',
+        redirect: '/settings/models',
         meta: { title: '模型管理' },
       },
       {
@@ -128,7 +192,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'profile',
         name: 'Profile',
-        component: () => import('@/views/profile/ProfilePage.vue'),
+        component: () => import('@/views/profile/index.vue'),
         meta: { title: '个人中心' },
       },
     ],

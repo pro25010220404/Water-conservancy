@@ -1,7 +1,10 @@
 /**
  * 模糊查询 — 支持子串匹配、分词 AND、字符顺序匹配（如「高水」→「高水位」）
  */
-export function fuzzyMatch(keyword: string, ...fields: (string | number | null | undefined)[]): boolean {
+export function fuzzyMatch(
+  keyword: string,
+  ...fields: (string | number | null | undefined)[]
+): boolean {
   const kw = keyword.trim().toLowerCase()
   if (!kw) return true
 

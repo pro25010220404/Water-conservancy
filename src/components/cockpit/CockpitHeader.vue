@@ -42,8 +42,12 @@ const now = computed(() => {
     </div>
     <div class="cockpit-header__title-wrap">
       <div class="cockpit-header__title-bg" />
-      <h1 class="cockpit-header__title">智慧水利数字孪生驾驶舱</h1>
-      <p class="cockpit-header__subtitle">向家坝水电站闸门智能调度系统</p>
+      <h1 class="cockpit-header__title">
+智慧水利数字孪生驾驶舱
+</h1>
+      <p class="cockpit-header__subtitle">
+向家坝水电站闸门智能调度系统
+</p>
     </div>
     <nav class="cockpit-header__nav">
       <button

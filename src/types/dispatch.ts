@@ -30,7 +30,10 @@ export interface DispatchPlan {
   /** 该方案对应的置信度 */
   confidence: number
   /** 该方案对关键因素的影响（切换方案时动画更新） */
-  factorImpacts?: Record<string, { direction: 'up' | 'down' | 'neutral'; value: string; weight?: number }>
+  factorImpacts?: Record<
+    string,
+    { direction: 'up' | 'down' | 'neutral'; value: string; weight?: number }
+  >
 }
 
 // ---------- 权重配置 ----------
@@ -93,7 +96,7 @@ export interface DecisionDetail {
   recommended_opening: number
   confidence: number
   factors: DecisionFactor[]
-  alternatives: DispatchPlan[]       // 文档中为 alternatives
+  alternatives: DispatchPlan[] // 文档中为 alternatives
   weights_used: WeightsUsed
   reward_score: number
   physics_validation: PhysicsValidation | null
@@ -113,9 +116,9 @@ export interface PredictionPoint {
 export interface PredictionData {
   id: number
   base_time: string
-  predict_term: 1 | 2 | 3     // 1=1h 2=3h 3=6h
+  predict_term: 1 | 2 | 3 // 1=1h 2=3h 3=6h
   water_seq: PredictionPoint[] // 水位时序
-  flow_seq: PredictionPoint[]  // 流量时序
+  flow_seq: PredictionPoint[] // 流量时序
   predict_accuracy: number
   created_at: string
 }
@@ -175,10 +178,10 @@ export interface EmergencyStopLog {
 // ---------- 当前运行状态（页面需要，综合多个接口）----------
 export interface DispatchStatus {
   mode: 'auto' | 'manual'
-  autoLevel: 1 | 2 | 3       // 前端本地维护的自动执行级别
+  autoLevel: 1 | 2 | 3 // 前端本地维护的自动执行级别
   upstreamLevel: number
   downstreamLevel: number
-  flowRate: number            // 入库流量
+  flowRate: number // 入库流量
   gateOpening: number
   lastDispatchAt: string | null
   isExecuting: boolean

@@ -5,18 +5,37 @@ import { DataAnalysis, VideoPlay, Close } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, MarkLineComponent, MarkPointComponent } from 'echarts/components'
+import {
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  DataZoomComponent,
+  MarkLineComponent,
+  MarkPointComponent,
+} from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { isReplaying } from '@/composables/useReplayMode'
-use([LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, MarkLineComponent, MarkPointComponent, CanvasRenderer])
+use([
+  LineChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  DataZoomComponent,
+  MarkLineComponent,
+  MarkPointComponent,
+  CanvasRenderer,
+])
 
 // ═══ 主题 ═══
 const darkMode = ref(localStorage.getItem('history-theme') === 'dark')
-watch(darkMode, v => localStorage.setItem('history-theme', v ? 'dark' : 'light'))
+watch(darkMode, (v) => localStorage.setItem('history-theme', v ? 'dark' : 'light'))
 
 // ═══ 离线检测 ═══
 const isOnline = ref(navigator.onLine)
-onMounted(() => { window.addEventListener('online', () => isOnline.value = true); window.addEventListener('offline', () => isOnline.value = false) })
+onMounted(() => {
+  window.addEventListener('online', () => (isOnline.value = true))
+  window.addEventListener('offline', () => (isOnline.value = false))
+})
 
 // ═══ 筛选 ═══
 const dateRange = ref({ start: '', end: '' })
@@ -31,8 +50,10 @@ const metricOptions = [
   { value: 'powerOutput', label: '发电功率', unit: 'MW', color: '#ef4444' },
 ]
 const granularityOptions = [
-  { value: 'raw', label: '原始' }, { value: '5min', label: '5分钟' },
-  { value: 'hour', label: '小时' }, { value: 'day', label: '日' },
+  { value: 'raw', label: '原始' },
+  { value: '5min', label: '5分钟' },
+  { value: 'hour', label: '小时' },
+  { value: 'day', label: '日' },
 ]
 const queried = ref(false)
 
@@ -49,7 +70,8 @@ function generateMock() {
   for (let i = 96; i >= 0; i--) {
     const t = now - i * 15 * 60000
     arr.push({
-      time: t, label: new Date(t).toLocaleString('zh-CN'),
+      time: t,
+      label: new Date(t).toLocaleString('zh-CN'),
       upstreamLevel: +(378.5 + Math.sin(i / 8) * 1.2).toFixed(2),
       downstreamLevel: +(269.2 + Math.sin(i / 12) * 0.2).toFixed(2),
       inflowRate: Math.round(6350 + Math.sin(i / 6) * 800),
@@ -67,8 +89,10 @@ function generateMock() {
 
 function applyFilters() {
   let data = [...allData.value]
-  if (dateRange.value.start) data = data.filter(d => d.time >= new Date(dateRange.value.start).getTime())
-  if (dateRange.value.end) data = data.filter(d => d.time <= new Date(dateRange.value.end).getTime())
+  if (dateRange.value.start)
+    data = data.filter((d) => d.time >= new Date(dateRange.value.start).getTime())
+  if (dateRange.value.end)
+    data = data.filter((d) => d.time <= new Date(dateRange.value.end).getTime())
   tableData.value = data
   tablePage.value = 1
   queried.value = true
@@ -82,8 +106,8 @@ function resetFilters() {
   chartZoom.value = null
 }
 
-const metricLabel = (v: string) => metricOptions.find(o => o.value === v)?.label ?? v
-const metricUnit = (v: string) => metricOptions.find(o => o.value === v)?.unit ?? ''
+const metricLabel = (v: string) => metricOptions.find((o) => o.value === v)?.label ?? v
+const metricUnit = (v: string) => metricOptions.find((o) => o.value === v)?.unit ?? ''
 
 const pagedData = computed(() => {
   const s = (tablePage.value - 1) * tablePageSize
@@ -96,8 +120,8 @@ function onChartZoom(params: any) {
   if (params.batch?.[0]) {
     const z = params.batch[0]
     chartZoom.value = [z.start, z.end]
-    const startIdx = Math.floor(z.start / 100 * tableData.value.length)
-    const endIdx = Math.floor(z.end / 100 * tableData.value.length)
+    const startIdx = Math.floor((z.start / 100) * tableData.value.length)
+    const endIdx = Math.floor((z.end / 100) * tableData.value.length)
     tableData.value = allData.value.slice(startIdx, endIdx + 1)
     tablePage.value = 1
   }
@@ -121,7 +145,10 @@ const replaySnapshot = computed(() => {
   let bestDiff = Infinity
   for (const d of allData.value) {
     const diff = Math.abs(d.time - ts)
-    if (diff < bestDiff) { bestDiff = diff; best = d }
+    if (diff < bestDiff) {
+      bestDiff = diff
+      best = d
+    }
   }
   return best
 })
@@ -163,7 +190,10 @@ function startReplayTimer() {
 
 function stopReplayTimer() {
   replayPlaying.value = false
-  if (replayTimer) { clearInterval(replayTimer); replayTimer = null }
+  if (replayTimer) {
+    clearInterval(replayTimer)
+    replayTimer = null
+  }
 }
 
 function seekReplay(e: Event) {
@@ -173,7 +203,10 @@ function seekReplay(e: Event) {
 
 function jumpReplay(delta: number) {
   const step = 5 * 15 * 60000 // 一次跳 5 个数据点
-  replayTime.value = Math.min(replayTimeMax.value, Math.max(replayTimeMin.value, replayTime.value + delta * step))
+  replayTime.value = Math.min(
+    replayTimeMax.value,
+    Math.max(replayTimeMin.value, replayTime.value + delta * step),
+  )
 }
 
 // 退出回放时清理
@@ -184,20 +217,38 @@ onUnmounted(() => {
 
 // ═══ 图表配置 ═══
 const chartOpt = computed(() => {
-  const data = tableData.value.length > 0 ? tableData.value.slice(0, 200) : allData.value.slice(0, 200)
+  const data =
+    tableData.value.length > 0 ? tableData.value.slice(0, 200) : allData.value.slice(0, 200)
   if (data.length === 0) return {}
-  const series: any[] = selectedMetrics.value.map(m => {
-    const cfg = metricOptions.find(o => o.value === m)
-    if (!cfg) return null
-    const s: any = { name: cfg.label, type: 'line', data: data.map(d => [d.label, d[m]]), smooth: true, symbol: 'none', lineStyle: { color: cfg.color, width: 2 } }
-    if (m === 'upstreamLevel' || m === 'downstreamLevel') s.yAxisIndex = 0; else s.yAxisIndex = 1
-    return s
-  }).filter(Boolean)
+  const series: any[] = selectedMetrics.value
+    .map((m) => {
+      const cfg = metricOptions.find((o) => o.value === m)
+      if (!cfg) return null
+      const s: any = {
+        name: cfg.label,
+        type: 'line',
+        data: data.map((d) => [d.label, d[m]]),
+        smooth: true,
+        symbol: 'none',
+        lineStyle: { color: cfg.color, width: 2 },
+      }
+      if (m === 'upstreamLevel' || m === 'downstreamLevel') s.yAxisIndex = 0
+      else s.yAxisIndex = 1
+      return s
+    })
+    .filter(Boolean)
 
-  const events = data.filter(d => d.event)
+  const events = data.filter((d) => d.event)
   if (series.length > 0 && events.length > 0) {
     series[0].markPoint = {
-      data: events.map(d => ({ name: d.event.label, coord: [d.label, d.upstreamLevel], symbol: 'pin', symbolSize: 32, itemStyle: { color: d.event.color }, label: { show: true, fontSize: 12 } })),
+      data: events.map((d) => ({
+        name: d.event.label,
+        coord: [d.label, d.upstreamLevel],
+        symbol: 'pin',
+        symbolSize: 32,
+        itemStyle: { color: d.event.color },
+        label: { show: true, fontSize: 12 },
+      })),
     }
   }
 
@@ -217,13 +268,30 @@ const chartOpt = computed(() => {
 
   return {
     backgroundColor: 'transparent',
-    legend: { data: selectedMetrics.value.map(m => metricLabel(m)), textStyle: { color: '#64748b', fontSize: 14 }, top: 0 },
+    legend: {
+      data: selectedMetrics.value.map((m) => metricLabel(m)),
+      textStyle: { color: '#64748b', fontSize: 14 },
+      top: 0,
+    },
     grid: { left: 56, right: 56, top: 36, bottom: 60 },
     tooltip: { trigger: 'axis', textStyle: { fontSize: 14 } },
     animation: !replayMode.value,
-    xAxis: { type: 'category', data: data.map(d => d.label), axisLabel: { fontSize: 12, interval: Math.max(1, Math.floor(data.length / 6)) } },
-    yAxis: [{ type: 'value', splitLine: { lineStyle: { color: '#f1f5f9' } }, axisLabel: { fontSize: 12 } }, { type: 'value', splitLine: { show: false }, axisLabel: { fontSize: 12 } }],
-    dataZoom: [{ type: 'slider', start: 0, end: 100, height: 24, bottom: 0, textStyle: { fontSize: 11 } }],
+    xAxis: {
+      type: 'category',
+      data: data.map((d) => d.label),
+      axisLabel: { fontSize: 12, interval: Math.max(1, Math.floor(data.length / 6)) },
+    },
+    yAxis: [
+      {
+        type: 'value',
+        splitLine: { lineStyle: { color: '#f1f5f9' } },
+        axisLabel: { fontSize: 12 },
+      },
+      { type: 'value', splitLine: { show: false }, axisLabel: { fontSize: 12 } },
+    ],
+    dataZoom: [
+      { type: 'slider', start: 0, end: 100, height: 24, bottom: 0, textStyle: { fontSize: 11 } },
+    ],
     series,
   }
 })
@@ -233,9 +301,9 @@ const exporting = ref(false)
 function doExport(format: 'csv' | 'xlsx') {
   exporting.value = true
   setTimeout(() => {
-    const headers = ['时间', ...selectedMetrics.value.map(m => metricLabel(m))]
-    const rows = tableData.value.map(d => [d.label, ...selectedMetrics.value.map(m => d[m])])
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+    const headers = ['时间', ...selectedMetrics.value.map((m) => metricLabel(m))]
+    const rows = tableData.value.map((d) => [d.label, ...selectedMetrics.value.map((m) => d[m])])
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
@@ -249,8 +317,19 @@ function doExport(format: 'csv' | 'xlsx') {
 const reportVisible = ref(false)
 const reportData = computed(() => {
   const data = tableData.value.length > 0 ? tableData.value : allData.value.slice(-100)
-  const calc = (key: string) => ({ max: Math.max(...data.map(d => d[key])).toFixed(2), min: Math.min(...data.map(d => d[key])).toFixed(2), avg: (data.reduce((s, d) => s + d[key], 0) / data.length).toFixed(2) })
-  return { upstreamLevel: calc('upstreamLevel'), inflowRate: calc('inflowRate'), powerOutput: calc('powerOutput'), gateOpening: calc('gateOpening'), anomalies: data.filter(d => d.event).length, total: data.length }
+  const calc = (key: string) => ({
+    max: Math.max(...data.map((d) => d[key])).toFixed(2),
+    min: Math.min(...data.map((d) => d[key])).toFixed(2),
+    avg: (data.reduce((s, d) => s + d[key], 0) / data.length).toFixed(2),
+  })
+  return {
+    upstreamLevel: calc('upstreamLevel'),
+    inflowRate: calc('inflowRate'),
+    powerOutput: calc('powerOutput'),
+    gateOpening: calc('gateOpening'),
+    anomalies: data.filter((d) => d.event).length,
+    total: data.length,
+  }
 })
 
 generateMock()
@@ -258,51 +337,88 @@ tableData.value = [...allData.value]
 </script>
 
 <template>
-  <div class="hp" :class="{ dark: darkMode, 'hp--replaying': replayMode }">
+  <div class="hp"
+:class="{ dark: darkMode, 'hp--replaying': replayMode }">
     <!-- 筛选区 -->
     <div class="filter">
       <div class="filter__row">
         <label>日期范围</label>
-        <input type="datetime-local" v-model="dateRange.start" class="inp" :disabled="replayMode" />
+        <input v-model="dateRange.start"
+type="datetime-local" class="inp" :disabled="replayMode"
+/>
         <span>—</span>
-        <input type="datetime-local" v-model="dateRange.end" class="inp" :disabled="replayMode" />
+        <input v-model="dateRange.end"
+type="datetime-local" class="inp" :disabled="replayMode"
+/>
       </div>
       <div class="filter__row">
         <label>数据项</label>
         <div class="tags">
-          <span v-for="m in metricOptions" :key="m.value" class="tag" :class="{ on: selectedMetrics.includes(m.value) }" @click="!replayMode && (selectedMetrics.includes(m.value) ? selectedMetrics = selectedMetrics.filter(x => x !== m.value) : selectedMetrics.push(m.value))" :style="{ '--c': m.color }">{{ m.label }}</span>
+          <span
+            v-for="m in metricOptions"
+            :key="m.value"
+            class="tag"
+            :class="{ on: selectedMetrics.includes(m.value) }"
+            :style="{ '--c': m.color }"
+            @click="
+              !replayMode &&
+              (selectedMetrics.includes(m.value)
+                ? (selectedMetrics = selectedMetrics.filter((x) => x !== m.value))
+                : selectedMetrics.push(m.value))
+            "
+          >{{ m.label }}</span>
         </div>
       </div>
       <div class="filter__row">
         <label>粒度</label>
         <div class="tags">
-          <span v-for="g in granularityOptions" :key="g.value" class="tag" :class="{ on: granularity === g.value }" @click="!replayMode && (granularity = g.value as any)">{{ g.label }}</span>
+          <span
+            v-for="g in granularityOptions"
+            :key="g.value"
+            class="tag"
+            :class="{ on: granularity === g.value }"
+            @click="!replayMode && (granularity = g.value as any)"
+          >{{ g.label }}</span>
         </div>
       </div>
       <div class="filter__btns">
-        <button v-if="!replayMode" class="btn btn--replay" @click="enterReplay">
-          <el-icon><VideoPlay /></el-icon>
+        <button v-if="!replayMode"
+class="btn btn--replay" @click="enterReplay">
+          <ElIcon><VideoPlay /></ElIcon>
           时光机回放
         </button>
-        <button v-if="replayMode" class="btn btn--replay-exit" @click="exitReplay">
-          <el-icon><Close /></el-icon>
+        <button v-if="replayMode"
+class="btn btn--replay-exit" @click="exitReplay">
+          <ElIcon><Close /></ElIcon>
           退出回放
         </button>
-        <button class="btn btn--q" @click="applyFilters" :disabled="!isOnline || replayMode">查询</button>
-        <button class="btn" @click="resetFilters" :disabled="replayMode">重置</button>
-        <button class="btn" @click="darkMode = !darkMode">{{ darkMode ? '☀' : '☾' }}</button>
-        <span v-if="!isOnline" class="offline">离线 · 查询导出已禁用</span>
+        <button class="btn btn--q"
+@click="applyFilters" :disabled="!isOnline || replayMode">
+          查询
+        </button>
+        <button
+class="btn" @click="resetFilters" :disabled="replayMode">重置</button>
+        <button class="btn"
+@click="darkMode = !darkMode">
+          {{ darkMode ? '☀' : '☾' }}
+        </button>
+        <span v-if="!isOnline"
+class="offline">离线 · 查询导出已禁用</span>
       </div>
     </div>
 
     <!-- 回放控制栏 -->
-    <div v-if="replayMode" class="replay-bar">
+    <div v-if="replayMode"
+class="replay-bar">
       <div class="replay-bar__controls">
-        <button class="replay-btn" title="快退" @click="jumpReplay(-1)">⏮</button>
-        <button class="replay-btn replay-btn--play" @click="toggleReplayPlay">
+        <button
+class="replay-btn" title="快退" @click="jumpReplay(-1)">⏮</button>
+        <button class="replay-btn replay-btn--play"
+@click="toggleReplayPlay">
           {{ replayPlaying ? '⏸' : '▶' }}
         </button>
-        <button class="replay-btn" title="快进" @click="jumpReplay(1)">⏭</button>
+        <button
+class="replay-btn" title="快进" @click="jumpReplay(1)">⏭</button>
         <span class="replay-bar__time">{{ replayTimeLabel }}</span>
       </div>
       <div class="replay-bar__speed">
@@ -329,10 +445,12 @@ tableData.value = [...allData.value]
     </div>
 
     <!-- 回放快照面板 -->
-    <div v-if="replayMode && replaySnapshot" class="replay-snapshot">
-      <div class="replay-snapshot__item" v-for="m in metricOptions" :key="m.value">
+    <div v-if="replayMode && replaySnapshot"
+class="replay-snapshot">
+      <div v-for="m in metricOptions" class="replay-snapshot__item" :key="m.value">
         <span class="replay-snapshot__label">{{ m.label }}</span>
-        <span class="replay-snapshot__value" :style="{ color: m.color }">
+        <span class="replay-snapshot__value"
+:style="{ color: m.color }">
           {{ replaySnapshot[m.value] }} {{ m.unit }}
         </span>
       </div>
@@ -340,7 +458,13 @@ tableData.value = [...allData.value]
 
     <!-- 图表区 -->
     <div class="chart-wrap">
-      <v-chart class="chart" :class="{ 'chart--replay': replayMode }" :option="chartOpt" autoresize @datazoom="onChartZoom" />
+      <VChart
+        class="chart"
+        :class="{ 'chart--replay': replayMode }"
+        :option="chartOpt"
+        autoresize
+        @datazoom="onChartZoom"
+      />
     </div>
 
     <!-- 表格区 -->
@@ -348,45 +472,87 @@ tableData.value = [...allData.value]
       <div class="tbl__hd">
         <span>数据点 · {{ tableData.length }} 条</span>
         <div class="tbl__acts">
-          <button class="btn btn--sm" @click="doExport('csv')" :disabled="!isOnline || exporting || replayMode">{{ exporting ? '导出中...' : 'CSV 导出' }}</button>
-          <button class="btn btn--sm btn--with-icon" @click="reportVisible = true">
-            <el-icon><DataAnalysis /></el-icon>
+          <button
+            class="btn btn--sm"
+            :disabled="!isOnline || exporting || replayMode"
+            @click="doExport('csv')"
+          >
+            {{ exporting ? '导出中...' : 'CSV 导出' }}
+          </button>
+          <button class="btn btn--sm btn--with-icon"
+@click="reportVisible = true">
+            <ElIcon><DataAnalysis /></ElIcon>
             智能报告
           </button>
         </div>
       </div>
       <div class="tbl__body">
         <table class="tbl">
-          <thead><tr><th>时间</th><th v-for="m in selectedMetrics" :key="m">{{ metricLabel(m) }}</th></tr></thead>
+          <thead>
+            <tr>
+              <th>时间</th>
+              <th v-for="m in selectedMetrics" :key="m">
+                {{ metricLabel(m) }}
+              </th>
+            </tr>
+          </thead>
           <tbody>
-            <tr v-for="d in pagedData" :key="d.time" :class="{ 'tbl__row--replay-cursor': replayMode && replaySnapshot && d.time === replaySnapshot.time }">
+            <tr
+              v-for="d in pagedData"
+              :key="d.time"
+              :class="{
+                'tbl__row--replay-cursor':
+                  replayMode && replaySnapshot && d.time === replaySnapshot.time,
+              }"
+            >
               <td>{{ d.label }}</td>
-              <td v-for="m in selectedMetrics" :key="m">{{ d[m] }} {{ metricUnit(m) }}</td>
+              <td
+v-for="m in selectedMetrics" :key="m">{{ d[m] }} {{ metricUnit(m) }}</td>
             </tr>
           </tbody>
         </table>
       </div>
       <div class="tbl__pg">
-        <button :disabled="tablePage <= 1" @click="tablePage--">‹</button>
+        <button
+:disabled="tablePage <= 1" @click="tablePage--">‹</button>
         <span>{{ tablePage }} / {{ totalPages }}</span>
-        <button :disabled="tablePage >= totalPages" @click="tablePage++">›</button>
+        <button
+:disabled="tablePage >= totalPages" @click="tablePage++">›</button>
       </div>
     </div>
 
     <!-- 智能报告弹窗 -->
     <Transition name="fade">
-      <div v-if="reportVisible" class="modal" @click.self="reportVisible = false">
+      <div v-if="reportVisible"
+class="modal" @click.self="reportVisible = false">
         <div class="modal__box">
           <h2>智能分析报告</h2>
           <div class="rep">
-            <div class="rep__item"><span>数据点数</span><b>{{ reportData.total }}</b></div>
-            <div class="rep__item"><span>异常点数</span><b style="color:#ef4444">{{ reportData.anomalies }}</b></div>
-            <div class="rep__item"><span>上游水位</span><b>最大 {{ reportData.upstreamLevel.max }}m / 最小 {{ reportData.upstreamLevel.min }}m / 平均 {{ reportData.upstreamLevel.avg }}m</b></div>
-            <div class="rep__item"><span>入库流量</span><b>最大 {{ reportData.inflowRate.max }}m³/s / 最小 {{ reportData.inflowRate.min }}m³/s / 平均 {{ reportData.inflowRate.avg }}m³/s</b></div>
-            <div class="rep__item"><span>发电功率</span><b>最大 {{ reportData.powerOutput.max }}MW / 最小 {{ reportData.powerOutput.min }}MW / 平均 {{ reportData.powerOutput.avg }}MW</b></div>
-            <div class="rep__item"><span>闸门开度</span><b>最大 {{ reportData.gateOpening.max }}% / 最小 {{ reportData.gateOpening.min }}% / 平均 {{ reportData.gateOpening.avg }}%</b></div>
+            <div class="rep__item">
+              <span>数据点数</span><b>{{ reportData.total }}</b>
+            </div>
+            <div class="rep__item">
+              <span>异常点数</span><b style="color: #ef4444">{{ reportData.anomalies }}</b>
+            </div>
+            <div class="rep__item">
+              <span>上游水位</span><b>最大 {{ reportData.upstreamLevel.max }}m / 最小 {{ reportData.upstreamLevel.min }}m
+                / 平均 {{ reportData.upstreamLevel.avg }}m</b>
+            </div>
+            <div class="rep__item">
+              <span>入库流量</span><b>最大 {{ reportData.inflowRate.max }}m³/s / 最小 {{ reportData.inflowRate.min }}m³/s
+                / 平均 {{ reportData.inflowRate.avg }}m³/s</b>
+            </div>
+            <div class="rep__item">
+              <span>发电功率</span><b>最大 {{ reportData.powerOutput.max }}MW / 最小 {{ reportData.powerOutput.min }}MW /
+                平均 {{ reportData.powerOutput.avg }}MW</b>
+            </div>
+            <div class="rep__item">
+              <span>闸门开度</span><b>最大 {{ reportData.gateOpening.max }}% / 最小 {{ reportData.gateOpening.min }}% /
+                平均 {{ reportData.gateOpening.avg }}%</b>
+            </div>
           </div>
-          <button class="btn" @click="reportVisible = false">关闭</button>
+          <button
+class="btn" @click="reportVisible = false">关闭</button>
         </div>
       </div>
     </Transition>
@@ -401,7 +567,9 @@ tableData.value = [...allData.value]
   min-height: 0;
   overflow: hidden;
   background: #f8f9fb;
-  transition: border-color 0.3s, box-shadow 0.3s;
+  transition:
+    border-color 0.3s,
+    box-shadow 0.3s;
 
   &.dark {
     background: #0f172a;
@@ -418,8 +586,13 @@ tableData.value = [...allData.value]
 }
 
 @keyframes replay-glow {
-  0%, 100% { box-shadow: 0 0 16px rgba(245, 158, 11, 0.25); }
-  50% { box-shadow: 0 0 32px rgba(245, 158, 11, 0.55); }
+  0%,
+  100% {
+    box-shadow: 0 0 16px rgba(245, 158, 11, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 32px rgba(245, 158, 11, 0.55);
+  }
 }
 
 // ── 回放控制栏 ──
@@ -460,7 +633,10 @@ tableData.value = [...allData.value]
   cursor: pointer;
   transition: all 0.15s;
 
-  &:hover { background: #fffbeb; color: #78350f; }
+  &:hover {
+    background: #fffbeb;
+    color: #78350f;
+  }
 
   &--play {
     width: 40px;
@@ -471,7 +647,10 @@ tableData.value = [...allData.value]
     border-color: transparent;
     border-radius: 50%;
 
-    &:hover { background: #d97706; color: #fff; }
+    &:hover {
+      background: #d97706;
+      color: #fff;
+    }
   }
 }
 
@@ -480,14 +659,18 @@ tableData.value = [...allData.value]
   background: #292524;
   border-color: #b45309;
 
-  &:hover { background: #3a2f1f; }
+  &:hover {
+    background: #3a2f1f;
+  }
 
   &--play {
     background: #d97706;
     color: #fff;
     border-color: transparent;
 
-    &:hover { background: #b45309; }
+    &:hover {
+      background: #b45309;
+    }
   }
 }
 
@@ -521,7 +704,9 @@ tableData.value = [...allData.value]
   cursor: pointer;
   transition: all 0.15s;
 
-  &:hover { background: #fffbeb; }
+  &:hover {
+    background: #fffbeb;
+  }
 
   &.active {
     color: #fff;
@@ -568,7 +753,9 @@ tableData.value = [...allData.value]
       cursor: pointer;
       transition: transform 0.15s;
 
-      &:hover { transform: scale(1.2); }
+      &:hover {
+        transform: scale(1.2);
+      }
     }
   }
 }
@@ -673,7 +860,10 @@ tableData.value = [...allData.value]
   border: 1px solid #d1d5db;
   border-radius: 6px;
 
-  &:disabled { opacity: 0.45; cursor: not-allowed; }
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 }
 
 .dark .inp {
@@ -698,7 +888,9 @@ tableData.value = [...allData.value]
   cursor: pointer;
   transition: all 0.15s;
 
-  &:hover { border-color: #93c5fd; }
+  &:hover {
+    border-color: #93c5fd;
+  }
 
   &.on {
     color: #fff;
@@ -736,8 +928,13 @@ tableData.value = [...allData.value]
   border-radius: 6px;
   cursor: pointer;
 
-  &:hover:not(:disabled) { background: #f3f4f6; }
-  &:disabled { opacity: 0.4; cursor: not-allowed; }
+  &:hover:not(:disabled) {
+    background: #f3f4f6;
+  }
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 }
 
 .btn--q {
@@ -745,7 +942,9 @@ tableData.value = [...allData.value]
   background: #3b82f6;
   border-color: #3b82f6;
 
-  &:hover:not(:disabled) { background: #2563eb; }
+  &:hover:not(:disabled) {
+    background: #2563eb;
+  }
 }
 
 .btn--replay {
@@ -786,7 +985,9 @@ tableData.value = [...allData.value]
   align-items: center;
   gap: 6px;
 
-  .el-icon { font-size: 16px; }
+  .el-icon {
+    font-size: 16px;
+  }
 }
 
 .dark .btn {
@@ -845,9 +1046,14 @@ tableData.value = [...allData.value]
   border-bottom: 1px solid var(--br, #eef0f4);
 }
 
-.dark .tbl__hd { color: #e2e8f0; }
+.dark .tbl__hd {
+  color: #e2e8f0;
+}
 
-.tbl__acts { display: flex; gap: 8px; }
+.tbl__acts {
+  display: flex;
+  gap: 8px;
+}
 
 .tbl__body {
   flex: 1;
@@ -877,11 +1083,18 @@ tableData.value = [...allData.value]
     border-bottom: 1px solid #f8fafc;
   }
 
-  tr:hover td { background: var(--hb, #fafbfc); }
+  tr:hover td {
+    background: var(--hb, #fafbfc);
+  }
 }
 
-.dark .tbl td { --tx: #cbd5e1; border-color: #1e293b; }
-.dark .tbl tr:hover td { --hb: #283448; }
+.dark .tbl td {
+  --tx: #cbd5e1;
+  border-color: #1e293b;
+}
+.dark .tbl tr:hover td {
+  --hb: #283448;
+}
 
 .tbl__pg {
   display: flex;
@@ -903,7 +1116,10 @@ tableData.value = [...allData.value]
     border: 1px solid #d1d5db;
     border-radius: 4px;
 
-    &:disabled { opacity: 0.3; cursor: default; }
+    &:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
   }
 }
 
@@ -931,14 +1147,21 @@ tableData.value = [...allData.value]
   background: #fff;
   border-radius: 12px;
 
-  h2 { margin: 0 0 20px; font-size: 17px; font-weight: 600; color: #1e293b; }
+  h2 {
+    margin: 0 0 20px;
+    font-size: 17px;
+    font-weight: 600;
+    color: #1e293b;
+  }
 }
 
 .dark .modal__box {
   color: #e2e8f0;
   background: #1e293b;
 
-  h2 { color: #f1f5f9; }
+  h2 {
+    color: #f1f5f9;
+  }
 }
 
 .rep {
@@ -957,16 +1180,32 @@ tableData.value = [...allData.value]
   background: #f8fafc;
   border-radius: 6px;
 
-  span { min-width: 88px; font-weight: 500; color: #64748b; }
-  b { font-weight: 600; color: #1e293b; }
+  span {
+    min-width: 88px;
+    font-weight: 500;
+    color: #64748b;
+  }
+  b {
+    font-weight: 600;
+    color: #1e293b;
+  }
 }
 
-.dark .rep__item { background: #334155; b { color: #e2e8f0; } }
+.dark .rep__item {
+  background: #334155;
+  b {
+    color: #e2e8f0;
+  }
+}
 
 .fade-enter-active,
-.fade-leave-active { transition: opacity 0.2s; }
+.fade-leave-active {
+  transition: opacity 0.2s;
+}
 .fade-enter-from,
-.fade-leave-to { opacity: 0; }
+.fade-leave-to {
+  opacity: 0;
+}
 </style>
 
 <style lang="scss">

@@ -18,6 +18,8 @@ export type AlarmType =
   | 'EXEC_TIMEOUT'
   | 'EXEC_FAIL'
   | 'MODEL_HEALTH_DEGRADED'
+  | 'MODEL_ROLLBACK'
+  | 'MODEL_DRIFT'
 
 // ---------- 告警处理状态 ----------
 export type AlarmStatus = 'pending' | 'confirmed' | 'handled'
@@ -52,11 +54,11 @@ export interface AlarmRecord {
 
 // ---------- 触发时刻监测快照 ----------
 export interface AlarmSnapshot {
-  upstreamLevel: number     // 上游水位 (m)
-  downstreamLevel: number   // 下游水位 (m)
-  flowRate: number          // 流量 (m³/s)
-  gateOpening: number       // 闸门开度 (%)
-  recordedAt: string        // 快照时间
+  upstreamLevel: number // 上游水位 (m)
+  downstreamLevel: number // 下游水位 (m)
+  flowRate: number // 流量 (m³/s)
+  gateOpening: number // 闸门开度 (%)
+  recordedAt: string // 快照时间
 }
 
 // ---------- 超限日志（瞬时超限，不告警） ----------

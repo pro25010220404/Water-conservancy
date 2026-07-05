@@ -7,6 +7,11 @@ import type { DictMap } from '@/shared/types'
 export * from './roles'
 export * from './equipment'
 export * from './validation'
+export * from './settings'
+export * from './aiHealth'
+export * from './physicsGuard'
+export * from './gateInterlock'
+export * from './profile'
 
 // ---------- 通用状态字典 ----------
 export const COMMON_STATUS: DictMap = {

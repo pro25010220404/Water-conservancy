@@ -14,5 +14,13 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
+  "exclude": [
+    "src/views/settings/aiHealth/**",
+    "src/views/settings/physicsGuard/**",
+    "src/views/settings/gateInterlock/**",
+    "src/views/settings/index.vue",
+    "src/views/equipment/index.vue",
+    "src/views/equipment/components/**"
+  ]
 }

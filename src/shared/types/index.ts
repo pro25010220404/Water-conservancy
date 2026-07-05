@@ -29,6 +29,7 @@ export interface DictOption {
   label: string
   value: string | number
   color?: string
+  icon?: string
 }
 
 // ---------- 字典映射表 ----------
@@ -39,7 +40,8 @@ export type DictMap = Record<string | number, DictOption>
 // ════════════════════════════════════════════════════════════
 
 /** 设备类型 */
-export type EquipmentType = 'level_sensor' | 'flow_sensor' | 'plc' | 'edge_gateway' | 'actuator'
+export type EquipmentType =
+  'sensor' | 'plc' | 'gateway' | 'actuator' | 'power' | 'pump' | 'accessory'
 
 /** 设备状态 */
 export type EquipmentStatus = 'online' | 'offline' | 'fault' | 'maintenance'
@@ -49,14 +51,19 @@ export interface Equipment {
   id: number
   name: string
   code: string
-  type: EquipmentType
+  type: string
   reservoir_id: number
   reservoir_name: string
-  status: EquipmentStatus
+  status: string
   manufacturer: string
   model: string
   health_score: number
   last_online: string
+  install_location?: string
+  group?: string
+  responsible_person?: string
+  purchase_date?: string
+  remark?: string
 }
 
 /** 设备详情（含告警 + 监测数据） */

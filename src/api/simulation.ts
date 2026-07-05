@@ -3,9 +3,16 @@
 // ============================================================
 import type { ApiResponse, PageResult } from '@/shared/types'
 import type {
-  SimulationParams, SimulationRealtimeData, SimulationRun, SimulationReport,
+  SimulationParams,
+  SimulationRealtimeData,
+  SimulationRun,
+  SimulationReport,
   SimulationStartPayload,
-  AiModel, TrainingTask, TrainingConfig, FaultReview, FaultConclusion,
+  AiModel,
+  TrainingTask,
+  TrainingConfig,
+  FaultReview,
+  FaultConclusion,
 } from '@/types/simulation'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 import { mockApi } from './mockStore'
@@ -27,20 +34,28 @@ async function withMockFallback<T>(
   }
 }
 
-export async function startSimulation(params: SimulationStartPayload): Promise<ApiResponse<{ runId: number }>> {
+export async function startSimulation(
+  params: SimulationStartPayload,
+): Promise<ApiResponse<{ runId: number }>> {
   return withMockFallback('/api/simulation/start', () => mockApi.startSimulation(params), {
     method: 'POST',
     body: JSON.stringify(params),
   })
 }
 export async function pauseSimulation(): Promise<ApiResponse<null>> {
-  return withMockFallback('/api/simulation/pause', () => mockApi.pauseSimulation(), { method: 'POST' })
+  return withMockFallback('/api/simulation/pause', () => mockApi.pauseSimulation(), {
+    method: 'POST',
+  })
 }
 export async function resumeSimulation(): Promise<ApiResponse<null>> {
-  return withMockFallback('/api/simulation/resume', () => mockApi.resumeSimulation(), { method: 'POST' })
+  return withMockFallback('/api/simulation/resume', () => mockApi.resumeSimulation(), {
+    method: 'POST',
+  })
 }
 export async function resetSimulation(): Promise<ApiResponse<null>> {
-  return withMockFallback('/api/simulation/reset', () => mockApi.resetSimulation(), { method: 'POST' })
+  return withMockFallback('/api/simulation/reset', () => mockApi.resetSimulation(), {
+    method: 'POST',
+  })
 }
 export async function getSimulationStatus(): Promise<ApiResponse<SimulationRealtimeData>> {
   return withMockFallback('/api/simulation/status', () => mockApi.getSimulationStatus())
@@ -52,11 +67,17 @@ export async function setSimulationGateOpening(opening: number): Promise<ApiResp
   })
 }
 export async function emergencyStopSimulation(): Promise<ApiResponse<null>> {
-  return withMockFallback('/api/simulation/emergency-stop', () => mockApi.emergencyStopSimulation(), {
-    method: 'POST',
-  })
+  return withMockFallback(
+    '/api/simulation/emergency-stop',
+    () => mockApi.emergencyStopSimulation(),
+    {
+      method: 'POST',
+    },
+  )
 }
-export async function getSimulationScenes(): Promise<ApiResponse<Array<{ scene: string; label: string; defaultParams: SimulationParams }>>> {
+export async function getSimulationScenes(): Promise<
+  ApiResponse<Array<{ scene: string; label: string; defaultParams: SimulationParams }>>
+> {
   return fetchMock('/api/simulation/scenes')
 }
 export async function getModelList(): Promise<ApiResponse<AiModel[]>> {
@@ -66,9 +87,13 @@ export async function uploadModel(_formData: FormData): Promise<ApiResponse<AiMo
   return withMockFallback('/api/models/upload', () => mockApi.uploadModel(), { method: 'POST' })
 }
 export async function activateModel(id: number): Promise<ApiResponse<null>> {
-  return withMockFallback(`/api/models/${id}/activate`, () => mockApi.activateModel(id), { method: 'PUT' })
+  return withMockFallback(`/api/models/${id}/activate`, () => mockApi.activateModel(id), {
+    method: 'PUT',
+  })
 }
-export async function startTraining(config: TrainingConfig & { modelId: number }): Promise<ApiResponse<{ taskId: string }>> {
+export async function startTraining(
+  config: TrainingConfig & { modelId: number },
+): Promise<ApiResponse<{ taskId: string }>> {
   return withMockFallback('/api/models/train', () => mockApi.startTraining(), {
     method: 'POST',
     body: JSON.stringify(config),
@@ -83,9 +108,15 @@ export async function generateReport(runId: number): Promise<ApiResponse<Simulat
     body: JSON.stringify({ runId }),
   })
 }
-export async function getReportList(params: { pageNum: number; pageSize: number; scene?: string }): Promise<ApiResponse<PageResult<SimulationReport>>> {
+export async function getReportList(params: {
+  pageNum: number
+  pageSize: number
+  scene?: string
+}): Promise<ApiResponse<PageResult<SimulationReport>>> {
   const q = new URLSearchParams(
-    Object.entries(params).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)]),
+    Object.entries(params)
+      .filter(([_, v]) => v !== undefined)
+      .map(([k, v]) => [k, String(v)]),
   ).toString()
   return withMockFallback(`/api/simulation/reports?${q}`, () => mockApi.getReportList())
 }
@@ -96,25 +127,47 @@ export async function downloadReport(_id: number): Promise<Blob> {
     return mockApi.downloadReport()
   }
 }
-export async function getFaultReviewList(params: { pageNum: number; pageSize: number; type?: string; startTime?: string; endTime?: string }): Promise<ApiResponse<PageResult<FaultReview>>> {
+export async function getFaultReviewList(params: {
+  pageNum: number
+  pageSize: number
+  type?: string
+  startTime?: string
+  endTime?: string
+}): Promise<ApiResponse<PageResult<FaultReview>>> {
   const q = new URLSearchParams(
-    Object.entries(params).filter(([_, v]) => v !== undefined).map(([k, v]) => [k, String(v)]),
+    Object.entries(params)
+      .filter(([_, v]) => v !== undefined)
+      .map(([k, v]) => [k, String(v)]),
   ).toString()
   return withMockFallback(`/api/fault-review/list?${q}`, () => mockApi.getFaultReviewList())
 }
 export async function getFaultReviewDetail(id: number): Promise<ApiResponse<FaultReview>> {
   return withMockFallback(`/api/fault-review/${id}`, () => mockApi.getFaultReviewDetail(id))
 }
-export async function submitFaultConclusion(id: number, conclusion: FaultConclusion): Promise<ApiResponse<null>> {
-  return withMockFallback(`/api/fault-review/${id}`, () => mockApi.submitFaultConclusion(id, conclusion), {
-    method: 'PUT',
-    body: JSON.stringify(conclusion),
-  })
+export async function submitFaultConclusion(
+  id: number,
+  conclusion: FaultConclusion,
+): Promise<ApiResponse<null>> {
+  return withMockFallback(
+    `/api/fault-review/${id}`,
+    () => mockApi.submitFaultConclusion(id, conclusion),
+    {
+      method: 'PUT',
+      body: JSON.stringify(conclusion),
+    },
+  )
 }
 export async function importToSimulation(id: number): Promise<ApiResponse<SimulationParams>> {
-  return withMockFallback(`/api/fault-review/${id}/import-simulation`, () => mockApi.importToSimulation(), { method: 'POST' })
+  return withMockFallback(
+    `/api/fault-review/${id}/import-simulation`,
+    () => mockApi.importToSimulation(),
+    { method: 'POST' },
+  )
 }
-export async function getSimulationRuns(params: { pageNum: number; pageSize: number }): Promise<ApiResponse<PageResult<SimulationRun>>> {
+export async function getSimulationRuns(params: {
+  pageNum: number
+  pageSize: number
+}): Promise<ApiResponse<PageResult<SimulationRun>>> {
   return withMockFallback(
     `/api/simulation/runs?pageNum=${params.pageNum}&pageSize=${params.pageSize}`,
     () => mockApi.getSimulationRuns(),
@@ -125,5 +178,7 @@ export async function getCockpitKpi(): Promise<ApiResponse<Record<string, unknow
 }
 
 export async function getPhysicsGuardSummary(): Promise<ApiResponse<PhysicsGuardSummary>> {
-  return withMockFallback('/api/v1/settings/physics-guard?reservoir_id=1', () => mockApi.getPhysicsGuardSummary())
+  return withMockFallback('/api/v1/settings/physics-guard?reservoir_id=1', () =>
+    mockApi.getPhysicsGuardSummary(),
+  )
 }

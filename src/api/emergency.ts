@@ -21,7 +21,9 @@ async function withMockFallback<T>(
 }
 
 /** 全局急停 — 停止调度执行、暂停仿真、闸门开度归零 */
-export async function globalEmergencyStop(): Promise<ApiResponse<{ stop_log_id: number; command_id: string }>> {
+export async function globalEmergencyStop(): Promise<
+  ApiResponse<{ stop_log_id: number; command_id: string }>
+> {
   return withMockFallback('/dispatch/emergency-stop', () => mockApi.globalEmergencyStop(), {
     method: 'POST',
     body: JSON.stringify({ stop_reason: '人工触发急停' }),

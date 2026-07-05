@@ -29,7 +29,12 @@ function canvasTex(canvas: HTMLCanvasElement, opts?: Partial<THREE.Texture>): TH
   return tex
 }
 
-function heightToNormal(data: Float32Array, w: number, h: number, strength = 2.5): HTMLCanvasElement {
+function heightToNormal(
+  data: Float32Array,
+  w: number,
+  h: number,
+  strength = 2.5,
+): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = w
   canvas.height = h
@@ -71,9 +76,9 @@ export function createConcreteTextures(size = 512) {
       const n = fbm(u * 22, v * 22, 7, 42)
       const stain = fbm(u * 3.5 + 10, v * 3.5, 4, 99) * 0.22
       const streak = fbm(u * 1.2, v * 8, 3, 17) * 0.12
-      const seamV = Math.abs((v * 10) % 1 - 0.5) < 0.018 ? 0.14 : 0
-      const seamH = Math.abs((u * 7) % 1 - 0.5) < 0.012 ? 0.1 : 0
-      const pour = Math.abs((v * 3.5) % 1 - 0.5) < 0.008 ? 0.06 : 0
+      const seamV = Math.abs(((v * 10) % 1) - 0.5) < 0.018 ? 0.14 : 0
+      const seamH = Math.abs(((u * 7) % 1) - 0.5) < 0.012 ? 0.1 : 0
+      const pour = Math.abs(((v * 3.5) % 1) - 0.5) < 0.008 ? 0.06 : 0
       const crack = fbm(u * 45 + 5, v * 45, 2, 201) > 0.82 ? 0.08 : 0
       const base = 0.38 + n * 0.2 - stain - streak - seamV - seamH - pour - crack
       heights[y * size + x] = base
@@ -96,7 +101,8 @@ export function createConcreteTextures(size = 512) {
   const rimg = rctx.createImageData(size, size)
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const u = x / size; const v = y / size
+      const u = x / size
+      const v = y / size
       const r = 0.82 + fbm(u * 18, v * 18, 4, 33) * 0.14
       const i = (y * size + x) * 4
       const rv = Math.floor(r * 255)
@@ -152,7 +158,8 @@ export function createMetalTextures(size = 512) {
   const rimg = rctx.createImageData(size, size)
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const u = x / size; const v = y / size
+      const u = x / size
+      const v = y / size
       const r = 0.25 + fbm(u * 22, v * 22, 3, 44) * 0.22
       const i = (y * size + x) * 4
       const rv = Math.floor(r * 255)
@@ -186,15 +193,25 @@ export function createTerrainTextures(size = 1024) {
 
       let r: number, g: number, b: number
       if (hVal > 0.78) {
-        r = 72 + slope * 28; g = 88 + slope * 32; b = 68 + slope * 22
+        r = 72 + slope * 28
+        g = 88 + slope * 32
+        b = 68 + slope * 22
       } else if (hVal > 0.62) {
-        r = 38 + hVal * 42; g = 78 + hVal * 62; b = 32 + hVal * 28
-        g += grass * 22; r += grass * 6
+        r = 38 + hVal * 42
+        g = 78 + hVal * 62
+        b = 32 + hVal * 28
+        g += grass * 22
+        r += grass * 6
       } else if (hVal > 0.42) {
-        r = 28 + hVal * 38; g = 72 + hVal * 78; b = 24 + hVal * 26
-        g += grass * 32; r += grass * 12
+        r = 28 + hVal * 38
+        g = 72 + hVal * 78
+        b = 24 + hVal * 26
+        g += grass * 32
+        r += grass * 12
       } else {
-        r = 42 + hVal * 40; g = 78 + hVal * 52; b = 30 + hVal * 22
+        r = 42 + hVal * 40
+        g = 78 + hVal * 52
+        b = 30 + hVal * 22
       }
       const i = (y * size + x) * 4
       img.data[i] = Math.min(255, r)
@@ -215,7 +232,8 @@ export function createTerrainTextures(size = 1024) {
   const rimg = rctx.createImageData(size, size)
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const u = x / size; const v = y / size
+      const u = x / size
+      const v = y / size
       const r = 0.86 + fbm(u * 16, v * 16, 3, 66) * 0.1
       const i = (y * size + x) * 4
       const rv = Math.floor(r * 255)
@@ -269,7 +287,8 @@ export function createForestTextures(size = 1024) {
   const rimg = rctx.createImageData(size, size)
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const u = x / size; const v = y / size
+      const u = x / size
+      const v = y / size
       const r = 0.88 + fbm(u * 20, v * 20, 3, 88) * 0.1
       const i = (y * size + x) * 4
       const rv = Math.floor(r * 255)
