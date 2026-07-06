@@ -76,7 +76,9 @@ interface CameraDef {
 }
 
 const cameras = ref<CameraDef[]>([])
-const ALARM_ZONE_TO_CAMERA: Record<string, string> = {}
+const ALARM_ZONE_TO_CAMERA: Record<string, string> = {
+  坝顶: 'c1', 厂房: 'c3', 中控室: 'c4', 下游: 'c5', 下游河道: 'c5', 开关站: 'c6',
+}
 
 // ── 门禁 / 巡检 / 告警 ──
 interface DoorDef {
@@ -214,7 +216,29 @@ const SIMULATED_SCENARIOS = [
   { location: '下游', type: '非法闯入', level: 'warning' as const },
 ]
 
+function playAlarmSound() {
+  try {
+    const ctx = new AudioContext()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'square'
+    osc.frequency.value = 800
+    gain.gain.value = 0.15
+    // 嘟嘟嘟 三声
+    const now = ctx.currentTime
+    for (let i = 0; i < 3; i++) {
+      gain.gain.setValueAtTime(0.15, now + i * 0.4)
+      gain.gain.setValueAtTime(0, now + i * 0.4 + 0.2)
+    }
+    osc.start(now)
+    osc.stop(now + 1.4)
+  } catch { /* 浏览器不支持 */ }
+}
+
 function simulateAlarm() {
+  playAlarmSound()
   const scenario = SIMULATED_SCENARIOS[alarmScenarioIdx % SIMULATED_SCENARIOS.length]
   alarmScenarioIdx++
 

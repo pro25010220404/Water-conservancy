@@ -8,10 +8,11 @@ import type {
   ModelMetricDetailRow,
   PhysicsGuardConfig,
   GateInterlockRule,
-  ModelHealthOverviewItem,
-  ModelVersionOption,
   GateInterlockLog,
   GateInterlockLogApiItem,
+  ModelHealthOverviewItem,
+  ModelVersionOption,
+  AIHealthOverviewResponse,
 } from '@/types/gateai'
 
 import { RESERVOIR_OPTIONS } from '@/constants/settings'
@@ -184,7 +185,94 @@ function delay<T>(data: T, ms = 150): Promise<T> {
   return new Promise((r) => setTimeout(() => r(data), ms))
 }
 
-export function fetchReservoirOptions() {
+type AIMetricsLatestRaw = {
+  overall_score?: number
+  health_grade?: string
+  water_level_mae_24h?: number
+  safety_override_rate?: number
+  l3_auto_rate?: number
+  prediction_score?: number
+  decision_score?: number
+  compliance_score?: number
+  metric_time?: string
+  decision_level_dist?: Partial<Record<'L1' | 'L2' | 'L3' | 'OVERRIDE', number>>
+}
+
+function normalizeModelMetricsLatest(raw: AIMetricsLatestRaw): ModelMetricLatest {
+  const dist = raw.decision_level_dist
+  return {
+    overall_score: raw.overall_score ?? 0,
+    health_grade: (raw.health_grade ?? 'C') as ModelMetricLatest['health_grade'],
+    water_level_mae_24h: raw.water_level_mae_24h ?? 0,
+    safety_override_rate: raw.safety_override_rate ?? 0,
+    l3_auto_rate: raw.l3_auto_rate ?? dist?.L3 ?? 0,
+    prediction_score: raw.prediction_score ?? 0,
+    decision_score: raw.decision_score ?? 0,
+    compliance_score: raw.compliance_score ?? 0,
+    metric_time: raw.metric_time ?? '',
+  }
+}
+
+function normalizeDetailRow(raw: Record<string, unknown>): ModelMetricDetailRow {
+  return {
+    metric_time: String(raw.metric_time ?? raw.time ?? ''),
+    water_level_mae_24h: Number(raw.water_level_mae_24h ?? raw.water_level_mae ?? 0),
+    safety_override_rate: Number(raw.safety_override_rate ?? 0),
+    physics_correction_rate: Number(raw.physics_correction_rate ?? 0),
+    gate_limit_touch_rate: Number(raw.gate_limit_touch_rate ?? 0),
+    overall_score: Number(raw.overall_score ?? 0),
+    health_grade: String(raw.health_grade ?? 'C') as ModelMetricDetailRow['health_grade'],
+  }
+}
+
+function extractDetailList(data: unknown): ModelMetricDetailRow[] {
+  if (Array.isArray(data)) return data.map((item) => normalizeDetailRow(item as Record<string, unknown>))
+  if (data && typeof data === 'object') {
+    const obj = data as Record<string, unknown>
+    for (const key of ['list', 'items', 'records']) {
+      if (Array.isArray(obj[key])) {
+        return (obj[key] as Record<string, unknown>[]).map((item) => normalizeDetailRow(item))
+      }
+    }
+  }
+  return []
+}
+
+/** 后端未部署 /settings/ai/metrics/detail 时跳过重复 404 请求 */
+let metricsDetailApiAvailable: boolean | null = null
+
+function getHttpStatus(e: unknown): number | undefined {
+  if (e && typeof e === 'object' && 'response' in e) {
+    return (e as { response?: { status?: number } }).response?.status
+  }
+  return undefined
+}
+
+async function fetchDetailFromHistory(reservoirId: number, limit: number): Promise<ModelMetricDetailRow[]> {
+  try {
+    const res = await getAIMetricsHistory({ reservoir_id: reservoirId, days: 7 })
+    if (res.data?.code === 0) {
+      const list = extractHistoryList(res.data.data)
+      return list
+        .slice(-limit)
+        .reverse()
+        .map((item) => normalizeDetailRow(item as unknown as Record<string, unknown>))
+    }
+  } catch {
+    /* ignore */
+  }
+  return []
+}
+
+export async function fetchReservoirOptions(): Promise<{ id: number; name: string }[]> {
+  try {
+    const overview = await fetchModelHealthOverview()
+    if (overview.length > 0) {
+      return overview.map((r) => ({ id: r.reservoir_id, name: r.reservoir_name }))
+    }
+  } catch (e) {
+    if (!GATEAI_MOCK_FALLBACK) throw e
+  }
   return delay(gateaiSharedStore.getReservoirs())
 }
 
@@ -193,10 +281,21 @@ export async function fetchModelMetricsLatest(reservoirId: number): Promise<Mode
   try {
     const res = await getAIMetrics({ reservoir_id: reservoirId })
     if (res.data?.code === 0 && res.data.data) {
-      return res.data.data as unknown as ModelMetricLatest
+      return normalizeModelMetricsLatest(res.data.data as AIMetricsLatestRaw)
     }
   } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(METRICS[reservoirId] ?? METRICS[1])
+}
+
+function extractHistoryList(data: unknown): AIMetricsHistoryItem[] {
+  if (Array.isArray(data)) return data as AIMetricsHistoryItem[]
+  if (data && typeof data === 'object') {
+    const obj = data as Record<string, unknown>
+    for (const key of ['list', 'items', 'records', 'history']) {
+      if (Array.isArray(obj[key])) return obj[key] as AIMetricsHistoryItem[]
+    }
+  }
+  return []
 }
 
 function normalizeHistoryPoint(raw: AIMetricsHistoryItem | ModelMetricHistoryPoint): ModelMetricHistoryPoint {
@@ -219,8 +318,9 @@ export async function fetchModelMetricsHistory(
 ): Promise<ModelMetricHistoryPoint[]> {
   try {
     const res = await getAIMetricsHistory({ reservoir_id: reservoirId, days })
-    if (res.data?.code === 0 && Array.isArray(res.data.data)) {
-      return res.data.data.map((item) => normalizeHistoryPoint(item))
+    if (res.data?.code === 0) {
+      const list = extractHistoryList(res.data.data)
+      return list.map((item) => normalizeHistoryPoint(item))
     }
   } catch (e) {
     if (!GATEAI_MOCK_FALLBACK) throw e
@@ -232,29 +332,92 @@ export async function fetchModelMetricsDetail(
   reservoirId: number,
   params?: { hours?: number; page?: number; page_size?: number },
 ): Promise<ModelMetricDetailRow[]> {
+  const limit = params?.page_size ?? params?.hours ?? 24
+
+  if (metricsDetailApiAvailable === false) {
+    return fetchDetailFromHistory(reservoirId, limit)
+  }
+
   try {
     const res = await getAIMetricsDetail({
       reservoir_id: reservoirId,
       page: params?.page,
-      page_size: params?.page_size ?? params?.hours ?? 24,
+      page_size: limit,
     })
     if (res.data?.code === 0 && res.data.data) {
-      return (res.data.data as unknown as { list: ModelMetricDetailRow[] }).list ?? []
+      const list = extractDetailList(res.data.data)
+      if (list.length > 0) {
+        metricsDetailApiAvailable = true
+        return list
+      }
     }
-  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
-  return delay(detailRows(reservoirId, params?.hours ?? 24))
+  } catch (e) {
+    if (getHttpStatus(e) === 404) {
+      metricsDetailApiAvailable = false
+      if (import.meta.env.DEV) {
+        console.info('[API] 指标明细接口尚未部署(404)，已改用历史趋势数据填充明细表')
+      }
+      return fetchDetailFromHistory(reservoirId, limit)
+    }
+    if (!GATEAI_MOCK_FALLBACK) throw e
+  }
+
+  const fromHistory = await fetchDetailFromHistory(reservoirId, limit)
+  if (fromHistory.length > 0) return fromHistory
+
+  if (GATEAI_MOCK_FALLBACK) return delay(detailRows(reservoirId, limit))
+  return []
+}
+
+function reservoirNameById(id: number): string {
+  return (
+    RESERVOIR_OPTIONS.find((r) => r.value === id)?.label
+    ?? gateaiSharedStore.getReservoirs().find((r) => r.id === id)?.name
+    ?? `水库 #${id}`
+  )
+}
+
+function normalizeHealthOverview(data: unknown): ModelHealthOverviewItem[] {
+  if (Array.isArray(data)) {
+    return data.map((item) => {
+      const row = item as ModelHealthOverviewItem
+      return {
+        ...row,
+        reservoir_name: row.reservoir_name || reservoirNameById(row.reservoir_id),
+      }
+    })
+  }
+  if (data && typeof data === 'object' && Array.isArray((data as AIHealthOverviewResponse).reservoirs)) {
+    return (data as AIHealthOverviewResponse).reservoirs.map((item) => ({
+      reservoir_id: item.reservoir_id,
+      reservoir_name: item.reservoir_name || reservoirNameById(item.reservoir_id),
+      overall_score: item.overall_score,
+      health_grade: item.health_grade as ModelHealthOverviewItem['health_grade'],
+      metric_time: item.metric_time,
+    }))
+  }
+  return []
 }
 
 export async function fetchModelHealthOverview(): Promise<ModelHealthOverviewItem[]> {
   try {
     const res = await getAIHealthOverview()
     if (res.data?.code === 0 && res.data.data) {
-      return res.data.data as unknown as ModelHealthOverviewItem[]
+      const list = normalizeHealthOverview(res.data.data)
+      if (list.length > 0) return list
     }
-  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
+  } catch (e) {
+    if (!GATEAI_MOCK_FALLBACK) throw e
+  }
   const list: ModelHealthOverviewItem[] = gateaiSharedStore.getReservoirs().map((r) => {
     const m = METRICS[r.id] ?? METRICS[1]
-    return { reservoir_id: r.id, reservoir_name: r.name, overall_score: m.overall_score, health_grade: m.health_grade, metric_time: m.metric_time }
+    return {
+      reservoir_id: r.id,
+      reservoir_name: r.name,
+      overall_score: m.overall_score,
+      health_grade: m.health_grade,
+      metric_time: m.metric_time,
+    }
   })
   return delay(list)
 }
@@ -401,10 +564,6 @@ function parseLevel(value: string | number | undefined): number {
 
 function toDateParam(value: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : value.slice(0, 10)
-}
-
-function reservoirNameById(id: number): string {
-  return RESERVOIR_OPTIONS.find((r) => r.value === id)?.label ?? `水库 #${id}`
 }
 
 function normalizeInterlockLog(raw: GateInterlockLogApiItem): GateInterlockLog {

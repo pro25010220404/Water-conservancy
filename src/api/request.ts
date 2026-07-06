@@ -65,9 +65,9 @@ http.interceptors.response.use(
         }
         ElMessage.error('登录已过期，请重新登录')
       } else if (status === 404) {
-        // 404 静默处理，使用 Mock 降级
+        // 404 静默处理，由调用方决定是否降级或忽略
         if (import.meta.env.DEV) {
-          console.warn('[API] 接口不存在 (404)，使用 Mock 降级:', error.config?.url)
+          console.warn('[API] 接口不存在 (404):', error.config?.url)
         }
       } else {
         const msgMap: Record<number, string> = {

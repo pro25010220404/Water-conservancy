@@ -29,7 +29,8 @@ import type {
   CompareResult,
 } from '@/stores/aiHealth'
 import type { PhysicsGuardConfig, ConfigHistoryItem } from '@/stores/physicsGuard'
-import type { InterlockRule, InterlockLog, InterlockStats } from '@/stores/gateInterlock'
+import type { InterlockRule, InterlockStats } from '@/stores/gateInterlock'
+import type { AIHealthOverviewResponse } from '@/types/gateai'
 
 // ════════════════════════════════════════════════════════════
 // Tab1: 告警阈值
@@ -124,17 +125,19 @@ export interface AIMetricsHistoryItem {
 }
 
 export function getAIHealthOverview() {
-  return http.get<ApiResponse<HealthOverview[]>>('/settings/ai/health')
+  return http.get<ApiResponse<AIHealthOverviewResponse>>('/settings/ai/health')
 }
 
+/** 模型指标明细（Apifox: GET 模型指标明细；若后端未部署则 404） */
 export function getAIMetricsDetail(params: {
   reservoir_id: number
   page?: number
   page_size?: number
 }) {
-  return http.get<ApiResponse<PageResult<MetricsDetailItem>>>('/v1/settings/ai/metrics/detail', {
-    params,
-  })
+  return http.get<ApiResponse<PageResult<MetricsDetailItem> | MetricsDetailItem[]>>(
+    '/settings/ai/metrics/detail',
+    { params },
+  )
 }
 
 export function getAIVersionCompare(params: {
