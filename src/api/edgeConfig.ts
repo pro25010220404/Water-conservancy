@@ -14,7 +14,8 @@ import type {
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 
 const V1_PREFIX = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
-const EDGE_BASE = `${V1_PREFIX}/edge`
+/** Apifox §12.1：/api/edge/physics-config（无 v1 前缀） */
+const EDGE_LEGACY_BASE = '/edge'
 
 // ════════════════════════════════════════════════════════════
 // §12 物理配置接口
@@ -24,7 +25,7 @@ const EDGE_BASE = `${V1_PREFIX}/edge`
 // 边缘端启动时/定时拉取（建议30分钟），使用 EdgeToken 认证
 export function fetchEdgePhysicsConfig(reservoirId: number) {
   return http.get<ApiResponse<EdgePhysicsConfig>>(
-    `${EDGE_BASE}/physics-config/${reservoirId}`,
+    `${EDGE_LEGACY_BASE}/physics-config/${reservoirId}`,
   )
 }
 
@@ -114,7 +115,7 @@ export function deployModelToEdge(modelId: number, data: ModelDeployParams) {
 // ── 查询单个边缘节点同步状态 ──
 export function getEdgeSyncStatus(edgeNodeId: number) {
   return http.get<ApiResponse<EdgeSyncStatus>>(
-    `${EDGE_BASE}/physics-config/${edgeNodeId}`,
+    `${EDGE_LEGACY_BASE}/physics-config/${edgeNodeId}`,
     {
       // 复用物理配置接口，返回含版本信息
       params: { check_only: 1 },

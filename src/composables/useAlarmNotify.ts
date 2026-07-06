@@ -3,7 +3,7 @@
 // 依据：《水电站闸门智能调度系统-详细需求报告》§2.7
 // ============================================================
 import { ref } from 'vue'
-import { ElNotification } from 'element-plus'
+import { ElNotification, ElMessage } from 'element-plus'
 import type { AlarmPushMessage, AlarmRecord } from '@/types/alarm'
 import { ALARM_LEVEL_MAP, ALARM_TYPE_MAP } from '@/constants/alarm'
 

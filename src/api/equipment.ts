@@ -153,5 +153,5 @@ export function getEdgeSyncStatus(edgeNodeId: string) {
       sync_status: 'synced' | 'pending' | 'failed'
       config_hash: string
     }>
-  >(`${import.meta.env.VITE_API_V1_PREFIX ?? '/v1'}/edge/physics-config/${edgeNodeId}`)
+  >(`/edge/physics-config/${edgeNodeId}`)
 }

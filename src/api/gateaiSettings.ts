@@ -248,7 +248,28 @@ function extractDetailList(data: unknown): ModelMetricDetailRow[] {
   return []
 }
 
-/** 后端未部署 /settings/ai/metrics/detail 时跳过重复 404 请求 */
+/** 后端未部署 /settings/ai/* 时跳过重复 404 请求 */
+const aiApiAvailability = {
+  metrics: null as boolean | null,
+  history: null as boolean | null,
+  health: null as boolean | null,
+  detail: null as boolean | null,
+}
+
+function markAiApiUnavailable(key: keyof typeof aiApiAvailability, e: unknown) {
+  if (getHttpStatus(e) === 404) {
+    aiApiAvailability[key] = false
+    if (import.meta.env.DEV) {
+      console.info(`[API] /settings/ai/${key} 尚未部署(404)，已改用 Mock/降级数据`)
+    }
+  }
+}
+
+function isAiApiDisabled(key: keyof typeof aiApiAvailability): boolean {
+  return aiApiAvailability[key] === false
+}
+
+/** @deprecated 使用 aiApiAvailability.detail */
 let metricsDetailApiAvailable: boolean | null = null
 
 function getHttpStatus(e: unknown): number | undefined {
@@ -259,6 +280,7 @@ function getHttpStatus(e: unknown): number | undefined {
 }
 
 async function fetchDetailFromHistory(reservoirId: number, limit: number): Promise<ModelMetricDetailRow[]> {
+  if (isAiApiDisabled('history')) return []
   try {
     const res = await getAIMetricsHistory({ reservoir_id: reservoirId, days: 7 })
     if (res.data?.code === 0) {
@@ -288,12 +310,19 @@ export async function fetchReservoirOptions(): Promise<{ id: number; name: strin
 
 // ═══ AI 模型健康度 ═══
 export async function fetchModelMetricsLatest(reservoirId: number): Promise<ModelMetricLatest> {
+  if (isAiApiDisabled('metrics')) {
+    return delay(METRICS[reservoirId] ?? METRICS[1])
+  }
   try {
     const res = await getAIMetrics({ reservoir_id: reservoirId })
     if (res.data?.code === 0 && res.data.data) {
+      aiApiAvailability.metrics = true
       return normalizeModelMetricsLatest(res.data.data as AIMetricsLatestRaw)
     }
-  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
+  } catch (e) {
+    markAiApiUnavailable('metrics', e)
+    if (!GATEAI_MOCK_FALLBACK) throw e
+  }
   return delay(METRICS[reservoirId] ?? METRICS[1])
 }
 
@@ -326,13 +355,18 @@ export async function fetchModelMetricsHistory(
   reservoirId: number,
   days = 7,
 ): Promise<ModelMetricHistoryPoint[]> {
+  if (isAiApiDisabled('history')) {
+    return delay(historyFor(reservoirId))
+  }
   try {
     const res = await getAIMetricsHistory({ reservoir_id: reservoirId, days })
     if (res.data?.code === 0) {
       const list = extractHistoryList(res.data.data)
+      aiApiAvailability.history = true
       return list.map((item) => normalizeHistoryPoint(item))
     }
   } catch (e) {
+    markAiApiUnavailable('history', e)
     if (!GATEAI_MOCK_FALLBACK) throw e
   }
   return delay(historyFor(reservoirId))
@@ -344,7 +378,7 @@ export async function fetchModelMetricsDetail(
 ): Promise<ModelMetricDetailRow[]> {
   const limit = params?.page_size ?? params?.hours ?? 24
 
-  if (metricsDetailApiAvailable === false) {
+  if (isAiApiDisabled('detail') || metricsDetailApiAvailable === false) {
     return fetchDetailFromHistory(reservoirId, limit)
   }
 
@@ -357,18 +391,21 @@ export async function fetchModelMetricsDetail(
     if (res.data?.code === 0 && res.data.data) {
       const list = extractDetailList(res.data.data)
       if (list.length > 0) {
+        aiApiAvailability.detail = true
         metricsDetailApiAvailable = true
         return list
       }
     }
   } catch (e) {
     if (getHttpStatus(e) === 404) {
+      aiApiAvailability.detail = false
       metricsDetailApiAvailable = false
       if (import.meta.env.DEV) {
         console.info('[API] 指标明细接口尚未部署(404)，已改用历史趋势数据填充明细表')
       }
       return fetchDetailFromHistory(reservoirId, limit)
     }
+    markAiApiUnavailable('detail', e)
     if (!GATEAI_MOCK_FALLBACK) throw e
   }
 
@@ -410,13 +447,30 @@ function normalizeHealthOverview(data: unknown): ModelHealthOverviewItem[] {
 }
 
 export async function fetchModelHealthOverview(): Promise<ModelHealthOverviewItem[]> {
+  if (isAiApiDisabled('health')) {
+    const list: ModelHealthOverviewItem[] = gateaiSharedStore.getReservoirs().map((r) => {
+      const m = METRICS[r.id] ?? METRICS[1]
+      return {
+        reservoir_id: r.id,
+        reservoir_name: r.name,
+        overall_score: m.overall_score,
+        health_grade: m.health_grade,
+        metric_time: m.metric_time,
+      }
+    })
+    return delay(list)
+  }
   try {
     const res = await getAIHealthOverview()
     if (res.data?.code === 0 && res.data.data) {
       const list = normalizeHealthOverview(res.data.data)
-      if (list.length > 0) return list
+      if (list.length > 0) {
+        aiApiAvailability.health = true
+        return list
+      }
     }
   } catch (e) {
+    markAiApiUnavailable('health', e)
     if (!GATEAI_MOCK_FALLBACK) throw e
   }
   const list: ModelHealthOverviewItem[] = gateaiSharedStore.getReservoirs().map((r) => {
