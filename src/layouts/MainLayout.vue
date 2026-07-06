@@ -15,6 +15,10 @@ const collapsed = ref(false)
 
 /** 数字孪生等全幅驾驶舱页：内容区与顶栏无缝衔接，去掉双层边距 */
 const isFlushPage = computed(() => route.path.startsWith('/simulation'))
+/** 告警 / 调度：纯白内容区底 */
+const isWhitePage = computed(() =>
+  route.path.startsWith('/warning') || route.path.startsWith('/dispatch'),
+)
 </script>
 
 <template>
@@ -35,7 +39,13 @@ const isFlushPage = computed(() => route.path.startsWith('/simulation'))
       <el-aside :width="collapsed ? '64px' : 'var(--sider-width)'" class="main-layout__aside">
         <AppSidebar :collapsed="collapsed" />
       </el-aside>
-      <el-main class="main-layout__content" :class="{ 'main-layout__content--flush': isFlushPage }">
+      <el-main
+        class="main-layout__content"
+        :class="{
+          'main-layout__content--flush': isFlushPage,
+          'main-layout__content--white': isWhitePage,
+        }"
+      >
         <router-view />
       </el-main>
     </el-container>
@@ -114,7 +124,11 @@ const isFlushPage = computed(() => route.path.startsWith('/simulation'))
     &--flush {
       padding: 0;
       overflow: hidden;
-      background: linear-gradient(180deg, #f0f4f8 0%, #e8f2fa 6%, #f0f7fc 18%, #f7fbff 100%);
+      background: #ffffff;
+    }
+
+    &--white {
+      background: #ffffff;
     }
   }
 }

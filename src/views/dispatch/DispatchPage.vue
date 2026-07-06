@@ -987,6 +987,7 @@ onUnmounted(() => {
 @use '@/assets/styles/cockpit.scss' as *;
 
 .dispatch-page {
+  @include cockpit-page-white;
   display: flex;
   flex-direction: column;
   gap: 16px;

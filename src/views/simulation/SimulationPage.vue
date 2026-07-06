@@ -10,10 +10,13 @@ import ThreeDamScene from '@/components/cockpit/ThreeDamScene.vue'
 import TwinDamSchematic2D from '@/components/cockpit/TwinDamSchematic2D.vue'
 import DamPanoramaModal from '@/components/cockpit/DamPanoramaModal.vue'
 import { useSmoothNumber } from '@/composables/useSmoothNumber'
+import { useSimulationStream, mapProgressToRealtime } from '@/composables/useSimulationStream'
+import { useUserStore } from '@/stores/user'
 import SimulationTabPanel from './components/SimulationTabPanel.vue'
 import type {
   SimulationScene, SimulationSpeed, SimulationParams,
   SimulationRealtimeData, AiModel, SimulationReport, FaultReview, FaultConclusion,
+  SimulationScenarioItem, SimulationProgressPayload,
 } from '@/types/simulation'
 import { XIANGJIABA_HYDRO, getLevelStatus, levelGaugePercent } from '@/constants/xiangjiaba'
 import {
@@ -27,11 +30,18 @@ import {
   setSimulationGateOpening,
   getModelList, activateModel, uploadModel, startTraining, generateReport, getReportList,
   getFaultReviewList, getFaultReviewDetail, importToSimulation, getPhysicsGuardSummary,
+  getSimulationScenarios, resolveScenarioId, getSimulationResult, applyResultToRealtime,
 } from '@/api/simulation'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 
+const userStore = useUserStore()
+const { connected: wsConnected, connect: connectSimStream, disconnect: disconnectSimStream } =
+  useSimulationStream()
+
 // ── 5. 响应式数据 ──
 const activeTab = ref<SimulationTab>('control')
+const scenarios = ref<SimulationScenarioItem[]>([])
+const activeSimulationId = ref<string | null>(null)
 const simStatus = ref<SimulationRealtimeData>({
   status: 'idle', elapsedSec: 0,
   currentLevel: XIANGJIABA_HYDRO.normalPoolLevel,
@@ -60,6 +70,11 @@ watch(() => simStatus.value.status, (status, prev) => {
   if (status === 'finished' && prev === 'running') {
     ElMessage.success(`仿真已完成 · 时长 ${simParams.durationMin} min`)
   }
+})
+
+watch(wsConnected, (open) => {
+  if (open) stopPoll()
+  else if (simStatus.value.status === 'running' && !pollTimer) startPoll()
 })
 
 const models = ref<AiModel[]>([])
@@ -120,6 +135,7 @@ const canPause = computed(() =>
 const canStart = computed(() =>
   simStatus.value.status === 'idle' || simStatus.value.status === 'finished',
 )
+const durationSec = computed(() => Math.max(60, simParams.durationMin * 60))
 const activeTabLabel = computed(() => SIMULATION_TABS.find((t) => t.value === activeTab.value)?.label ?? '功能面板')
 /** 主视窗：2D 剖面示意 / 3D 场景 */
 const viewMode = ref<'2d' | '3d'>('3d')
@@ -132,6 +148,48 @@ function openPanorama() {
 }
 
 // ── 9. 方法函数 ──
+function stopPoll() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+function startPoll() {
+  stopPoll()
+  pollTimer = setInterval(fetchSim, 1000)
+}
+
+async function fetchScenarios() {
+  try {
+    const res = await getSimulationScenarios()
+    scenarios.value = res.data.list ?? []
+  } catch {
+    scenarios.value = []
+  }
+}
+
+function onSimProgress(payload: SimulationProgressPayload) {
+  simStatus.value = mapProgressToRealtime(simStatus.value, payload, durationSec.value)
+  if (!gateLocalEdit.value && payload.metrics?.gate_opening != null) {
+    gateOpening.value = Math.round(payload.metrics.gate_opening)
+  }
+  if (simStatus.value.status === 'finished' && activeSimulationId.value) {
+    void loadSimulationResult(activeSimulationId.value)
+  }
+}
+
+async function loadSimulationResult(simulationId: string) {
+  try {
+    const res = await getSimulationResult(simulationId)
+    if (res.data.points?.length) {
+      simStatus.value = applyResultToRealtime(res.data.points, durationSec.value)
+    }
+  } catch {
+    /* 结果接口未就绪时保留 WS 最后状态 */
+  }
+}
+
 async function fetchSim() {
   try {
     simStatus.value = (await getSimulationStatus()).data
@@ -191,14 +249,41 @@ function handleOpenSimModal() {
 async function handleStartSim() {
   if (!canStart.value) return
   try {
-    await startSimulation({
+    const { scenarioId, modelId } = resolveScenarioId(simScene.value, scenarios.value)
+    const res = await startSimulation({
       ...simParams,
       scene: simScene.value,
       speed: simSpeed.value,
       gateOpening: gateOpening.value,
+      scenarioId,
+      modelId,
     })
+    const data = res.data
+    activeSimulationId.value = data.simulation_id
+    simStatus.value = {
+      ...simStatus.value,
+      status: 'running',
+      elapsedSec: 0,
+      historyLevels: [{ time: 0, value: simParams.initialLevel }],
+      historyFlows: [{ time: 0, value: simParams.inflowRate }],
+    }
+    stopPoll()
+
+    const token = userStore.token || localStorage.getItem('token') || ''
+    if (data.ws_endpoint || token) {
+      await connectSimStream({
+        simulationId: data.simulation_id,
+        wsEndpoint: data.ws_endpoint,
+        token,
+        onProgress: onSimProgress,
+        onError: () => startPoll(),
+      })
+    }
+    if (!wsConnected.value) {
+      startPoll()
+    }
+
     ElMessage.success(`仿真已启动 · ${sceneLabel.value} · ${simSpeed.value}x 倍速`)
-    await fetchSim()
     setTimeout(() => {
       panoramaRef.value?.focusSimulationView()
       mainSceneRef.value?.focusSimulationView()
@@ -226,9 +311,12 @@ async function handlePauseSim() {
 
 async function handleResetSim() {
   try {
+    disconnectSimStream()
+    activeSimulationId.value = null
     await resetSimulation()
     applyScenePreset(simScene.value)
     await fetchSim()
+    startPoll()
     mainSceneRef.value?.resetView()
     ElMessage.success('仿真已重置')
   } catch {
@@ -258,8 +346,13 @@ async function handleTrainModel(modelId: number) {
   } catch { ElMessage.error('训练启动失败') }
 }
 async function handleGenerateReport() {
+  const id = activeSimulationId.value
+  if (!id) {
+    ElMessage.warning('请先完成一次仿真')
+    return
+  }
   try {
-    await generateReport(101)
+    await generateReport(id)
     ElMessage.success('报告已生成')
     fetchReports()
   } catch { ElMessage.error('生成失败') }
@@ -282,15 +375,17 @@ async function handleImportToSim(id: number) {
 // ── 8. 生命周期 ──
 onMounted(() => {
   applyScenePreset(simScene.value)
+  fetchScenarios()
   fetchSim()
   fetchModels()
   fetchReports()
   fetchReviews()
   fetchPhysicsGuard()
-  pollTimer = setInterval(fetchSim, 1000)
+  startPoll()
 })
 onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
+  stopPoll()
+  disconnectSimStream()
   if (gateSyncTimer) clearTimeout(gateSyncTimer)
 })
 </script>
@@ -585,7 +680,7 @@ onUnmounted(() => {
 @use '@/assets/styles/cockpit.scss' as *;
 
 .sim-page--twin.sim-page--sky {
-  @include cockpit-twin-page-light;
+  @include cockpit-page-white;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -745,7 +840,7 @@ onUnmounted(() => {
     position: relative;
     width: 100%;
     border-radius: 12px;
-    background: linear-gradient(180deg, #ffffff 0%, #f7fbff 50%, #eef6fc 100%);
+    background: #ffffff;
     border: 1px solid rgba(24, 144, 255, 0.15);
     box-shadow: 0 2px 12px rgba(24, 144, 255, 0.08);
     overflow: hidden;

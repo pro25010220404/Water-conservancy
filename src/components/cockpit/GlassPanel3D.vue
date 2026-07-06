@@ -35,9 +35,8 @@ defineProps<{
 
 .glass-panel {
   @include glass-panel-3d;
-  @include hud-corner;
   position: relative;
-  overflow: visible;
+  overflow: hidden;
   flex-shrink: 0;
 
   &--dark,
@@ -58,11 +57,6 @@ defineProps<{
       @include neon-text-blue;
       font-weight: 700;
       letter-spacing: 0.08em;
-    }
-
-    &::before,
-    &::after {
-      border-color: rgba(56, 160, 255, 0.4);
     }
   }
 
@@ -95,8 +89,8 @@ defineProps<{
     align-items: center;
     gap: 10px;
     padding: 14px 18px;
-    border-bottom: 1px solid rgba(24, 144, 255, 0.12);
-    background: linear-gradient(90deg, rgba(24, 144, 255, 0.06) 0%, transparent 100%);
+    border-bottom: 1px solid #e8eef4;
+    background: #ffffff;
   }
 
   &__deco {

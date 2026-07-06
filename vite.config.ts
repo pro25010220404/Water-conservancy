@@ -11,6 +11,7 @@ export default defineConfig({
         target: 'http://gecda423.natappfree.cc',
         changeOrigin: true,
         secure: false,
+        ws: true,
       },
     },
   },

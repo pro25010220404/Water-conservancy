@@ -362,7 +362,7 @@ onUnmounted(() => {
 <style scoped lang="scss">
 @use '@/assets/styles/cockpit.scss' as *;
 
-.alarm-page { @include cockpit-page-base; display: flex; flex-direction: column; gap: 14px; padding: 0 16px 16px; font-size: $cockpit-font-base; }
+.alarm-page { @include cockpit-page-white; display: flex; flex-direction: column; gap: 14px; padding: 0 16px 16px; font-size: $cockpit-font-base; }
 .alarm-actions { display: flex; flex-direction: column; gap: 8px; }
 .filter-grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; padding: 4px; }
 .filter-item {
