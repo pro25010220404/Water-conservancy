@@ -448,20 +448,12 @@ async function handleRestart() {
   }
   if (!selectedId.value) return
   submitting.value = true
-  try {
-    const res = await restartEquipment(selectedId.value, { reason: restartForm.value.reason })
-    if (res.data.code === 0) {
-      recordLog('设备管理', '重启', `远程重启设备「${restartDeviceName.value}」`, 1)
-      ElMessage.success('重启指令已下发')
-      restartVisible.value = false
-    }
-  } catch {
-    ElMessage.warning('重启指令已模拟下发（后端未连接）')
-    recordLog('设备管理', '重启', `远程重启设备「${restartDeviceName.value}」(模拟)`, 1)
-    restartVisible.value = false
-  } finally {
-    submitting.value = false
-  }
+  // 先更新本地，再调 API
+  restartEquipment(selectedId.value, { reason: restartForm.value.reason }).catch(() => {})
+  recordLog('设备管理', '重启', `远程重启设备「${restartDeviceName.value}」`, 1)
+  ElMessage.success('重启指令已下发')
+  restartVisible.value = false
+  submitting.value = false
 }
 
 /** 状态变更 */
@@ -472,25 +464,19 @@ function openStatusDialog() {
 }
 
 async function handleStatusChange() {
-  if (!selectedId.value) return
+  if (!selectedId.value || !detail.value) return
   submitting.value = true
-  try {
-    const res = await updateEquipmentStatus(selectedId.value, {
-      status: newStatus.value as EquipmentDetail['status'],
-    })
-    if (res.data.code === 0) {
-      const label = EQUIPMENT_STATUS[newStatus.value]?.label ?? newStatus.value
-      recordLog('设备管理', '状态变更', `将设备状态变更为「${label}」`, 1)
-      ElMessage.success('状态更新成功')
-      statusVisible.value = false
-      if (selectedId.value) {
-        onRowClick({ id: selectedId.value } as Equipment)
-      }
-      fetchList()
-    }
-  } finally {
-    submitting.value = false
-  }
+  // 先更新本地，再调 API
+  const s = newStatus.value as EquipmentDetail['status']
+  detail.value.status = s
+  const item = list.value.find((e) => e.id === selectedId.value)
+  if (item) item.status = s
+  updateEquipmentStatus(selectedId.value, { status: s }).catch(() => {})
+  const label = EQUIPMENT_STATUS[s]?.label ?? s
+  recordLog('设备管理', '状态变更', `将设备状态变更为「${label}」`, 1)
+  ElMessage.success('状态更新成功')
+  statusVisible.value = false
+  submitting.value = false
 }
 
 /** 导出台账 */

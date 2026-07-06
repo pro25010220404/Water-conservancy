@@ -22,13 +22,11 @@ export function checkPasswordStrength(pwd: string): {
 } {
   const checks = [
     { label: '至少 8 个字符', passed: pwd.length >= 8 },
-    { label: '包含大写字母', passed: /[A-Z]/.test(pwd) },
-    { label: '包含小写字母', passed: /[a-z]/.test(pwd) },
+    { label: '包含字母', passed: /[a-zA-Z]/.test(pwd) },
     { label: '包含数字', passed: /\d/.test(pwd) },
-    { label: '包含特殊字符', passed: /[!@#$%^&*(),.?":{}|<>]/.test(pwd) },
   ]
   const score = checks.filter((c) => c.passed).length
-  const level = score <= 2 ? 'weak' : score <= 4 ? 'medium' : 'strong'
+  const level = score <= 1 ? 'weak' : score <= 2 ? 'medium' : 'strong'
   return { score, level, checks }
 }
 

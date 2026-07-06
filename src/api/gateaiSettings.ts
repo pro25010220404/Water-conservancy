@@ -1,5 +1,4 @@
-// GateAI 调度模块 — 真实 API + Mock 降级
-// 优先调用后端接口，失败时使用本地 Mock 数据
+// GateAI 调度模块 — AI 健康度走真实 API，物理防护/闸门互锁纯 Mock
 
 import type {
   ModelMetricLatest,
@@ -13,23 +12,15 @@ import type {
 
 import { gateaiSharedStore } from './gateaiSharedStore'
 
-// ── 真实 API 导入 ──
+// AI 健康度 + 物理防护保存 + 互锁日志 — 真实 API
 import {
-  getPhysicsGuard,
-  updatePhysicsGuard,
-  getPhysicsGuardHistory,
-  rollbackPhysicsGuard as rollbackPhysicsGuardApi,
-  clonePhysicsGuard as clonePhysicsGuardApi,
   getAIMetrics,
   getAIMetricsHistory,
   getAIMetricsDetail,
   getAIHealthOverview,
   getAIVersionCompare,
-  getInterlockRules,
-  updateInterlockRule as updateInterlockRuleApi,
-  toggleInterlockRule as toggleInterlockRuleApi,
+  updatePhysicsGuard,
   getInterlockLogs,
-  getInterlockStats,
 } from './settings'
 
 const METRICS: Record<number, ModelMetricLatest> = {
@@ -265,14 +256,8 @@ export async function fetchModelCompare(
   })
 }
 
-// ═══ 物理防护配置 ═══
+// ═══ 物理防护配置（后端不会部署，纯 Mock）═══
 export async function fetchPhysicsGuardConfig(reservoirId: number): Promise<PhysicsGuardConfig> {
-  try {
-    const res = await getPhysicsGuard({ reservoir_id: reservoirId })
-    if (res.data?.code === 0 && res.data.data) {
-      return res.data.data as unknown as PhysicsGuardConfig
-    }
-  } catch { /* 降级 Mock */ }
   return delay(gateaiSharedStore.getPhysicsConfig(reservoirId))
 }
 
@@ -292,12 +277,6 @@ export async function savePhysicsGuardConfig(
 }
 
 export async function fetchPhysicsGuardHistory(reservoirId: number) {
-  try {
-    const res = await getPhysicsGuardHistory({ reservoir_id: reservoirId })
-    if (res.data?.code === 0 && Array.isArray(res.data.data)) {
-      return res.data.data as unknown as ReturnType<typeof gateaiSharedStore.getPhysicsHistory> extends Promise<infer T> ? T : never
-    }
-  } catch { /* 降级 Mock */ }
   return delay(gateaiSharedStore.getPhysicsHistory(reservoirId))
 }
 
@@ -306,48 +285,24 @@ export async function fetchPhysicsGuardHistoryVersions(reservoirId: number) {
 }
 
 export async function rollbackPhysicsGuard(reservoirId: number, historyId: number) {
-  try {
-    const res = await rollbackPhysicsGuardApi(historyId)
-    if (res.data?.code === 0) return { new_version: (res.data.data as Record<string, unknown>)?.new_version ?? '' }
-  } catch { /* 降级 Mock */ }
   return delay(gateaiSharedStore.rollbackPhysics(reservoirId, historyId))
 }
 
 export async function clonePhysicsGuardConfig(fromId: number, toId: number, _version?: string) {
-  try {
-    const res = await clonePhysicsGuardApi({ source_reservoir_id: fromId, target_reservoir_id: toId })
-    if (res.data?.code === 0 && res.data.data) {
-      return res.data.data as unknown as PhysicsGuardConfig
-    }
-  } catch { /* 降级 Mock */ }
   return delay(gateaiSharedStore.clonePhysics(fromId, toId))
 }
 
-// ═══ 闸门互锁 ═══
+// ═══ 闸门互锁（后端不会部署，纯 Mock）═══
 export async function fetchInterlockRules(reservoirId: number): Promise<GateInterlockRule[]> {
-  try {
-    const res = await getInterlockRules({ reservoir_id: reservoirId })
-    if (res.data?.code === 0 && res.data.data) {
-      return res.data.data as unknown as GateInterlockRule[]
-    }
-  } catch { /* 降级 Mock */ }
   return delay(gateaiSharedStore.getInterlockRules(reservoirId))
 }
 
 export async function toggleInterlockRule(ruleId: number, enabled: boolean): Promise<null> {
-  try {
-    const res = await toggleInterlockRuleApi(ruleId)
-    if (res.data?.code === 0) return null
-  } catch { /* 降级 Mock */ }
   gateaiSharedStore.toggleInterlockRule(ruleId, enabled)
   return delay(null)
 }
 
 export async function updateInterlockRule(ruleId: number, patch: Partial<GateInterlockRule>) {
-  try {
-    const res = await updateInterlockRuleApi(ruleId, patch as Record<string, unknown>)
-    if (res.data?.code === 0) return res.data
-  } catch { /* 降级 Mock */ }
   return delay(gateaiSharedStore.updateInterlockRule(ruleId, patch))
 }
 
@@ -382,20 +337,6 @@ export async function fetchInterlockLogs(params?: {
 export async function fetchInterlockStats(
   reservoirId: number,
 ): Promise<{ enabled_count: number; trigger_24h: number; trigger_7d: number }> {
-  try {
-    const res = await getInterlockStats({ reservoir_id: reservoirId })
-    if (res.data?.code === 0 && Array.isArray(res.data.data)) {
-      const arr = res.data.data
-      return {
-        enabled_count: arr.length,
-        trigger_24h: arr.filter((s) => {
-          const t = new Date(s.last_triggered).getTime()
-          return !isNaN(t) && Date.now() - t < 86400000
-        }).length,
-        trigger_7d: arr.reduce((sum, s) => sum + (s.trigger_count || 0), 0),
-      }
-    }
-  } catch { /* 降级 Mock */ }
   return delay(gateaiSharedStore.getInterlockStats(reservoirId))
 }
 

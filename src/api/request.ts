@@ -29,13 +29,10 @@ http.interceptors.response.use(
     const data = response.data
     // 业务级错误（仅当 data 是 JSON 对象时处理）
     if (data && typeof data === 'object' && data.code !== undefined && data.code !== 0) {
-      // 认证类错误：清 token 但不强制跳转，由页面路由守卫处理
-      // 各页面组件 catch 到错误后自动 Mock 降级
+      // 认证类错误：只 reject，不删 token（删 token 会导致误登出）
       if (data.code >= 20001 && data.code <= 20008) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('userInfo')
         if (import.meta.env.DEV) {
-          console.warn('[API] 认证失效 (code=' + data.code + ')，已清 token，使用 Mock 降级')
+          console.warn('[API] 业务认证错误 (code=' + data.code + '): ' + data.msg)
         }
         return Promise.reject(new Error(data.msg || '认证失败'))
       }

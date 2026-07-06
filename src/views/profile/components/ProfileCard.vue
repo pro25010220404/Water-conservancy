@@ -41,7 +41,6 @@ const roleLabel = computed(() => {
   return roles.map((r) => map[r] ?? r).join('、') || '未分配'
 })
 
-const email = computed(() => profileStore.userInfo?.email || '未填写')
 const phone = computed(() => profileStore.userInfo?.phone || '未填写')
 const registerTime = computed(() => profileStore.userInfo?.created_at || '-')
 const currentAvatarUrl = computed(
@@ -58,7 +57,6 @@ function initProfile() {
       avatar: '',
       role_name: (userStore.userInfo?.roles ?? ['admin'])[0],
       phone: '未填写',
-      email: '未填写',
       created_at: new Date().toISOString().slice(0, 10),
     })
   }
@@ -130,13 +128,6 @@ onMounted(() => {
           <span class="profile-info__value">
             <ElTag>{{ roleLabel }}</ElTag>
           </span>
-        </div>
-        <div class="profile-info__row">
-          <span class="profile-info__label">邮箱</span>
-          <span
-            class="profile-info__value"
-            :class="{ 'profile-info__value--empty': !email || email === '未填写' }"
-          >{{ email && email !== '未填写' ? email : '未填写' }}</span>
         </div>
         <div class="profile-info__row">
           <span class="profile-info__label">手机号</span>

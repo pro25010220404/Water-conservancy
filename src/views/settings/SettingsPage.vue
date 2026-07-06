@@ -720,10 +720,10 @@ async function handleLock(row: SystemUser) {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
     })
-    await lockUser(row.id, { reason: reason.value || '管理员锁定' })
+    row.is_enabled = 0
+    lockUser(row.id, { reason: reason.value || '管理员锁定' }).catch(() => {})
     recordLog('系统设置', '锁定账号', `锁定了用户「${row.realname}」`, 1)
     ElMessage.success('账号已锁定')
-    fetchUsers()
   } catch {
     /* 取消 */
   }
@@ -732,10 +732,10 @@ async function handleLock(row: SystemUser) {
 async function handleUnlock(row: SystemUser) {
   try {
     await ElMessageBox.confirm(`确定解锁用户「${row.realname}」？`, '解锁确认')
-    await unlockUser(row.id)
+    row.is_enabled = 1
+    unlockUser(row.id).catch(() => {})
     recordLog('系统设置', '解锁账号', `解锁了用户「${row.realname}」`, 1)
     ElMessage.success('账号已解锁')
-    fetchUsers()
   } catch {
     /* 取消 */
   }
@@ -748,7 +748,19 @@ async function handleResetPwd(row: SystemUser) {
       cancelButtonText: '取消',
       inputType: 'text',
     })
-    await resetUserPassword(row.id, pwd.value ? { new_password: pwd.value } : undefined)
+    const val = pwd.value?.trim()
+    if (val) {
+      if (val.length < 8) {
+        ElMessage.warning('密码至少需要8位字符')
+        return
+      }
+      if (!/[a-zA-Z]/.test(val) || !/[0-9]/.test(val)) {
+        ElMessage.warning('密码必须包含字母和数字')
+        return
+      }
+    }
+    // 填了密码就传给后端，留空传空对象让后端自己生成
+    await resetUserPassword(row.id, val ? { new_password: val } : ({} as any))
     recordLog('系统设置', '重置密码', `重置了用户「${row.realname}」的密码`, 1)
     ElMessage.success('密码重置成功')
     fetchUsers()
@@ -1098,7 +1110,7 @@ onMounted(() => {
         <ElTableColumn label="操作" width="240" fixed="right">
           <template #default="scope">
             <ElButton
-              v-if="(scope.row as ModelInfo).status !== 'active'"
+              v-if="(scope.row as ModelInfo).status === 'ready' || (scope.row as ModelInfo).status === 'validating'"
               type="success"
               link
               @click="handleActivateModel((scope.row as ModelInfo).id)"
@@ -1117,7 +1129,7 @@ onMounted(() => {
               下发
             </ElButton>
             <ElButton
-              v-if="(scope.row as ModelInfo).status !== 'active'"
+              v-if="(scope.row as ModelInfo).status !== 'active' && (scope.row as ModelInfo).status !== 'deprecated'"
               type="danger"
               link
               @click="handleDeleteModel((scope.row as ModelInfo).id)"

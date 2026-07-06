@@ -38,7 +38,6 @@ function initData() {
       avatar: '',
       role_name: (userStore.userInfo?.roles ?? ['admin'])[0] ?? 'admin',
       phone: '未填写',
-      email: '未填写',
       created_at: new Date().toISOString().slice(0, 10),
     })
   }
