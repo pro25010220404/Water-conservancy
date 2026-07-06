@@ -1,37 +1,25 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { fetchGates, fetchGateActionLogs } from '@/api/monitoring'
 
-const gates = ref([
-  { name: '1#', v: 62 },
-  { name: '2#', v: 48 },
-  { name: '3#', v: 35 },
-  { name: '4#', v: 71 },
-  { name: '5#', v: 55 },
-  { name: '6#', v: 42 },
-  { name: '7#', v: 38 },
-  { name: '8#', v: 60 },
-  { name: '中1#', v: 18 },
-  { name: '中2#', v: 22 },
-  { name: '底1#', v: 0 },
-  { name: '底2#', v: 0 },
-])
-const logs = [
-  { time: '14:32', gate: '3#表孔', action: '32%→28%', dur: '12s', by: 'AI调度' },
-  { time: '14:08', gate: '1#中孔', action: '15%→20%', dur: '8s', by: '张工' },
-  { time: '13:45', gate: '5#表孔', action: '28%→35%', dur: '15s', by: 'LSTM' },
-  { time: '13:22', gate: '2#表孔', action: '35%→30%', dur: '11s', by: 'AI调度' },
-  { time: '12:10', gate: '7#表孔', action: '40%→32%', dur: '14s', by: '急停' },
-]
+const gates = ref<{ name: string; v: number }[]>([])
+const logs = ref<{ time: string; gate: string; action: string; dur: string; by: string }[]>([])
 
 let t: ReturnType<typeof setInterval>
+async function loadData() {
+  const [gatesData, actionsData] = await Promise.all([fetchGates(1), fetchGateActionLogs()])
+  gates.value = gatesData.map((g) => ({ name: g.code ?? g.name, v: g.opening }))
+  logs.value = actionsData.map((a) => ({
+    time: a.acted_at?.slice(-5) ?? '--:--',
+    gate: `#${a.equipment_id}`,
+    action: `${a.previous_opening}%→${a.target_opening}%`,
+    dur: `${(a.duration_ms / 1000).toFixed(0)}s`,
+    by: a.action_source,
+  }))
+}
 onMounted(() => {
-  t = setInterval(() => {
-    gates.value.forEach((g) => {
-      g.v = +(g.v + (Math.random() - 0.5) * 0.2).toFixed(1)
-      if (g.v < 0) g.v = 0
-      if (g.v > 100) g.v = 100
-    })
-  }, 3000)
+  loadData()
+  t = setInterval(loadData, 10000)
 })
 onUnmounted(() => clearInterval(t))
 </script>

@@ -13,7 +13,60 @@ import type {
   StatusChangeResult,
 } from '@/shared/types'
 
-// ── 设备列表 ──
+// ── 全部设备列表（监控大屏 / 设备管理） ──
+export interface EquipmentAllListItem {
+  id: number
+  name: string
+  type: string
+  status: string
+  code?: string
+  reservoir_id?: number
+  reservoir_name?: string
+  manufacturer?: string
+  model?: string
+  health_score?: number
+  last_online?: string
+  install_location?: string
+  group?: string
+}
+
+const API_STATUS_MAP: Record<string, Equipment['status']> = {
+  active: 'online',
+  inactive: 'offline',
+  online: 'online',
+  offline: 'offline',
+  fault: 'fault',
+  maintenance: 'maintenance',
+}
+
+/** 将 all-list 接口字段规范化为前端 Equipment 结构 */
+export function normalizeEquipmentItem(
+  raw: EquipmentAllListItem,
+  fallbackReservoirId: number,
+  fallbackReservoirName = '',
+): Equipment {
+  return {
+    id: raw.id,
+    name: raw.name,
+    code: raw.code ?? `EQ-${String(raw.id).padStart(3, '0')}`,
+    type: raw.type,
+    reservoir_id: raw.reservoir_id ?? fallbackReservoirId,
+    reservoir_name: raw.reservoir_name ?? fallbackReservoirName,
+    status: API_STATUS_MAP[raw.status] ?? raw.status,
+    manufacturer: raw.manufacturer ?? '—',
+    model: raw.model ?? '—',
+    health_score: raw.health_score ?? 0,
+    last_online: raw.last_online ?? '',
+    install_location: raw.install_location,
+    group: raw.group,
+  }
+}
+
+export function getEquipmentAllList(params: { reservoir_id: number }) {
+  return http.get<ApiResponse<EquipmentAllListItem[]>>('/equipment/all-list', { params })
+}
+
+// ── 设备列表（分页） ──
 export function getEquipmentList(params: {
   page?: number
   page_size?: number

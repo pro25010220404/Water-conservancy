@@ -33,8 +33,10 @@ import {
   EQUIPMENT_STATUS_OPTIONS,
 } from '@/constants'
 import {
+  getEquipmentAllList,
   getEquipmentList,
   getEquipmentDetail,
+  normalizeEquipmentItem,
   restartEquipment,
   updateEquipmentStatus,
 } from '@/api/equipment'
@@ -93,7 +95,9 @@ type TagType = 'success' | 'danger' | 'info' | 'warning'
 function statusTagType(status: string): TagType {
   const map: Record<string, TagType> = {
     online: 'success',
+    active: 'success',
     offline: 'info',
+    inactive: 'info',
     fault: 'danger',
     maintenance: 'warning',
   }
@@ -300,40 +304,70 @@ const MOCK_EQUIPMENT: Equipment[] = [
 async function fetchList() {
   loading.value = true
   try {
-    const res = await getEquipmentList({
-      page: page.value,
-      page_size: pageSize.value,
-      reservoir_id: reservoirFilter.value || undefined,
-      type: typeFilter.value || undefined,
-      status: statusFilter.value || undefined,
-      keyword: keyword.value || undefined,
-    })
-    const body = res.data
-    if (body.code === 0 && body.data) {
-      list.value = body.data.list ?? []
-      total.value = body.data.total ?? 0
-      return
+    const reservoirName =
+      reservoirs.value.find((r) => r.id === reservoirFilter.value)?.name ?? ''
+
+    try {
+      const res = await getEquipmentAllList({ reservoir_id: reservoirFilter.value })
+      const body = res.data
+      if (body.code === 0 && Array.isArray(body.data)) {
+        let filtered = body.data.map((item) =>
+          normalizeEquipmentItem(item, reservoirFilter.value, reservoirName),
+        )
+        if (typeFilter.value) filtered = filtered.filter((e) => e.type === typeFilter.value)
+        if (statusFilter.value) filtered = filtered.filter((e) => e.status === statusFilter.value)
+        if (keyword.value) {
+          const kw = keyword.value.toLowerCase()
+          filtered = filtered.filter(
+            (e) => e.name.toLowerCase().includes(kw) || e.code.toLowerCase().includes(kw),
+          )
+        }
+        total.value = filtered.length
+        const start = (page.value - 1) * pageSize.value
+        list.value = filtered.slice(start, start + pageSize.value)
+        return
+      }
+    } catch {
+      /* 降级到分页接口或 mock */
     }
-  } catch {
-    /* API 不可用时使用 mock */
+
+    try {
+      const res = await getEquipmentList({
+        page: page.value,
+        page_size: pageSize.value,
+        reservoir_id: reservoirFilter.value || undefined,
+        type: typeFilter.value || undefined,
+        status: statusFilter.value || undefined,
+        keyword: keyword.value || undefined,
+      })
+      const body = res.data
+      if (body.code === 0 && body.data) {
+        list.value = body.data.list ?? []
+        total.value = body.data.total ?? 0
+        return
+      }
+    } catch {
+      /* API 不可用时使用 mock */
+    }
+
+    // ── Mock 降级 ──
+    let filtered = [...MOCK_EQUIPMENT]
+    if (reservoirFilter.value)
+      filtered = filtered.filter((e) => e.reservoir_id === reservoirFilter.value)
+    if (typeFilter.value) filtered = filtered.filter((e) => e.type === typeFilter.value)
+    if (statusFilter.value) filtered = filtered.filter((e) => e.status === statusFilter.value)
+    if (keyword.value) {
+      const kw = keyword.value.toLowerCase()
+      filtered = filtered.filter(
+        (e) => e.name.toLowerCase().includes(kw) || e.code.toLowerCase().includes(kw),
+      )
+    }
+    total.value = filtered.length
+    const start = (page.value - 1) * pageSize.value
+    list.value = filtered.slice(start, start + pageSize.value)
   } finally {
     loading.value = false
   }
-  // ── Mock 降级 ──
-  let filtered = [...MOCK_EQUIPMENT]
-  if (reservoirFilter.value)
-    filtered = filtered.filter((e) => e.reservoir_id === reservoirFilter.value)
-  if (typeFilter.value) filtered = filtered.filter((e) => e.type === typeFilter.value)
-  if (statusFilter.value) filtered = filtered.filter((e) => e.status === statusFilter.value)
-  if (keyword.value) {
-    const kw = keyword.value.toLowerCase()
-    filtered = filtered.filter(
-      (e) => e.name.toLowerCase().includes(kw) || e.code.toLowerCase().includes(kw),
-    )
-  }
-  total.value = filtered.length
-  const start = (page.value - 1) * pageSize.value
-  list.value = filtered.slice(start, start + pageSize.value)
 }
 
 /** 搜索（防抖重置页码） */

@@ -28,14 +28,6 @@ export default defineConfig(({ mode }) => {
       },
     },
   },
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://47.108.169.152:8089',
-        changeOrigin: true,
-      },
-    },
-  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

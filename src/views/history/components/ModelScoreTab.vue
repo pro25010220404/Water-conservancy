@@ -24,10 +24,11 @@ use([
 ])
 import { ElTag } from 'element-plus'
 import { HEALTH_GRADE } from '@/constants/aiHealth'
+import type { ModelMetricHistoryPoint } from '@/types/gateai'
 
 const days = ref(30)
 
-// Mock 评分历史
+// 评分历史
 interface ScorePoint {
   time: string
   overall: number
@@ -38,25 +39,46 @@ interface ScorePoint {
 }
 const scoreData = ref<ScorePoint[]>([])
 
-function genMock() {
-  const arr: ScorePoint[] = []
-  const now = Date.now()
-  const grades = ['S', 'A', 'A', 'B', 'A', 'A', 'B', 'C', 'B', 'A']
-  for (let i = days.value - 1; i >= 0; i--) {
-    const base = 0.78 + Math.sin(i / 5) * 0.08 + (Math.random() - 0.5) * 0.04
-    arr.push({
-      time: new Date(now - i * 86400000).toISOString().slice(0, 10),
-      overall: +Math.min(1, Math.max(0, base)).toFixed(2),
-      prediction: +Math.min(1, Math.max(0, base + 0.04 + (Math.random() - 0.5) * 0.05)).toFixed(2),
-      decision: +Math.min(1, Math.max(0, base - 0.02 + (Math.random() - 0.5) * 0.06)).toFixed(2),
-      compliance: +Math.min(1, Math.max(0, base + 0.01 + (Math.random() - 0.5) * 0.03)).toFixed(2),
-      grade: grades[Math.floor(Math.random() * grades.length)],
-    })
-  }
-  scoreData.value = arr
+/** 根据综合评分推导健康等级 */
+function gradeFromScore(s: number): string {
+  if (s >= 0.85) return 'S'
+  if (s >= 0.70) return 'A'
+  if (s >= 0.55) return 'B'
+  if (s >= 0.40) return 'C'
+  return 'D'
 }
 
-genMock()
+function mapHistoryPoint(p: ModelMetricHistoryPoint): ScorePoint {
+  return {
+    time: p.time?.slice(0, 10) ?? '--',
+    overall: p.overall_score,
+    prediction: p.prediction_score,
+    decision: p.decision_score,
+    compliance: p.compliance_score,
+    grade: p.grade_event?.to ?? gradeFromScore(p.overall_score),
+  }
+}
+
+// 后端 AI 接口未部署，直接使用 Mock
+function mockHistory(days: number): ModelMetricHistoryPoint[] {
+  const now = Date.now()
+  return Array.from({ length: days }, (_, i) => {
+    const base = 0.78 + Math.sin(i / 5) * 0.08 + (Math.random() - 0.5) * 0.04
+    return {
+      time: new Date(now - (days - 1 - i) * 86400000).toISOString().slice(0, 10),
+      prediction_score: +Math.min(1, Math.max(0, base + 0.04 + (Math.random() - 0.5) * 0.05)).toFixed(2),
+      decision_score: +Math.min(1, Math.max(0, base - 0.02 + (Math.random() - 0.5) * 0.06)).toFixed(2),
+      compliance_score: +Math.min(1, Math.max(0, base + 0.01 + (Math.random() - 0.5) * 0.03)).toFixed(2),
+      overall_score: +Math.min(1, Math.max(0, base)).toFixed(2),
+    }
+  })
+}
+
+function loadScores() {
+  scoreData.value = mockHistory(days.value).map(mapHistoryPoint)
+}
+
+loadScores()
 
 // 图表配置
 const chartOpt = computed(() => ({
@@ -119,7 +141,7 @@ const filteredScores = computed(() => {
 })
 
 function onQuery() {
-  genMock()
+  loadScores()
 }
 </script>
 

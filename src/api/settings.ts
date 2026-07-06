@@ -106,11 +106,11 @@ export function getAIMetrics(params: { reservoir_id: number }) {
 }
 
 export function getAIMetricsHistory(params: { reservoir_id: number; days?: number }) {
-  return http.get<ApiResponse<TrendPoint[]>>('/v1/settings/ai/metrics/history', { params })
+  return http.get<ApiResponse<TrendPoint[]>>('/settings/ai/metrics/history', { params })
 }
 
 export function getAIHealthOverview() {
-  return http.get<ApiResponse<HealthOverview[]>>('/v1/settings/ai/health')
+  return http.get<ApiResponse<HealthOverview[]>>('/settings/ai/health')
 }
 
 export function getAIMetricsDetail(params: {

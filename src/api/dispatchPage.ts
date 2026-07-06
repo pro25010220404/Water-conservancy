@@ -91,20 +91,20 @@ export function putAutoLevel(level: 1 | 2 | 3) {
 }
 
 export function fetchPhysicsGuardSummary() {
-  return withMockFallback('/api/v1/settings/physics-guard?reservoir_id=1', () =>
+  return withMockFallback('/v1/admin/physics-guard?reservoir_id=1', () =>
     mockApi.getPhysicsGuardSummary(),
   )
 }
 
 export function fetchPhysicsGuardHistory() {
-  return withMockFallback('/api/v1/settings/physics-guard/history?reservoir_id=1', () =>
+  return withMockFallback('/v1/admin/physics-guard/history?reservoir_id=1', () =>
     mockApi.getPhysicsGuardHistory(),
   )
 }
 
 export function postPhysicsGuardRollback(id: number) {
   return withMockFallback(
-    `/api/v1/settings/physics-guard/${id}/rollback`,
+    `/v1/admin/physics-guard/${id}/rollback`,
     () => mockApi.rollbackPhysicsGuardConfig(id),
     { method: 'POST' },
   )

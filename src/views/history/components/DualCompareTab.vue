@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import VChart from 'vue-echarts'
+import { fetchHistoryData } from '@/api/history'
+import type { HistoryDataPoint } from '@/types/monitoring'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import {
@@ -26,32 +28,40 @@ const compareMode = ref(false)
 const queried = ref(false)
 
 // 生成模拟数据
-function genData(baseTime: number, _color: string) {
-  const arr = []
-  for (let i = 0; i < 48; i++) {
-    arr.push({
-      time: baseTime + i * 3600000,
-      label: new Date(baseTime + i * 3600000).toLocaleString('zh-CN', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-      }),
-      level: +(378.5 + Math.sin(i / 8) * 1.2 + (Math.random() - 0.5) * 0.3).toFixed(2),
-      flow: Math.round(6350 + Math.sin(i / 6) * 800 + (Math.random() - 0.5) * 200),
-    })
-  }
-  return arr
+async function loadRange(startIso: string, endIso: string) {
+  const pts = await fetchHistoryData({
+    reservoirId: 1,
+    start: startIso,
+    end: endIso,
+    metrics: ['upstreamLevel', 'inflowRate'],
+    granularity: 'hour',
+  })
+  return pts.map((d) => ({
+    time: d.time,
+    label: new Date(d.time).toLocaleString('zh-CN', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+    }),
+    level: d.upstreamLevel,
+    flow: d.inflowRate,
+  }))
 }
 
 const dataA = ref<any[]>([])
 const dataB = ref<any[]>([])
 
-function doQuery() {
-  const now = Date.now()
-  const startA = rangeA.value.start ? new Date(rangeA.value.start).getTime() : now - 7 * 86400000
-  const startB = rangeB.value.start ? new Date(rangeB.value.start).getTime() : now - 30 * 86400000
-  dataA.value = genData(startA, '#1890ff')
-  dataB.value = genData(startB, '#ff7f0e')
+async function doQuery() {
+  const nowIso = new Date().toISOString().slice(0, 16)
+  const defStartA = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 16)
+  const defStartB = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 16)
+
+  const [a, b] = await Promise.all([
+    loadRange(rangeA.value.start || defStartA, rangeA.value.end || nowIso),
+    loadRange(rangeB.value.start || defStartB, rangeB.value.end || nowIso),
+  ])
+  dataA.value = a
+  dataB.value = b
   compareMode.value = true
   queried.value = true
 }
