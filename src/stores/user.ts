@@ -3,6 +3,8 @@
 // ============================================================
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { login as loginApi } from '@/api/auth'
+import type { UserRole } from '@/constants/roles'
 
 export interface UserInfo {
   id: number
@@ -11,6 +13,43 @@ export interface UserInfo {
   avatar?: string
   roles: string[]
   permissions: string[]
+}
+
+const ROLE_CODE_MAP: Record<string, UserRole> = {
+  admin: 'admin',
+  dispatcher: 'dispatcher',
+  operator: 'operator',
+  manager: 'manager',
+  station_master: 'manager',
+  algorithm: 'algorithm_engineer',
+  algorithm_engineer: 'algorithm_engineer',
+  // role_id（与系统设置用户管理一致：1运维 2调度 3站长 4管理员 5算法）
+  '1': 'operator',
+  '2': 'dispatcher',
+  '3': 'manager',
+  '4': 'admin',
+  '5': 'algorithm_engineer',
+  // role_name 兜底
+  '值班运维人员': 'operator',
+  '值班运维': 'operator',
+  '调度决策工程师': 'dispatcher',
+  '调度工程师': 'dispatcher',
+  '调度员': 'dispatcher',
+  '站长/管理人员': 'manager',
+  '站长': 'manager',
+  '系统管理员': 'admin',
+  '算法工程师': 'algorithm_engineer',
+}
+
+function mapRoleCode(roleCode: string, roleName?: string): UserRole {
+  const code = String(roleCode ?? '').trim()
+  if (code && ROLE_CODE_MAP[code]) return ROLE_CODE_MAP[code]
+
+  const name = String(roleName ?? '').trim()
+  if (name && ROLE_CODE_MAP[name]) return ROLE_CODE_MAP[name]
+
+  console.warn(`[userStore] 未知的角色: code="${code}" name="${name}", 回退为 operator`)
+  return 'operator'
 }
 
 function loadUserInfo(): UserInfo | null {
@@ -38,15 +77,31 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem('userInfo', JSON.stringify(info))
   }
 
-  async function login(credentials: { username: string; password: string }): Promise<void> {
-    // TODO: 对接 POST /api/auth/login
-    setSession('dev-token', {
-      id: 1,
-      username: credentials.username,
-      nickname: credentials.username,
-      roles: ['admin'],
+  async function login(credentials: {
+    username: string
+    password: string
+    remember?: boolean
+  }): Promise<void> {
+    const res = await loginApi({
+      account: credentials.username,
+      password: credentials.password,
+      remember: credentials.remember ? 1 : 0,
+    })
+
+    const data = res.data.data
+    const role = mapRoleCode(data.user_info.role_code, data.user_info.role_name)
+
+    setSession(data.token, {
+      id: data.user_info.id,
+      username: data.user_info.account,
+      nickname: data.user_info.realname,
+      roles: [role],
       permissions: [],
     })
+
+    if (data.token_expire_time) {
+      localStorage.setItem('tokenExpireTime', data.token_expire_time)
+    }
   }
 
   function logout(): void {
@@ -54,6 +109,7 @@ export const useUserStore = defineStore('user', () => {
     userInfo.value = null
     localStorage.removeItem('token')
     localStorage.removeItem('userInfo')
+    localStorage.removeItem('tokenExpireTime')
   }
 
   return { userInfo, token, isLoggedIn, hasPermission, setSession, login, logout }

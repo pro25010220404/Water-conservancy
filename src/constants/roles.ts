@@ -6,34 +6,53 @@ export type UserRole = 'operator' | 'dispatcher' | 'manager' | 'admin' | 'algori
 
 /** 路由权限矩阵 */
 export const ROUTE_ROLES: Record<string, UserRole[]> = {
+  // ═══ 监控大屏 ═══
   '/dashboard/overview': ['operator', 'dispatcher', 'manager', 'admin', 'algorithm_engineer'],
   '/dashboard/hydrology': ['operator', 'dispatcher', 'manager', 'admin'],
   '/dashboard/gate': ['operator', 'dispatcher', 'manager', 'admin'],
   '/dashboard/power': ['operator', 'dispatcher', 'manager', 'admin'],
   '/dashboard/security': ['operator', 'manager', 'admin'],
+
+  // ═══ 历史查询 ═══
   '/history': ['dispatcher', 'manager', 'admin'],
   '/history/query': ['dispatcher', 'manager', 'admin'],
   '/history/compare': ['dispatcher', 'manager', 'admin'],
   '/history/model-score': ['dispatcher', 'manager', 'admin', 'algorithm_engineer'],
   '/history/interlock': ['dispatcher', 'manager', 'admin'],
   '/history/replay': ['dispatcher', 'manager', 'admin', 'algorithm_engineer'],
+
+  // ═══ 告警 / 调度 / 仿真 ═══
   '/warning': ['operator', 'dispatcher', 'manager', 'admin'],
   '/dispatch': ['dispatcher', 'manager', 'admin', 'algorithm_engineer'],
   '/dispatch/gate-actions': ['dispatcher', 'manager', 'admin'],
   '/simulation': ['manager', 'admin', 'algorithm_engineer'],
+
+  // ═══ 设备管理 ═══
   '/equipment': ['operator', 'manager', 'admin'],
-  '/settings': ['admin'],
-  '/settings/thresholds': ['admin'],
-  '/settings/weights': ['admin'],
-  '/settings/models': ['admin'],
-  '/settings/users': ['admin'],
-  '/settings/physics-guard': ['admin'],
-  '/settings/physics-guard-history': ['admin'],
-  '/settings/ai/metrics': ['admin', 'algorithm_engineer'],
-  '/settings/ai/compare': ['admin', 'algorithm_engineer'],
-  '/settings/gate-interlock': ['admin'],
-  '/settings/gate-interlock/logs': ['admin'],
+
+  // ═══ 个人中心 — 所有人 ═══
   '/profile': ['operator', 'dispatcher', 'manager', 'admin', 'algorithm_engineer'],
+
+  // ═══ 系统设置入口 ═══
+  '/settings': ['admin', 'manager'],
+
+  // ── 基础运维配置 — 管理员 + 站长 ──
+  '/settings/thresholds': ['admin', 'manager'],
+  '/settings/weights': ['admin', 'manager'],
+  '/settings/models': ['admin', 'manager', 'algorithm_engineer'],
+  '/settings/users': ['admin', 'manager'],
+
+  // ── 物理防护 — 管理员 + 站长 ──
+  '/settings/physics-guard': ['admin', 'manager'],
+  '/settings/physics-guard-history': ['admin', 'manager'],
+
+  // ── AI 模型健康度 — 管理员 + 站长 + 算法工程师 ──
+  '/settings/ai/metrics': ['admin', 'manager', 'algorithm_engineer'],
+  '/settings/ai/compare': ['admin', 'manager', 'algorithm_engineer'],
+
+  // ── 闸门互锁 — 管理员 + 站长 ──
+  '/settings/gate-interlock': ['admin', 'manager'],
+  '/settings/gate-interlock/logs': ['admin', 'manager'],
 }
 
 /** 侧边栏菜单 */
