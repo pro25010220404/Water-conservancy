@@ -10,7 +10,11 @@ import type {
   GateInterlockRule,
   ModelHealthOverviewItem,
   ModelVersionOption,
+  GateInterlockLog,
+  GateInterlockLogApiItem,
 } from '@/types/gateai'
+
+import { RESERVOIR_OPTIONS } from '@/constants/settings'
 
 import { gateaiSharedStore } from './gateaiSharedStore'
 
@@ -31,6 +35,7 @@ import {
   toggleInterlockRule as toggleInterlockRuleApi,
   getInterlockLogs,
   getInterlockStats,
+  type AIMetricsHistoryItem,
 } from './settings'
 
 const METRICS: Record<number, ModelMetricLatest> = {
@@ -194,13 +199,32 @@ export async function fetchModelMetricsLatest(reservoirId: number): Promise<Mode
   return delay(METRICS[reservoirId] ?? METRICS[1])
 }
 
-export async function fetchModelMetricsHistory(reservoirId: number): Promise<ModelMetricHistoryPoint[]> {
+function normalizeHistoryPoint(raw: AIMetricsHistoryItem | ModelMetricHistoryPoint): ModelMetricHistoryPoint {
+  const item = raw as AIMetricsHistoryItem & ModelMetricHistoryPoint
+  const time = item.metric_time ?? item.time ?? ''
+  return {
+    time,
+    prediction_score: item.prediction_score,
+    decision_score: item.decision_score,
+    compliance_score: item.compliance_score,
+    overall_score: item.overall_score,
+    health_grade: (item.health_grade as ModelMetricHistoryPoint['health_grade']) ?? undefined,
+    grade_event: item.grade_event,
+  }
+}
+
+export async function fetchModelMetricsHistory(
+  reservoirId: number,
+  days = 7,
+): Promise<ModelMetricHistoryPoint[]> {
   try {
-    const res = await getAIMetricsHistory({ reservoir_id: reservoirId })
-    if (res.data?.code === 0 && res.data.data) {
-      return res.data.data as unknown as ModelMetricHistoryPoint[]
+    const res = await getAIMetricsHistory({ reservoir_id: reservoirId, days })
+    if (res.data?.code === 0 && Array.isArray(res.data.data)) {
+      return res.data.data.map((item) => normalizeHistoryPoint(item))
     }
-  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
+  } catch (e) {
+    if (!GATEAI_MOCK_FALLBACK) throw e
+  }
   return delay(historyFor(reservoirId))
 }
 
@@ -364,22 +388,87 @@ export function reorderInterlockRules(orderedIds: number[]) {
   return delay(null)
 }
 
+function parseOpening(value: string | number | undefined): number {
+  const n = Number(value)
+  if (Number.isNaN(n)) return 0
+  return n <= 1 ? +(n * 100).toFixed(1) : +n.toFixed(1)
+}
+
+function parseLevel(value: string | number | undefined): number {
+  const n = Number(value)
+  return Number.isNaN(n) ? 0 : +n.toFixed(2)
+}
+
+function toDateParam(value: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : value.slice(0, 10)
+}
+
+function reservoirNameById(id: number): string {
+  return RESERVOIR_OPTIONS.find((r) => r.value === id)?.label ?? `水库 #${id}`
+}
+
+function normalizeInterlockLog(raw: GateInterlockLogApiItem): GateInterlockLog {
+  const openingsBefore = [
+    parseOpening(raw.gate1_opening_before),
+    parseOpening(raw.gate2_opening_before),
+    parseOpening(raw.gate3_opening_before),
+  ]
+  const openingsAfter = [
+    parseOpening(raw.gate1_opening_after),
+    parseOpening(raw.gate2_opening_after),
+    parseOpening(raw.gate3_opening_after),
+  ]
+  const changedGates = openingsBefore
+    .map((before, index) => (before !== openingsAfter[index] ? index : -1))
+    .filter((index) => index >= 0)
+
+  const ruleName = raw.rule?.rule_name ?? raw.action_detail?.triggered_rule ?? '互锁规则'
+  const ruleCode = raw.rule?.rule_code ?? raw.action_detail?.triggered_rule
+
+  return {
+    id: raw.id,
+    trigger_time: raw.trigger_time,
+    reservoir_id: raw.reservoir_id,
+    reservoir_name: reservoirNameById(raw.reservoir_id),
+    rule_name: ruleName,
+    rule_code: ruleCode,
+    decision_id: raw.decision_id,
+    upstream_level: parseLevel(raw.upstream_level),
+    downstream_level: parseLevel(raw.downstream_level),
+    inflow_rate: parseLevel(raw.inflow_rate),
+    openings_before: openingsBefore,
+    openings_after: openingsAfter,
+    changed_gates: changedGates,
+    reason: raw.action_detail?.reason ?? ruleName,
+  }
+}
+
 export async function fetchInterlockLogs(params?: {
   reservoirId?: number
   ruleCodes?: string[]
   startTime?: string
   endTime?: string
-}) {
+  page?: number
+  pageSize?: number
+}): Promise<GateInterlockLog[]> {
   try {
     const res = await getInterlockLogs({
       reservoir_id: params?.reservoirId ?? 1,
-      page: 1,
-      page_size: 50,
-      start: params?.startTime,
-      end: params?.endTime,
+      page: params?.page ?? 1,
+      page_size: params?.pageSize ?? 50,
+      start_time: params?.startTime ? toDateParam(params.startTime) : undefined,
+      end_time: params?.endTime ? toDateParam(params.endTime) : undefined,
     })
-    if (res.data?.code === 0 && res.data.data) return res.data.data as unknown as ReturnType<typeof gateaiSharedStore.getInterlockLogs>
-  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
+    if (res.data?.code === 0 && res.data.data) {
+      let list = (res.data.data.list ?? []).map(normalizeInterlockLog)
+      if (params?.ruleCodes?.length) {
+        list = list.filter((item) => params.ruleCodes!.includes(item.rule_code ?? ''))
+      }
+      return list
+    }
+  } catch (e) {
+    if (!GATEAI_MOCK_FALLBACK) throw e
+  }
   return delay(gateaiSharedStore.getInterlockLogs(params))
 }
 
@@ -414,7 +503,13 @@ export async function fetchInterlockDashboardSummary(reservoirId: number): Promi
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().replace('T', ' ').slice(0, 19)
     const [statsRes, logsRes] = await Promise.allSettled([
       getInterlockStats({ reservoir_id: reservoirId }),
-      getInterlockLogs({ reservoir_id: reservoirId, page: 1, page_size: 1, start: weekAgo, end: now }),
+      getInterlockLogs({
+        reservoir_id: reservoirId,
+        page: 1,
+        page_size: 1,
+        start_time: weekAgo.slice(0, 10),
+        end_time: now.slice(0, 10),
+      }),
     ])
 
     let trigger_24h = 0
@@ -428,7 +523,7 @@ export async function fetchInterlockDashboardSummary(reservoirId: number): Promi
 
     let recent_rule: { name: string; time: string } | null = null
     if (logsRes.status === 'fulfilled' && logsRes.value.data?.code === 0 && logsRes.value.data.data) {
-      const list = logsRes.value.data.data.list ?? []
+      const list = (logsRes.value.data.data.list ?? []).map(normalizeInterlockLog)
       if (list.length > 0) {
         recent_rule = {
           name: list[0].rule_name ?? list[0].rule_code ?? '—',

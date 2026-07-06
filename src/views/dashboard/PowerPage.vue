@@ -35,7 +35,7 @@ let t: ReturnType<typeof setInterval>
 async function loadData() {
   const [uData, tData] = await Promise.all([fetchPowerUnits(1), fetchPowerTrendData(1)])
   units.value = uData.map((u) => ({
-    name: (u.code ?? u.name).replace(/^(SX_GEN_|GEN)/, ''),
+    name: u.name,
     mw: u.status === 'online' ? u.current_output : 0,
     eff: +(u.utilization_rate * 100).toFixed(1),
     rpm: u.status === 'online' ? 75 : 0,
@@ -179,13 +179,13 @@ const lineOpt = computed(() => ({
               </tr>
             </thead>
             <tbody>
-              <tr v-for="u in units" :key="u.name" :class="{ off: u.status !== 'running' }">
+              <tr v-for="u in units" :key="u.name" :class="{ off: u.status !== 'online' }">
                 <td class="td-n">{{ u.name }} 机组</td>
-                <td class="td-v">{{ u.status === 'running' ? u.mw + ' MW' : '—' }}</td>
-                <td>{{ u.status === 'running' ? u.eff + '%' : '—' }}</td>
-                <td>{{ u.status === 'running' ? u.rpm : '—' }}<small> rpm</small></td>
+                <td class="td-v">{{ u.status === 'online' ? u.mw + ' MW' : '—' }}</td>
+                <td>{{ u.status === 'online' ? u.eff + '%' : '—' }}</td>
+                <td>{{ u.status === 'online' ? u.rpm : '—' }}<small> rpm</small></td>
                 <td>{{ u.temp }}<small> °C</small></td>
-                <td>{{ u.status === 'running' ? u.vib : '—' }}<small> mm/s</small></td>
+                <td>{{ u.status === 'online' ? u.vib : '—' }}<small> mm/s</small></td>
                 <td>
                   <span :style="{ color: sc[u.status].color, fontWeight: 600 }">{{
                     sc[u.status].label

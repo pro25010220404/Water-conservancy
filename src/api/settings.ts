@@ -102,11 +102,25 @@ export function getModelDetail(id: number) {
 // ════════════════════════════════════════════════════════════
 
 export function getAIMetrics(params: { reservoir_id: number }) {
-  return http.get<ApiResponse<HealthOverview>>('/v1/settings/ai/metrics', { params })
+  return http.get<ApiResponse<HealthOverview>>('/settings/ai/metrics', { params })
 }
 
 export function getAIMetricsHistory(params: { reservoir_id: number; days?: number }) {
-  return http.get<ApiResponse<TrendPoint[]>>('/settings/ai/metrics/history', { params })
+  return http.get<ApiResponse<AIMetricsHistoryItem[]>>('/settings/ai/metrics/history', { params })
+}
+
+/** 历史趋势单条记录（与后端字段一致） */
+export interface AIMetricsHistoryItem {
+  metric_time: string
+  prediction_score: number
+  decision_score: number
+  compliance_score: number
+  overall_score: number
+  health_grade: string
+  water_level_mae_24h?: number
+  physics_correction_rate?: number
+  safety_override_rate?: number
+  avg_physics_violation?: number
 }
 
 export function getAIHealthOverview() {
@@ -185,12 +199,13 @@ export function getInterlockLogs(params: {
   page?: number
   page_size?: number
   rule_ids?: number[]
-  start?: string
-  end?: string
+  start_time?: string
+  end_time?: string
 }) {
-  return http.get<ApiResponse<PageResult<InterlockLog>>>('/v1/settings/gate-interlock/logs', {
-    params,
-  })
+  return http.get<ApiResponse<PageResult<import('@/types/gateai').GateInterlockLogApiItem>>>(
+    '/v1/settings/gate-interlock/logs',
+    { params },
+  )
 }
 
 export function getInterlockStats(params: { reservoir_id: number; days?: number }) {

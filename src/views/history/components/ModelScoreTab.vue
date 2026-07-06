@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
@@ -22,14 +22,19 @@ use([
   MarkPointComponent,
   CanvasRenderer,
 ])
-import { ElTag } from 'element-plus'
+import { ElTag, ElMessage } from 'element-plus'
+import { RESERVOIR_OPTIONS } from '@/constants/settings'
 import { HEALTH_GRADE } from '@/constants/aiHealth'
-import type { ModelMetricHistoryPoint } from '@/types/gateai'
+import { fetchModelMetricsHistory, fetchModelMetricsLatest } from '@/api/gateaiSettings'
+import type { ModelMetricHistoryPoint, ModelMetricLatest } from '@/types/gateai'
 
+const reservoirId = ref(1)
 const days = ref(30)
+const loading = ref(false)
+const latest = ref<ModelMetricLatest | null>(null)
 
-// 评分历史
 interface ScorePoint {
+  key: string
   time: string
   overall: number
   prediction: number
@@ -39,7 +44,6 @@ interface ScorePoint {
 }
 const scoreData = ref<ScorePoint[]>([])
 
-/** 根据综合评分推导健康等级 */
 function gradeFromScore(s: number): string {
   if (s >= 0.85) return 'S'
   if (s >= 0.70) return 'A'
@@ -49,38 +53,38 @@ function gradeFromScore(s: number): string {
 }
 
 function mapHistoryPoint(p: ModelMetricHistoryPoint): ScorePoint {
+  const rawTime = p.time ?? ''
   return {
-    time: p.time?.slice(0, 10) ?? '--',
+    key: rawTime,
+    time: rawTime.slice(0, 10),
     overall: p.overall_score,
     prediction: p.prediction_score,
     decision: p.decision_score,
     compliance: p.compliance_score,
-    grade: p.grade_event?.to ?? gradeFromScore(p.overall_score),
+    grade: p.health_grade ?? p.grade_event?.to ?? gradeFromScore(p.overall_score),
   }
 }
 
-// 后端 AI 接口未部署，直接使用 Mock
-function mockHistory(days: number): ModelMetricHistoryPoint[] {
-  const now = Date.now()
-  return Array.from({ length: days }, (_, i) => {
-    const base = 0.78 + Math.sin(i / 5) * 0.08 + (Math.random() - 0.5) * 0.04
-    return {
-      time: new Date(now - (days - 1 - i) * 86400000).toISOString().slice(0, 10),
-      prediction_score: +Math.min(1, Math.max(0, base + 0.04 + (Math.random() - 0.5) * 0.05)).toFixed(2),
-      decision_score: +Math.min(1, Math.max(0, base - 0.02 + (Math.random() - 0.5) * 0.06)).toFixed(2),
-      compliance_score: +Math.min(1, Math.max(0, base + 0.01 + (Math.random() - 0.5) * 0.03)).toFixed(2),
-      overall_score: +Math.min(1, Math.max(0, base)).toFixed(2),
-    }
-  })
+async function loadScores() {
+  loading.value = true
+  try {
+    const [history, latestMetrics] = await Promise.all([
+      fetchModelMetricsHistory(reservoirId.value, days.value),
+      fetchModelMetricsLatest(reservoirId.value).catch(() => null),
+    ])
+    scoreData.value = history.map(mapHistoryPoint)
+    latest.value = latestMetrics
+  } catch {
+    ElMessage.error('加载模型评分历史失败')
+    scoreData.value = []
+    latest.value = null
+  } finally {
+    loading.value = false
+  }
 }
 
-function loadScores() {
-  scoreData.value = mockHistory(days.value).map(mapHistoryPoint)
-}
+onMounted(() => loadScores())
 
-loadScores()
-
-// 图表配置
 const chartOpt = computed(() => ({
   tooltip: { trigger: 'axis' },
   legend: { top: 0 },
@@ -88,7 +92,7 @@ const chartOpt = computed(() => ({
   xAxis: {
     type: 'category',
     data: scoreData.value.map((d) => d.time),
-    axisLabel: { interval: Math.max(1, Math.floor(days.value / 10)), rotate: 30 },
+    axisLabel: { interval: Math.max(1, Math.floor(scoreData.value.length / 10)), rotate: 30 },
   },
   yAxis: {
     type: 'value',
@@ -133,7 +137,6 @@ const chartOpt = computed(() => ({
   ],
 }))
 
-// 表格数据
 const gradeFilter = ref('')
 const filteredScores = computed(() => {
   if (!gradeFilter.value) return scoreData.value
@@ -146,8 +149,31 @@ function onQuery() {
 </script>
 
 <template>
-  <div class="ms">
+  <div class="ms" v-loading="loading">
+    <div v-if="latest" class="ms__summary">
+      <span class="ms__summary-label">最新指标</span>
+      <span class="ms__summary-item">
+        综合评分 <b>{{ (latest.overall_score * 100).toFixed(0) }}</b>
+      </span>
+      <span class="ms__summary-item">
+        健康等级
+        <ElTag
+          :color="(HEALTH_GRADE as any)[latest.health_grade]?.color"
+          size="small"
+          effect="dark"
+        >
+          {{ latest.health_grade }}
+        </ElTag>
+      </span>
+      <span class="ms__summary-item ms__summary-time">{{ latest.metric_time }}</span>
+    </div>
+
     <div class="ms__filters">
+      <select v-model="reservoirId" @change="onQuery" class="ms__sel">
+        <option v-for="r in RESERVOIR_OPTIONS" :key="r.value" :value="r.value">
+          {{ r.label }}
+        </option>
+      </select>
       <select v-model="days" @change="onQuery" class="ms__sel">
         <option :value="7">近 7 天</option>
         <option :value="30">近 30 天</option>
@@ -166,7 +192,7 @@ function onQuery() {
           {{ g }}
         </span>
       </div>
-      <button class="ms__btn" @click="onQuery">刷新</button>
+      <button class="ms__btn" :disabled="loading" @click="onQuery">刷新</button>
     </div>
 
     <div class="ms__chart">
@@ -186,17 +212,20 @@ function onQuery() {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="d in filteredScores" :key="d.time">
+          <tr v-for="d in filteredScores" :key="d.key">
             <td>{{ d.time }}</td>
             <td>{{ (d.overall * 100).toFixed(0) }}</td>
             <td>
-              <ElTag :color="(HEALTH_GRADE as any)[d.grade]?.color" size="small" effect="dark">{{
-                d.grade
-              }}</ElTag>
+              <ElTag :color="(HEALTH_GRADE as any)[d.grade]?.color" size="small" effect="dark">
+                {{ d.grade }}
+              </ElTag>
             </td>
             <td>{{ (d.prediction * 100).toFixed(0) }}</td>
             <td>{{ (d.decision * 100).toFixed(0) }}</td>
             <td>{{ (d.compliance * 100).toFixed(0) }}</td>
+          </tr>
+          <tr v-if="!loading && filteredScores.length === 0">
+            <td colspan="6" class="ms__empty">暂无数据</td>
           </tr>
         </tbody>
       </table>
@@ -213,6 +242,42 @@ function onQuery() {
   padding: 18px 24px;
   gap: 12px;
   overflow: hidden;
+
+  &__summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border: 1px solid #eef0f2;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  &__summary-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #64748b;
+  }
+
+  &__summary-item {
+    font-size: 14px;
+    color: #475569;
+
+    b {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-left: 4px;
+    }
+  }
+
+  &__summary-time {
+    margin-left: auto;
+    font-size: 13px;
+    color: #94a3b8;
+  }
 
   &__filters {
     display: flex;
@@ -251,6 +316,10 @@ function onQuery() {
     border: none;
     border-radius: 6px;
     cursor: pointer;
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   }
   &__chart {
     flex-shrink: 0;
@@ -292,6 +361,12 @@ function onQuery() {
     tr:hover td {
       background: #f8fafc;
     }
+  }
+  &__empty {
+    text-align: center;
+    color: #94a3b8;
+    padding: 24px !important;
+    font-family: inherit !important;
   }
 }
 </style>
