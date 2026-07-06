@@ -115,7 +115,7 @@ v-else :index="item.path"
     margin: 4px 8px;
     border-radius: var(--border-radius-sm);
     color: var(--color-layout-blue-text-secondary);
-    transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: none;
   }
 
   :deep(.el-menu-item.is-active) {
@@ -123,18 +123,6 @@ v-else :index="item.path"
     color: var(--color-layout-blue-brand) !important;
     font-weight: 600;
     border-left: none;
-    box-shadow: inset 0 0 24px rgba(110, 179, 255, 0.12);
-  }
-
-  :deep(.el-menu-item:hover) {
-    background: rgba(255, 255, 255, 0.12) !important;
-    color: var(--color-layout-blue-text) !important;
-    transform: translateX(3px);
-    box-shadow: 0 2px 12px rgba(110, 179, 255, 0.18);
-  }
-
-  :deep(.el-menu-item:active) {
-    transform: translateX(1px) scale(0.98);
   }
 }
 </style>
@@ -155,11 +143,6 @@ v-else :index="item.path"
     font-size: 14px;
     font-weight: 500;
     background: transparent !important;
-
-    &:hover {
-      color: #fff !important;
-      background: rgba(255, 255, 255, 0.1) !important;
-    }
 
     &.is-active {
       color: #6eb3ff !important;

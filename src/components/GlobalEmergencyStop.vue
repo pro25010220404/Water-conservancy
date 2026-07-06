@@ -46,28 +46,15 @@ async function handleClick() {
   color: #fff;
   font-weight: 800;
   letter-spacing: 0.08em;
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+  transition: none;
 
   &--header {
     flex-shrink: 0;
     height: 36px;
     padding: 0 20px;
     border-radius: 8px;
-    background: linear-gradient(145deg, #ff4757, #e02020);
+    background: #e02020;
     font-size: 15px;
-    box-shadow: 0 2px 12px rgba(255, 71, 87, 0.45);
-    animation: global-estop-pulse-header 2s ease-in-out infinite;
-
-    &:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 18px rgba(255, 71, 87, 0.65);
-    }
-
-    &:active {
-      transform: translateY(0);
-    }
   }
 
   &--floating {
@@ -78,39 +65,8 @@ async function handleClick() {
     width: 68px;
     height: 68px;
     border-radius: 50%;
-    background: linear-gradient(145deg, #ff4757, #e02020);
+    background: #e02020;
     font-size: 16px;
-    box-shadow: 0 4px 20px rgba(255, 71, 87, 0.45);
-    animation: global-estop-pulse 2s ease-in-out infinite;
-
-    &:hover {
-      transform: scale(1.08);
-      box-shadow: 0 6px 28px rgba(255, 71, 87, 0.75);
-    }
-
-    &:active {
-      transform: scale(0.94);
-    }
-  }
-}
-
-@keyframes global-estop-pulse-header {
-  0%,
-  100% {
-    box-shadow: 0 2px 10px rgba(255, 71, 87, 0.35);
-  }
-  50% {
-    box-shadow: 0 2px 20px rgba(255, 71, 87, 0.75);
-  }
-}
-
-@keyframes global-estop-pulse {
-  0%,
-  100% {
-    box-shadow: 0 4px 16px rgba(255, 71, 87, 0.35);
-  }
-  50% {
-    box-shadow: 0 4px 32px rgba(255, 71, 87, 0.8);
   }
 }
 </style>
