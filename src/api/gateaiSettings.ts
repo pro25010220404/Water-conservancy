@@ -1,5 +1,6 @@
-// GateAI 调度模块 — 真实 API + Mock 降级
+// GateAI 调度模块 — 真实 API + Mock 降级（GATEAI_MOCK_FALLBACK 控制）
 // 优先调用后端接口，失败时使用本地 Mock 数据
+export const GATEAI_MOCK_FALLBACK = false
 
 import type {
   ModelMetricLatest,
@@ -189,7 +190,7 @@ export async function fetchModelMetricsLatest(reservoirId: number): Promise<Mode
     if (res.data?.code === 0 && res.data.data) {
       return res.data.data as unknown as ModelMetricLatest
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(METRICS[reservoirId] ?? METRICS[1])
 }
 
@@ -199,7 +200,7 @@ export async function fetchModelMetricsHistory(reservoirId: number): Promise<Mod
     if (res.data?.code === 0 && res.data.data) {
       return res.data.data as unknown as ModelMetricHistoryPoint[]
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(historyFor(reservoirId))
 }
 
@@ -216,7 +217,7 @@ export async function fetchModelMetricsDetail(
     if (res.data?.code === 0 && res.data.data) {
       return (res.data.data as unknown as { list: ModelMetricDetailRow[] }).list ?? []
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(detailRows(reservoirId, params?.hours ?? 24))
 }
 
@@ -226,7 +227,7 @@ export async function fetchModelHealthOverview(): Promise<ModelHealthOverviewIte
     if (res.data?.code === 0 && res.data.data) {
       return res.data.data as unknown as ModelHealthOverviewItem[]
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   const list: ModelHealthOverviewItem[] = gateaiSharedStore.getReservoirs().map((r) => {
     const m = METRICS[r.id] ?? METRICS[1]
     return { reservoir_id: r.id, reservoir_name: r.name, overall_score: m.overall_score, health_grade: m.health_grade, metric_time: m.metric_time }
@@ -253,7 +254,7 @@ export async function fetchModelCompare(
       const res = await getAIVersionCompare({ reservoir_id: reservoirId, version1: currentVer, version2: previousVer })
       if (res.data?.code === 0 && res.data.data) return res.data.data as unknown as { current: { version: string; source: string; scores: Record<string, number> }; previous: { version: string; source: string; scores: Record<string, number> } }
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   const opts = VERSION_CATALOG[reservoirId] ?? VERSION_CATALOG[1]
   const cur = currentVer ?? opts[0].version
   const prev = previousVer ?? opts[1]?.version ?? opts[0].version
@@ -272,7 +273,7 @@ export async function fetchPhysicsGuardConfig(reservoirId: number): Promise<Phys
     if (res.data?.code === 0 && res.data.data) {
       return res.data.data as unknown as PhysicsGuardConfig
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.getPhysicsConfig(reservoirId))
 }
 
@@ -286,7 +287,7 @@ export async function savePhysicsGuardConfig(
       const res = await updatePhysicsGuard(id, config as unknown as Record<string, unknown>)
       if (res.data?.code === 0) return null
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   gateaiSharedStore.savePhysicsConfig(config, meta)
   return delay(null)
 }
@@ -298,7 +299,7 @@ export async function fetchPhysicsGuardHistory(reservoirId: number) {
       // 后端 ConfigHistoryItem → gateai PhysicsGuardHistoryItem，字段有差异用类型断言
       return res.data.data as unknown as ReturnType<typeof gateaiSharedStore.getPhysicsHistory> extends Promise<infer T> ? T : never
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.getPhysicsHistory(reservoirId))
 }
 
@@ -311,7 +312,7 @@ export async function rollbackPhysicsGuard(reservoirId: number, historyId: numbe
   try {
     const res = await rollbackPhysicsGuardApi(historyId)
     if (res.data?.code === 0) return { new_version: (res.data.data as Record<string, unknown>)?.new_version ?? '' }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.rollbackPhysics(reservoirId, historyId))
 }
 
@@ -321,7 +322,7 @@ export async function clonePhysicsGuardConfig(fromId: number, toId: number, _ver
     if (res.data?.code === 0 && res.data.data) {
       return res.data.data as unknown as PhysicsGuardConfig
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.clonePhysics(fromId, toId))
 }
 
@@ -332,7 +333,7 @@ export async function fetchInterlockRules(reservoirId: number): Promise<GateInte
     if (res.data?.code === 0 && res.data.data) {
       return res.data.data as unknown as GateInterlockRule[]
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.getInterlockRules(reservoirId))
 }
 
@@ -340,7 +341,7 @@ export async function toggleInterlockRule(ruleId: number, enabled: boolean): Pro
   try {
     const res = await toggleInterlockRuleApi(ruleId)
     if (res.data?.code === 0) return null
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   gateaiSharedStore.toggleInterlockRule(ruleId, enabled)
   return delay(null)
 }
@@ -349,7 +350,7 @@ export async function updateInterlockRule(ruleId: number, patch: Partial<GateInt
   try {
     const res = await updateInterlockRuleApi(ruleId, patch as Record<string, unknown>)
     if (res.data?.code === 0) return res.data
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.updateInterlockRule(ruleId, patch))
 }
 
@@ -378,7 +379,7 @@ export async function fetchInterlockLogs(params?: {
       end: params?.endTime,
     })
     if (res.data?.code === 0 && res.data.data) return res.data.data as unknown as ReturnType<typeof gateaiSharedStore.getInterlockLogs>
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.getInterlockLogs(params))
 }
 
@@ -399,7 +400,7 @@ export async function fetchInterlockStats(
         trigger_7d: arr.reduce((sum, s) => sum + (s.trigger_count || 0), 0),
       }
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.getInterlockStats(reservoirId))
 }
 
@@ -437,8 +438,8 @@ export async function fetchInterlockDashboardSummary(reservoirId: number): Promi
     }
 
     return { trigger_24h, recent_rule }
-  } catch {
-    /* 降级 Mock */
+  } catch (e) {
+    if (!GATEAI_MOCK_FALLBACK) throw e
   }
 
   const stats = gateaiSharedStore.getInterlockStats(reservoirId)

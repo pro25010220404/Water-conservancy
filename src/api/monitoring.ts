@@ -1,9 +1,16 @@
 // ============================================================
-// 监控大屏 — 全部 12 个 API（L1 + L2 Mock 降级）
+// 监控大屏 — 全部 API（Mock 降级可通过 MOCK_FALLBACK 开关控制）
 // ============================================================
 import http from './request'
 import type { ApiResponse, PageResult } from '@/shared/types'
 import type { RealtimeKpi, DashboardAlarm } from '@/types/monitoring'
+
+/**
+ * 全局 Mock 降级开关：
+ *   true  — API 失败时自动走 Mock（默认，不影响使用）
+ *   false — API 失败直接抛错，方便调试是否真正接上了后端
+ */
+export const MOCK_FALLBACK = false
 
 // ═══ 类型 ═══
 
@@ -120,7 +127,7 @@ export async function fetchRealtimeKpi(reservoirId: number): Promise<RealtimeKpi
         capacity: 48.36, timestamp: d.timestamp,
       }
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!MOCK_FALLBACK) throw e }
   return delay(mockKpi())
 }
 
@@ -140,7 +147,7 @@ export async function fetchDashboardAlarms(): Promise<DashboardAlarm[]> {
         msg: a.message, status: a.status ?? '未处理',
       }))
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!MOCK_FALLBACK) throw e }
   return delay([...DEFAULT_ALARMS])
 }
 
@@ -149,7 +156,7 @@ export async function fetchGates(reservoirId?: number): Promise<GateRaw[]> {
   try {
     const res = await getMonitoringGates(reservoirId ? { reservoir_id: reservoirId } : undefined)
     if (res.data?.code === 0 && Array.isArray(res.data.data)) return res.data.data
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!MOCK_FALLBACK) throw e }
   return delay(gateMocks())
 }
 function gateMocks(): GateRaw[] {
@@ -174,7 +181,7 @@ export async function fetchPowerUnits(reservoirId?: number): Promise<PowerUnitRa
   try {
     const res = await getPowerUnits(reservoirId ? { reservoir_id: String(reservoirId) } : undefined)
     if (res.data?.code === 0 && Array.isArray(res.data.data)) return res.data.data
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!MOCK_FALLBACK) throw e }
   return delay(powerUnitMocks())
 }
 function powerUnitMocks(): PowerUnitRaw[] {
@@ -195,7 +202,7 @@ export async function fetchPowerTrendData(reservoirId?: number): Promise<PowerTr
   try {
     const res = await getPowerTrend(reservoirId ? { reservoir_id: String(reservoirId) } : undefined)
     if (res.data?.code === 0 && res.data.data?.series?.[0]?.data) return res.data.data.series[0].data
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!MOCK_FALLBACK) throw e }
   return delay(powerTrendMocks())
 }
 function powerTrendMocks() {

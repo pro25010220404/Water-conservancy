@@ -10,11 +10,44 @@ import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { useHydrologyData } from '@/composables/useHydrologyData'
+import { fetchRealtimeKpi } from '@/api/monitoring'
+import { fetchPrediction } from '@/api/dispatchPage'
+import type { RealtimeKpi } from '@/types/monitoring'
+import type { PredictionPoint } from '@/types/dispatch'
 
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
-const { snapshot, trend, connected, useMock } = useHydrologyData()
+const snapshot = ref<RealtimeKpi>({
+  upstreamLevel: 378.52, downstreamLevel: 269.18, inflowRate: 6350,
+  outflowRate: 5820, gateOpening: 34, powerOutput: 4119, capacity: 48.36,
+  timestamp: new Date().toISOString(),
+})
+const trend = ref<RealtimeKpi[]>([])
+const connected = ref(false)
+const useMock = ref(true)
+const prediction = ref<{ water: PredictionPoint[]; flow: PredictionPoint[] }>({ water: [], flow: [] })
+
+let fetchTimer: ReturnType<typeof setInterval> | null = null
+async function refreshKpi() {
+  try {
+    const [kpi, pred] = await Promise.all([fetchRealtimeKpi(1), fetchPrediction(1)])
+    snapshot.value = kpi
+    useMock.value = false
+    connected.value = true
+    trend.value.push(kpi)
+    if (trend.value.length > 1440) trend.value.shift()
+    if (pred.data) {
+      prediction.value = {
+        water: pred.data.water_seq ?? [],
+        flow: pred.data.flow_seq ?? [],
+      }
+    }
+  } catch {
+    useMock.value = true
+    connected.value = false
+  }
+}
+
 const fmt = (v: number | undefined, d = 2) =>
   v != null
     ? v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
@@ -100,22 +133,13 @@ function formatAxisLabel(ts: string, range: '1h' | '6h' | '24h') {
   return `${hh}:${mm}`
 }
 
-function aiPredict(
-  actual: number,
-  steps: number,
-  variance: number,
-): { pred: number[]; upper: number[]; lower: number[] } {
-  const pred: number[] = [],
-    upper: number[] = [],
-    lower: number[] = []
-  let v = actual
-  for (let i = 0; i < steps; i++) {
-    v += (Math.random() - 0.48) * variance
-    pred.push(+v.toFixed(2))
-    upper.push(+(v + variance * (i + 1) * 0.3).toFixed(2))
-    lower.push(+(v - variance * (i + 1) * 0.3).toFixed(2))
+// 生成置信区间（后端暂不返回，客户端估算）
+function estimateBounds(vals: number[], base: number): { upper: number[]; lower: number[] } {
+  let v = base
+  return {
+    upper: vals.map((val, i) => { v = val + Math.abs(val - base) * (i + 1) * 0.3; return +v.toFixed(2) }),
+    lower: vals.map((val, i) => { const lo = val - Math.abs(val - base) * (i + 1) * 0.3; return +lo.toFixed(2) }),
   }
-  return { pred, upper, lower }
 }
 
 const trendOpt = computed(() => {
@@ -125,20 +149,30 @@ const trendOpt = computed(() => {
   const levelData = pts.map((p) => p.upstreamLevel)
   const outflowData = pts.map((p) => p.outflowRate)
   const lastLevel = levelData[levelData.length - 1] || 378.5
-  const lastFlow = outflowData[outflowData.length - 1] || 5820
-  const aiL = aiPredict(lastLevel, 16, 0.08)
-  const aiF = aiPredict(lastFlow, 16, 80)
-  const predLabels = aiL.pred.map((_, i) => {
+
+  // 使用后端 LSTM 预测数据
+  const predWaterVals = prediction.value.water.map((p) => p.value)
+  const predFlowVals = prediction.value.flow.map((p) => p.value)
+  const predLabels = prediction.value.water.map((p) => {
+    const d = new Date(p.time)
+    return isNaN(d.getTime()) ? formatAxisLabel(p.time, range) : formatAxisLabel(d.toISOString(), range)
+  })
+  const n = Math.max(predWaterVals.length, 16)
+  const pw = predWaterVals.length > 0 ? predWaterVals : Array.from({ length: 16 }, (_, i) => { const v = lastLevel + (Math.random() - 0.48) * 0.08 * (i + 1); return +v.toFixed(2) })
+  const pf = predFlowVals.length > 0 ? predFlowVals : Array.from({ length: 16 }, (_, i) => { const v = (outflowData[outflowData.length - 1] || 5820) + (Math.random() - 0.48) * 80 * (i + 1); return +Math.round(v) })
+  const pl = predLabels.length > 0 ? predLabels : pw.map((_, i) => {
     const d = new Date(Date.now() + (i + 1) * 5 * 60000)
     return formatAxisLabel(d.toISOString(), range)
   })
-  const xData = [...labels, ...predLabels]
-  const lvlA = [...levelData, ...Array(16).fill(null)]
-  const lvlP = [...Array(labels.length).fill(null), ...aiL.pred]
-  const lvlU = [...Array(labels.length).fill(null), ...aiL.upper]
-  const lvlL = [...Array(labels.length).fill(null), ...aiL.lower]
-  const flwA = [...outflowData, ...Array(16).fill(null)]
-  const flwP = [...Array(labels.length).fill(null), ...aiF.pred]
+  const { upper: wUpper, lower: wLower } = estimateBounds(pw, lastLevel)
+
+  const xData = [...labels, ...pl]
+  const lvlA = [...levelData, ...Array(n).fill(null)]
+  const lvlP = [...Array(labels.length).fill(null), ...pw]
+  const lvlU = [...Array(labels.length).fill(null), ...wUpper]
+  const lvlL = [...Array(labels.length).fill(null), ...wLower]
+  const flwA = [...outflowData, ...Array(n).fill(null)]
+  const flwP = [...Array(labels.length).fill(null), ...pf]
 
   const lvlMin = Math.min(...levelData, 377.5)
   const lvlMax = Math.max(...levelData, 380.5)
@@ -359,8 +393,13 @@ function init() {
   stationLayer = L.layerGroup().addTo(map)
   refresh()
 }
-onMounted(() => requestAnimationFrame(() => init()))
+onMounted(() => {
+  requestAnimationFrame(() => init())
+  refreshKpi()
+  fetchTimer = setInterval(refreshKpi, 5000)
+})
 onUnmounted(() => {
+  if (fetchTimer) clearInterval(fetchTimer)
   if (map) {
     map.remove()
     map = null

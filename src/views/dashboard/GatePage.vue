@@ -1,25 +1,34 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { fetchGates, fetchGateActionLogs } from '@/api/monitoring'
+import { fetchGates, fetchGateActionLogs, fetchRealtimeKpi } from '@/api/monitoring'
 
 const gates = ref<{ name: string; v: number }[]>([])
 const logs = ref<{ time: string; gate: string; action: string; dur: string; by: string }[]>([])
+const upstreamLevel = ref(378.5)
+const downstreamLevel = ref(269.2)
 
 let t: ReturnType<typeof setInterval>
 async function loadData() {
-  const [gatesData, actionsData] = await Promise.all([fetchGates(1), fetchGateActionLogs()])
-  gates.value = gatesData.map((g) => ({ name: g.code ?? g.name, v: g.opening }))
-  logs.value = actionsData.map((a) => ({
-    time: a.acted_at?.slice(-5) ?? '--:--',
-    gate: `#${a.equipment_id}`,
-    action: `${a.previous_opening}%→${a.target_opening}%`,
-    dur: `${(a.duration_ms / 1000).toFixed(0)}s`,
-    by: a.action_source,
-  }))
+  try {
+    const kpi = await fetchRealtimeKpi(1)
+    upstreamLevel.value = kpi.upstreamLevel
+    downstreamLevel.value = kpi.downstreamLevel
+  } catch { /* 水位接口暂不可用 */ }
+  try {
+    const [gatesData, actionsData] = await Promise.all([fetchGates(1), fetchGateActionLogs()])
+    gates.value = gatesData.map((g) => ({ name: g.code ?? g.name, v: g.opening }))
+    logs.value = actionsData.map((a) => ({
+      time: a.acted_at?.slice(-5) ?? '--:--',
+      gate: `#${a.equipment_id}`,
+      action: `${a.previous_opening}%→${a.target_opening}%`,
+      dur: `${(a.duration_ms / 1000).toFixed(0)}s`,
+      by: a.action_source,
+    }))
+  } catch { /* 闸门/操作日志接口暂不可用 */ }
 }
 onMounted(() => {
   loadData()
-  t = setInterval(loadData, 10000)
+  t = setInterval(loadData, 5000)
 })
 onUnmounted(() => clearInterval(t))
 </script>
@@ -57,7 +66,7 @@ onUnmounted(() => clearInterval(t))
         <div class="diagram__scene">
           <!-- 上游 -->
           <div class="diagram__pool diagram__pool--up">
-            <span>上游 378.5m</span>
+            <span>上游 {{ upstreamLevel.toFixed(1) }}m</span>
           </div>
           <!-- 坝体 + 闸门：表孔8扇 + 中孔底孔4扇分两排 -->
           <div class="diagram__dam">
@@ -81,7 +90,7 @@ onUnmounted(() => clearInterval(t))
           </div>
           <!-- 下游 -->
           <div class="diagram__pool diagram__pool--dn">
-            <span>下游 269.2m</span>
+            <span>下游 {{ downstreamLevel.toFixed(1) }}m</span>
           </div>
         </div>
         <div class="diagram__legend">

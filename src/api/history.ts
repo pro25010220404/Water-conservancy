@@ -1,8 +1,10 @@
 // ============================================================
-// 历史查询 — API（L1 基础请求 + L2 Mock 降级）
+// 历史查询 — API（Mock 降级通过 HISTORY_MOCK_FALLBACK 控制）
 // ============================================================
 import http from './request'
 import type { ApiResponse } from '@/shared/types'
+
+export const HISTORY_MOCK_FALLBACK = false
 import type { HistoryDataPoint } from '@/types/monitoring'
 
 // 后端实际响应结构
@@ -93,6 +95,6 @@ export async function fetchHistoryData(params: {
         event: null,
       }))
     }
-  } catch { /* 失败降级 */ }
+  } catch (e) { if (!HISTORY_MOCK_FALLBACK) throw e }
   return []
 }
