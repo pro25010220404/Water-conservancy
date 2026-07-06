@@ -14,7 +14,7 @@ import type {
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 
 const V1_PREFIX = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
-const EDGE_BASE = '/edge'
+const EDGE_BASE = `${V1_PREFIX}/edge`
 
 // ════════════════════════════════════════════════════════════
 // §12 物理配置接口
@@ -63,33 +63,33 @@ export function deletePhysicalParameter(id: number) {
 // ── §12.5 获取物理防护配置 ──
 export function getPhysicsGuard(reservoirId?: number) {
   return http.get<ApiResponse<PhysicsGuardSummary>>(
-    `${V1_PREFIX}/settings/physics-guard`,
+    `${V1_PREFIX}/admin/physics-guard`,
     { params: { reservoir_id: reservoirId ?? 1 } },
   )
 }
 
 // ── §12.6 更新物理防护配置 ──
 export function updatePhysicsGuard(id: number, data: Record<string, unknown>) {
-  return http.put<ApiResponse<null>>(`${V1_PREFIX}/settings/physics-guard/${id}`, data)
+  return http.put<ApiResponse<null>>(`${V1_PREFIX}/admin/physics-guard/${id}`, data)
 }
 
 // ── §12.7 物理防护配置变更历史 ──
 export function getPhysicsGuardHistory(reservoirId?: number) {
   return http.get<
     ApiResponse<PageResult<{ id: number; config_version: string; changed_at: string }>>
-  >(`${V1_PREFIX}/settings/physics-guard/history`, {
+  >(`${V1_PREFIX}/admin/physics-guard/history`, {
     params: { reservoir_id: reservoirId ?? 1 },
   })
 }
 
 // ── §12.8 回滚物理防护配置 ──
 export function rollbackPhysicsGuard(id: number) {
-  return http.post<ApiResponse<null>>(`${V1_PREFIX}/settings/physics-guard/${id}/rollback`)
+  return http.post<ApiResponse<null>>(`${V1_PREFIX}/admin/physics-guard/${id}/rollback`)
 }
 
 // ── §12.9 跨水库复制物理防护配置 ──
 export function clonePhysicsGuard(fromReservoirId: number, toReservoirId: number) {
-  return http.post<ApiResponse<null>>(`${V1_PREFIX}/settings/physics-guard/clone`, {
+  return http.post<ApiResponse<null>>(`${V1_PREFIX}/admin/physics-guard/clone`, {
     from_reservoir_id: fromReservoirId,
     to_reservoir_id: toReservoirId,
   })

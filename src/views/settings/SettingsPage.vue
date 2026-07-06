@@ -1356,6 +1356,7 @@ onMounted(() => {
       <p>页面加载中...</p>
       <p style="font-size: 12px; margin-top: 8px;">当前 Tab: {{ activeTab }}</p>
     </div>
+    </div>
   </div>
 </template>
 

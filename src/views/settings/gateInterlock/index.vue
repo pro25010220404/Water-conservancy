@@ -4,6 +4,7 @@ import { ElSelect, ElOption, ElButton, ElMessage, ElMessageBox } from 'element-p
 import { Plus } from '@element-plus/icons-vue'
 import { RESERVOIR_OPTIONS } from '@/constants/settings'
 import { getInterlockRules, updateInterlockRule, toggleInterlockRule } from '@/api/settings'
+import { normalizeInterlockRules, toInterlockRule } from '@/api/interlockAdapter'
 import type { InterlockRule } from '@/stores/gateInterlock'
 import InterlockRuleTable from './components/InterlockRuleTable.vue'
 import RuleEditDialog from './components/RuleEditDialog.vue'
@@ -86,7 +87,7 @@ async function fetchRules() {
   try {
     const res = await getInterlockRules({ reservoir_id: reservoirId.value })
     if (res.data?.code === 0 && res.data.data) {
-      rules.value = res.data.data
+      rules.value = normalizeInterlockRules(res.data.data).map(toInterlockRule)
       return
     }
   } catch {
@@ -118,7 +119,7 @@ async function handleToggle(rule: InterlockRule) {
       '确认操作',
       { type: 'warning' },
     )
-    await toggleInterlockRule(rule.id)
+    await toggleInterlockRule(rule.id, !rule.is_enabled)
     rule.is_enabled = !rule.is_enabled
     ElMessage.success(`规则「${rule.name}」已${rule.is_enabled ? '启用' : '禁用'}`)
   } catch {
