@@ -29,12 +29,13 @@ http.interceptors.response.use(
     const data = response.data
     // 业务级错误（仅当 data 是 JSON 对象时处理）
     if (data && typeof data === 'object' && data.code !== undefined && data.code !== 0) {
-      // 认证类错误自动跳转登录
+      // 认证类错误：清 token 但不强制跳转，由页面路由守卫处理
+      // 各页面组件 catch 到错误后自动 Mock 降级
       if (data.code >= 20001 && data.code <= 20008) {
         localStorage.removeItem('token')
         localStorage.removeItem('userInfo')
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login'
+        if (import.meta.env.DEV) {
+          console.warn('[API] 认证失效 (code=' + data.code + ')，已清 token，使用 Mock 降级')
         }
         return Promise.reject(new Error(data.msg || '认证失败'))
       }
@@ -56,18 +57,11 @@ http.interceptors.response.use(
       }
     } else {
       const status = error.response.status
-      if (status === 401) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('userInfo')
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login'
-          return Promise.reject(error)
-        }
-        ElMessage.error('登录已过期，请重新登录')
-      } else if (status === 404) {
-        // 404 静默处理，使用 Mock 降级
+      // 401/404 静默处理，页面自动 Mock 降级
+      // 真正的认证失效由 success 拦截器处理（业务 code>=20001）
+      if (status === 401 || status === 404) {
         if (import.meta.env.DEV) {
-          console.warn('[API] 接口不存在 (404)，使用 Mock 降级:', error.config?.url)
+          console.warn(`[API] ${status}，使用 Mock 降级:`, error.config?.url)
         }
       } else {
         const msgMap: Record<number, string> = {

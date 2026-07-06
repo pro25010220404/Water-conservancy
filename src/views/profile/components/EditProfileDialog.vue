@@ -68,8 +68,11 @@ watch(
       formRef.value?.resetFields()
       form.avatar = profileStore.userInfo?.avatar || userStore.userInfo?.avatar || ''
       form.realname = profileStore.userInfo?.realname || userStore.userInfo?.nickname || ''
-      form.email = profileStore.userInfo?.email || ''
-      form.phone = profileStore.userInfo?.phone || ''
+      // 「未填写」作为占位提示，不填入输入框值
+      const email = profileStore.userInfo?.email || ''
+      const phone = profileStore.userInfo?.phone || ''
+      form.email = email === '未填写' ? '' : email
+      form.phone = phone === '未填写' ? '' : phone
     }
   },
 )

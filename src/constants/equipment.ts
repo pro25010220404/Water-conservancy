@@ -27,6 +27,7 @@ export const DEVICE_STATUS: DictMap = {
   offline: { label: '离线', value: 'offline', color: '#909399', icon: 'RemoveFilled' },
   fault: { label: '故障', value: 'fault', color: '#F56C6C', icon: 'CircleCloseFilled' },
   maintenance: { label: '维护中', value: 'maintenance', color: '#E6A23C', icon: 'WarningFilled' },
+  active: { label: '运行中', value: 'active', color: '#67C23A', icon: 'CircleCheckFilled' },
 }
 
 /** 设备状态筛选下拉选项 */
