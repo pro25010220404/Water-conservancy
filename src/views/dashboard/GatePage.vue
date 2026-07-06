@@ -7,11 +7,6 @@ const logs = ref<{ time: string; gate: string; action: string; dur: string; by: 
 const upstreamLevel = ref(378.5)
 const downstreamLevel = ref(269.2)
 
-const SOURCE_MAP: Record<string, string> = {
-  dqn_auto: 'AI调度', lstm: 'LSTM', manual: '人工', emergency_override: '急停',
-  AI调度: 'AI调度', 张工: '张工', 急停: '急停', physics_corrected: '物理修正',
-}
-
 let t: ReturnType<typeof setInterval>
 async function loadData() {
   try {
@@ -27,7 +22,7 @@ async function loadData() {
       gate: `#${a.equipment_id}`,
       action: `${a.previous_opening}%→${a.target_opening}%`,
       dur: `${(a.duration_ms / 1000).toFixed(0)}s`,
-      by: SOURCE_MAP[a.action_source] ?? a.action_source,
+      by: a.action_source,
     }))
   } catch { /* 闸门/操作日志接口暂不可用 */ }
 }
