@@ -23,15 +23,21 @@ use([
   CanvasRenderer,
 ])
 import { ElTag, ElMessage } from 'element-plus'
-import { RESERVOIR_OPTIONS } from '@/constants/settings'
 import { HEALTH_GRADE } from '@/constants/aiHealth'
-import { fetchModelMetricsHistory, fetchModelMetricsLatest } from '@/api/gateaiSettings'
+import {
+  fetchModelMetricsHistory,
+  fetchModelMetricsLatest,
+  fetchModelHealthOverview,
+} from '@/api/gateaiSettings'
 import type { ModelMetricHistoryPoint, ModelMetricLatest } from '@/types/gateai'
 
 const reservoirId = ref(1)
-const days = ref(30)
+const days = ref(7)
 const loading = ref(false)
+const historyError = ref<'none' | 'empty' | 'failed'>('none')
 const latest = ref<ModelMetricLatest | null>(null)
+const reservoirOptions = ref<{ value: number; label: string }[]>([])
+const hasHistory = computed(() => scoreData.value.length > 0)
 
 interface ScorePoint {
   key: string
@@ -54,9 +60,10 @@ function gradeFromScore(s: number): string {
 
 function mapHistoryPoint(p: ModelMetricHistoryPoint): ScorePoint {
   const rawTime = p.time ?? ''
+  const displayTime = rawTime.length >= 10 ? rawTime.slice(0, 16) : rawTime
   return {
-    key: rawTime,
-    time: rawTime.slice(0, 10),
+    key: rawTime || displayTime,
+    time: displayTime,
     overall: p.overall_score,
     prediction: p.prediction_score,
     decision: p.decision_score,
@@ -65,25 +72,67 @@ function mapHistoryPoint(p: ModelMetricHistoryPoint): ScorePoint {
   }
 }
 
+async function loadReservoirs() {
+  try {
+    const overview = await fetchModelHealthOverview()
+    if (overview.length > 0) {
+      reservoirOptions.value = overview.map((r) => ({
+        value: Number(r.reservoir_id),
+        label: r.reservoir_name || `水库 #${r.reservoir_id}`,
+      }))
+      const current = Number(reservoirId.value)
+      const inList = reservoirOptions.value.some((r) => r.value === current)
+      if (!inList) {
+        const prefer = reservoirOptions.value.find((r) => r.value === 1)?.value
+          ?? reservoirOptions.value[0]?.value
+        if (prefer != null) reservoirId.value = prefer
+      }
+    }
+  } catch {
+    if (reservoirOptions.value.length === 0) {
+      reservoirOptions.value = [{ value: 1, label: '水库 #1' }]
+    }
+  }
+}
+
 async function loadScores() {
   loading.value = true
+  historyError.value = 'none'
+  const rid = Number(reservoirId.value)
   try {
-    const [history, latestMetrics] = await Promise.all([
-      fetchModelMetricsHistory(reservoirId.value, days.value),
-      fetchModelMetricsLatest(reservoirId.value).catch(() => null),
+    const [historyResult, latestResult] = await Promise.allSettled([
+      fetchModelMetricsHistory(rid, days.value),
+      fetchModelMetricsLatest(rid),
     ])
-    scoreData.value = history.map(mapHistoryPoint)
-    latest.value = latestMetrics
+
+    if (historyResult.status === 'fulfilled') {
+      scoreData.value = historyResult.value.map(mapHistoryPoint)
+      if (scoreData.value.length === 0) historyError.value = 'empty'
+    } else {
+      scoreData.value = []
+      historyError.value = 'failed'
+      console.warn('[ModelScoreTab] history failed:', historyResult.reason)
+      ElMessage.warning('历史趋势加载失败，请检查网络连接或稍后重试')
+    }
+
+    latest.value = latestResult.status === 'fulfilled' ? latestResult.value : null
+    if (latestResult.status === 'rejected') {
+      console.warn('[ModelScoreTab] latest failed:', latestResult.reason)
+    }
   } catch {
-    ElMessage.error('加载模型评分历史失败')
+    ElMessage.error('加载模型评分失败')
     scoreData.value = []
     latest.value = null
+    historyError.value = 'failed'
   } finally {
     loading.value = false
   }
 }
 
-onMounted(() => loadScores())
+onMounted(async () => {
+  await loadReservoirs()
+  await loadScores()
+})
 
 const chartOpt = computed(() => ({
   tooltip: { trigger: 'axis' },
@@ -170,7 +219,7 @@ function onQuery() {
 
     <div class="ms__filters">
       <select v-model="reservoirId" @change="onQuery" class="ms__sel">
-        <option v-for="r in RESERVOIR_OPTIONS" :key="r.value" :value="r.value">
+        <option v-for="r in reservoirOptions" :key="r.value" :value="r.value">
           {{ r.label }}
         </option>
       </select>
@@ -195,8 +244,22 @@ function onQuery() {
       <button class="ms__btn" :disabled="loading" @click="onQuery">刷新</button>
     </div>
 
+    <div v-if="!loading && historyError === 'empty'" class="ms__hint">
+      {{ latest ? '该水库暂无历史趋势数据，仅显示最新指标（可切换「示范水库 #1」或缩短查询天数）' : '该水库暂无评分数据' }}
+    </div>
+    <div v-else-if="!loading && historyError === 'failed'" class="ms__hint ms__hint--error">
+      历史趋势接口请求失败，请确认 natapp 隧道可用后点击刷新
+    </div>
+
     <div class="ms__chart">
-      <VChart :option="chartOpt" autoresize style="width: 100%; height: 100%" />
+      <VChart
+        v-if="hasHistory"
+        :key="`${reservoirId}-${days}`"
+        :option="chartOpt"
+        autoresize
+        style="width: 100%; height: 100%"
+      />
+      <div v-else class="ms__chart-empty">暂无趋势图数据</div>
     </div>
 
     <div class="ms__table-wrap">
@@ -327,6 +390,29 @@ function onQuery() {
     background: #fff;
     border-radius: 8px;
     border: 1px solid #eef0f2;
+  }
+  &__chart-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: 14px;
+    color: #94a3b8;
+  }
+  &__hint {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: #64748b;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 6px;
+
+    &--error {
+      color: #b45309;
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
   }
   &__table-wrap {
     flex: 1;

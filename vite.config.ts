@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
   server: {
     proxy: {
       '/api': {
-        target: env.VITE_DEV_API_PROXY || 'http://v85b4755.natappfree.cc',
+        target: env.VITE_DEV_API_PROXY || env.VITE_DEV_PROXY_TARGET || 'http://v85b4755.natappfree.cc',
         changeOrigin: true,
       },
     },

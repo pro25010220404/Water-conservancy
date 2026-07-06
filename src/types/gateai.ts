@@ -126,6 +126,19 @@ export interface ModelHealthOverviewItem {
   metric_time: string
 }
 
+/** GET /settings/ai/health 响应体 */
+export interface AIHealthOverviewResponse {
+  total_reservoirs: number
+  grade_distribution: Record<string, number>
+  reservoirs: Array<{
+    reservoir_id: number
+    reservoir_name?: string
+    overall_score: number
+    health_grade: string
+    metric_time: string
+  }>
+}
+
 export interface ModelVersionOption {
   version: string
   source: string

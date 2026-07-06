@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { ElSelect, ElOption, ElTable, ElTableColumn, ElTag, ElDialog, ElDescriptions, ElDescriptionsItem } from 'element-plus'
+import { ElSelect, ElOption, ElTable, ElTableColumn, ElTag, ElDialog, ElDescriptions, ElDescriptionsItem, ElMessage } from 'element-plus'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart, RadarChart } from 'echarts/charts'
@@ -34,9 +34,16 @@ const previousVersion = ref('')
 const detailHours = ref(24)
 const loading = ref(false)
 const history = ref<Awaited<ReturnType<typeof fetchModelMetricsHistory>>>([])
+const historyEmpty = ref(false)
 const drillVisible = ref(false)
 const drillDim = ref('')
 let refreshTimer: ReturnType<typeof setInterval> | null = null
+
+function formatChartTime(t: string): string {
+  if (t.length >= 16) return t.slice(5, 16)
+  if (t.length >= 10) return t.slice(5, 10)
+  return t
+}
 
 const chartOption = computed(() => {
   const hist = history.value
@@ -44,7 +51,7 @@ const chartOption = computed(() => {
     .filter((h) => h.grade_event)
     .map((h) => ({
       name: h.grade_event!.label,
-      coord: [h.time.slice(5), h.overall_score],
+      coord: [formatChartTime(h.time), h.overall_score],
       value: `${h.grade_event!.from}→${h.grade_event!.to}`,
     }))
   return {
@@ -52,7 +59,7 @@ const chartOption = computed(() => {
     legend: { top: 0, textStyle: { fontSize: 12 } },
     grid: { top: 36, left: 48, right: 24, bottom: 32 },
     tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: hist.map((h) => h.time.slice(5)) },
+    xAxis: { type: 'category', data: hist.map((h) => formatChartTime(h.time)) },
     yAxis: { type: 'value', min: 0.4, max: 1, axisLabel: { formatter: (v: number) => v.toFixed(2) } },
     series: [
       { name: '预测准确性', type: 'line', data: hist.map((h) => h.prediction_score), smooth: true },
@@ -126,16 +133,67 @@ function openDrill(dim: string) { drillDim.value = dim; drillVisible.value = tru
 
 async function load() {
   loading.value = true
+  historyEmpty.value = false
+  const rid = Number(reservoirId.value)
+  const needCompare = props.fixedMode === 'compare' || props.fixedMode === 'both'
+
   try {
-    latest.value = await fetchModelMetricsLatest(reservoirId.value)
-    history.value = await fetchModelMetricsHistory(reservoirId.value)
-    detail.value = await fetchModelMetricsDetail(reservoirId.value, { hours: detailHours.value })
-    versionOptions.value = await fetchModelVersionOptions(reservoirId.value)
-    if (!currentVersion.value) currentVersion.value = versionOptions.value[0]?.version ?? ''
-    if (!previousVersion.value) previousVersion.value = versionOptions.value[1]?.version ?? versionOptions.value[0]?.version ?? ''
-    compare.value = await fetchModelCompare(reservoirId.value, currentVersion.value, previousVersion.value)
-    if (props.fixedMode !== 'compare') healthOverview.value = await fetchModelHealthOverview()
-  } finally { loading.value = false }
+    const tasks: Promise<unknown>[] = [
+      fetchModelMetricsLatest(rid),
+      fetchModelMetricsHistory(rid, 7),
+      fetchModelMetricsDetail(rid, { hours: detailHours.value }),
+    ]
+    if (props.fixedMode !== 'compare') {
+      tasks.push(fetchModelHealthOverview())
+    }
+
+    const results = await Promise.allSettled(tasks)
+
+    const latestR = results[0]
+    const historyR = results[1]
+    const detailR = results[2]
+    const healthR = props.fixedMode !== 'compare' ? results[3] : null
+
+    if (latestR.status === 'fulfilled') {
+      latest.value = latestR.value as ModelMetricLatest
+    } else {
+      latest.value = null
+      ElMessage.warning('最新指标加载失败')
+    }
+
+    if (historyR.status === 'fulfilled') {
+      history.value = historyR.value as typeof history.value
+      historyEmpty.value = history.value.length === 0
+    } else {
+      history.value = []
+      historyEmpty.value = true
+    }
+
+    if (detailR.status === 'fulfilled') {
+      detail.value = detailR.value as ModelMetricDetailRow[]
+    } else {
+      detail.value = []
+    }
+
+    if (healthR?.status === 'fulfilled') {
+      healthOverview.value = healthR.value as ModelHealthOverviewItem[]
+    }
+
+    if (needCompare) {
+      try {
+        versionOptions.value = await fetchModelVersionOptions(rid)
+        if (!currentVersion.value) currentVersion.value = versionOptions.value[0]?.version ?? ''
+        if (!previousVersion.value) {
+          previousVersion.value = versionOptions.value[1]?.version ?? versionOptions.value[0]?.version ?? ''
+        }
+        compare.value = await fetchModelCompare(rid, currentVersion.value, previousVersion.value)
+      } catch {
+        compare.value = null
+      }
+    }
+  } finally {
+    loading.value = false
+  }
 }
 
 watch(reservoirId, () => { currentVersion.value = ''; previousVersion.value = ''; load() })
@@ -146,7 +204,22 @@ watch([currentVersion, previousVersion], async () => {
 })
 
 onMounted(async () => {
-  reservoirs.value = await fetchReservoirOptions()
+  try {
+    const overview = await fetchModelHealthOverview()
+    if (overview.length > 0) {
+      healthOverview.value = overview
+      reservoirs.value = overview.map((r) => ({ id: r.reservoir_id, name: r.reservoir_name }))
+      const current = Number(reservoirId.value)
+      if (!reservoirs.value.some((r) => r.id === current)) {
+        const prefer = reservoirs.value.find((r) => r.id === 1)?.id ?? reservoirs.value[0]?.id
+        if (prefer != null) reservoirId.value = prefer
+      }
+    } else {
+      reservoirs.value = await fetchReservoirOptions()
+    }
+  } catch {
+    reservoirs.value = await fetchReservoirOptions().catch(() => [{ id: 1, name: '示范水库' }])
+  }
   await load()
   refreshTimer = setInterval(load, REFRESH_MS)
 })
@@ -207,13 +280,14 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
           <span>安全规则覆盖率</span><strong>{{ (latest.safety_override_rate * 100).toFixed(1) }}%</strong>
         </div>
         <div class="metric-card clickable" @click="openDrill('l3')">
-          <span>决策自主率 L3</span><strong>{{ (latest.l3_auto_rate * 100).toFixed(0) }}%</strong>
+          <span>决策自主率 L3</span><strong>{{ ((latest.l3_auto_rate ?? 0) * 100).toFixed(0) }}%</strong>
         </div>
       </div>
 
       <div class="metric-chart">
         <h4>近 7 天三维评分趋势</h4>
-        <VChart :option="chartOption" autoresize style="height:320px;width:100%" />
+        <p v-if="historyEmpty" class="metric-chart__empty">该水库暂无历史趋势数据</p>
+        <VChart v-else :option="chartOption" autoresize style="height:320px;width:100%" />
       </div>
 
       <ElTable :data="detail" stripe border>
@@ -306,6 +380,16 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
 .metric-chart {
   width: 100%;
   h4 { margin: 0 0 12px; font-size: 16px; font-weight: 600; color: #334155; }
+  &__empty {
+    margin: 0;
+    padding: 48px 0;
+    text-align: center;
+    font-size: 14px;
+    color: #94a3b8;
+    background: #f8fafc;
+    border: 1px dashed #e2e8f0;
+    border-radius: 8px;
+  }
 }
 .compare-columns {
   display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: start;
