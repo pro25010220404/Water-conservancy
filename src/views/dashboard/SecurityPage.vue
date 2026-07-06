@@ -30,8 +30,8 @@ async function loadData() {
     dur: p.end_time ? `${Math.round((new Date(p.end_time).getTime() - new Date(p.start_time).getTime()) / 60000)}分钟` : '—',
   }))
   alarms.value = secAlarms.map((a) => ({
-    time: a.trigger_time?.slice(-5) ?? '--:--', loc: a.location, type: a.type,
-    level: a.level as AlarmDef['level'], status: a.status,
+    time: a.trigger_time?.slice(-5) ?? '--:--', loc: a.location, type: TYPE_CN[a.type] ?? a.type,
+    level: a.level as AlarmDef['level'], status: STATUS_CN[a.status] ?? a.status,
   }))
 }
 
@@ -299,6 +299,9 @@ const sc: Record<string, { color: string; label: string }> = {
   unlocked: { color: '#f59e0b', label: '未锁' },
 }
 const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
+const LEVEL_CN: Record<string, string> = { warning: '警告', critical: '严重', urgent: '紧急', normal: '普通' }
+const STATUS_CN: Record<string, string> = { unhandled: '待处理', handled: '已处理', acknowledged: '已确认', pending: '待确认', processed: '已处理', confirmed: '已确认' }
+const TYPE_CN: Record<string, string> = { unauthorized_entry: '非法闯入', camera_offline: '摄像头离线', door_force: '门禁异常', intrusion: '周界入侵', fire: '火警', crowd: '人员聚集', equipment_offline: '设备离线' }
 </script>
 
 <template>
@@ -440,7 +443,7 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
             <span class="al__d" :style="{ background: alc[a.level] }" />
             <div>
               <div class="al__h"><b>{{ a.loc }}</b> · {{ a.type }}</div>
-              <div class="al__f">{{ a.time }} · {{ a.status }}</div>
+              <div class="al__f">{{ a.time }} · {{ STATUS_CN[a.status] ?? a.status }}</div>
             </div>
           </div>
         </div>
