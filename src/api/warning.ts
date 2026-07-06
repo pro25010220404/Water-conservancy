@@ -197,7 +197,7 @@ export async function pollAlarmPush(): Promise<ApiResponse<AlarmPushMessage | nu
 export async function getPhysicsGuardSummary(): Promise<ApiResponse<PhysicsGuardSummary>> {
   try {
     const res = await http.get<ApiResponse<PhysicsGuardSummary>>(
-      `${V1_PREFIX}/settings/physics-guard`,
+      `${V1_PREFIX}/admin/physics-guard`,
       { params: { reservoir_id: DEFAULT_RESERVOIR_ID } },
     )
     const body = unwrap(res)

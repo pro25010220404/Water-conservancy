@@ -72,9 +72,15 @@ async function load() {
 }
 
 async function onToggle(rule: GateInterlockRule, val: boolean) {
-  await toggleInterlockRule(rule.id, val)
+  const prev = rule.enabled
   rule.enabled = val
-  ElMessage.success(val ? '规则已启用' : '规则已禁用')
+  try {
+    rule.enabled = await toggleInterlockRule(rule.id, val)
+    ElMessage.success(rule.enabled ? '规则已启用' : '规则已禁用')
+  } catch {
+    rule.enabled = prev
+    ElMessage.error('操作失败，请重新登录后重试')
+  }
 }
 
 function openCreate() {
@@ -314,8 +320,8 @@ onMounted(async () => {
             <ElOption v-for="r in reservoirs" :key="r.id" :label="`${r.name}专属`" :value="r.id" />
           </ElSelect>
         </ElFormItem>
-        <ElFormItem label="触发条件"><ElInput v-model="editForm.trigger_label" placeholder="如：溢洪道 > 80%" /></ElFormItem>
-        <ElFormItem label="约束动作"><ElInput v-model="editForm.action_label" placeholder="如：发电闸 ≤ 50%" /></ElFormItem>
+        <ElFormItem label="触发条件"><ElInput v-model="editForm.trigger_label" readonly /></ElFormItem>
+        <ElFormItem label="约束动作"><ElInput v-model="editForm.action_label" readonly /></ElFormItem>
         <ElFormItem label="优先级"><ElInputNumber v-model="editForm.priority" :min="1" :max="99" /></ElFormItem>
       </ElForm>
       <template #footer>

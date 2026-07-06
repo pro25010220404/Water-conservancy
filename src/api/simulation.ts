@@ -534,7 +534,7 @@ export async function getPhysicsGuardSummary(): Promise<ApiResponse<PhysicsGuard
   return withMockFallback(
     async () => {
       const res = await http.get<ApiResponse<PhysicsGuardSummary>>(
-        `${import.meta.env.VITE_API_V1_PREFIX ?? '/v1'}/settings/physics-guard`,
+        `${import.meta.env.VITE_API_V1_PREFIX ?? '/v1'}/admin/physics-guard`,
         { params: { reservoir_id: DEFAULT_RESERVOIR_ID } },
       )
       const body = unwrap(res)
