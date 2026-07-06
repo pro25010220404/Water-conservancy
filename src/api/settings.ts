@@ -136,22 +136,22 @@ export function getAIVersionCompare(params: {
 // ════════════════════════════════════════════════════════════
 
 export function getPhysicsGuard(params: { reservoir_id: number }) {
-  return http.get<ApiResponse<PhysicsGuardConfig>>('/v1/admin/physics-guard', { params })
+  return http.get<ApiResponse<PhysicsGuardConfig>>('/v1/settings/physics-guard', { params })
 }
 
 export function updatePhysicsGuard(id: number, data: Partial<PhysicsGuardConfig>) {
-  return http.put<ApiResponse<{ new_version: string }>>(`/v1/admin/physics-guard/${id}`, data)
+  return http.put<ApiResponse<{ new_version: string }>>(`/v1/settings/physics-guard/${id}`, data)
 }
 
 export function getPhysicsGuardHistory(params: { reservoir_id: number }) {
-  return http.get<ApiResponse<ConfigHistoryItem[]>>('/v1/admin/physics-guard/history', {
+  return http.get<ApiResponse<ConfigHistoryItem[]>>('/v1/settings/physics-guard/history', {
     params,
   })
 }
 
 export function rollbackPhysicsGuard(id: number) {
   return http.post<ApiResponse<{ new_version: string }>>(
-    `/v1/admin/physics-guard/${id}/rollback`,
+    `/v1/settings/physics-guard/${id}/rollback`,
   )
 }
 
@@ -159,7 +159,7 @@ export function clonePhysicsGuard(data: {
   source_reservoir_id: number
   target_reservoir_id: number
 }) {
-  return http.post<ApiResponse<PhysicsGuardConfig>>('/v1/admin/physics-guard/clone', data)
+  return http.post<ApiResponse<PhysicsGuardConfig>>('/v1/settings/physics-guard/clone', data)
 }
 
 // ════════════════════════════════════════════════════════════
