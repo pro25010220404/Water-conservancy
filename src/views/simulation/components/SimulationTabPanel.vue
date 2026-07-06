@@ -414,12 +414,6 @@ function formatDuration(sec: number) {
     border-radius: 8px;
     @include interactive-tactile(-2px);
 
-    &:hover {
-      border-color: rgba(24, 144, 255, 0.35);
-      background: #f0f8ff;
-      box-shadow: 0 4px 12px rgba(24, 144, 255, 0.12);
-    }
-
     &.active {
       color: $cockpit-accent;
       background: #e6f4ff;
@@ -429,20 +423,14 @@ function formatDuration(sec: number) {
   }
 
   &--compact {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
+    min-height: min-content;
 
     .sim-tab-panel__compact-body {
-      flex: 1;
-      max-height: none;
-      overflow-x: hidden;
-      overflow-y: auto;
+      overflow: visible;
       font-size: $cockpit-font-base;
+      line-height: 1.55;
       color: $cockpit-text;
       min-width: 0;
-      @include hide-scrollbar;
     }
   }
 
@@ -500,10 +488,6 @@ function formatDuration(sec: number) {
     border-bottom: 1px solid rgba(24, 144, 255, 0.1);
     font-size: $cockpit-font-base;
     min-width: 0;
-
-    &:hover {
-      background: rgba(24, 144, 255, 0.04);
-    }
   }
 
   dt {
@@ -576,20 +560,13 @@ function formatDuration(sec: number) {
   list-style: none;
 
   &__item {
-    padding: 12px 10px;
-    margin: 0 -10px;
+    padding: 10px 8px;
+    margin: 0 -8px;
     border-bottom: 1px solid rgba(24, 144, 255, 0.1);
     border-radius: 8px;
-    cursor: pointer;
-    transition:
-      transform 0.22s ease,
-      background 0.22s ease,
-      box-shadow 0.22s ease;
 
-    &:hover {
-      transform: translateY(-1px);
-      background: rgba(24, 144, 255, 0.04);
-      box-shadow: 0 4px 14px rgba(24, 144, 255, 0.08);
+    &:last-child {
+      border-bottom: none;
     }
 
     &:active {
@@ -599,14 +576,16 @@ function formatDuration(sec: number) {
 
   &__main {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 6px;
+    gap: 8px;
+    margin-bottom: 4px;
 
     strong {
-      font-size: $cockpit-font-md;
+      font-size: $cockpit-font-base;
       color: $cockpit-text;
+      line-height: 1.4;
+      word-break: break-word;
     }
   }
 
@@ -626,20 +605,23 @@ function formatDuration(sec: number) {
   &__meta {
     font-size: $cockpit-font-sm;
     color: $cockpit-text-dim;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
+    line-height: 1.45;
+    word-break: break-word;
   }
 
   &__desc {
     margin: 0;
     font-size: $cockpit-font-base;
     color: $cockpit-text-dim;
-    line-height: 1.5;
+    line-height: 1.45;
+    word-break: break-word;
   }
 
   &__actions {
     display: flex;
     gap: 10px;
-    margin-top: 8px;
+    margin-top: 6px;
   }
 }
 </style>

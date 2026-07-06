@@ -103,6 +103,16 @@ $cockpit-font-3xl: 40px;
   }
 }
 
+/** 纯白页面底 — 告警 / 调度 / 数字孪生等驾驶舱页 */
+@mixin cockpit-page-white {
+  position: relative;
+  min-height: 100%;
+  background: #ffffff;
+  color: $cockpit-text;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 @mixin glass-panel-dark {
   background: linear-gradient(145deg, rgba(8, 18, 32, 0.72) 0%, rgba(4, 12, 24, 0.68) 100%);
   border: 1px solid rgba(56, 140, 255, 0.22);
@@ -112,16 +122,6 @@ $cockpit-font-3xl: 40px;
     0 8px 32px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(100, 180, 255, 0.08),
     inset 0 0 24px rgba(24, 100, 200, 0.06);
-  transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.25s ease;
-
-  &:hover {
-    transform: translateY(-2px);
-    border-color: rgba(80, 160, 255, 0.38);
-    box-shadow:
-      0 10px 36px rgba(0, 0, 0, 0.5),
-      inset 0 1px 0 rgba(120, 200, 255, 0.12),
-      0 0 20px rgba(24, 144, 255, 0.08);
-  }
 }
 
 @mixin neon-text-blue {
@@ -212,72 +212,20 @@ $cockpit-font-3xl: 40px;
 }
 
 @mixin glass-panel-3d {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.97) 0%, rgba(248, 252, 255, 0.94) 100%);
-  border: 1px solid rgba(24, 144, 255, 0.16);
-  border-radius: 12px;
-  backdrop-filter: blur(12px);
-  box-shadow:
-    0 2px 16px rgba(24, 144, 255, 0.06),
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transition:
-    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.25s ease,
-    border-color 0.25s ease;
-
-  &:hover {
-    transform: translateY(-2px);
-    border-color: rgba(24, 144, 255, 0.32);
-    box-shadow:
-      0 8px 28px rgba(24, 144, 255, 0.12),
-      0 2px 8px rgba(15, 23, 42, 0.06),
-      inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  }
-
-  &:active {
-    transform: translateY(0) scale(0.995);
-    transition-duration: 0.1s;
-  }
+  background: #ffffff;
+  border: 1px solid #e8eef4;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
 }
 
 /** 可点击控件 — 按钮、标签、列表项 */
 @mixin interactive-tactile($lift: -2px) {
   cursor: pointer;
-  transition:
-    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.2s ease,
-    border-color 0.2s ease,
-    background 0.2s ease,
-    color 0.2s ease;
-
-  &:hover {
-    transform: translateY($lift);
-  }
-
-  &:active {
-    transform: translateY(0) scale(0.97);
-    transition-duration: 0.08s;
-  }
 }
 
 /** 数据块 / 卡片悬停 */
 @mixin interactive-card {
   border-radius: 8px;
-  transition:
-    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
-    background 0.22s ease,
-    box-shadow 0.22s ease;
-
-  &:hover {
-    transform: translateY(-1px) scale(1.02);
-    background: rgba(24, 144, 255, 0.05);
-    box-shadow: 0 4px 16px rgba(24, 144, 255, 0.1);
-  }
-
-  &:active {
-    transform: scale(0.98);
-    transition-duration: 0.08s;
-  }
 }
 
 @mixin hud-corner {

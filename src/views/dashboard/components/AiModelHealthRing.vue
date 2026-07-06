@@ -6,23 +6,24 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElSelect, ElOption, ElNotification } from 'element-plus'
-import { EVAL_DIMENSIONS, AI_HEALTH_REFRESH_INTERVAL } from '@/constants/aiHealth'
-import { RESERVOIR_OPTIONS } from '@/constants/settings'
-import { fetchModelMetricsLatest } from '@/api/gateaiSettings'
-import type { ModelMetricLatest, HealthGrade } from '@/types/gateai'
+import { EVAL_DIMENSIONS } from '@/constants/aiHealth'
+import { fetchModelHealthOverview } from '@/api/gateaiSettings'
+import { useModelHealth } from '@/composables/useModelHealth'
 
 const router = useRouter()
 
-// ── D-88 数据刷新 ──
-const reservoirId = ref<number>(1)
-const currentData = ref<ModelMetricLatest | null>(null)
-const previousGrade = ref<HealthGrade | null>(null)
-const modelVersion = ref('v5.1')
-const rollbackVersion = ref<string | null>(null)
-const loading = ref(false)
-const flashTrigger = ref(0)
+const {
+  reservoirId,
+  currentData,
+  rollbackVersion,
+  loading,
+  flashTrigger,
+  startPolling,
+  stopPolling,
+  setReservoir,
+} = useModelHealth()
 
-let timer: ReturnType<typeof setInterval> | null = null
+const reservoirOptions = ref<{ value: number; label: string }[]>([])
 
 // ── D-85 环形图颜色 ──
 const GRADE_COLORS: Record<string, string> = {
@@ -147,34 +148,31 @@ watch(flashTrigger, async () => {
   }, 2400)
 })
 
-// ── 获取数据 ──
-async function fetchData() {
-  loading.value = true
+// ── 水库列表 + 数据刷新 ──
+async function loadReservoirs() {
   try {
-    const data = await fetchModelMetricsLatest(reservoirId.value)
-    if (data) {
-      if (currentData.value && data.health_grade !== currentData.value.health_grade) {
-        previousGrade.value = currentData.value.health_grade
-        flashTrigger.value++
-      } else if (!currentData.value) {
-        previousGrade.value = data.health_grade
-      }
-      currentData.value = data
-      if (data.health_grade === 'D') {
-        rollbackVersion.value = rollbackVersion.value ?? 'v4.9'
-      } else {
-        rollbackVersion.value = null
+    const overview = await fetchModelHealthOverview()
+    if (overview.length > 0) {
+      reservoirOptions.value = overview.map((r) => ({
+        value: Number(r.reservoir_id),
+        label: r.reservoir_name || `水库 #${r.reservoir_id}`,
+      }))
+      const current = Number(reservoirId.value)
+      if (!reservoirOptions.value.some((r) => r.value === current)) {
+        const prefer = reservoirOptions.value.find((r) => r.value === 1)?.value
+          ?? reservoirOptions.value[0]?.value
+        if (prefer != null) setReservoir(prefer)
       }
     }
   } catch {
-    /* 静默 */
-  } finally {
-    loading.value = false
+    if (reservoirOptions.value.length === 0) {
+      reservoirOptions.value = [{ value: 1, label: '示范水库' }]
+    }
   }
 }
 
 function onReservoirChange() {
-  fetchData()
+  setReservoir(Number(reservoirId.value))
 }
 
 // ── D-89 点击下钻 ──
@@ -183,12 +181,12 @@ function drillDown() {
 }
 
 // ── 生命周期 ──
-onMounted(() => {
-  fetchData()
-  timer = setInterval(fetchData, AI_HEALTH_REFRESH_INTERVAL)
+onMounted(async () => {
+  await loadReservoirs()
+  startPolling()
 })
 onBeforeUnmount(() => {
-  if (timer) clearInterval(timer)
+  stopPolling()
 })
 </script>
 
@@ -199,7 +197,7 @@ onBeforeUnmount(() => {
       <h3 class="ai-health-ring__title" @click="drillDown">AI 模型健康度</h3>
       <ElSelect v-model="reservoirId" size="small" style="width: 130px" @change="onReservoirChange">
         <ElOption
-          v-for="opt in RESERVOIR_OPTIONS"
+          v-for="opt in reservoirOptions"
           :key="opt.value"
           :label="opt.label"
           :value="opt.value"
@@ -272,13 +270,22 @@ onBeforeUnmount(() => {
 
         <!-- 空状态 -->
         <text
-          v-if="score === null && !loading"
+          v-if="score === null && loading"
           :x="CX"
           :y="CY"
           text-anchor="middle"
           class="ai-health-ring__empty"
         >
           加载中…
+        </text>
+        <text
+          v-if="score === null && !loading"
+          :x="CX"
+          :y="CY"
+          text-anchor="middle"
+          class="ai-health-ring__empty"
+        >
+          暂无数据
         </text>
       </svg>
 

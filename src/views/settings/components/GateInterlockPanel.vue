@@ -2,39 +2,20 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ElSelect,
-  ElOption,
-  ElTable,
-  ElTableColumn,
-  ElSwitch,
-  ElTag,
-  ElMessage,
-  ElButton,
-  ElDialog,
-  ElForm,
-  ElFormItem,
-  ElInput,
-  ElInputNumber,
-  ElDatePicker,
+  ElSelect, ElOption, ElTable, ElTableColumn, ElSwitch, ElTag, ElMessage,
+  ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElDatePicker,
 } from 'element-plus'
 import type { GateInterlockRule, GateInterlockLog } from '@/types/gateai'
 import {
-  fetchReservoirOptions,
-  fetchInterlockRules,
-  toggleInterlockRule,
-  fetchInterlockLogs,
-  updateInterlockRule,
-  createInterlockRule,
-  reorderInterlockRules,
+  fetchReservoirOptions, fetchInterlockRules, toggleInterlockRule,
+  fetchInterlockLogs, updateInterlockRule, createInterlockRule, reorderInterlockRules,
 } from '@/api/gateaiSettings'
+import { buildSettingsPath } from '@/constants/settings'
 
-const props = withDefaults(
-  defineProps<{
-    fixedView?: 'rules' | 'logs' | 'both'
-    standalone?: boolean
-  }>(),
-  { fixedView: 'both', standalone: false },
-)
+const props = withDefaults(defineProps<{
+  fixedView?: 'rules' | 'logs' | 'both'
+  standalone?: boolean
+}>(), { fixedView: 'both', standalone: false })
 
 const route = useRoute()
 const router = useRouter()
@@ -63,11 +44,9 @@ function last7DaysRange(): [Date, Date] {
 const drillRuleLabel = computed(() => {
   if (!logRuleFilter.value.length) return ''
   const code = logRuleFilter.value[0]
-  return (
-    rules.value.find((r) => r.rule_code === code)?.rule_name ??
-    ruleOptions.value.find((o) => o.value === code)?.label ??
-    code
-  )
+  return rules.value.find((r) => r.rule_code === code)?.rule_name
+    ?? ruleOptions.value.find((o) => o.value === code)?.label
+    ?? code
 })
 
 const ruleOptions = computed(() =>
@@ -80,12 +59,7 @@ async function load() {
   loading.value = true
   try {
     rules.value = await fetchInterlockRules(reservoirId.value)
-    const params: {
-      reservoirId?: number
-      ruleCodes?: string[]
-      startTime?: string
-      endTime?: string
-    } = {
+    const params: { reservoirId?: number; ruleCodes?: string[]; startTime?: string; endTime?: string } = {
       reservoirId: reservoirId.value,
     }
     if (logRuleFilter.value.length) params.ruleCodes = logRuleFilter.value
@@ -94,15 +68,19 @@ async function load() {
       params.endTime = logTimeRange.value[1].toISOString()
     }
     logs.value = await fetchInterlockLogs(params)
-  } finally {
-    loading.value = false
-  }
+  } finally { loading.value = false }
 }
 
 async function onToggle(rule: GateInterlockRule, val: boolean) {
-  await toggleInterlockRule(rule.id, val)
+  const prev = rule.enabled
   rule.enabled = val
-  ElMessage.success(val ? '规则已启用' : '规则已禁用')
+  try {
+    rule.enabled = await toggleInterlockRule(rule.id, val)
+    ElMessage.success(rule.enabled ? '规则已启用' : '规则已禁用')
+  } catch {
+    rule.enabled = prev
+    ElMessage.error('操作失败，请重新登录后重试')
+  }
 }
 
 function openCreate() {
@@ -110,14 +88,9 @@ function openCreate() {
   editingId.value = null
   const maxP = rules.value.reduce((m, r) => Math.max(m, r.priority), 0)
   editForm.value = {
-    rule_name: '',
-    description: '',
-    trigger_label: '',
-    action_label: '',
-    rule_code: `custom_${Date.now()}`,
-    reservoir_id: reservoirId.value,
-    enabled: true,
-    priority: maxP + 1,
+    rule_name: '', description: '', trigger_label: '', action_label: '',
+    rule_code: `custom_${Date.now()}`, reservoir_id: reservoirId.value,
+    enabled: true, priority: maxP + 1,
   }
   editVisible.value = true
 }
@@ -141,12 +114,8 @@ async function submitEdit() {
   await load()
 }
 
-function onDragStart(rule: GateInterlockRule) {
-  dragId.value = rule.id
-}
-function onDragOver(e: DragEvent) {
-  e.preventDefault()
-}
+function onDragStart(rule: GateInterlockRule) { dragId.value = rule.id }
+function onDragOver(e: DragEvent) { e.preventDefault() }
 async function onDrop(target: GateInterlockRule) {
   if (dragId.value == null || dragId.value === target.id) return
   const ids = rules.value.map((r) => r.id)
@@ -186,15 +155,12 @@ function openRuleLogs(rule: GateInterlockRule) {
 
   if (props.fixedView === 'both') {
     view.value = 'logs'
-    router.replace({
-      path: '/settings',
-      query: {
-        tab: 'gate-interlock',
-        rule_code: rule.rule_code,
-        reservoir_id: String(reservoirId.value),
-        days: '7',
-      },
+    const target = buildSettingsPath('gate-interlock', {
+      rule_code: rule.rule_code,
+      reservoir_id: reservoirId.value,
+      days: '7',
     })
+    router.replace(target)
     load()
     return
   }
@@ -227,13 +193,10 @@ function applyLogDrillQuery() {
 }
 watch(reservoirId, load)
 watch(() => route.query.reservoir_id, applyReservoirQuery)
-watch(
-  () => [route.query.rule_code, route.query.days] as const,
-  () => {
-    applyLogDrillQuery()
-    load()
-  },
-)
+watch(() => [route.query.rule_code, route.query.days] as const, () => {
+  applyLogDrillQuery()
+  load()
+})
 watch([logRuleFilter, logTimeRange], load)
 onMounted(async () => {
   reservoirs.value = await fetchReservoirOptions()
@@ -247,74 +210,32 @@ onMounted(async () => {
   <div v-loading="loading" class="gateai-panel">
     <div class="gateai-panel__toolbar">
       <span>水库</span>
-      <ElSelect v-model="reservoirId" style="width: 200px">
+      <ElSelect v-model="reservoirId" style="width:200px">
         <ElOption v-for="r in reservoirs" :key="r.id" :label="r.name" :value="r.id" />
       </ElSelect>
       <div v-if="fixedView === 'both'" class="view-toggle">
-        <button type="button" :class="{ active: view === 'rules' }" @click="view = 'rules'">
-          互锁规则
-        </button>
-        <button type="button" :class="{ active: view === 'logs' }" @click="view = 'logs'">
-          触发日志
-        </button>
+        <button type="button" :class="{ active: view === 'rules' }" @click="view = 'rules'">互锁规则</button>
+        <button type="button" :class="{ active: view === 'logs' }" @click="view = 'logs'">触发日志</button>
       </div>
       <ElButton v-if="fixedView !== 'logs'" type="primary" @click="openCreate">新建规则</ElButton>
-      <ElButton
-        v-if="standalone && fixedView !== 'logs'"
-        type="primary"
-        link
-        @click="router.push({
-            path: '/settings/gate-interlock/logs',
-            query: { reservoir_id: String(reservoirId) },
-          })"
-        >查看触发日志</ElButton
-      >
-      <ElButton
-        v-if="standalone && fixedView === 'logs'"
-        type="primary"
-        link
-        @click="router.push('/settings/gate-interlock')"
-        >返回规则配置</ElButton
-      >
+      <ElButton v-if="standalone && fixedView !== 'logs'" type="primary" link @click="router.push({ path: '/settings/gate-interlock/logs', query: { reservoir_id: String(reservoirId) } })">查看触发日志</ElButton>
+      <ElButton v-if="standalone && fixedView === 'logs'" type="primary" link @click="router.push('/settings/gate-interlock')">返回规则配置</ElButton>
     </div>
 
-    <div
-      v-if="fixedView === 'logs' || (fixedView === 'both' && view === 'logs')"
-      class="log-filters"
-    >
+    <div v-if="fixedView === 'logs' || (fixedView === 'both' && view === 'logs')" class="log-filters">
       <div v-if="logRuleFilter.length" class="log-drill-hint">
-        <span
-          >已筛选：<strong>{{ drillRuleLabel }}</strong
-          ><template v-if="logTimeRange"> · 近7天</template></span
-        >
+        <span>已筛选：<strong>{{ drillRuleLabel }}</strong><template v-if="logTimeRange"> · 近7天</template></span>
         <ElButton link type="primary" @click="clearLogFilters">清除筛选</ElButton>
       </div>
-      <ElSelect
-        v-model="logRuleFilter"
-        multiple
-        collapse-tags
-        placeholder="筛选规则"
-        style="width: 240px"
-      >
+      <ElSelect v-model="logRuleFilter" multiple collapse-tags placeholder="筛选规则" style="width:240px">
         <ElOption v-for="o in ruleOptions" :key="o.value" :label="o.label" :value="o.value" />
       </ElSelect>
-      <ElDatePicker
-        v-model="logTimeRange"
-        type="datetimerange"
-        range-separator="至"
-        start-placeholder="开始"
-        end-placeholder="结束"
-        style="width: 360px"
-      />
+      <ElDatePicker v-model="logTimeRange" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" style="width:360px" />
     </div>
 
     <ElTable
       v-if="fixedView === 'rules' || (fixedView === 'both' && view === 'rules')"
-      :data="rules"
-      stripe
-      border
-      row-key="id"
-      style="width: 100%"
+      :data="rules" stripe border row-key="id" style="width:100%"
     >
       <ElTableColumn label="作用范围" min-width="110">
         <template #default="{ row }">
@@ -332,8 +253,7 @@ onMounted(async () => {
             @dragstart="onDragStart(scope.row as GateInterlockRule)"
             @dragover="onDragOver"
             @drop="onDrop(scope.row as GateInterlockRule)"
-            >{{ (scope.row as GateInterlockRule).priority }}</span
-          >
+          >{{ (scope.row as GateInterlockRule).priority }}</span>
         </template>
       </ElTableColumn>
       <ElTableColumn prop="rule_name" label="规则名称" min-width="150" />
@@ -357,10 +277,7 @@ onMounted(async () => {
       </ElTableColumn>
       <ElTableColumn label="启用" min-width="90" align="center">
         <template #default="scope">
-          <ElSwitch
-            :model-value="(scope.row as GateInterlockRule).enabled"
-            @change="(v) => onToggle(scope.row as GateInterlockRule, v === true)"
-          />
+          <ElSwitch :model-value="(scope.row as GateInterlockRule).enabled" @change="(v) => onToggle(scope.row as GateInterlockRule, v === true)" />
         </template>
       </ElTableColumn>
       <ElTableColumn label="操作" min-width="90" align="center" fixed="right">
@@ -370,24 +287,16 @@ onMounted(async () => {
       </ElTableColumn>
     </ElTable>
 
-    <ElTable v-else :data="filteredLogs" stripe border style="width: 100%">
+    <ElTable v-else :data="filteredLogs" stripe border style="width:100%">
       <ElTableColumn prop="trigger_time" label="触发时间" min-width="190" />
       <ElTableColumn prop="reservoir_name" label="水库" min-width="100" />
       <ElTableColumn prop="rule_name" label="规则" min-width="150" />
       <ElTableColumn label="水位快照" min-width="170">
-        <template #default="{ row }"
-          >上 {{ row.upstream_level }} / 下 {{ row.downstream_level }}</template
-        >
+        <template #default="{ row }">上 {{ row.upstream_level }} / 下 {{ row.downstream_level }}</template>
       </ElTableColumn>
       <ElTableColumn label="开度变化" min-width="260">
         <template #default="{ row }">
-          <span
-            v-for="idx in 3"
-            :key="idx"
-            :class="{
-              'opening-changed': isGateChanged(row.openings_before, row.openings_after, idx - 1),
-            }"
-          >
+          <span v-for="idx in 3" :key="idx" :class="{ 'opening-changed': isGateChanged(row.openings_before, row.openings_after, idx - 1) }">
             {{ idx }}#{{ openingCell(row.openings_before, row.openings_after, idx - 1) }}
             <template v-if="idx < 3"> · </template>
           </span>
@@ -395,48 +304,25 @@ onMounted(async () => {
       </ElTableColumn>
       <ElTableColumn label="关联决策" min-width="110" align="center">
         <template #default="{ row }">
-          <ElButton
-            v-if="row.decision_id"
-            link
-            type="primary"
-            @click="goDispatchDecision(row.decision_id)"
-            >#{{ row.decision_id }}</ElButton
-          >
+          <ElButton v-if="row.decision_id" link type="primary" @click="goDispatchDecision(row.decision_id)">#{{ row.decision_id }}</ElButton>
           <span v-else>—</span>
         </template>
       </ElTableColumn>
       <ElTableColumn prop="reason" label="原因" min-width="220" show-overflow-tooltip />
     </ElTable>
 
-    <ElDialog
-      v-model="editVisible"
-      :title="editMode === 'create' ? '新建互锁规则' : '编辑互锁规则'"
-      width="580px"
-    >
+    <ElDialog v-model="editVisible" :title="editMode === 'create' ? '新建互锁规则' : '编辑互锁规则'" width="580px">
       <ElForm :model="editForm" label-width="100px">
         <ElFormItem label="规则名称"><ElInput v-model="editForm.rule_name" /></ElFormItem>
-        <ElFormItem label="说明"
-          ><ElInput v-model="editForm.description" type="textarea" :rows="2"
-        /></ElFormItem>
+        <ElFormItem label="说明"><ElInput v-model="editForm.description" type="textarea" :rows="2" /></ElFormItem>
         <ElFormItem label="作用范围">
-          <ElSelect
-            v-model="editForm.reservoir_id"
-            style="width: 100%"
-            clearable
-            placeholder="留空=全局默认"
-          >
+          <ElSelect v-model="editForm.reservoir_id" style="width:100%" clearable placeholder="留空=全局默认">
             <ElOption v-for="r in reservoirs" :key="r.id" :label="`${r.name}专属`" :value="r.id" />
           </ElSelect>
         </ElFormItem>
-        <ElFormItem label="触发条件"
-          ><ElInput v-model="editForm.trigger_label" placeholder="如：溢洪道 > 80%"
-        /></ElFormItem>
-        <ElFormItem label="约束动作"
-          ><ElInput v-model="editForm.action_label" placeholder="如：发电闸 ≤ 50%"
-        /></ElFormItem>
-        <ElFormItem label="优先级"
-          ><ElInputNumber v-model="editForm.priority" :min="1" :max="99"
-        /></ElFormItem>
+        <ElFormItem label="触发条件"><ElInput v-model="editForm.trigger_label" readonly /></ElFormItem>
+        <ElFormItem label="约束动作"><ElInput v-model="editForm.action_label" readonly /></ElFormItem>
+        <ElFormItem label="优先级"><ElInputNumber v-model="editForm.priority" :min="1" :max="99" /></ElFormItem>
       </ElForm>
       <template #footer>
         <ElButton @click="editVisible = false">取消</ElButton>
@@ -449,15 +335,8 @@ onMounted(async () => {
 <style scoped lang="scss">
 @use '@/assets/styles/gateai-panel.scss' as gateai;
 
-.view-toggle {
-  @include gateai.gateai-view-toggle;
-}
-.log-filters {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  align-items: center;
-}
+.view-toggle { @include gateai.gateai-view-toggle; }
+.log-filters { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
 .log-drill-hint {
   display: flex;
   align-items: center;
@@ -470,20 +349,10 @@ onMounted(async () => {
   border: 1px solid #bfdbfe;
   border-radius: 8px;
 
-  strong {
-    color: #1677ff;
-  }
+  strong { color: #1677ff; }
 }
 .trigger-count-tag {
   cursor: pointer;
-  transition:
-    border-color 0.15s,
-    color 0.15s;
-
-  &:hover {
-    color: #1677ff;
-    border-color: #91caff;
-  }
 }
 .priority-badge {
   display: inline-flex;
@@ -501,23 +370,11 @@ onMounted(async () => {
   line-height: 1;
   cursor: grab;
   user-select: none;
-  transition:
-    background 0.15s,
-    box-shadow 0.15s,
-    transform 0.15s;
-
-  &:hover {
-    background: linear-gradient(180deg, #e6f4ff 0%, #d6ebff 100%);
-    box-shadow: 0 2px 6px rgba(22, 119, 255, 0.15);
-  }
 
   &:active {
     cursor: grabbing;
     transform: scale(0.96);
   }
 }
-.opening-changed {
-  color: #dc2626;
-  font-weight: 600;
-}
+.opening-changed { color: #dc2626; font-weight: 600; }
 </style>

@@ -86,13 +86,7 @@ type="button" @click="emit('toggleCollapse')">
     background: rgba(0, 212, 255, 0.06);
     color: var(--color-layout-blue-brand);
     cursor: pointer;
-    transition: all 0.2s;
 
-    &:hover {
-      background: rgba(0, 212, 255, 0.14);
-      border-color: rgba(0, 212, 255, 0.4);
-      box-shadow: 0 0 12px rgba(0, 212, 255, 0.2);
-    }
   }
 
   &__title {

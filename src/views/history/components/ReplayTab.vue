@@ -23,35 +23,28 @@ use([
   CanvasRenderer,
 ])
 import { isReplaying } from '@/composables/useReplayMode'
+import { fetchHistoryData } from '@/api/history'
+import type { HistoryDataPoint } from '@/types/monitoring'
 
-// ═══ 模拟数据 ═══
-const allData = ref<any[]>([])
-function genData() {
-  const now = Date.now()
-  const arr = []
-  for (let i = 96; i >= 0; i--) {
-    const t = now - i * 15 * 60000
-    arr.push({
-      time: t,
-      label: new Date(t).toLocaleString('zh-CN'),
-      upstreamLevel: +(378.5 + Math.sin(i / 8) * 1.2 + (Math.random() - 0.5) * 0.2).toFixed(2),
-      downstreamLevel: +(269.2 + Math.sin(i / 12) * 0.2 + (Math.random() - 0.5) * 0.05).toFixed(2),
-      inflowRate: Math.round(6350 + Math.sin(i / 6) * 800 + (Math.random() - 0.5) * 200),
-      outflowRate: Math.round(5820 + Math.sin(i / 6) * 700 + (Math.random() - 0.5) * 150),
-      gateOpening: +(34 + Math.sin(i / 4) * 15 + (Math.random() - 0.5) * 3).toFixed(1),
-      powerOutput: Math.round(680 + Math.sin(i / 5) * 15 + (Math.random() - 0.5) * 5),
-      event: null as any,
-    })
-  }
-  arr[20].event = { type: 'alarm', label: '水位超预警', color: '#ef4444' }
-  arr[45].event = { type: 'dispatch', label: '闸门调度', color: '#3b82f6' }
-  arr[70].event = { type: 'gate', label: '3#闸门动作', color: '#f59e0b' }
-  allData.value = arr
+// ═══ 数据 ═══
+const allData = ref<HistoryDataPoint[]>([])
+
+async function loadData() {
+  const start = new Date(Date.now() - 24 * 3600000).toISOString().slice(0, 16)
+  const end = new Date().toISOString().slice(0, 16)
+  allData.value = await fetchHistoryData({
+    reservoirId: 1,
+    start,
+    end,
+    metrics: ['upstreamLevel', 'downstreamLevel', 'inflowRate', 'outflowRate', 'gateOpening', 'powerOutput'],
+    granularity: '5min',
+  })
 }
-genData()
+
+loadData()
 
 // ═══ 指标配置 ═══
-const metrics = [
+const metrics: { key: keyof HistoryDataPoint; label: string; unit: string; color: string }[] = [
   { key: 'upstreamLevel', label: '上游水位', unit: 'm', color: '#3b82f6' },
   { key: 'downstreamLevel', label: '下游水位', unit: 'm', color: '#06b6d4' },
   { key: 'inflowRate', label: '入库流量', unit: 'm³/s', color: '#8b5cf6' },
@@ -134,10 +127,10 @@ onUnmounted(() => {
 // ═══ 图表 ═══
 const chartOpt = computed(() => {
   const data = allData.value
-  const series = metrics.map((m) => ({
+  const series: Array<Record<string, unknown>> = metrics.map((m) => ({
     name: m.label,
     type: 'line',
-    data: data.map((d) => [d.label, d[m]]),
+    data: data.map((d) => [d.label, d[m.key as keyof typeof d]]),
     smooth: true,
     symbol: 'none',
     lineStyle: { color: m.color, width: 1.5 },

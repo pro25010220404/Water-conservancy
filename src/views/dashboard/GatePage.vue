@@ -1,37 +1,34 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { fetchGates, fetchGateActionLogs, fetchRealtimeKpi } from '@/api/monitoring'
 
-const gates = ref([
-  { name: '1#', v: 62 },
-  { name: '2#', v: 48 },
-  { name: '3#', v: 35 },
-  { name: '4#', v: 71 },
-  { name: '5#', v: 55 },
-  { name: '6#', v: 42 },
-  { name: '7#', v: 38 },
-  { name: '8#', v: 60 },
-  { name: '中1#', v: 18 },
-  { name: '中2#', v: 22 },
-  { name: '底1#', v: 0 },
-  { name: '底2#', v: 0 },
-])
-const logs = [
-  { time: '14:32', gate: '3#表孔', action: '32%→28%', dur: '12s', by: 'AI调度' },
-  { time: '14:08', gate: '1#中孔', action: '15%→20%', dur: '8s', by: '张工' },
-  { time: '13:45', gate: '5#表孔', action: '28%→35%', dur: '15s', by: 'LSTM' },
-  { time: '13:22', gate: '2#表孔', action: '35%→30%', dur: '11s', by: 'AI调度' },
-  { time: '12:10', gate: '7#表孔', action: '40%→32%', dur: '14s', by: '急停' },
-]
+const gates = ref<{ name: string; v: number }[]>([])
+const logs = ref<{ time: string; gate: string; action: string; dur: string; by: string }[]>([])
+const upstreamLevel = ref(378.5)
+const downstreamLevel = ref(269.2)
 
 let t: ReturnType<typeof setInterval>
+async function loadData() {
+  try {
+    const kpi = await fetchRealtimeKpi(1)
+    upstreamLevel.value = kpi.upstreamLevel
+    downstreamLevel.value = kpi.downstreamLevel
+  } catch { /* 水位接口暂不可用 */ }
+  try {
+    const [gatesData, actionsData] = await Promise.all([fetchGates(1), fetchGateActionLogs()])
+    gates.value = gatesData.map((g) => ({ name: g.code ?? g.name, v: g.opening }))
+    logs.value = actionsData.map((a) => ({
+      time: a.acted_at?.slice(-5) ?? '--:--',
+      gate: `#${a.equipment_id}`,
+      action: `${a.previous_opening}%→${a.target_opening}%`,
+      dur: `${(a.duration_ms / 1000).toFixed(0)}s`,
+      by: a.action_source,
+    }))
+  } catch { /* 闸门/操作日志接口暂不可用 */ }
+}
 onMounted(() => {
-  t = setInterval(() => {
-    gates.value.forEach((g) => {
-      g.v = +(g.v + (Math.random() - 0.5) * 0.2).toFixed(1)
-      if (g.v < 0) g.v = 0
-      if (g.v > 100) g.v = 100
-    })
-  }, 3000)
+  loadData()
+  t = setInterval(loadData, 5000)
 })
 onUnmounted(() => clearInterval(t))
 </script>
@@ -69,7 +66,7 @@ onUnmounted(() => clearInterval(t))
         <div class="diagram__scene">
           <!-- 上游 -->
           <div class="diagram__pool diagram__pool--up">
-            <span>上游 378.5m</span>
+            <span>上游 {{ upstreamLevel.toFixed(1) }}m</span>
           </div>
           <!-- 坝体 + 闸门：表孔8扇 + 中孔底孔4扇分两排 -->
           <div class="diagram__dam">
@@ -93,7 +90,7 @@ onUnmounted(() => clearInterval(t))
           </div>
           <!-- 下游 -->
           <div class="diagram__pool diagram__pool--dn">
-            <span>下游 269.2m</span>
+            <span>下游 {{ downstreamLevel.toFixed(1) }}m</span>
           </div>
         </div>
         <div class="diagram__legend">

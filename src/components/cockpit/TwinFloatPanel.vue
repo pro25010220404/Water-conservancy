@@ -23,7 +23,6 @@ defineProps<{
 
 .twin-panel {
   @include glass-panel-3d;
-  @include hud-corner;
   position: relative;
   pointer-events: auto;
 

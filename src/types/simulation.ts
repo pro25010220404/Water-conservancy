@@ -33,6 +33,90 @@ export interface SimulationParams {
 export interface SimulationStartPayload extends SimulationParams {
   speed?: SimulationSpeed
   gateOpening?: number
+  scenarioId?: number
+  modelId?: number
+  reservoirId?: number
+}
+
+/** 9.2 启动仿真返回 */
+export interface SimulationStartResult {
+  simulation_id: string
+  status: string
+  start_time?: string
+  estimated_end_time?: string
+  ws_endpoint?: string
+}
+
+/** 后端场景条目 */
+export interface SimulationScenarioItem {
+  id: number
+  name: string
+  type: string
+  description?: string | null
+  status: string
+  model_id: number | null
+  duration?: number
+  speed?: number
+  scenario_config?: Record<string, unknown> | null
+  created_at?: string
+  updated_at?: string
+}
+
+/** 创建/更新仿真场景请求体 */
+export interface SimulationScenarioPayload {
+  name: string
+  type: string
+  description?: string | null
+  duration?: number
+  speed?: number
+  model_id?: number | null
+  scenario_config?: Record<string, unknown> | null
+  status?: string
+}
+
+/** WebSocket / Reverb 进度推送 */
+export interface SimulationProgressMetrics {
+  upstream_level?: number
+  downstream_level?: number
+  inflow_rate?: number
+  outflow_rate?: number
+  gate_opening?: number
+  power_output?: number
+}
+
+export interface SimulationProgressPayload {
+  simulationId?: string
+  simulation_id?: string
+  progress?: number
+  status?: string
+  metrics?: SimulationProgressMetrics
+  anomalies?: unknown[]
+  timestamp?: string
+}
+
+/** 9.4 仿真结果 */
+export interface SimulationResultPoint {
+  id: number
+  timestamp: string
+  values: SimulationProgressMetrics
+}
+
+export interface SimulationResultSummary {
+  total_energy?: number
+  anomaly_count?: number
+  max_inflow_rate?: number
+  total_discharge?: number
+  max_gate_opening?: number
+  max_outflow_rate?: number
+  max_upstream_level?: number
+  min_upstream_level?: number
+  max_downstream_level?: number
+}
+
+export interface SimulationResultData {
+  summary: SimulationResultSummary
+  total: number
+  points: SimulationResultPoint[]
 }
 
 // ---------- 仿真实时数据 ----------

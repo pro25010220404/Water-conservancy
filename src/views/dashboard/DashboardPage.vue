@@ -5,12 +5,15 @@ import AiModelHealthRing from './components/AiModelHealthRing.vue'
 import PhysicsGuardSummaryCard from './components/PhysicsGuardSummaryCard.vue'
 import InterlockSummaryCard from './components/InterlockSummaryCard.vue'
 import { fetchPhysicsGuardSummary } from '@/api/dispatchPage'
+import { fetchRealtimeKpi, fetchDashboardAlarms } from '@/api/monitoring'
+import { fetchInterlockDashboardSummary } from '@/api/gateaiSettings'
+import type { RealtimeKpi, DashboardAlarm } from '@/types/monitoring'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 
 const router = useRouter()
 const physicsGuard = ref<PhysicsGuardSummary | null>(null)
 
-const data = ref({
+const data = ref<RealtimeKpi>({
   upstreamLevel: 378.52,
   downstreamLevel: 269.18,
   inflowRate: 6350,
@@ -18,18 +21,22 @@ const data = ref({
   powerOutput: 4119,
   gateOpening: 34,
   capacity: 48.36,
+  timestamp: '',
 })
-let t: ReturnType<typeof setInterval>
+async function refreshKpi() {
+  data.value = await fetchRealtimeKpi(1)
+}
+let kpiTimer: ReturnType<typeof setInterval>
 onMounted(async () => {
   physicsGuard.value = (await fetchPhysicsGuardSummary()).data
-  t = setInterval(() => {
-    data.value.upstreamLevel = +(data.value.upstreamLevel + (Math.random() - 0.5) * 0.1).toFixed(2)
-    data.value.powerOutput = +(data.value.powerOutput + (Math.random() - 0.5) * 15).toFixed(0)
-  }, 3000)
-  startInterlockSim()
+  refreshKpi()
+  kpiTimer = setInterval(refreshKpi, 5000)
+  refreshInterlock()
+  interlockTimer = setInterval(refreshInterlock, 60000)
+  refreshAlarms()
 })
 onUnmounted(() => {
-  clearInterval(t)
+  clearInterval(kpiTimer)
   if (interlockTimer) clearInterval(interlockTimer)
 })
 const fmt = (v: number, d = 2) =>
@@ -111,25 +118,27 @@ const sections = [
   },
 ]
 
-// D-101: 模拟闸门互锁约束状态
+// D-101: 闸门互锁约束状态（从 API 轮询）
 const gateInterlocked = ref(false)
 const interlockRuleName = ref('')
+const alarms = ref<DashboardAlarm[]>([
+  { time: '14:32', level: 'warning', msg: '1#边缘网关 CPU 使用率 88%', status: '未处理' },
+  { time: '12:05', level: 'warning', msg: '下游河道周界入侵告警', status: '已确认' },
+  { time: '08:22', level: 'critical', msg: '开关站门禁异常开启', status: '已处理' },
+])
 let interlockTimer: ReturnType<typeof setInterval> | null = null
-function startInterlockSim() {
-  interlockTimer = setInterval(() => {
-    gateInterlocked.value = Math.random() > 0.7
-    if (gateInterlocked.value) {
-      const rules = ['泄洪-发电互斥', '下游冲击保护', '对称性约束']
-      interlockRuleName.value = rules[Math.floor(Math.random() * rules.length)]
-    }
-  }, 10000)
+
+async function refreshInterlock() {
+  const summary = await fetchInterlockDashboardSummary(1)
+  gateInterlocked.value = summary.trigger_24h > 0
+  if (summary.recent_rule) {
+    interlockRuleName.value = summary.recent_rule.name
+  }
 }
 
-const alarms = [
-  { time: '14:32', level: 'warning' as const, msg: '1#边缘网关 CPU 使用率 88%', status: '未处理' },
-  { time: '12:05', level: 'warning' as const, msg: '下游河道周界入侵告警', status: '已确认' },
-  { time: '08:22', level: 'critical' as const, msg: '开关站门禁异常开启', status: '已处理' },
-]
+async function refreshAlarms() {
+  alarms.value = await fetchDashboardAlarms()
+}
 </script>
 
 <template>

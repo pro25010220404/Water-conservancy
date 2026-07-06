@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { ElIcon } from 'element-plus'
+import { ref, computed, watch, onMounted } from 'vue'
+import { ElIcon, ElMessage } from 'element-plus'
 import { DataAnalysis } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
@@ -8,11 +8,14 @@ import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import * as XLSX from 'xlsx'
+import { fetchHistoryData, exportHistoryData, getExportStatus, METRIC_MAP } from '@/api/history'
+import { getEquipmentAllList } from '@/api/equipment'
+import type { HistoryDataPoint } from '@/types/monitoring'
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, CanvasRenderer])
 
 // ═══ 主题 ═══
 const darkMode = ref(localStorage.getItem('history-theme') === 'dark')
-watch(darkMode, (v) => localStorage.setItem('history-theme', v ? 'dark' : 'light'))
+watch(darkMode, (v: boolean) => localStorage.setItem('history-theme', v ? 'dark' : 'light'))
 
 // ═══ 离线检测 ═══
 const isOnline = ref(navigator.onLine)
@@ -23,7 +26,7 @@ onMounted(() => {
 
 // ═══ 筛选 ═══
 const dateRange = ref({ start: '', end: '' })
-const selectedMetrics = ref<string[]>(['upstreamLevel', 'flowRate'])
+const selectedMetrics = ref<string[]>(['upstreamLevel', 'inflowRate'])
 const granularity = ref<'raw' | '5min' | 'hour' | 'day'>('5min')
 const metricOptions = [
   { value: 'upstreamLevel', label: '上游水位', unit: 'm', color: '#3b82f6' },
@@ -65,53 +68,46 @@ function applyDatePreset(p: { label: string; days: number }) {
   dateRange.value.end = end.toISOString().slice(0, 16)
 })()
 
-// ═══ 模拟数据 ═══
-const allData = ref<any[]>([])
-const tableData = ref<any[]>([])
+// ═══ 数据 ═══
+const allData = ref<HistoryDataPoint[]>([])
+const tableData = ref<HistoryDataPoint[]>([])
 const tablePage = ref(1)
 const tablePageSize = 15
 const chartZoom = ref<[number, number] | null>(null)
 
-function generateMock() {
-  const now = Date.now()
-  const arr = []
-  for (let i = 96; i >= 0; i--) {
-    const t = now - i * 15 * 60000
-    arr.push({
-      time: t,
-      label: new Date(t).toLocaleString('zh-CN'),
-      upstreamLevel: +(378.5 + Math.sin(i / 8) * 1.2).toFixed(2),
-      downstreamLevel: +(269.2 + Math.sin(i / 12) * 0.2).toFixed(2),
-      inflowRate: Math.round(6350 + Math.sin(i / 6) * 800),
-      outflowRate: Math.round(5820 + Math.sin(i / 6) * 700),
-      gateOpening: +(34 + Math.sin(i / 4) * 15).toFixed(1),
-      powerOutput: Math.round(680 + Math.sin(i / 5) * 15),
-      event: null as any,
+async function loadData() {
+  const start =
+    dateRange.value.start ||
+    new Date(Date.now() - 7 * 86400000).toISOString().replace('T', ' ').slice(0, 19)
+  const end =
+    dateRange.value.end ||
+    new Date().toISOString().replace('T', ' ').slice(0, 19)
+  try {
+    allData.value = await fetchHistoryData({
+      reservoirId: 1,
+      start,
+      end,
+      metrics: selectedMetrics.value,
+      granularity: granularity.value,
     })
+  } catch {
+    // fetchHistoryData 内部已有 Mock 降级
   }
-  arr[20].event = { type: 'alarm', label: '水位超预警', color: '#ef4444' }
-  arr[45].event = { type: 'dispatch', label: '闸门调度', color: '#3b82f6' }
-  arr[70].event = { type: 'gate', label: '3#闸门动作', color: '#f59e0b' }
-  allData.value = arr
+  tableData.value = [...allData.value]
 }
 
-function applyFilters() {
-  let data = [...allData.value]
-  if (dateRange.value.start)
-    data = data.filter((d) => d.time >= new Date(dateRange.value.start).getTime())
-  if (dateRange.value.end)
-    data = data.filter((d) => d.time <= new Date(dateRange.value.end).getTime())
-  tableData.value = data
-  tablePage.value = 1
+async function applyFilters() {
   queried.value = true
+  await loadData()
+  tablePage.value = 1
 }
-function resetFilters() {
+async function resetFilters() {
   dateRange.value = { start: '', end: '' }
-  selectedMetrics.value = ['upstreamLevel', 'flowRate']
+  selectedMetrics.value = ['upstreamLevel', 'inflowRate']
   granularity.value = '5min'
-  tableData.value = [...allData.value]
   queried.value = false
   chartZoom.value = null
+  await loadData()
 }
 
 const metricLabel = (v: string) => metricOptions.find((o) => o.value === v)?.label ?? v
@@ -205,38 +201,87 @@ const chartOpt = computed(() => {
 
 // ═══ 导出 ═══
 const exporting = ref('')
-function doExport(format: 'csv' | 'xlsx') {
+async function doExport(format: 'csv' | 'xlsx') {
   exporting.value = format
-  setTimeout(() => {
-    const headers = ['时间', ...selectedMetrics.value.map((m) => metricLabel(m))]
-    const data = tableData.value.length > 0 ? tableData.value : allData.value
-    const rows = data.map((d) => [d.label, ...selectedMetrics.value.map((m) => d[m])])
-    const dateStr = new Date().toISOString().slice(0, 10)
-
-    if (format === 'xlsx') {
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
-      ws['!cols'] = headers.map(() => ({ wch: 18 }))
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, '历史数据')
-      XLSX.writeFile(wb, `历史数据_${dateStr}.xlsx`)
-    } else {
-      const csv = ['﻿' + headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
-      a.download = `历史数据_${dateStr}.csv`
-      a.click()
+  try {
+    // 先获取水库下所有设备 ID
+    const eqRes = await getEquipmentAllList({ reservoir_id: 1 })
+    const equipmentIds: number[] = []
+    if (eqRes.data?.code === 0 && Array.isArray(eqRes.data.data)) {
+      equipmentIds.push(...eqRes.data.data.map((e) => e.id))
     }
-    exporting.value = ''
-  }, 100)
+
+    const start = dateRange.value.start
+      ? dateRange.value.start.replace('T', ' ').slice(0, 19)
+      : new Date(Date.now() - 7 * 86400000).toISOString().replace('T', ' ').slice(0, 19)
+    const end = dateRange.value.end
+      ? dateRange.value.end.replace('T', ' ').slice(0, 19)
+      : new Date().toISOString().replace('T', ' ').slice(0, 19)
+
+    const res = await exportHistoryData({
+      equipment_ids: equipmentIds.length > 0 ? equipmentIds : [1],
+      start_time: start,
+      end_time: end,
+      metrics: selectedMetrics.value.map((m) => METRIC_MAP[m] ?? m),
+      format: format === 'xlsx' ? 'excel' : 'csv',
+    })
+    if (res.data?.code === 0 && res.data.data) {
+      const data = res.data.data as Record<string, unknown>
+      const taskId = (data.task_id ?? data.task_no ?? data.id ?? '') as string
+      if (!taskId) throw new Error('未获取到任务ID')
+      ElMessage.info('导出任务已提交，正在生成文件...')
+      // 轮询等待导出完成
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 2000))
+        const statusRes = await getExportStatus(taskId)
+        if (statusRes.data?.code === 0) {
+          const s = statusRes.data.data as { status: string; download_url?: string }
+          if (s.status === 'completed' && s.download_url) {
+            window.open(s.download_url, '_blank')
+            ElMessage.success('导出完成')
+            exporting.value = ''
+            return
+          }
+          if (s.status === 'failed') {
+            throw new Error('导出失败')
+          }
+        }
+      }
+      ElMessage.warning('导出超时，请稍后在下载中心查看')
+      exporting.value = ''
+      return
+    }
+  } catch { /* 降级前端导出 */ }
+
+  // 前端本地导出
+  const headers = ['时间', ...selectedMetrics.value.map((m) => metricLabel(m))]
+  const data = tableData.value.length > 0 ? tableData.value : allData.value
+  const rows = data.map((d: any) => [d.label, ...selectedMetrics.value.map((m: string) => d[m])])
+  const dateStr = new Date().toISOString().slice(0, 10)
+
+  if (format === 'xlsx') {
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+    ws['!cols'] = headers.map(() => ({ wch: 18 }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '历史数据')
+    XLSX.writeFile(wb, `历史数据_${dateStr}.xlsx`)
+  } else {
+    const csv = ['﻿' + headers.join(','), ...rows.map((r: any) => r.join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `历史数据_${dateStr}.csv`
+    a.click()
+  }
+  exporting.value = ''
 }
 
 // ═══ 智能报告 ═══
 import SmartReportModal from './SmartReportModal.vue'
 const reportVisible = ref(false)
 
-generateMock()
-tableData.value = [...allData.value]
+// 初始不自动加载，等用户点击"查询"按钮
+// loadData() 由 applyFilters 触发
 </script>
 
 <template>

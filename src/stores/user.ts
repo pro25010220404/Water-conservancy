@@ -1,80 +1,121 @@
-// ============================================================
-// Pinia Store — 用户状态
-// ============================================================
-import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-
-export interface UserInfo {
-  id: number
-  username: string
-  nickname: string
-  avatar?: string
-  roles: string[]
-  permissions: string[]
-}
-
-function loadUserInfo(): UserInfo | null {
-  try {
-    const raw = localStorage.getItem('userInfo')
-    return raw ? (JSON.parse(raw) as UserInfo) : null
-  } catch {
-    return null
-  }
-}
-
-export const useUserStore = defineStore('user', () => {
-  const userInfo = ref<UserInfo | null>(loadUserInfo())
-  const token = ref<string>(localStorage.getItem('token') || '')
-
-  const isLoggedIn = computed(() => !!token.value && !!userInfo.value)
-  const hasPermission = computed(
-    () => (perm: string) => userInfo.value?.permissions?.includes(perm) ?? false,
-  )
-
-  function setSession(newToken: string, info: UserInfo) {
-    token.value = newToken
-    userInfo.value = info
-    localStorage.setItem('token', newToken)
-    localStorage.setItem('userInfo', JSON.stringify(info))
-  }
-
-  async function login(credentials: { username: string; password: string }): Promise<void> {
-    // 调用真实登录接口 POST /api/auth/login
-    const http = (await import('@/api/request')).default
-    const res = await http.post<{
-      code: number
-      msg: string
-      data: {
-        token: string
-        token_expire_time: string
-        user_info: { id: number; account: string; realname: string; role_code: string; role_name: string }
-      }
-    }>('/auth/login', {
-      account: credentials.username,
-      password: credentials.password,
-    })
-
-    if (res.data.code === 0 && res.data.data) {
-      const d = res.data.data
-      setSession(d.token, {
-        id: d.user_info.id,
-        username: d.user_info.account,
-        nickname: d.user_info.realname,
-        roles: [d.user_info.role_code],
-        permissions: [],
-      })
-      return
-    }
-
-    throw new Error(res.data.msg || '登录失败')
-  }
-
-  function logout(): void {
-    token.value = ''
-    userInfo.value = null
-    localStorage.removeItem('token')
-    localStorage.removeItem('userInfo')
-  }
-
-  return { userInfo, token, isLoggedIn, hasPermission, setSession, login, logout }
-})
+// ============================================================
+// Pinia Store — 用户状态
+// ============================================================
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import { loginApi } from '@/api/auth'
+import type { UserRole } from '@/constants/roles'
+
+export interface UserInfo {
+  id: number
+  username: string
+  nickname: string
+  avatar?: string
+  roles: UserRole[]
+  permissions: string[]
+}
+
+const ROLE_CODE_MAP: Record<string, UserRole> = {
+  admin: 'admin',
+  dispatcher: 'dispatcher',
+  operator: 'operator',
+  manager: 'manager',
+  station_master: 'manager',
+  algorithm: 'algorithm_engineer',
+  algorithm_engineer: 'algorithm_engineer',
+  // role_id（与系统设置用户管理一致：1运维 2调度 3站长 4管理员 5算法）
+  '1': 'operator',
+  '2': 'dispatcher',
+  '3': 'manager',
+  '4': 'admin',
+  '5': 'algorithm_engineer',
+  // role_name 兜底
+  '值班运维人员': 'operator',
+  '值班运维': 'operator',
+  '调度决策工程师': 'dispatcher',
+  '调度工程师': 'dispatcher',
+  '调度员': 'dispatcher',
+  '站长/管理人员': 'manager',
+  '站长': 'manager',
+  '系统管理员': 'admin',
+  '算法工程师': 'algorithm_engineer',
+}
+
+function mapRoleCode(roleCode: string, roleName?: string): UserRole {
+  const code = String(roleCode ?? '').trim()
+  if (code && ROLE_CODE_MAP[code]) return ROLE_CODE_MAP[code]
+
+  const name = String(roleName ?? '').trim()
+  if (name && ROLE_CODE_MAP[name]) return ROLE_CODE_MAP[name]
+
+  console.warn(`[userStore] 未知的角色: code="${code}" name="${name}", 回退为 operator`)
+  return 'operator'
+}
+
+function loadUserInfo(): UserInfo | null {
+  try {
+    const raw = localStorage.getItem('userInfo')
+    return raw ? (JSON.parse(raw) as UserInfo) : null
+  } catch {
+    return null
+  }
+}
+
+export const useUserStore = defineStore('user', () => {
+  const userInfo = ref<UserInfo | null>(loadUserInfo())
+  const token = ref<string>(localStorage.getItem('token') || '')
+
+  const isLoggedIn = computed(() => !!token.value && !!userInfo.value)
+  const hasPermission = computed(
+    () => (perm: string) => userInfo.value?.permissions?.includes(perm) ?? false,
+  )
+
+  function setSession(newToken: string, info: UserInfo) {
+    token.value = newToken
+    userInfo.value = info
+    localStorage.setItem('token', newToken)
+    localStorage.setItem('userInfo', JSON.stringify(info))
+  }
+
+  async function login(credentials: {
+    username: string
+    password: string
+    remember?: boolean
+  }): Promise<void> {
+    const res = await loginApi({
+      account: credentials.username,
+      password: credentials.password,
+      remember: credentials.remember,
+    })
+
+    const data = res.data.data
+    if (!data?.token || !data.user_info) {
+      throw new Error('登录失败')
+    }
+
+    const role = mapRoleCode(data.user_info.role_code, data.user_info.role_name)
+
+    setSession(data.token, {
+      id: data.user_info.id,
+      username: data.user_info.account,
+      nickname: data.user_info.realname || data.user_info.account,
+      roles: [role],
+      permissions: [],
+    })
+
+    if (data.token_expire_time) {
+      localStorage.setItem('tokenExpireTime', data.token_expire_time)
+    }
+  }
+
+  function logout(): void {
+    token.value = ''
+    userInfo.value = null
+    localStorage.removeItem('token')
+    localStorage.removeItem('userInfo')
+    localStorage.removeItem('tokenExpireTime')
+  }
+
+  return { userInfo, token, isLoggedIn, hasPermission, setSession, login, logout }
+})
+

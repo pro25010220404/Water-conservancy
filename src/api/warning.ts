@@ -1,6 +1,7 @@
 // ============================================================
-// 告警管理 — API 接口层
+// 告警管理 — API 接口层（真实接口优先，失败回退 Mock）
 // ============================================================
+import http from './request'
 import type { ApiResponse, PageResult } from '@/shared/types'
 import type {
   AlarmRecord,
@@ -11,21 +12,48 @@ import type {
 } from '@/types/alarm'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 import { mockApi } from './mockStore'
+import {
+  mapBackendAlarm,
+  mapBackendExceedLog,
+  toBackendAlarmQuery,
+  type BackendAlarmItem,
+  type BackendAlarmListData,
+  type BackendExceedLogItem,
+} from './alarmAdapter'
 
-async function fetchMock<T>(_url: string, _options?: RequestInit): Promise<ApiResponse<T>> {
-  throw new Error('API not ready')
+const V1_PREFIX = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
+const ALARMS_BASE = `${V1_PREFIX}/alarms`
+const DEFAULT_RESERVOIR_ID = 1
+
+function unwrap<T>(res: { data: ApiResponse<T> }): ApiResponse<T> | null {
+  if (res.data?.code === 0) return res.data
+  return null
 }
 
 export async function getAlarmList(
   params: AlarmFilterParams,
 ): Promise<ApiResponse<PageResult<AlarmRecord> & { pendingCount: number }>> {
   try {
-    const query = new URLSearchParams(
-      Object.entries(params)
-        .filter(([_, v]) => v !== undefined)
-        .map(([k, v]) => [k, String(v)]),
-    ).toString()
-    return fetchMock(`/api/alarms/list?${query}`)
+    const query = toBackendAlarmQuery({ ...params, reservoir_id: DEFAULT_RESERVOIR_ID })
+    const [listRes, pendingRes] = await Promise.all([
+      http.get<ApiResponse<BackendAlarmListData>>(ALARMS_BASE, { params: query }),
+      http.get<ApiResponse<BackendAlarmListData>>(ALARMS_BASE, {
+        params: { page: 1, page_size: 1, status: 'unhandled', reservoir_id: DEFAULT_RESERVOIR_ID },
+      }),
+    ])
+    const body = unwrap(listRes)
+    if (!body?.data) throw new Error('alarm list failed')
+    const raw = body.data
+    const pendingBody = unwrap(pendingRes)
+    return {
+      ...body,
+      data: {
+        list: (raw.list ?? []).map(mapBackendAlarm),
+        total: raw.total ?? 0,
+        pendingCount:
+          raw.pending_count ?? raw.unhandled_count ?? pendingBody?.data?.total ?? 0,
+      },
+    }
   } catch {
     return mockApi.getAlarmList(params)
   }
@@ -33,7 +61,10 @@ export async function getAlarmList(
 
 export async function getAlarmDetail(id: number): Promise<ApiResponse<AlarmRecord>> {
   try {
-    return fetchMock(`/api/alarms/${id}`)
+    const res = await http.get<ApiResponse<BackendAlarmItem>>(`${ALARMS_BASE}/${id}`)
+    const body = unwrap(res)
+    if (!body?.data) throw new Error('alarm detail failed')
+    return { ...body, data: mapBackendAlarm(body.data) }
   } catch {
     return mockApi.getAlarmDetail(id)
   }
@@ -41,7 +72,10 @@ export async function getAlarmDetail(id: number): Promise<ApiResponse<AlarmRecor
 
 export async function confirmAlarm(id: number): Promise<ApiResponse<null>> {
   try {
-    return fetchMock(`/api/alarms/${id}/confirm`, { method: 'PUT' })
+    const res = await http.put<ApiResponse<null>>(`${ALARMS_BASE}/${id}/acknowledge`)
+    const body = unwrap(res)
+    if (body) return body
+    throw new Error('confirm failed')
   } catch {
     return mockApi.confirmAlarm(id)
   }
@@ -52,10 +86,12 @@ export async function handleAlarm(params: {
   remark: string
 }): Promise<ApiResponse<null>> {
   try {
-    return fetchMock(`/api/alarms/${params.id}/handle`, {
-      method: 'PUT',
-      body: JSON.stringify({ remark: params.remark }),
+    const res = await http.put<ApiResponse<null>>(`${ALARMS_BASE}/${params.id}/dispose`, {
+      dispose_note: params.remark,
     })
+    const body = unwrap(res)
+    if (body) return body
+    throw new Error('dispose failed')
   } catch {
     return mockApi.handleAlarm(params)
   }
@@ -65,12 +101,27 @@ export async function getAlarmExceedLogs(
   params: Record<string, unknown>,
 ): Promise<ApiResponse<PageResult<AlarmExceedLog>>> {
   try {
-    const query = new URLSearchParams(
-      Object.entries(params)
-        .filter(([_, v]) => v !== undefined)
-        .map(([k, v]) => [k, String(v)]),
-    ).toString()
-    return fetchMock(`/api/alarms/logs?${query}`)
+    const res = await http.get<ApiResponse<PageResult<BackendExceedLogItem>>>(
+      `${ALARMS_BASE}/exceed-logs`,
+      {
+        params: {
+          page: 1,
+          page_size: 20,
+          reservoir_id: DEFAULT_RESERVOIR_ID,
+          start_time: params.startTime,
+          end_time: params.endTime,
+        },
+      },
+    )
+    const body = unwrap(res)
+    if (!body?.data) throw new Error('exceed logs failed')
+    return {
+      ...body,
+      data: {
+        list: (body.data.list ?? []).map(mapBackendExceedLog),
+        total: body.data.total ?? 0,
+      },
+    }
   } catch {
     return mockApi.getExceedLogs({ keyword: params.keyword as string | undefined })
   }
@@ -78,7 +129,20 @@ export async function getAlarmExceedLogs(
 
 export async function getPendingAlarmCount(): Promise<ApiResponse<{ count: number }>> {
   try {
-    return fetchMock('/api/alarms/pending-count')
+    const res = await http.get<ApiResponse<BackendAlarmListData>>(ALARMS_BASE, {
+      params: { page: 1, page_size: 1, status: 'unhandled', reservoir_id: DEFAULT_RESERVOIR_ID },
+    })
+    const body = unwrap(res)
+    if (body?.data) {
+      return {
+        code: 0,
+        msg: 'ok',
+        success: true,
+        trace_id: body.trace_id,
+        data: { count: body.data.total ?? 0 },
+      }
+    }
+    throw new Error('pending count failed')
   } catch {
     const res = await mockApi.getAlarmStats()
     return { ...res, data: { count: res.data.pending } }
@@ -87,16 +151,44 @@ export async function getPendingAlarmCount(): Promise<ApiResponse<{ count: numbe
 
 export async function getAlarmStats(): Promise<ApiResponse<AlarmStatsResult>> {
   try {
-    return fetchMock('/api/alarms/stats')
+    return await getAlarmStatsFromApi()
   } catch {
     return mockApi.getAlarmStats()
   }
 }
 
-/** 轮询告警推送（后端未就绪时由 mock 模拟 WebSocket） */
+async function getAlarmStatsFromApi(): Promise<ApiResponse<AlarmStatsResult>> {
+  const res = await http.get<ApiResponse<BackendAlarmListData>>(ALARMS_BASE, {
+    params: { page: 1, page_size: 1, reservoir_id: DEFAULT_RESERVOIR_ID },
+  })
+  const body = unwrap(res)
+  if (!body?.data) throw new Error('stats failed')
+  const pendingRes = await http.get<ApiResponse<BackendAlarmListData>>(ALARMS_BASE, {
+    params: { page: 1, page_size: 1, status: 'unhandled', reservoir_id: DEFAULT_RESERVOIR_ID },
+  })
+  const pending = unwrap(pendingRes)?.data?.total ?? 0
+  return {
+    code: 0,
+    msg: 'ok',
+    success: true,
+    trace_id: body.trace_id,
+    data: {
+      today: body.data.total ?? 0,
+      pending,
+      handled: Math.max(0, (body.data.total ?? 0) - pending),
+      falseAlarm: 0,
+      levelDistribution: { URGENT: 0, IMPORTANT: 0, NORMAL: 0 },
+    },
+  }
+}
+
+/** 轮询告警推送（WebSocket 未就绪时轮询；后端未实现则回退 mock） */
 export async function pollAlarmPush(): Promise<ApiResponse<AlarmPushMessage | null>> {
   try {
-    return fetchMock('/ws/alarms/poll')
+    const res = await http.get<ApiResponse<AlarmPushMessage | null>>(`${V1_PREFIX}/alarms/poll`)
+    const body = unwrap(res)
+    if (body) return body
+    throw new Error('poll not ready')
   } catch {
     return mockApi.pollAlarmPush()
   }
@@ -104,7 +196,13 @@ export async function pollAlarmPush(): Promise<ApiResponse<AlarmPushMessage | nu
 
 export async function getPhysicsGuardSummary(): Promise<ApiResponse<PhysicsGuardSummary>> {
   try {
-    return fetchMock('/api/v1/settings/physics-guard?reservoir_id=1')
+    const res = await http.get<ApiResponse<PhysicsGuardSummary>>(
+      `${V1_PREFIX}/admin/physics-guard`,
+      { params: { reservoir_id: DEFAULT_RESERVOIR_ID } },
+    )
+    const body = unwrap(res)
+    if (body?.data) return body
+    throw new Error('physics guard failed')
   } catch {
     return mockApi.getPhysicsGuardSummary()
   }

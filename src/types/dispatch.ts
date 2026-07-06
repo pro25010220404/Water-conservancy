@@ -144,6 +144,8 @@ export interface DispatchRecord {
   action?: string
   /** 操作人 */
   operator_name?: string
+  /** 后端原始决策模式标签，如 L3_AUTO */
+  decision_mode_label?: string
   /** 决策快照（展开查看） */
   snapshot?: DispatchRecordSnapshot
 }
@@ -154,7 +156,7 @@ export interface GateAction {
   equipment_id: number
   previous_opening: number
   target_opening: number
-  actual_opening: number
+  actual_opening: number | null
   action_type: ActionType
   action_source: ActionSource
   duration_ms: number
@@ -162,6 +164,41 @@ export interface GateAction {
   acted_at: string
   interlock_rule_id?: number | null
   interlock_rule_name?: string | null
+}
+
+// ---------- 指令全链路追踪（§4.5）----------
+export type CommandStatus =
+  | 'pending'
+  | 'sent'
+  | 'acknowledged'
+  | 'verified'
+  | 'executed'
+  | 'failed'
+
+export interface CommandTrace {
+  id: number
+  command_id: string
+  trace_id: string
+  decision_id: number | null
+  gate_action_id: number | null
+  edge_node_id: number
+  operator_id: number | null
+  command_type: string
+  payload: Record<string, unknown>
+  target_equipment: number | null
+  target_opening: number
+  status: CommandStatus
+  sent_at: string | null
+  acknowledged_at: string | null
+  verified_at: string | null
+  executed_at: string | null
+  feedback_at: string | null
+  full_delay_ms: number | null
+  execution_result: Record<string, unknown> | null
+  reject_reason: string | null
+  is_emergency: boolean
+  created_at: string
+  updated_at: string
 }
 
 // ---------- 急停日志（§4.9）----------
@@ -173,6 +210,10 @@ export interface EmergencyStopLog {
   plc_shut_time: string | null
   recover_time: string | null
   stop_reason: string
+  /** 关联指令 ID（后端可能为 number 或 string） */
+  command_id?: string | number | null
+  recover_user_id?: number | null
+  decision_id?: number | null
 }
 
 // ---------- 当前运行状态（页面需要，综合多个接口）----------

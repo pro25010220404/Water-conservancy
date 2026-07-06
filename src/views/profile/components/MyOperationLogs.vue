@@ -8,6 +8,7 @@ import {
   ElDatePicker, ElTag,
 } from 'element-plus'
 import { useProfileStore } from '@/stores/profile'
+import { getOperationLogs } from '@/api/profile'
 import { OPERATION_MODULES, OPERATION_MODULE_OPTIONS, OPERATION_TYPES } from '@/constants/profile'
 import type { OperationLog } from '@/shared/types'
 
@@ -49,21 +50,43 @@ const SEED_LOGS: OperationLog[] = [
 
 // ── 方法 ──
 
-/** 获取日志数据（本地 localStorage + 种子数据兜底） */
-function fetchLogs() {
+/** 获取日志数据（API 优先，失败则使用 local/seed 数据） */
+async function fetchLogs() {
   loading.value = true
+  try {
+    const res = await getOperationLogs({
+      page: currentPage.value,
+      page_size: pageSize,
+      module: filterModule.value || undefined,
+      start: filterDateRange.value?.[0] || undefined,
+      end: filterDateRange.value?.[1] || undefined,
+    })
 
-  // 合并 localStorage 日志 + 种子数据
-  let all: OperationLog[] = [...SEED_LOGS]
+    if (res.data?.code === 0 && res.data.data) {
+      logs.value = res.data.data.list
+      total.value = res.data.data.total
+      profileStore.setOperationLogs(res.data.data.list, res.data.data.total)
+      loading.value = false
+      return
+    }
+  } catch {
+    // API 不可用，使用本地数据
+  }
 
+  // 降级：使用 localStorage 日志或种子数据
+  let all: OperationLog[] = []
+
+  // 优先从 composable 加载（其他模块可能写入了数据）
   const raw = localStorage.getItem('operationLogs')
   if (raw) {
     try {
-      const local = JSON.parse(raw) as OperationLog[]
-      const localIds = new Set(local.map((l: OperationLog) => l.id))
-      all = [...local, ...all.filter((l) => !localIds.has(l.id))]
-    } catch { /* 解析失败，保留种子数据 */ }
+      all = JSON.parse(raw)
+    } catch {
+      all = [...SEED_LOGS]
+    }
   } else {
+    all = [...SEED_LOGS]
+    // 首次写入种子
     localStorage.setItem('operationLogs', JSON.stringify(SEED_LOGS))
   }
 
@@ -82,7 +105,7 @@ function fetchLogs() {
     })
   }
 
-  // 按 id 降序
+  // 按 id 降序（时间最新在前）
   all.sort((a, b) => b.id - a.id)
 
   total.value = all.length

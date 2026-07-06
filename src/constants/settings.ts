@@ -70,6 +70,39 @@ export const USER_ROLE_OPTIONS = [
   { label: '算法工程师', value: 'algorithm_engineer' },
 ] as const
 
+// ---------- 系统设置 — Tab 与路由映射 ----------
+export const SETTINGS_TAB_ROUTES = {
+  thresholds: '/settings/thresholds',
+  weights: '/settings/weights',
+  models: '/settings/models',
+  users: '/settings/users',
+  'physics-guard': '/settings/physics-guard',
+  'physics-guard-history': '/settings/physics-guard-history',
+  'ai-metrics': '/settings/ai/metrics',
+  'gate-interlock': '/settings/gate-interlock',
+} as const
+
+export type SettingsTabName = keyof typeof SETTINGS_TAB_ROUTES
+
+export function buildSettingsPath(
+  tab: SettingsTabName,
+  query?: Record<string, string | number | undefined>,
+) {
+  const q: Record<string, string> = {}
+  if (query) {
+    Object.entries(query).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') q[k] = String(v)
+    })
+  }
+  return { path: SETTINGS_TAB_ROUTES[tab], query: Object.keys(q).length ? q : undefined }
+}
+
+/** 根据当前路由 path 反查 Tab 名 */
+export function settingsTabFromPath(path: string): SettingsTabName | null {
+  const entry = Object.entries(SETTINGS_TAB_ROUTES).find(([, p]) => p === path)
+  return (entry?.[0] as SettingsTabName) ?? null
+}
+
 // ---------- 水库列表（用于下拉选择）----------
 export const RESERVOIR_OPTIONS = [
   { label: '示范水库', value: 1 },

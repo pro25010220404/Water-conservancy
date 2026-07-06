@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
@@ -22,13 +22,25 @@ use([
   MarkPointComponent,
   CanvasRenderer,
 ])
-import { ElTag } from 'element-plus'
+import { ElTag, ElMessage } from 'element-plus'
 import { HEALTH_GRADE } from '@/constants/aiHealth'
+import {
+  fetchModelMetricsHistory,
+  fetchModelMetricsLatest,
+  fetchModelHealthOverview,
+} from '@/api/gateaiSettings'
+import type { ModelMetricHistoryPoint, ModelMetricLatest } from '@/types/gateai'
 
-const days = ref(30)
+const reservoirId = ref(1)
+const days = ref(7)
+const loading = ref(false)
+const historyError = ref<'none' | 'empty' | 'failed'>('none')
+const latest = ref<ModelMetricLatest | null>(null)
+const reservoirOptions = ref<{ value: number; label: string }[]>([])
+const hasHistory = computed(() => scoreData.value.length > 0)
 
-// Mock 评分历史
 interface ScorePoint {
+  key: string
   time: string
   overall: number
   prediction: number
@@ -38,27 +50,90 @@ interface ScorePoint {
 }
 const scoreData = ref<ScorePoint[]>([])
 
-function genMock() {
-  const arr: ScorePoint[] = []
-  const now = Date.now()
-  const grades = ['S', 'A', 'A', 'B', 'A', 'A', 'B', 'C', 'B', 'A']
-  for (let i = days.value - 1; i >= 0; i--) {
-    const base = 0.78 + Math.sin(i / 5) * 0.08 + (Math.random() - 0.5) * 0.04
-    arr.push({
-      time: new Date(now - i * 86400000).toISOString().slice(0, 10),
-      overall: +Math.min(1, Math.max(0, base)).toFixed(2),
-      prediction: +Math.min(1, Math.max(0, base + 0.04 + (Math.random() - 0.5) * 0.05)).toFixed(2),
-      decision: +Math.min(1, Math.max(0, base - 0.02 + (Math.random() - 0.5) * 0.06)).toFixed(2),
-      compliance: +Math.min(1, Math.max(0, base + 0.01 + (Math.random() - 0.5) * 0.03)).toFixed(2),
-      grade: grades[Math.floor(Math.random() * grades.length)],
-    })
-  }
-  scoreData.value = arr
+function gradeFromScore(s: number): string {
+  if (s >= 0.85) return 'S'
+  if (s >= 0.70) return 'A'
+  if (s >= 0.55) return 'B'
+  if (s >= 0.40) return 'C'
+  return 'D'
 }
 
-genMock()
+function mapHistoryPoint(p: ModelMetricHistoryPoint): ScorePoint {
+  const rawTime = p.time ?? ''
+  const displayTime = rawTime.length >= 10 ? rawTime.slice(0, 16) : rawTime
+  return {
+    key: rawTime || displayTime,
+    time: displayTime,
+    overall: p.overall_score,
+    prediction: p.prediction_score,
+    decision: p.decision_score,
+    compliance: p.compliance_score,
+    grade: p.health_grade ?? p.grade_event?.to ?? gradeFromScore(p.overall_score),
+  }
+}
 
-// 图表配置
+async function loadReservoirs() {
+  try {
+    const overview = await fetchModelHealthOverview()
+    if (overview.length > 0) {
+      reservoirOptions.value = overview.map((r) => ({
+        value: Number(r.reservoir_id),
+        label: r.reservoir_name || `水库 #${r.reservoir_id}`,
+      }))
+      const current = Number(reservoirId.value)
+      const inList = reservoirOptions.value.some((r) => r.value === current)
+      if (!inList) {
+        const prefer = reservoirOptions.value.find((r) => r.value === 1)?.value
+          ?? reservoirOptions.value[0]?.value
+        if (prefer != null) reservoirId.value = prefer
+      }
+    }
+  } catch {
+    if (reservoirOptions.value.length === 0) {
+      reservoirOptions.value = [{ value: 1, label: '水库 #1' }]
+    }
+  }
+}
+
+async function loadScores() {
+  loading.value = true
+  historyError.value = 'none'
+  const rid = Number(reservoirId.value)
+  try {
+    const [historyResult, latestResult] = await Promise.allSettled([
+      fetchModelMetricsHistory(rid, days.value),
+      fetchModelMetricsLatest(rid),
+    ])
+
+    if (historyResult.status === 'fulfilled') {
+      scoreData.value = historyResult.value.map(mapHistoryPoint)
+      if (scoreData.value.length === 0) historyError.value = 'empty'
+    } else {
+      scoreData.value = []
+      historyError.value = 'failed'
+      console.warn('[ModelScoreTab] history failed:', historyResult.reason)
+      ElMessage.warning('历史趋势加载失败，请检查网络连接或稍后重试')
+    }
+
+    latest.value = latestResult.status === 'fulfilled' ? latestResult.value : null
+    if (latestResult.status === 'rejected') {
+      console.warn('[ModelScoreTab] latest failed:', latestResult.reason)
+    }
+  } catch {
+    ElMessage.error('加载模型评分失败')
+    scoreData.value = []
+    latest.value = null
+    historyError.value = 'failed'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(async () => {
+  await loadReservoirs()
+  await loadScores()
+})
+
 const chartOpt = computed(() => ({
   tooltip: { trigger: 'axis' },
   legend: { top: 0 },
@@ -66,7 +141,7 @@ const chartOpt = computed(() => ({
   xAxis: {
     type: 'category',
     data: scoreData.value.map((d) => d.time),
-    axisLabel: { interval: Math.max(1, Math.floor(days.value / 10)), rotate: 30 },
+    axisLabel: { interval: Math.max(1, Math.floor(scoreData.value.length / 10)), rotate: 30 },
   },
   yAxis: {
     type: 'value',
@@ -111,7 +186,6 @@ const chartOpt = computed(() => ({
   ],
 }))
 
-// 表格数据
 const gradeFilter = ref('')
 const filteredScores = computed(() => {
   if (!gradeFilter.value) return scoreData.value
@@ -119,13 +193,36 @@ const filteredScores = computed(() => {
 })
 
 function onQuery() {
-  genMock()
+  loadScores()
 }
 </script>
 
 <template>
-  <div class="ms">
+  <div class="ms" v-loading="loading">
+    <div v-if="latest" class="ms__summary">
+      <span class="ms__summary-label">最新指标</span>
+      <span class="ms__summary-item">
+        综合评分 <b>{{ (latest.overall_score * 100).toFixed(0) }}</b>
+      </span>
+      <span class="ms__summary-item">
+        健康等级
+        <ElTag
+          :color="(HEALTH_GRADE as any)[latest.health_grade]?.color"
+          size="small"
+          effect="dark"
+        >
+          {{ latest.health_grade }}
+        </ElTag>
+      </span>
+      <span class="ms__summary-item ms__summary-time">{{ latest.metric_time }}</span>
+    </div>
+
     <div class="ms__filters">
+      <select v-model="reservoirId" @change="onQuery" class="ms__sel">
+        <option v-for="r in reservoirOptions" :key="r.value" :value="r.value">
+          {{ r.label }}
+        </option>
+      </select>
       <select v-model="days" @change="onQuery" class="ms__sel">
         <option :value="7">近 7 天</option>
         <option :value="30">近 30 天</option>
@@ -144,11 +241,25 @@ function onQuery() {
           {{ g }}
         </span>
       </div>
-      <button class="ms__btn" @click="onQuery">刷新</button>
+      <button class="ms__btn" :disabled="loading" @click="onQuery">刷新</button>
+    </div>
+
+    <div v-if="!loading && historyError === 'empty'" class="ms__hint">
+      {{ latest ? '该水库暂无历史趋势数据，仅显示最新指标（可切换「示范水库 #1」或缩短查询天数）' : '该水库暂无评分数据' }}
+    </div>
+    <div v-else-if="!loading && historyError === 'failed'" class="ms__hint ms__hint--error">
+      历史趋势接口请求失败，请确认 natapp 隧道可用后点击刷新
     </div>
 
     <div class="ms__chart">
-      <VChart :option="chartOpt" autoresize style="width: 100%; height: 100%" />
+      <VChart
+        v-if="hasHistory"
+        :key="`${reservoirId}-${days}`"
+        :option="chartOpt"
+        autoresize
+        style="width: 100%; height: 100%"
+      />
+      <div v-else class="ms__chart-empty">暂无趋势图数据</div>
     </div>
 
     <div class="ms__table-wrap">
@@ -164,17 +275,20 @@ function onQuery() {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="d in filteredScores" :key="d.time">
+          <tr v-for="d in filteredScores" :key="d.key">
             <td>{{ d.time }}</td>
             <td>{{ (d.overall * 100).toFixed(0) }}</td>
             <td>
-              <ElTag :color="(HEALTH_GRADE as any)[d.grade]?.color" size="small" effect="dark">{{
-                d.grade
-              }}</ElTag>
+              <ElTag :color="(HEALTH_GRADE as any)[d.grade]?.color" size="small" effect="dark">
+                {{ d.grade }}
+              </ElTag>
             </td>
             <td>{{ (d.prediction * 100).toFixed(0) }}</td>
             <td>{{ (d.decision * 100).toFixed(0) }}</td>
             <td>{{ (d.compliance * 100).toFixed(0) }}</td>
+          </tr>
+          <tr v-if="!loading && filteredScores.length === 0">
+            <td colspan="6" class="ms__empty">暂无数据</td>
           </tr>
         </tbody>
       </table>
@@ -191,6 +305,42 @@ function onQuery() {
   padding: 18px 24px;
   gap: 12px;
   overflow: hidden;
+
+  &__summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border: 1px solid #eef0f2;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  &__summary-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #64748b;
+  }
+
+  &__summary-item {
+    font-size: 14px;
+    color: #475569;
+
+    b {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-left: 4px;
+    }
+  }
+
+  &__summary-time {
+    margin-left: auto;
+    font-size: 13px;
+    color: #94a3b8;
+  }
 
   &__filters {
     display: flex;
@@ -229,6 +379,10 @@ function onQuery() {
     border: none;
     border-radius: 6px;
     cursor: pointer;
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   }
   &__chart {
     flex-shrink: 0;
@@ -236,6 +390,29 @@ function onQuery() {
     background: #fff;
     border-radius: 8px;
     border: 1px solid #eef0f2;
+  }
+  &__chart-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: 14px;
+    color: #94a3b8;
+  }
+  &__hint {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: #64748b;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 6px;
+
+    &--error {
+      color: #b45309;
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
   }
   &__table-wrap {
     flex: 1;
@@ -270,6 +447,12 @@ function onQuery() {
     tr:hover td {
       background: #f8fafc;
     }
+  }
+  &__empty {
+    text-align: center;
+    color: #94a3b8;
+    padding: 24px !important;
+    font-family: inherit !important;
   }
 }
 </style>

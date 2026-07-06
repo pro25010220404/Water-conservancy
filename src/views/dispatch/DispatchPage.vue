@@ -5,84 +5,37 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ElButton,
-  ElSlider,
-  ElSelect,
-  ElOption,
-  ElInput,
-  ElInputNumber,
-  ElMessage,
-  ElMessageBox,
-  ElDialog,
-  ElFormItem,
-  ElTable,
-  ElTableColumn,
-  ElProgress,
-  ElTag,
-  ElPagination,
-  ElCollapse,
-  ElCollapseItem,
+  ElButton, ElSlider, ElSelect, ElOption, ElInput, ElInputNumber, ElMessage, ElMessageBox,
+  ElDialog, ElFormItem, ElTable, ElTableColumn, ElProgress, ElTag, ElPagination, ElCollapse, ElCollapseItem,
+  ElTimeline, ElTimelineItem,
 } from 'element-plus'
 import { Refresh, CircleCheck, CircleClose, View } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
-import {
-  GridComponent,
-  TooltipComponent,
-  MarkLineComponent,
-  LegendComponent,
-} from 'echarts/components'
+import { GridComponent, TooltipComponent, MarkLineComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import GateActionsPanel from './components/GateActionsPanel.vue'
+import EmergencyStopPanel from './components/EmergencyStopPanel.vue'
 import { XIANGJIABA_HYDRO } from '@/constants/xiangjiaba'
 import {
-  AUTO_LEVEL_OPTIONS,
-  AUTO_LEVEL_MAP,
-  DISPATCH_MODE_MAP,
-  getConfidenceColor,
-  FACTOR_DIRECTION_MAP,
-  OPENING_MIN,
-  OPENING_MAX,
-  OPENING_STEP,
+  AUTO_LEVEL_OPTIONS, AUTO_LEVEL_MAP, DISPATCH_MODE_MAP,
+  getConfidenceColor, FACTOR_DIRECTION_MAP,
+  OPENING_MIN, OPENING_MAX, OPENING_STEP,
 } from '@/constants/dispatch'
-import type {
-  DecisionDetail,
-  DispatchRecord,
-  DispatchStatus,
-  PredictionData,
-  PhysicsValidation,
-  PhysicsGuardSummary,
-  PhysicsGuardHistoryItem,
-} from '@/types/dispatch'
+import type { DecisionDetail, DispatchRecord, DispatchStatus, PredictionData, PhysicsValidation, PhysicsGuardSummary, PhysicsGuardHistoryItem, CommandTrace } from '@/types/dispatch'
 import {
-  fetchDispatchStatus,
-  fetchDecisionDetail,
-  fetchPrediction,
-  fetchDispatchLogs,
-  postExecute,
-  postCancelExecute,
-  postAcceptDecision,
-  postIgnoreDecision,
-  putDispatchMode,
-  putAutoLevel,
-  fetchPhysicsGuardSummary,
-  fetchPhysicsGuardHistory,
-  postPhysicsGuardRollback,
+  fetchDispatchStatus, fetchDecisionDetail, fetchPrediction, fetchDispatchLogs,
+  postExecute, postCancelExecute, postAcceptDecision, postIgnoreDecision, putDispatchMode, putAutoLevel,
+  fetchPhysicsGuardSummary, fetchPhysicsGuardHistory, postPhysicsGuardRollback, fetchCommandTrace,
 } from '@/api/dispatchPage'
 import { useUserStore } from '@/stores/user'
 import { useOperationLog } from '@/composables/useOperationLog'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
+import { buildSettingsPath } from '@/constants/settings'
 
-use([
-  LineChart,
-  GridComponent,
-  TooltipComponent,
-  MarkLineComponent,
-  LegendComponent,
-  CanvasRenderer,
-])
+use([LineChart, GridComponent, TooltipComponent, MarkLineComponent, LegendComponent, CanvasRenderer])
 
 const userStore = useUserStore()
 const route = useRoute()
@@ -95,15 +48,10 @@ const canModifyLevel = computed(() => {
 })
 
 const status = ref<DispatchStatus>({
-  mode: 'auto',
-  autoLevel: 2,
-  upstreamLevel: 380.65,
-  downstreamLevel: 278.42,
-  flowRate: 1920,
-  gateOpening: 45,
-  lastDispatchAt: null,
-  isExecuting: false,
-  executingTarget: null,
+  mode: 'auto', autoLevel: 2,
+  upstreamLevel: 380.65, downstreamLevel: 278.42,
+  flowRate: 1920, gateOpening: 45,
+  lastDispatchAt: null, isExecuting: false, executingTarget: null,
 })
 const decision = ref<DecisionDetail | null>(null)
 const prediction = ref<PredictionData | null>(null)
@@ -130,6 +78,11 @@ const physicsHistory = ref<PhysicsGuardHistoryItem[]>([])
 const historyVisible = ref(false)
 const historyDetailVisible = ref(false)
 const historyDetailRow = ref<PhysicsGuardHistoryItem | null>(null)
+
+const lastCommandId = ref<string | null>(null)
+const traceVisible = ref(false)
+const traceLoading = ref(false)
+const commandTrace = ref<CommandTrace | null>(null)
 
 const SYNC_STATUS_MAP: Record<string, { label: string; type: 'success' | 'warning' | 'danger' }> = {
   synced: { label: '已同步', type: 'success' },
@@ -158,6 +111,80 @@ const INTERLOCK_RULE_MAP: Record<string, string> = {
   downstream_impact_protect: '下游冲击保护',
   symmetry_constraint: '对称性约束',
   min_discharge_guarantee: '最小下泄保障',
+}
+
+const COMMAND_STATUS_MAP: Record<string, { label: string; type: 'success' | 'warning' | 'danger' | 'info' | 'primary' }> = {
+  pending: { label: '待下发', type: 'warning' },
+  sent: { label: '已发送', type: 'info' },
+  acknowledged: { label: '边缘已确认', type: 'primary' },
+  verified: { label: '校验通过', type: 'primary' },
+  executed: { label: '已执行', type: 'success' },
+  failed: { label: '失败', type: 'danger' },
+}
+
+const COMMAND_TYPE_MAP: Record<string, string> = {
+  manual_adjust: '手动调开度',
+  auto_dispatch: '自动调度',
+  emergency_stop: '全局急停',
+}
+
+const traceSteps = computed(() => {
+  const t = commandTrace.value
+  if (!t) return []
+  return [
+    { key: 'sent', label: '云端下发', time: t.sent_at ?? t.created_at },
+    { key: 'ack', label: '边缘确认', time: t.acknowledged_at },
+    { key: 'verified', label: '校验通过', time: t.verified_at },
+    { key: 'executed', label: 'PLC 执行', time: t.executed_at },
+    { key: 'feedback', label: '执行回执', time: t.feedback_at },
+  ]
+})
+
+function isTraceStepDone(stepKey: string, trace: CommandTrace) {
+  const order = ['sent', 'ack', 'verified', 'executed', 'feedback']
+  const statusIdx: Record<string, number> = {
+    pending: 0,
+    sent: 1,
+    acknowledged: 2,
+    verified: 3,
+    executed: 4,
+    failed: -1,
+  }
+  const current = statusIdx[trace.status] ?? 0
+  const step = order.indexOf(stepKey)
+  if (trace.status === 'failed') return step < current
+  return step <= current && !!(
+    stepKey === 'sent' ? (trace.sent_at || trace.created_at)
+    : stepKey === 'ack' ? trace.acknowledged_at
+    : stepKey === 'verified' ? trace.verified_at
+    : stepKey === 'executed' ? trace.executed_at
+    : trace.feedback_at
+  )
+}
+
+async function openCommandTrace(commandId: string) {
+  lastCommandId.value = commandId
+  traceVisible.value = true
+  traceLoading.value = true
+  try {
+    const res = await fetchCommandTrace(commandId)
+    commandTrace.value = res.data
+  } catch {
+    commandTrace.value = null
+    ElMessage.error('获取指令追踪失败')
+  } finally {
+    traceLoading.value = false
+  }
+}
+
+async function refreshCommandTrace() {
+  if (!lastCommandId.value) return
+  await openCommandTrace(lastCommandId.value)
+}
+
+function afterExecuteSuccess(res: { data?: { command_id?: string } | null }) {
+  const id = res.data?.command_id
+  if (id) openCommandTrace(id)
 }
 
 function contributionClass(val: number) {
@@ -229,14 +256,12 @@ async function handleRollback(row: PhysicsGuardHistoryItem) {
     recordLog('调度决策', '回滚物理防护配置', `版本 → ${row.config_version}`, 1)
     ElMessage.success(`已回滚至 ${row.config_version}`)
     historyVisible.value = false
-  } catch {
-    /* cancel */
-  }
+  } catch { /* cancel */ }
 }
 
 function goPhysicsGuardHistorySettings() {
   historyVisible.value = false
-  router.push({ path: '/settings', query: { tab: 'physics-guard-history', reservoir_id: '1' } })
+  router.push(buildSettingsPath('physics-guard-history', { reservoir_id: 1 }))
 }
 
 function interlockLabel(pv: PhysicsValidation) {
@@ -249,11 +274,8 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 let executionRefreshTimer: ReturnType<typeof setTimeout> | null = null
 const HIST_LEN = 12
 
-const recommendedPlan = computed(
-  () =>
-    decision.value?.alternatives?.find((p) => p.recommended) ??
-    decision.value?.alternatives?.[0] ??
-    null,
+const recommendedPlan = computed(() =>
+  decision.value?.alternatives?.find((p) => p.recommended) ?? decision.value?.alternatives?.[0] ?? null,
 )
 
 const openingDirection = computed(() => {
@@ -271,24 +293,22 @@ const expectedEffect = computed(() => {
   return `上游水位预计 ${p.expectedLevel} m · 发电 ${p.power} kW · 安全评分 ${p.safetyScore}`
 })
 
-const canManualControl = computed(
-  () => status.value.mode === 'manual' || status.value.autoLevel === 1,
+const canManualControl = computed(() =>
+  status.value.mode === 'manual' || status.value.autoLevel === 1,
 )
 
 const executingTarget = computed(() => status.value.executingTarget)
 
-const canReDispatch = computed(
-  () =>
-    status.value.isExecuting &&
-    executingTarget.value != null &&
-    targetOpening.value !== executingTarget.value,
+const canReDispatch = computed(() =>
+  status.value.isExecuting
+  && executingTarget.value != null
+  && targetOpening.value !== executingTarget.value,
 )
 
-const canSubmitExecute = computed(
-  () =>
-    canManualControl.value &&
-    !status.value.isExecuting &&
-    targetOpening.value !== status.value.gateOpening,
+const canSubmitExecute = computed(() =>
+  canManualControl.value
+  && !status.value.isExecuting
+  && targetOpening.value !== status.value.gateOpening,
 )
 
 const confidenceValue = computed(() => decision.value?.confidence ?? 0)
@@ -297,19 +317,18 @@ const confidenceColor = computed(() => getConfidenceColor(confidenceValue.value)
 const filteredRecords = computed(() => {
   const kw = recordKeyword.value.trim()
   if (!kw) return records.value
-  return records.value.filter((r) =>
-    fuzzyMatch(
-      kw,
-      r.decision_mode,
-      r.action,
-      r.operator_name,
-      String(r.recommended_opening),
-      `${r.recommended_opening}%`,
-      r.execution_status,
-      statusLabel(r.execution_status),
-      formatTime(r.decision_time),
-    ),
-  )
+  return records.value.filter((r) => fuzzyMatch(
+    kw,
+    r.decision_mode,
+    r.decision_mode_label,
+    r.action,
+    r.operator_name,
+    String(r.recommended_opening),
+    `${r.recommended_opening}%`,
+    r.execution_status,
+    statusLabel(r.execution_status),
+    formatTime(r.decision_time),
+  ))
 })
 
 const recordTotal = computed(() => filteredRecords.value.length)
@@ -324,26 +343,22 @@ const chartOption = computed(() => {
   if (!data) return {}
   const seq = metricKey.value === 'water' ? data.water_seq : data.flow_seq
   const isWater = metricKey.value === 'water'
+  const histLen = seq.length > HIST_LEN ? HIST_LEN : 1
   const times = seq.map((p) => {
     const d = new Date(p.time)
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   })
-  const histValues = seq.slice(0, HIST_LEN).map((p) => p.value)
-  const predValues = seq.slice(HIST_LEN - 1).map((p) => p.value)
-  const histData = [...histValues, ...Array(seq.length - HIST_LEN).fill(null)]
-  const predData = [...Array(HIST_LEN - 1).fill(null), ...predValues]
-  const nowLabel = times[HIST_LEN - 1] ?? ''
+  const histValues = seq.slice(0, histLen).map((p) => p.value)
+  const predValues = seq.slice(histLen - 1).map((p) => p.value)
+  const histData = [...histValues, ...Array(seq.length - histLen).fill(null)]
+  const predData = [...Array(histLen - 1).fill(null), ...predValues]
+  const nowLabel = times[histLen - 1] ?? ''
   const warnLevel = XIANGJIABA_HYDRO.warningLevel
 
   return {
     animation: false,
     backgroundColor: 'transparent',
-    legend: {
-      data: ['实测', '预测'],
-      top: 0,
-      right: 0,
-      textStyle: { color: '#64748b', fontSize: 11 },
-    },
+    legend: { data: ['实测', '预测'], top: 0, right: 0, textStyle: { color: '#64748b', fontSize: 11 } },
     grid: { top: 36, right: 48, bottom: 48, left: 58, containLabel: true },
     tooltip: {
       trigger: 'axis',
@@ -355,73 +370,40 @@ const chartOption = computed(() => {
       },
     },
     xAxis: {
-      type: 'category',
-      boundaryGap: false,
-      data: times,
+      type: 'category', boundaryGap: false, data: times,
       axisLine: { lineStyle: { color: '#cbd5e1' } },
-      axisLabel: {
-        color: '#64748b',
-        fontSize: 14,
-        interval: Math.max(0, Math.floor(times.length / 8)),
-      },
+      axisLabel: { color: '#64748b', fontSize: 11, interval: Math.max(0, Math.floor(times.length / 8)) },
     },
     yAxis: {
-      type: 'value',
-      scale: true,
+      type: 'value', scale: true,
       axisLine: { lineStyle: { color: '#cbd5e1' } },
       axisLabel: {
-        color: '#64748b',
-        fontSize: 14,
-        formatter: (v: number) => (isWater ? v.toFixed(1) : String(Math.round(v))),
+        color: '#64748b', fontSize: 11,
+        formatter: (v: number) => isWater ? v.toFixed(1) : String(Math.round(v)),
       },
       splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } },
     },
     series: [
       {
-        name: '实测',
-        type: 'line',
-        data: histData,
-        smooth: true,
+        name: '实测', type: 'line', data: histData, smooth: true,
         lineStyle: { color: '#334155', width: 2 },
-        itemStyle: { color: '#334155' },
-        showSymbol: false,
+        itemStyle: { color: '#334155' }, showSymbol: false,
       },
       {
-        name: '预测',
-        type: 'line',
-        data: predData,
-        smooth: true,
+        name: '预测', type: 'line', data: predData, smooth: true,
         lineStyle: { color: '#1890ff', width: 2, type: 'dashed' },
-        itemStyle: { color: '#1890ff' },
-        showSymbol: false,
-        markLine: isWater
-          ? {
-              silent: true,
-              symbol: 'none',
-              data: [
-                {
-                  xAxis: nowLabel,
-                  lineStyle: { color: '#f59e0b', type: 'solid', width: 1 },
-                  label: { formatter: '当前', color: '#f59e0b', fontSize: 10 },
-                },
-                {
-                  yAxis: warnLevel,
-                  lineStyle: { color: '#ef4444', type: 'dashed', width: 1 },
-                  label: { formatter: '预警', color: '#ef4444', fontSize: 10 },
-                },
-              ],
-            }
-          : {
-              silent: true,
-              symbol: 'none',
-              data: [
-                {
-                  xAxis: nowLabel,
-                  lineStyle: { color: '#f59e0b' },
-                  label: { formatter: '当前', fontSize: 10 },
-                },
-              ],
-            },
+        itemStyle: { color: '#1890ff' }, showSymbol: false,
+        markLine: isWater ? {
+          silent: true,
+          symbol: 'none',
+          data: [
+            { xAxis: nowLabel, lineStyle: { color: '#f59e0b', type: 'solid', width: 1 }, label: { formatter: '当前', color: '#f59e0b', fontSize: 10 } },
+            { yAxis: warnLevel, lineStyle: { color: '#ef4444', type: 'dashed', width: 1 }, label: { formatter: '预警', color: '#ef4444', fontSize: 10 } },
+          ],
+        } : {
+          silent: true, symbol: 'none',
+          data: [{ xAxis: nowLabel, lineStyle: { color: '#f59e0b' }, label: { formatter: '当前', fontSize: 10 } }],
+        },
       },
     ],
   }
@@ -434,10 +416,7 @@ function formatTime(iso: string | null) {
 
 function statusLabel(s: string) {
   const map: Record<string, string> = {
-    executed: '成功',
-    failed: '失败',
-    rejected: '已取消',
-    pending: '待执行',
+    executed: '成功', failed: '失败', rejected: '已取消', pending: '待执行',
   }
   return map[s] ?? s
 }
@@ -481,16 +460,17 @@ async function toggleMode(next: 'auto' | 'manual') {
   try {
     await ElMessageBox.confirm(
       `确认切换运行模式为「${DISPATCH_MODE_MAP[next].label}」？`,
-      '二次确认',
-      { type: 'warning' },
+      '二次确认', { type: 'warning' },
     )
     await putDispatchMode(next)
     recordLog('调度决策', '切换模式', `运行模式 → ${DISPATCH_MODE_MAP[next].label}`, 1)
     ElMessage.success('运行模式已更新')
     await refreshAll()
-  } catch {
-    /* cancel */
-  }
+  } catch { /* cancel */ }
+}
+
+function executeSuccessMsg(res: { data?: { command_id?: string } | null }, fallback = '指令已下发') {
+  return res.data?.command_id ? `${fallback} · ${res.data.command_id}` : fallback
 }
 
 async function handleAccept() {
@@ -498,17 +478,15 @@ async function handleAccept() {
   try {
     await ElMessageBox.confirm(
       `确认采纳建议，将开度调整至 ${decision.value.recommended_opening}%？`,
-      '采纳建议',
-      { type: 'warning' },
+      '采纳建议', { type: 'warning' },
     )
-    await postAcceptDecision()
+    const res = await postAcceptDecision(decision.value.id, decision.value.recommended_opening)
     recordLog('调度决策', '采纳建议', `开度 → ${decision.value.recommended_opening}%`, 1)
-    ElMessage.success('建议已采纳并下发')
+    ElMessage.success(executeSuccessMsg(res, '建议已采纳并下发'))
+    afterExecuteSuccess(res)
     decisionDialogVisible.value = false
     await refreshAll()
-  } catch {
-    /* cancel */
-  }
+  } catch { /* cancel */ }
 }
 
 async function handleExecute() {
@@ -524,17 +502,15 @@ async function handleExecute() {
   try {
     await ElMessageBox.confirm(
       `目标开度 ${targetOpening.value}%（较当前 ${delta >= 0 ? '+' : ''}${delta}%）`,
-      '确认执行',
-      { type: 'warning' },
+      '确认执行', { type: 'warning' },
     )
-    await postExecute(targetOpening.value)
+    const res = await postExecute(targetOpening.value)
     userModifiedTarget.value = false
     recordLog('调度决策', '手动执行', `开度 ${targetOpening.value}%`, 1)
-    ElMessage.success('指令已下发')
+    ElMessage.success(executeSuccessMsg(res))
+    afterExecuteSuccess(res)
     await refreshAll()
-  } catch {
-    /* cancel */
-  }
+  } catch { /* cancel */ }
 }
 
 async function handleCancelExecute() {
@@ -544,21 +520,13 @@ async function handleCancelExecute() {
       executingTarget.value != null
         ? `确认取消正在执行的指令（目标 ${executingTarget.value}%）？`
         : '确认取消正在执行的指令？',
-      '取消执行',
-      { type: 'warning' },
+      '取消执行', { type: 'warning' },
     )
     await postCancelExecute()
-    recordLog(
-      '调度决策',
-      '取消执行',
-      executingTarget.value != null ? `目标 ${executingTarget.value}%` : '执行中指令',
-      1,
-    )
+    recordLog('调度决策', '取消执行', executingTarget.value != null ? `目标 ${executingTarget.value}%` : '执行中指令', 1)
     ElMessage.success('已取消执行')
     await refreshAll()
-  } catch {
-    /* cancel */
-  }
+  } catch { /* cancel */ }
 }
 
 async function handleReDispatch() {
@@ -566,18 +534,18 @@ async function handleReDispatch() {
   const from = executingTarget.value!
   const to = targetOpening.value
   try {
-    await ElMessageBox.confirm(`取消当前执行（${from}%）并改派为 ${to}%？`, '改派执行', {
-      type: 'warning',
-    })
+    await ElMessageBox.confirm(
+      `取消当前执行（${from}%）并改派为 ${to}%？`,
+      '改派执行', { type: 'warning' },
+    )
     await postCancelExecute()
-    await postExecute(to)
+    const res = await postExecute(to)
     userModifiedTarget.value = false
     recordLog('调度决策', '改派执行', `${from}% → ${to}%`, 1)
-    ElMessage.success('已改派并重新下发')
+    ElMessage.success(executeSuccessMsg(res, '已改派并重新下发'))
+    afterExecuteSuccess(res)
     await refreshAll()
-  } catch {
-    /* cancel */
-  }
+  } catch { /* cancel */ }
 }
 
 async function handleIgnore() {
@@ -593,8 +561,7 @@ async function submitLevel() {
   try {
     await ElMessageBox.confirm(
       `确认切换自动执行权限为 ${AUTO_LEVEL_MAP[pendingLevel.value].label}？`,
-      '二次确认',
-      { type: 'warning' },
+      '二次确认', { type: 'warning' },
     )
     const res = await putAutoLevel(pendingLevel.value)
     const autoResult = res.data as { executed?: boolean; message?: string } | null
@@ -611,9 +578,7 @@ async function submitLevel() {
     } else {
       ElMessage.success('权限等级已更新')
     }
-  } catch {
-    /* cancel */
-  }
+  } catch { /* cancel */ }
 }
 
 function toggleRecordExpand(id: number) {
@@ -621,13 +586,8 @@ function toggleRecordExpand(id: number) {
 }
 
 watch(predictTerm, () => refreshAll())
-watch(recordKeyword, () => {
-  recordPageNum.value = 1
-  expandedRecordId.value = null
-})
-watch(recordPageNum, () => {
-  expandedRecordId.value = null
-})
+watch(recordKeyword, () => { recordPageNum.value = 1; expandedRecordId.value = null })
+watch(recordPageNum, () => { expandedRecordId.value = null })
 
 function applyRecordQuery() {
   const id = Number(route.query.recordId)
@@ -656,54 +616,27 @@ onUnmounted(() => {
           <div class="mode-row">
             <span class="lbl">运行模式</span>
             <div class="mode-btns">
-              <button
-                type="button"
-                class="mode-btn"
-                :class="{ active: status.mode === 'auto' }"
-                @click="toggleMode('auto')"
-              >
-                自动
-              </button>
-              <button
-                type="button"
-                class="mode-btn"
-                :class="{ active: status.mode === 'manual' }"
-                @click="toggleMode('manual')"
-              >
-                手动
-              </button>
+              <button type="button" class="mode-btn" :class="{ active: status.mode === 'auto' }" @click="toggleMode('auto')">自动</button>
+              <button type="button" class="mode-btn" :class="{ active: status.mode === 'manual' }" @click="toggleMode('manual')">手动</button>
             </div>
-            <ElTag v-if="status.isExecuting" type="warning" size="small" effect="plain"
-              >执行中</ElTag
-            >
+            <ElTag v-if="status.isExecuting" type="warning" size="small" effect="plain">执行中</ElTag>
           </div>
           <div class="metric-grid metric-grid--compact">
-            <div class="metric">
-              <span>上游水位</span><strong>{{ status.upstreamLevel.toFixed(2) }} m</strong>
-            </div>
-            <div class="metric">
-              <span>下游水位</span><strong>{{ status.downstreamLevel.toFixed(2) }} m</strong>
-            </div>
-            <div class="metric">
-              <span>入库流量</span><strong>{{ status.flowRate }} m³/s</strong>
-            </div>
-            <div class="metric">
-              <span>闸门开度</span><strong>{{ status.gateOpening }}%</strong>
-            </div>
+            <div class="metric"><span>上游水位</span><strong>{{ status.upstreamLevel.toFixed(2) }} m</strong></div>
+            <div class="metric"><span>下游水位</span><strong>{{ status.downstreamLevel.toFixed(2) }} m</strong></div>
+            <div class="metric"><span>入库流量</span><strong>{{ status.flowRate }} m³/s</strong></div>
+            <div class="metric"><span>闸门开度</span><strong>{{ status.gateOpening }}%</strong></div>
           </div>
           <div class="status-foot">末次调度：{{ formatTime(status.lastDispatchAt) }}</div>
         </GlassPanel3D>
 
         <GlassPanel3D title="三级自动执行权限">
           <div
-            v-for="lv in AUTO_LEVEL_OPTIONS"
-            :key="lv.value"
+            v-for="lv in AUTO_LEVEL_OPTIONS" :key="lv.value"
             class="level-card"
             :class="{ active: status.autoLevel === lv.value }"
             :style="{ '--lv-color': lv.color }"
-            @click="canModifyLevel &&
-              status.autoLevel !== lv.value &&
-              ((pendingLevel = lv.value as 1 | 2 | 3), (levelDialogVisible = true))"
+            @click="canModifyLevel && status.autoLevel !== lv.value && (pendingLevel = lv.value as 1|2|3, levelDialogVisible = true)"
           >
             <strong>{{ lv.label }}</strong>
             <p>{{ lv.description }}</p>
@@ -714,10 +647,7 @@ onUnmounted(() => {
         <GlassPanel3D title="手动干预">
           <p v-if="!canManualControl" class="manual-tip">自动模式且非 L1 时，手动控制已锁定</p>
           <div v-if="status.isExecuting" class="manual-exec-banner">
-            <span
-              >执行中：目标 <strong>{{ executingTarget ?? targetOpening }}%</strong> · 当前开度
-              {{ status.gateOpening }}%</span
-            >
+            <span>执行中：目标 <strong>{{ executingTarget ?? targetOpening }}%</strong> · 当前开度 {{ status.gateOpening }}%</span>
           </div>
           <div class="manual-row">
             <span>目标开度</span>
@@ -732,37 +662,25 @@ onUnmounted(() => {
               @change="onTargetInput"
             />
             <span class="unit">%</span>
-            <span class="delta"
-              >Δ {{ targetOpening - status.gateOpening >= 0 ? '+' : ''
-              }}{{ targetOpening - status.gateOpening }}%</span
-            >
+            <span class="delta">Δ {{ targetOpening - status.gateOpening >= 0 ? '+' : '' }}{{ targetOpening - status.gateOpening }}%</span>
           </div>
           <ElSlider
-            v-model="targetOpening"
-            :min="OPENING_MIN"
-            :max="OPENING_MAX"
-            :step="OPENING_STEP"
+            v-model="targetOpening" :min="OPENING_MIN" :max="OPENING_MAX" :step="OPENING_STEP"
             :disabled="!canManualControl"
             @change="onTargetInput"
           />
-          <p
-            v-if="canManualControl && !status.isExecuting && targetOpening === status.gateOpening"
-            class="manual-hint"
-          >
+          <p v-if="canManualControl && !status.isExecuting && targetOpening === status.gateOpening" class="manual-hint">
             与当前开度相同，调整目标值后可执行
           </p>
           <div class="manual-actions">
             <template v-if="status.isExecuting">
-              <ElButton type="warning" class="manual-action-btn" @click="handleCancelExecute"
-                >取消执行</ElButton
-              >
+              <ElButton type="warning" class="manual-action-btn" @click="handleCancelExecute">取消执行</ElButton>
               <ElButton
                 v-if="canReDispatch"
                 type="primary"
                 class="manual-action-btn"
                 @click="handleReDispatch"
-                >改派执行</ElButton
-              >
+              >改派执行</ElButton>
             </template>
             <ElButton
               v-else
@@ -771,9 +689,12 @@ onUnmounted(() => {
               class="manual-exec"
               :disabled="!canSubmitExecute"
               @click="handleExecute"
-              >执行</ElButton
-            >
+            >执行</ElButton>
           </div>
+          <p v-if="lastCommandId" class="trace-link">
+            最近指令 <code>{{ lastCommandId }}</code>
+            <ElButton link type="primary" @click="openCommandTrace(lastCommandId!)">查看全链路追踪</ElButton>
+          </p>
         </GlassPanel3D>
       </div>
 
@@ -781,10 +702,7 @@ onUnmounted(() => {
         <div class="decision-summary">
           <div class="decision-action">
             <span class="lbl">推荐动作</span>
-            <p class="action-val">
-              闸门开至 <strong>{{ decision.recommended_opening }}%</strong>
-              <em>{{ openingDirection }}</em>
-            </p>
+            <p class="action-val">闸门开至 <strong>{{ decision.recommended_opening }}%</strong> <em>{{ openingDirection }}</em></p>
             <span class="lbl">预期效果</span>
             <p class="effect-val">{{ expectedEffect }}</p>
           </div>
@@ -793,26 +711,13 @@ onUnmounted(() => {
               <span>置信度</span>
               <strong :style="{ color: confidenceColor }">{{ confidenceValue }}%</strong>
             </div>
-            <ElProgress
-              :percentage="confidenceValue"
-              :color="confidenceColor"
-              :stroke-width="10"
-              :show-text="false"
-            />
+            <ElProgress :percentage="confidenceValue" :color="confidenceColor" :stroke-width="10" :show-text="false" />
             <p v-if="confidenceValue < 60" class="conf-warn">建议人工复核后再执行</p>
           </div>
         </div>
         <div class="decision-btns">
-          <ElButton type="primary" :icon="View" @click="decisionDialogVisible = true"
-            >查看详情</ElButton
-          >
-          <ElButton
-            type="success"
-            :icon="CircleCheck"
-            :disabled="status.isExecuting"
-            @click="handleAccept"
-            >采纳建议</ElButton
-          >
+          <ElButton type="primary" :icon="View" @click="decisionDialogVisible = true">查看详情</ElButton>
+          <ElButton type="success" :icon="CircleCheck" :disabled="status.isExecuting" @click="handleAccept">采纳建议</ElButton>
           <ElButton :icon="CircleClose" @click="ignoreVisible = true">忽略</ElButton>
         </div>
       </GlassPanel3D>
@@ -821,13 +726,10 @@ onUnmounted(() => {
     <!-- §3.6 LSTM 预测图 -->
     <GlassPanel3D title="LSTM 预测" class="panel-chart">
       <div class="chart-toolbar">
-        <ElSelect v-model="predictTerm" size="small" style="width: 72px">
-          <ElOption :value="1" label="1h" /><ElOption :value="2" label="3h" /><ElOption
-            :value="3"
-            label="6h"
-          />
+        <ElSelect v-model="predictTerm" size="small" style="width:72px">
+          <ElOption :value="1" label="1h" /><ElOption :value="2" label="3h" /><ElOption :value="3" label="6h" />
         </ElSelect>
-        <ElSelect v-model="metricKey" size="small" style="width: 80px">
+        <ElSelect v-model="metricKey" size="small" style="width:80px">
           <ElOption label="水位" value="water" /><ElOption label="流量" value="flow" />
         </ElSelect>
         <ElButton :icon="Refresh" circle size="small" @click="refreshAll" />
@@ -846,18 +748,10 @@ onUnmounted(() => {
           <ElTag :type="SYNC_STATUS_MAP[physicsGuard.sync_status]?.type ?? 'info'" size="small">
             {{ SYNC_STATUS_MAP[physicsGuard.sync_status]?.label ?? physicsGuard.sync_status }}
           </ElTag>
-          <span
-            >紧急 <strong>{{ physicsGuard.upstream_emergency }} m</strong></span
-          >
-          <span
-            >危险 <strong>{{ physicsGuard.upstream_danger }} m</strong></span
-          >
-          <span
-            >预警 <strong>{{ physicsGuard.upstream_warning }} m</strong></span
-          >
-          <span
-            >L3 置信度 <strong>{{ physicsGuard.fusion_l3_confidence }}</strong></span
-          >
+          <span>紧急 <strong>{{ physicsGuard.upstream_emergency }} m</strong></span>
+          <span>危险 <strong>{{ physicsGuard.upstream_danger }} m</strong></span>
+          <span>预警 <strong>{{ physicsGuard.upstream_warning }} m</strong></span>
+          <span>L3 置信度 <strong>{{ physicsGuard.fusion_l3_confidence }}</strong></span>
           <span v-if="physicsGuard.last_sync_at" class="physics-sync">
             同步 {{ formatTime(physicsGuard.last_sync_at) }}
           </span>
@@ -876,13 +770,12 @@ onUnmounted(() => {
       />
       <div class="record-table-wrap">
         <div class="record-head">
-          <span>时间</span><span>模式</span><span>动作</span><span>目标开度</span><span>互锁</span
-          ><span>结果</span><span>操作人</span>
+          <span>时间</span><span>模式</span><span>动作</span><span>目标开度</span><span>互锁</span><span>结果</span><span>操作人</span>
         </div>
         <template v-for="row in pagedRecords" :key="row.id">
           <div class="record-row" @click="toggleRecordExpand(row.id)">
             <span class="mono">{{ formatTime(row.decision_time) }}</span>
-            <span>{{ row.decision_mode }}</span>
+            <span>{{ row.decision_mode_label ?? row.decision_mode }}</span>
             <span>{{ row.action ?? '—' }}</span>
             <span>{{ row.recommended_opening }}%</span>
             <span class="record-interlock">
@@ -896,55 +789,30 @@ onUnmounted(() => {
               </ElTag>
               <span v-else class="record-interlock--ok">—</span>
             </span>
-            <span
-              ><ElTag :type="statusTagType(row.execution_status)" size="default">{{
-                statusLabel(row.execution_status)
-              }}</ElTag></span
-            >
+            <span><ElTag :type="statusTagType(row.execution_status)" size="default">{{ statusLabel(row.execution_status) }}</ElTag></span>
             <span>{{ row.operator_name ?? '—' }}</span>
           </div>
           <div v-if="expandedRecordId === row.id && row.snapshot" class="record-expand">
-            <p>
-              <strong>决策快照</strong> · 置信度 {{ row.snapshot.confidence }}% · 推荐开度
-              {{ row.snapshot.recommended_opening }}%
-            </p>
+            <p><strong>决策快照</strong> · 置信度 {{ row.snapshot.confidence }}% · 推荐开度 {{ row.snapshot.recommended_opening }}%</p>
             <div v-if="row.physics_validation" class="snap-validation">
               <span>推理指标</span>
-              <span
-                >等级
-                {{
-                  DECISION_LEVEL_MAP[row.physics_validation.decision_level] ??
-                  row.physics_validation.decision_level
-                }}</span
-              >
-              <span
-                >综合贡献
-                {{ formatContribution(row.physics_validation.contribution.overall) }}</span
-              >
+              <span>等级 {{ DECISION_LEVEL_MAP[row.physics_validation.decision_level] ?? row.physics_validation.decision_level }}</span>
+              <span>综合贡献 {{ formatContribution(row.physics_validation.contribution.overall) }}</span>
               <ElTag
                 v-if="row.physics_validation.interlock?.triggered"
                 type="warning"
                 size="small"
                 effect="plain"
               >
-                互锁 ·
-                {{
-                  row.physics_validation.interlock.rules
-                    .map((r) => INTERLOCK_RULE_MAP[r] ?? r)
-                    .join(' / ')
-                }}
+                互锁 · {{ row.physics_validation.interlock.rules.map((r) => INTERLOCK_RULE_MAP[r] ?? r).join(' / ') }}
               </ElTag>
               <ElTag v-else type="success" size="small" effect="plain">互锁通过</ElTag>
             </div>
             <div class="snap-factors">
-              <span v-for="f in row.snapshot.factors" :key="f.name"
-                >{{ f.name }} {{ f.value }} ({{ (f.weight * 100).toFixed(0) }}%)</span
-              >
+              <span v-for="f in row.snapshot.factors" :key="f.name">{{ f.name }} {{ f.value }} ({{ (f.weight * 100).toFixed(0) }}%)</span>
             </div>
             <div class="snap-plans">
-              <span v-for="p in row.snapshot.plans" :key="p.id" :class="{ rec: p.recommended }"
-                >{{ p.id }} {{ p.opening }}% 得分{{ p.totalScore }}</span
-              >
+              <span v-for="p in row.snapshot.plans" :key="p.id" :class="{ rec: p.recommended }">{{ p.id }} {{ p.opening }}% 得分{{ p.totalScore }}</span>
             </div>
           </div>
         </template>
@@ -966,6 +834,10 @@ onUnmounted(() => {
       <GateActionsPanel />
     </GlassPanel3D>
 
+    <GlassPanel3D title="急停日志" class="panel-estop-logs">
+      <EmergencyStopPanel />
+    </GlassPanel3D>
+
     <!-- 决策详情弹窗 §3.4 -->
     <ElDialog
       v-model="decisionDialogVisible"
@@ -979,8 +851,7 @@ onUnmounted(() => {
         <div class="detail-block">
           <h4>推荐动作与预期效果</h4>
           <p class="detail-summary">
-            开度 <strong>{{ decision.recommended_opening }}%</strong>（当前
-            {{ decision.current_opening }}%）· {{ expectedEffect }}
+            开度 <strong>{{ decision.recommended_opening }}%</strong>（当前 {{ decision.current_opening }}%）· {{ expectedEffect }}
           </p>
         </div>
         <div class="detail-block">
@@ -990,11 +861,7 @@ onUnmounted(() => {
             <ElTableColumn prop="value" label="当前值" min-width="160" />
             <ElTableColumn label="方向" width="90" align="center">
               <template #default="{ row }">
-                <span
-                  class="factor-dir"
-                  :style="{ color: FACTOR_DIRECTION_MAP[row.direction]?.color }"
-                  >{{ FACTOR_DIRECTION_MAP[row.direction]?.icon }}</span
-                >
+                <span class="factor-dir" :style="{ color: FACTOR_DIRECTION_MAP[row.direction]?.color }">{{ FACTOR_DIRECTION_MAP[row.direction]?.icon }}</span>
               </template>
             </ElTableColumn>
             <ElTableColumn label="权重" width="100" align="right">
@@ -1004,13 +871,7 @@ onUnmounted(() => {
         </div>
         <div class="detail-block">
           <h4>方案对比</h4>
-          <ElTable
-            :data="decision.alternatives"
-            border
-            stripe
-            class="detail-table"
-            :row-class-name="({ row }) => (row.recommended ? 'row-rec' : '')"
-          >
+          <ElTable :data="decision.alternatives" border stripe class="detail-table" :row-class-name="({ row }) => row.recommended ? 'row-rec' : ''">
             <ElTableColumn prop="id" label="方案" width="120" />
             <ElTableColumn prop="opening" label="目标开度(%)" width="130" align="right" />
             <ElTableColumn prop="expectedLevel" label="预期水位(m)" width="140" align="right" />
@@ -1026,9 +887,7 @@ onUnmounted(() => {
           <h4>置信度</h4>
           <ElProgress :percentage="confidenceValue" :color="confidenceColor" :stroke-width="20" />
           <p v-if="confidenceValue < 60" class="conf-warn">建议人工复核后再执行</p>
-          <p class="detail-meta">
-            trace: {{ decision.trace_id }} · 决策时间 {{ formatTime(decision.decision_time) }}
-          </p>
+          <p class="detail-meta">trace: {{ decision.trace_id }} · 决策时间 {{ formatTime(decision.decision_time) }}</p>
         </div>
 
         <!-- 本次推理指标 — 三维评判体系 -->
@@ -1039,11 +898,7 @@ onUnmounted(() => {
               <dl class="metric-dl">
                 <div class="metric-dl__row">
                   <dt>物理校验</dt>
-                  <dd
-                    :class="{
-                      'is-abnormal': (physicsValidation.physics_correction_steps ?? 0) > 0,
-                    }"
-                  >
+                  <dd :class="{ 'is-abnormal': (physicsValidation.physics_correction_steps ?? 0) > 0 }">
                     {{ physicsCheckLabel(physicsValidation) }}
                   </dd>
                 </div>
@@ -1062,9 +917,7 @@ onUnmounted(() => {
                 <div class="metric-dl__row">
                   <dt>贡献</dt>
                   <dd :class="contributionClass(physicsValidation.contribution.prediction)">
-                    {{
-                      formatContribution(physicsValidation.contribution.prediction)
-                    }}（Prediction_Score）
+                    {{ formatContribution(physicsValidation.contribution.prediction) }}（Prediction_Score）
                   </dd>
                 </div>
               </dl>
@@ -1075,26 +928,15 @@ onUnmounted(() => {
                 <div class="metric-dl__row">
                   <dt>安全约束</dt>
                   <dd :class="{ 'is-abnormal': physicsValidation.safety_overridden }">
-                    {{
-                      physicsValidation.safety_overridden
-                        ? `✗ 覆盖 · ${physicsValidation.safety_override_reason || '安全规则一票否决'}`
-                        : '✓ 通过'
-                    }}
+                    {{ physicsValidation.safety_overridden
+                      ? `✗ 覆盖 · ${physicsValidation.safety_override_reason || '安全规则一票否决'}`
+                      : '✓ 通过' }}
                   </dd>
                 </div>
                 <div class="metric-dl__row">
                   <dt>决策等级</dt>
-                  <dd
-                    :class="{
-                      'is-abnormal': ['L1_MANUAL', 'OVERRIDE'].includes(
-                        physicsValidation.decision_level,
-                      ),
-                    }"
-                  >
-                    {{
-                      DECISION_LEVEL_MAP[physicsValidation.decision_level] ??
-                      physicsValidation.decision_level
-                    }}
+                  <dd :class="{ 'is-abnormal': ['L1_MANUAL', 'OVERRIDE'].includes(physicsValidation.decision_level) }">
+                    {{ DECISION_LEVEL_MAP[physicsValidation.decision_level] ?? physicsValidation.decision_level }}
                   </dd>
                 </div>
                 <div class="metric-dl__row">
@@ -1109,11 +951,9 @@ onUnmounted(() => {
                 <div class="metric-dl__row">
                   <dt>指令平滑</dt>
                   <dd :class="{ 'is-abnormal': physicsValidation.command_smoothed }">
-                    {{
-                      physicsValidation.command_smoothed
-                        ? `✗ 过滤 · ${physicsValidation.smooth_reason || '变化率超限'}`
-                        : '✓ 通过'
-                    }}
+                    {{ physicsValidation.command_smoothed
+                      ? `✗ 过滤 · ${physicsValidation.smooth_reason || '变化率超限'}`
+                      : '✓ 通过' }}
                   </dd>
                 </div>
                 <div class="metric-dl__row">
@@ -1125,9 +965,7 @@ onUnmounted(() => {
                 <div class="metric-dl__row">
                   <dt>贡献</dt>
                   <dd :class="contributionClass(physicsValidation.contribution.decision)">
-                    {{
-                      formatContribution(physicsValidation.contribution.decision)
-                    }}（Decision_Score）
+                    {{ formatContribution(physicsValidation.contribution.decision) }}（Decision_Score）
                   </dd>
                 </div>
               </dl>
@@ -1156,9 +994,7 @@ onUnmounted(() => {
                 <div class="metric-dl__row">
                   <dt>贡献</dt>
                   <dd :class="contributionClass(physicsValidation.contribution.compliance)">
-                    {{
-                      formatContribution(physicsValidation.contribution.compliance)
-                    }}（Compliance_Score）
+                    {{ formatContribution(physicsValidation.contribution.compliance) }}（Compliance_Score）
                   </dd>
                 </div>
               </dl>
@@ -1166,9 +1002,7 @@ onUnmounted(() => {
           </ElCollapse>
 
           <div class="inference-overall" :class="overallContributionMeta(physicsValidation).cls">
-            <span class="inference-overall__icon">{{
-              overallContributionMeta(physicsValidation).icon
-            }}</span>
+            <span class="inference-overall__icon">{{ overallContributionMeta(physicsValidation).icon }}</span>
             <span>
               本次综合贡献 {{ formatContribution(physicsValidation.contribution.overall) }} ·
               {{ overallContributionMeta(physicsValidation).text }}
@@ -1179,16 +1013,48 @@ onUnmounted(() => {
       <template #footer>
         <ElButton size="large" @click="ignoreVisible = true">忽略</ElButton>
         <ElButton size="large" @click="decisionDialogVisible = false">关闭</ElButton>
-        <ElButton size="large" type="primary" :disabled="status.isExecuting" @click="handleAccept"
-          >采纳建议</ElButton
-        >
+        <ElButton size="large" type="primary" :disabled="status.isExecuting" @click="handleAccept">采纳建议</ElButton>
+      </template>
+    </ElDialog>
+
+    <ElDialog v-model="traceVisible" title="指令全链路追踪" width="640px">
+      <div v-loading="traceLoading">
+        <template v-if="commandTrace">
+          <div class="trace-head">
+            <p><strong>{{ commandTrace.command_id }}</strong></p>
+            <p class="trace-meta">
+              <ElTag :type="COMMAND_STATUS_MAP[commandTrace.status]?.type ?? 'info'" size="small">
+                {{ COMMAND_STATUS_MAP[commandTrace.status]?.label ?? commandTrace.status }}
+              </ElTag>
+              · {{ COMMAND_TYPE_MAP[commandTrace.command_type] ?? commandTrace.command_type }}
+              · 目标开度 {{ commandTrace.target_opening }}%
+              <span v-if="commandTrace.full_delay_ms != null"> · 全链路 {{ commandTrace.full_delay_ms }}ms</span>
+            </p>
+            <p class="trace-meta muted">trace: {{ commandTrace.trace_id }}</p>
+          </div>
+          <ElTimeline>
+            <ElTimelineItem
+              v-for="step in traceSteps"
+              :key="step.key"
+              :type="isTraceStepDone(step.key, commandTrace) ? 'success' : 'info'"
+              :hollow="!isTraceStepDone(step.key, commandTrace)"
+              :timestamp="step.time ? formatTime(step.time) : '—'"
+            >
+              {{ step.label }}
+            </ElTimelineItem>
+          </ElTimeline>
+          <p v-if="commandTrace.reject_reason" class="trace-reject">驳回原因：{{ commandTrace.reject_reason }}</p>
+        </template>
+        <p v-else-if="!traceLoading" class="trace-empty">暂无追踪数据</p>
+      </div>
+      <template #footer>
+        <ElButton @click="traceVisible = false">关闭</ElButton>
+        <ElButton type="primary" :loading="traceLoading" @click="refreshCommandTrace">刷新状态</ElButton>
       </template>
     </ElDialog>
 
     <ElDialog v-model="levelDialogVisible" title="变更自动执行权限" width="480px">
-      <p>
-        确认切换为：<strong>{{ AUTO_LEVEL_MAP[pendingLevel]?.label }}</strong>
-      </p>
+      <p>确认切换为：<strong>{{ AUTO_LEVEL_MAP[pendingLevel]?.label }}</strong></p>
       <p class="sub">{{ AUTO_LEVEL_MAP[pendingLevel]?.description }}</p>
       <template #footer>
         <ElButton @click="levelDialogVisible = false">取消</ElButton>
@@ -1197,9 +1063,7 @@ onUnmounted(() => {
     </ElDialog>
 
     <ElDialog v-model="ignoreVisible" title="忽略建议" width="420px">
-      <ElFormItem label="原因（选填）"
-        ><ElInput v-model="ignoreReason" type="textarea" :rows="3" placeholder="可填写忽略原因"
-      /></ElFormItem>
+      <ElFormItem label="原因（选填）"><ElInput v-model="ignoreReason" type="textarea" :rows="3" placeholder="可填写忽略原因" /></ElFormItem>
       <template #footer>
         <ElButton @click="ignoreVisible = false">取消</ElButton>
         <ElButton type="warning" @click="handleIgnore">确认忽略</ElButton>
@@ -1218,35 +1082,20 @@ onUnmounted(() => {
         <ElTableColumn prop="description" label="变更说明" min-width="200" show-overflow-tooltip />
         <ElTableColumn label="状态" width="88" align="center">
           <template #default="{ row }">
-            <ElTag :type="row.is_active ? 'success' : 'info'" size="small">{{
-              row.is_active ? '生效中' : '历史'
-            }}</ElTag>
+            <ElTag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '生效中' : '历史' }}</ElTag>
           </template>
         </ElTableColumn>
         <ElTableColumn label="操作" width="140" align="center" fixed="right">
           <template #default="scope">
-            <ElButton
-              link
-              type="primary"
-              @click="openHistoryDetail(scope.row as PhysicsGuardHistoryItem)"
-              >详情</ElButton
-            >
-            <ElButton
-              v-if="!(scope.row as PhysicsGuardHistoryItem).is_active"
-              link
-              type="warning"
-              @click="handleRollback(scope.row as PhysicsGuardHistoryItem)"
-              >回滚</ElButton
-            >
+            <ElButton link type="primary" @click="openHistoryDetail(scope.row as PhysicsGuardHistoryItem)">详情</ElButton>
+            <ElButton v-if="!(scope.row as PhysicsGuardHistoryItem).is_active" link type="warning" @click="handleRollback(scope.row as PhysicsGuardHistoryItem)">回滚</ElButton>
           </template>
         </ElTableColumn>
       </ElTable>
       <template #footer>
         <div class="history-dialog-footer">
           <span class="history-dialog-footer-hint">需切换水库或编辑配置？</span>
-          <ElButton link type="primary" @click="goPhysicsGuardHistorySettings"
-            >前往设置页管理 →</ElButton
-          >
+          <ElButton link type="primary" @click="goPhysicsGuardHistorySettings">前往设置页管理 →</ElButton>
         </div>
       </template>
     </ElDialog>
@@ -1255,10 +1104,11 @@ onUnmounted(() => {
       <template v-if="historyDetailRow">
         <p class="history-detail-meta">
           <strong>v{{ historyDetailRow.config_version }}</strong>
-          · {{ historyDetailRow.changed_by_name }} · {{ formatTime(historyDetailRow.changed_at) }}
+          · {{ historyDetailRow.changed_by_name }}
+          · {{ formatTime(historyDetailRow.changed_at) }}
         </p>
         <p>{{ historyDetailRow.description }}</p>
-        <ElTable :data="historyDetailRow.changes" border size="small" style="margin-top: 12px">
+        <ElTable :data="historyDetailRow.changes" border size="small" style="margin-top:12px">
           <ElTableColumn prop="label" label="字段" width="120" />
           <ElTableColumn prop="before" label="变更前" width="100" />
           <ElTableColumn prop="after" label="变更后" width="100" />
@@ -1269,10 +1119,10 @@ onUnmounted(() => {
 </template>
 
 <style scoped lang="scss">
-@use '@/assets/styles/text-mixins.scss' as *;
 @use '@/assets/styles/cockpit.scss' as *;
 
 .dispatch-page {
+  @include cockpit-page-white;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1285,9 +1135,7 @@ onUnmounted(() => {
   grid-template-columns: 1.35fr 0.85fr;
   gap: 14px;
   align-items: stretch;
-  @media (max-width: 1200px) {
-    grid-template-columns: 1fr;
-  }
+  @media (max-width: 1200px) { grid-template-columns: 1fr; }
 }
 
 .dispatch-control-group {
@@ -1295,572 +1143,215 @@ onUnmounted(() => {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   min-width: 0;
-  @media (max-width: 1100px) {
-    grid-template-columns: 1fr;
-  }
+  @media (max-width: 1100px) { grid-template-columns: 1fr; }
 }
 
-.panel-decision {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-}
+.panel-decision { min-height: 100%; display: flex; flex-direction: column; }
 
-.lbl {
-  font-size: 13px;
-  color: $cockpit-text-dim;
-  display: block;
-  margin-bottom: 4px;
-}
+.lbl { font-size: 13px; color: $cockpit-text-dim; display: block; margin-bottom: 4px; }
 
 .mode-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-  .lbl {
-    margin: 0;
-  }
+  display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
+  .lbl { margin: 0; }
 }
-.mode-btns {
-  display: flex;
-  gap: 6px;
-}
+.mode-btns { display: flex; gap: 6px; }
 .mode-btn {
-  padding: 7px 18px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  background: #fff;
-  color: #475569;
-  cursor: pointer;
-  font-size: 14px;
-  &.active {
-    background: #1890ff;
-    border-color: #1890ff;
-    color: #fff;
-    font-weight: 600;
-  }
+  padding: 7px 18px; border: 1px solid #cbd5e1; border-radius: 6px;
+  background: #fff; color: #475569; cursor: pointer; font-size: 14px;
+  &.active { background: #1890ff; border-color: #1890ff; color: #fff; font-weight: 600; }
 }
 
 .metric-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin-bottom: 12px;
-  &--compact {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  @media (max-width: 700px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px;
+  &--compact { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 700px) { grid-template-columns: repeat(2, 1fr); }
 }
 .metric {
-  padding: 12px 14px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  span {
-    display: block;
-    font-size: 13px;
-    color: $cockpit-text-dim;
-    margin-bottom: 4px;
-  }
-  strong {
-    font-size: 19px;
-    color: #1e293b;
-    font-family: 'SF Mono', monospace;
-  }
+  padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  span { display: block; font-size: 13px; color: $cockpit-text-dim; margin-bottom: 4px; }
+  strong { font-size: 19px; color: #1e293b; font-family: 'SF Mono', monospace; }
 }
 .status-foot {
-  font-size: 14px;
-  color: $cockpit-text-dim;
-  padding-top: 10px;
-  border-top: 1px solid #e2e8f0;
+  font-size: 14px; color: $cockpit-text-dim; padding-top: 10px; border-top: 1px solid #e2e8f0;
 }
 
-.decision-summary {
-  display: grid;
-  grid-template-columns: 1fr 200px;
-  gap: 16px;
-  margin-bottom: 14px;
-  @media (max-width: 700px) {
-    grid-template-columns: 1fr;
-  }
+.decision-summary { display: grid; grid-template-columns: 1fr 200px; gap: 16px; margin-bottom: 14px;
+  @media (max-width: 700px) { grid-template-columns: 1fr; }
 }
 .action-val {
-  margin: 0 0 12px;
-  font-size: 16px;
-  color: #1e293b;
-  strong {
-    font-size: 26px;
-    color: #1890ff;
-  }
-  em {
-    font-style: normal;
-    color: #64748b;
-    margin-left: 8px;
-    font-size: 14px;
-  }
+  margin: 0 0 12px; font-size: 16px; color: #1e293b;
+  strong { font-size: 26px; color: #1890ff; }
+  em { font-style: normal; color: #64748b; margin-left: 8px; font-size: 14px; }
 }
-.effect-val {
-  margin: 0;
-  font-size: 14px;
-  color: #475569;
-  line-height: 1.5;
-}
-.conf-head {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-.conf-warn {
-  margin: 8px 0 0;
-  font-size: 13px;
-  color: #d97706;
-}
-.decision-btns {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
+.effect-val { margin: 0; font-size: 14px; color: #475569; line-height: 1.5; }
+.conf-head { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+.conf-warn { margin: 8px 0 0; font-size: 13px; color: #d97706; }
+.decision-btns { display: flex; gap: 10px; flex-wrap: wrap; }
 
 .chart-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;
 }
-.chart-meta {
-  margin-left: auto;
-  font-size: 12px;
-  color: $cockpit-text-dim;
-}
-.lstm-chart {
-  width: 100%;
-  height: 340px;
-}
+.chart-meta { margin-left: auto; font-size: 12px; color: $cockpit-text-dim; }
+.lstm-chart { width: 100%; height: 340px; }
 
 .level-card {
-  padding: 14px 16px;
-  margin-bottom: 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  cursor: pointer;
-  background: #fff;
-  transition: border-color 0.2s;
-  strong {
-    display: block;
-    font-size: 16px;
-    margin-bottom: 6px;
-  }
-  p {
-    margin: 0;
-    font-size: 14px;
-    color: $cockpit-text-dim;
-    line-height: 1.55;
-  }
-  &.active {
-    border-color: var(--lv-color);
-    background: #f8fafc;
-    box-shadow: inset 3px 0 0 var(--lv-color);
-  }
+  padding: 14px 16px; margin-bottom: 10px; border: 1px solid #e2e8f0; border-radius: 8px;
+  cursor: pointer; background: #fff; transition: border-color 0.2s;
+  strong { display: block; font-size: 16px; margin-bottom: 6px; }
+  p { margin: 0; font-size: 14px; color: $cockpit-text-dim; line-height: 1.55; }
+  &.active { border-color: var(--lv-color); background: #f8fafc; box-shadow: inset 3px 0 0 var(--lv-color); }
 }
-.readonly-tip,
-.manual-tip {
-  font-size: 13px;
-  color: $cockpit-text-dim;
-  text-align: center;
-  margin-top: 8px;
-}
+.readonly-tip, .manual-tip { font-size: 13px; color: $cockpit-text-dim; text-align: center; margin-top: 8px; }
 
 .manual-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  font-size: 15px;
-  flex-wrap: wrap;
-  .unit {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1890ff;
-  }
-  .delta {
-    font-size: 14px;
-    color: #64748b;
-    margin-left: auto;
-  }
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 15px; flex-wrap: wrap;
+  .unit { font-size: 16px; font-weight: 600; color: #1890ff; }
+  .delta { font-size: 14px; color: #64748b; margin-left: auto; }
 }
 .manual-input {
   width: 120px;
-  :deep(.el-input__inner) {
-    font-size: 18px;
-    font-weight: 600;
-    text-align: center;
-  }
+  :deep(.el-input__inner) { font-size: 18px; font-weight: 600; text-align: center; }
 }
 .manual-exec-banner {
-  margin-bottom: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #fffbeb;
-  border: 1px solid #fcd34d;
-  font-size: 14px;
-  color: #92400e;
-  strong {
-    color: #b45309;
-    font-size: 18px;
-  }
+  margin-bottom: 10px; padding: 10px 12px; border-radius: 8px;
+  background: #fffbeb; border: 1px solid #fcd34d; font-size: 14px; color: #92400e;
+  strong { color: #b45309; font-size: 18px; }
 }
 .manual-hint {
-  margin: 8px 0 0;
-  font-size: 13px;
-  color: #64748b;
-  text-align: center;
+  margin: 8px 0 0; font-size: 13px; color: #64748b; text-align: center;
 }
 .manual-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 14px;
-  flex-wrap: wrap;
+  display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap;
 }
-.manual-action-btn {
-  flex: 1;
-  min-width: 0;
-  height: 40px;
-  font-size: 15px;
+.manual-action-btn { flex: 1; min-width: 0; height: 40px; font-size: 15px; }
+.manual-exec { margin-top: 0; height: 40px; font-size: 15px; }
+.trace-link {
+  margin: 12px 0 0; font-size: 13px; color: #64748b;
+  code { font-size: 12px; color: #334155; margin-right: 8px; }
 }
-.manual-exec {
-  margin-top: 0;
-  height: 40px;
-  font-size: 15px;
-}
+.trace-head { margin-bottom: 16px; }
+.trace-meta { margin: 6px 0 0; font-size: 13px; color: #475569; }
+.trace-meta.muted { color: #94a3b8; }
+.trace-reject { margin-top: 12px; color: #dc2626; font-size: 13px; }
+.trace-empty { color: #94a3b8; text-align: center; padding: 24px 0; }
 
-.panel-gate-actions {
-  flex-shrink: 0;
-  margin-top: 12px;
-}
-.panel-records {
-  flex: 1;
-  min-height: 320px;
-}
-.record-search {
-  margin-bottom: 14px;
-  max-width: 420px;
-}
-.record-table-wrap {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  overflow: hidden;
-}
-.record-head,
-.record-row {
+.panel-gate-actions { flex-shrink: 0; margin-top: 12px; }
+.panel-estop-logs { flex-shrink: 0; margin-top: 12px; }
+.panel-records { flex: 1; min-height: 320px; }
+.record-search { margin-bottom: 14px; max-width: 420px; }
+.record-table-wrap { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+.record-head, .record-row {
   display: grid;
   grid-template-columns: 168px 72px 1fr 100px 120px 100px 100px;
-  gap: 16px;
-  padding: 16px 20px;
-  font-size: 16px;
-  align-items: center;
+  gap: 16px; padding: 16px 20px; font-size: 16px; align-items: center;
   @media (max-width: 900px) {
     grid-template-columns: 140px 60px 1fr 80px 100px 88px 80px;
-    font-size: 14px;
-    gap: 10px;
-    padding: 12px 14px;
+    font-size: 14px; gap: 10px; padding: 12px 14px;
   }
 }
 .record-interlock {
   font-size: 13px;
-  &--ok {
-    color: #94a3b8;
-  }
+  &--ok { color: #94a3b8; }
 }
 .physics-guard-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 16px;
-  font-size: 14px;
-  color: #475569;
-  strong {
-    color: #1e293b;
-    font-family: 'SF Mono', monospace;
-  }
-  .physics-sync {
-    margin-left: auto;
-    font-size: 13px;
-    color: #64748b;
-  }
-  @media (max-width: 900px) {
-    .physics-sync {
-      margin-left: 0;
-      width: 100%;
-    }
-  }
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px;
+  font-size: 14px; color: #475569;
+  strong { color: #1e293b; font-family: 'SF Mono', monospace; }
+  .physics-sync { margin-left: auto; font-size: 13px; color: #64748b; }
+  @media (max-width: 900px) { .physics-sync { margin-left: 0; width: 100%; } }
 }
-.panel-physics-guard {
-  flex-shrink: 0;
-}
-.history-detail-meta {
-  margin: 0 0 8px;
-  font-size: 15px;
-  color: #334155;
-}
-.history-dialog-hint {
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: #64748b;
-}
+.panel-physics-guard { flex-shrink: 0; }
+.history-detail-meta { margin: 0 0 8px; font-size: 15px; color: #334155; }
+.history-dialog-hint { margin: 0 0 12px; font-size: 13px; color: #64748b; }
 .history-dialog-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  width: 100%;
-  .history-dialog-footer-hint {
-    font-size: 13px;
-    color: #94a3b8;
-  }
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px; width: 100%;
+  .history-dialog-footer-hint { font-size: 13px; color: #94a3b8; }
 }
 .record-head {
-  color: $cockpit-accent;
-  font-weight: 600;
-  font-size: 15px;
-  border-bottom: 1px solid #e2e8f0;
-  position: sticky;
-  top: 0;
-  background: #f8fafc;
-  z-index: 1;
+  color: $cockpit-accent; font-weight: 600; font-size: 15px;
+  border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; background: #f8fafc; z-index: 1;
 }
-.record-row {
-  border-bottom: 1px solid #f1f5f9;
-  cursor: pointer;
-  background: #fff;
-  &:hover {
-    background: #f8fafc;
-  }
-}
+.record-row { border-bottom: 1px solid #f1f5f9; cursor: pointer; background: #fff; }
 .record-expand {
-  padding: 14px 18px 16px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  font-size: 14px;
+  padding: 14px 18px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 14px;
   .snap-validation {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-    margin: 10px 0;
-    font-size: 13px;
-    color: #475569;
-    > span:first-child {
-      font-weight: 600;
-      color: #334155;
-    }
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0;
+    font-size: 13px; color: #475569;
+    > span:first-child { font-weight: 600; color: #334155; }
   }
-  .snap-factors,
-  .snap-plans {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 10px;
-    color: #475569;
-  }
-  .rec {
-    color: #16a34a;
-    font-weight: 600;
-  }
+  .snap-factors, .snap-plans { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; color: #475569; }
+  .rec { color: #16a34a; font-weight: 600; }
 }
-.record-empty {
-  text-align: center;
-  padding: 32px;
-  color: $cockpit-text-dim;
-  font-size: 15px;
-}
+.record-empty { text-align: center; padding: 32px; color: $cockpit-text-dim; font-size: 15px; }
 .record-footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 16px;
+  display: flex; justify-content: flex-end; margin-top: 16px;
 }
 .record-pagination {
-  :deep(.el-pagination__total) {
-    font-size: 15px;
-    color: #475569;
-  }
-  :deep(.btn-prev),
-  :deep(.btn-next),
-  :deep(.el-pager li) {
-    min-width: 36px;
-    height: 36px;
-    line-height: 36px;
-    font-size: 15px;
+  :deep(.el-pagination__total) { font-size: 15px; color: #475569; }
+  :deep(.btn-prev), :deep(.btn-next), :deep(.el-pager li) {
+    min-width: 36px; height: 36px; line-height: 36px; font-size: 15px;
   }
 }
-.mono {
-  font-family: 'SF Mono', monospace;
-  font-size: 14px;
-}
+.mono { font-family: 'SF Mono', monospace; font-size: 14px; }
 
 .detail-block {
   margin-bottom: 24px;
   h4 {
-    font-size: 18px;
-    color: #1e293b;
-    margin: 0 0 14px;
-    padding-left: 12px;
-    border-left: 4px solid #1890ff;
-    font-weight: 600;
+    font-size: 18px; color: #1e293b; margin: 0 0 14px; padding-left: 12px;
+    border-left: 4px solid #1890ff; font-weight: 600;
   }
-  p {
-    margin: 0;
-    color: #475569;
-    font-size: 16px;
-    line-height: 1.65;
-  }
+  p { margin: 0; color: #475569; font-size: 16px; line-height: 1.65; }
 }
-.detail-summary strong {
-  font-size: 22px;
-  color: #1890ff;
-}
-.factor-dir {
-  font-size: 20px;
-  font-weight: 600;
-}
-.detail-meta {
-  margin-top: 12px;
-  font-size: 14px;
-  color: $cockpit-text-dim;
-}
-.detail-conf .conf-warn {
-  font-size: 15px;
-}
-.sub {
-  color: #64748b;
-  font-size: 14px;
-}
+.detail-summary strong { font-size: 22px; color: #1890ff; }
+.factor-dir { font-size: 20px; font-weight: 600; }
+.detail-meta { margin-top: 12px; font-size: 14px; color: $cockpit-text-dim; }
+.detail-conf .conf-warn { font-size: 15px; }
+.sub { color: #64748b; font-size: 14px; }
 
 .inference-metrics {
   :deep(.el-collapse-item__header) {
-    font-size: 15px;
-    font-weight: 600;
-    color: #334155;
+    font-size: 15px; font-weight: 600; color: #334155;
   }
-  :deep(.el-collapse-item__content) {
-    padding-bottom: 8px;
-  }
+  :deep(.el-collapse-item__content) { padding-bottom: 8px; }
 }
 .metric-dl {
-  margin: 0;
-  padding: 0;
+  margin: 0; padding: 0;
   &__row {
-    display: grid;
-    grid-template-columns: 120px 1fr;
-    gap: 12px;
-    padding: 10px 0;
-    border-bottom: 1px solid #f1f5f9;
-    font-size: 15px;
-    &:last-child {
-      border-bottom: none;
-    }
+    display: grid; grid-template-columns: 120px 1fr; gap: 12px;
+    padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 15px;
+    &:last-child { border-bottom: none; }
   }
-  dt {
-    color: #64748b;
-  }
-  dd {
-    margin: 0;
-    color: #334155;
-    font-weight: 500;
-  }
-  .is-abnormal {
-    color: #dc2626;
-  }
+  dt { color: #64748b; }
+  dd { margin: 0; color: #334155; font-weight: 500; }
+  .is-abnormal { color: #dc2626; }
 }
-.contrib-pos {
-  color: #16a34a !important;
-}
-.contrib-neg {
-  color: #dc2626 !important;
-}
-.contrib-neutral {
-  color: #64748b !important;
-}
+.contrib-pos { color: #16a34a !important; }
+.contrib-neg { color: #dc2626 !important; }
+.contrib-neutral { color: #64748b !important; }
 .inference-overall {
-  margin-top: 16px;
-  padding: 14px 16px;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  &.contrib-pos {
-    background: #f0fdf4;
-    border-color: #bbf7d0;
-  }
-  &.contrib-neg {
-    background: #fef2f2;
-    border-color: #fecaca;
-  }
-  &__icon {
-    font-size: 18px;
-  }
+  margin-top: 16px; padding: 14px 16px; border-radius: 8px;
+  font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 10px;
+  background: #f8fafc; border: 1px solid #e2e8f0;
+  &.contrib-pos { background: #f0fdf4; border-color: #bbf7d0; }
+  &.contrib-neg { background: #fef2f2; border-color: #fecaca; }
+  &__icon { font-size: 18px; }
 }
 
 .decision-detail-dialog {
-  :deep(.el-dialog) {
-    --el-bg-color: #ffffff;
-    max-width: calc(100vw - 48px);
-  }
-  :deep(.el-dialog__header) {
-    padding: 20px 28px 12px;
-    margin-right: 0;
-  }
-  :deep(.el-dialog__title) {
-    font-size: 22px;
-    font-weight: 700;
-    color: #1e293b;
-  }
-  :deep(.el-dialog__body) {
-    padding: 8px 28px 24px;
-    max-height: calc(100vh - 180px);
-    overflow-y: auto;
-  }
-  :deep(.el-dialog__footer) {
-    padding: 16px 28px 24px;
-  }
-  :deep(.el-dialog__footer .el-button) {
-    min-width: 108px;
-    font-size: 15px;
-  }
-  :deep(.detail-table) {
-    font-size: 16px;
-  }
+  :deep(.el-dialog) { --el-bg-color: #ffffff; max-width: calc(100vw - 48px); }
+  :deep(.el-dialog__header) { padding: 20px 28px 12px; margin-right: 0; }
+  :deep(.el-dialog__title) { font-size: 22px; font-weight: 700; color: #1e293b; }
+  :deep(.el-dialog__body) { padding: 8px 28px 24px; max-height: calc(100vh - 180px); overflow-y: auto; }
+  :deep(.el-dialog__footer) { padding: 16px 28px 24px; }
+  :deep(.el-dialog__footer .el-button) { min-width: 108px; font-size: 15px; }
+  :deep(.detail-table) { font-size: 16px; }
   :deep(.detail-table th.el-table__cell) {
-    font-size: 16px;
-    font-weight: 600;
-    color: #334155;
-    padding: 16px 0;
-    background: #f8fafc;
+    font-size: 16px; font-weight: 600; color: #334155; padding: 16px 0; background: #f8fafc;
   }
-  :deep(.detail-table td.el-table__cell) {
-    padding: 14px 0;
-    font-size: 16px;
-    color: #1e293b;
-  }
-  :deep(.el-progress__text) {
-    font-size: 16px !important;
-    font-weight: 600;
-  }
+  :deep(.detail-table td.el-table__cell) { padding: 14px 0; font-size: 16px; color: #1e293b; }
+  :deep(.el-progress__text) { font-size: 16px !important; font-weight: 600; }
 }
 
-:deep(.row-rec) {
-  background: #f0fdf4 !important;
-}
-:deep(.el-slider__bar) {
-  background: #1890ff;
-}
+:deep(.row-rec) { background: #f0fdf4 !important; }
+:deep(.el-slider__bar) { background: #1890ff; }
 </style>

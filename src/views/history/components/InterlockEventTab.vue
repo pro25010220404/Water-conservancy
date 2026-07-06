@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { ElTag, ElDrawer } from 'element-plus'
+import { ref, computed, onMounted } from 'vue'
+import { ElTag, ElDrawer, ElMessage } from 'element-plus'
+import { RESERVOIR_OPTIONS } from '@/constants/settings'
+import { fetchInterlockLogs } from '@/api/gateaiSettings'
+import type { GateInterlockLog } from '@/types/gateai'
 
 interface InterlockEvent {
   id: number
@@ -9,6 +12,7 @@ interface InterlockEvent {
   rule: string
   upstreamLevel: number
   downstreamLevel: number
+  inflowRate?: number
   gatesBefore: number[]
   gatesAfter: number[]
   modifiedGate: number
@@ -16,71 +20,110 @@ interface InterlockEvent {
   actionDetail: { trigger: string; constraint: string; change: string }
 }
 
+const reservoirId = ref(1)
+const loading = ref(false)
 const events = ref<InterlockEvent[]>([])
 const filterRule = ref('')
+const ruleOptions = ref<string[]>([])
 const drawerVisible = ref(false)
 const drawerEvent = ref<InterlockEvent | null>(null)
 
-const ruleOptions = ['泄洪-发电互斥', '下游冲击保护', '对称性约束', '最小下泄保障']
-
-function genMock() {
-  const arr: InterlockEvent[] = []
-  const now = Date.now()
-  for (let i = 0; i < 30; i++) {
-    const rule = ruleOptions[Math.floor(Math.random() * ruleOptions.length)]
-    const before = [Math.random() * 100, Math.random() * 100, Math.random() * 100].map(
-      (v) => +v.toFixed(0),
-    )
-    const modIdx = Math.floor(Math.random() * 3)
-    const after = [...before]
-    after[modIdx] = +(after[modIdx] * (0.5 + Math.random() * 0.4)).toFixed(0)
-
-    arr.push({
-      id: 1001 + i,
-      time: new Date(now - i * 7200000).toISOString().replace('T', ' ').slice(0, 19),
-      reservoir: ['向家坝', '溪洛渡', '三峡'][Math.floor(Math.random() * 3)],
-      rule,
-      upstreamLevel: +(378 + Math.random() * 3).toFixed(2),
-      downstreamLevel: +(269 + Math.random()).toFixed(2),
-      gatesBefore: before,
-      gatesAfter: after,
-      modifiedGate: modIdx,
-      decisionId: Math.random() > 0.3 ? 5000 + i : null,
-      actionDetail: {
-        trigger: `溢洪道开度${before[0]}% > 80%阈值`,
-        constraint: '发电引水闸强制限制至50%',
-        change: `发电闸 ${before[modIdx]}% → ${after[modIdx]}%`,
-      },
-    })
+function defaultDateRange() {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(start.getDate() - 7)
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
   }
-  events.value = arr
 }
 
-genMock()
+const dateRange = ref(defaultDateRange())
+
+function mapLogToEvent(log: GateInterlockLog): InterlockEvent {
+  const before = log.openings_before ?? []
+  const after = log.openings_after ?? []
+  const changedIndex =
+    log.changed_gates?.[0] ?? before.findIndex((value, index) => value !== after[index])
+  const modifiedGate = changedIndex >= 0 ? changedIndex : 0
+
+  return {
+    id: log.id,
+    time: log.trigger_time?.replace('T', ' ').slice(0, 19) ?? '--',
+    reservoir: log.reservoir_name ?? '--',
+    rule: log.rule_name ?? log.rule_code ?? '--',
+    upstreamLevel: log.upstream_level ?? 0,
+    downstreamLevel: log.downstream_level ?? 0,
+    inflowRate: log.inflow_rate,
+    gatesBefore: before,
+    gatesAfter: after,
+    modifiedGate,
+    decisionId: log.decision_id ?? null,
+    actionDetail: {
+      trigger: log.reason ?? '闸门开度变化触发',
+      constraint: log.rule_name ?? '互锁约束',
+      change:
+        changedIndex >= 0 && before.length > 0
+          ? `闸门${changedIndex + 1} ${before[changedIndex]}% → ${after[changedIndex]}%`
+          : log.reason ?? '—',
+    },
+  }
+}
+
+async function loadEvents() {
+  loading.value = true
+  try {
+    const logs = await fetchInterlockLogs({
+      reservoirId: reservoirId.value,
+      startTime: dateRange.value.start,
+      endTime: dateRange.value.end,
+      pageSize: 100,
+    })
+    events.value = logs.map(mapLogToEvent)
+    ruleOptions.value = [...new Set(events.value.map((item) => item.rule))]
+    filterRule.value = ''
+  } catch {
+    ElMessage.error('加载互锁日志失败')
+    events.value = []
+    ruleOptions.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => loadEvents())
 
 const filtered = computed(() => {
   if (!filterRule.value) return events.value
-  return events.value.filter((e) => e.rule === filterRule.value)
+  return events.value.filter((item) => item.rule === filterRule.value)
 })
 
-function showDetail(e: InterlockEvent) {
-  drawerEvent.value = e
+function showDetail(event: InterlockEvent) {
+  drawerEvent.value = event
   drawerVisible.value = true
 }
 
-function barWidth(v: number) {
-  return Math.max(4, v) + 'px'
+function barWidth(value: number) {
+  return Math.max(4, value) + 'px'
 }
 </script>
 
 <template>
-  <div class="ie">
+  <div class="ie" v-loading="loading">
     <div class="ie__filters">
+      <select v-model="reservoirId" class="ie__sel" @change="loadEvents">
+        <option v-for="r in RESERVOIR_OPTIONS" :key="r.value" :value="r.value">
+          {{ r.label }}
+        </option>
+      </select>
+      <input v-model="dateRange.start" type="date" class="ie__date" @change="loadEvents" />
+      <span class="ie__sep">—</span>
+      <input v-model="dateRange.end" type="date" class="ie__date" @change="loadEvents" />
       <select v-model="filterRule" class="ie__sel">
         <option value="">全部规则</option>
         <option v-for="r in ruleOptions" :key="r" :value="r">{{ r }}</option>
       </select>
-      <button class="ie__btn" @click="genMock">刷新</button>
+      <button class="ie__btn" :disabled="loading" @click="loadEvents">刷新</button>
     </div>
 
     <div class="ie__table-wrap">
@@ -103,7 +146,10 @@ function barWidth(v: number) {
             <td>
               <ElTag size="small" type="warning">{{ e.rule }}</ElTag>
             </td>
-            <td>上{{ e.upstreamLevel }}m / 下{{ e.downstreamLevel }}m</td>
+            <td>
+              上{{ e.upstreamLevel }}m / 下{{ e.downstreamLevel }}m
+              <span v-if="e.inflowRate" class="ie__flow"> · {{ e.inflowRate }}m³/s</span>
+            </td>
             <td>
               <div class="ie__gates">
                 <div v-for="(b, i) in e.gatesBefore" :key="i" class="ie__gate">
@@ -112,10 +158,10 @@ function barWidth(v: number) {
                     <span class="ie__gate-arrow">→</span>
                     <span class="ie__gate-after" :style="{ width: barWidth(e.gatesAfter[i]) }" />
                   </div>
-                  <span v-if="i === e.modifiedGate" class="ie__gate-diff"
-                    >{{ e.gatesAfter[i] - e.gatesBefore[i] > 0 ? '+' : ''
-                    }}{{ e.gatesAfter[i] - e.gatesBefore[i] }}%</span
-                  >
+                  <span v-if="i === e.modifiedGate" class="ie__gate-diff">
+                    {{ e.gatesAfter[i] - e.gatesBefore[i] > 0 ? '+' : ''
+                    }}{{ (e.gatesAfter[i] - e.gatesBefore[i]).toFixed(1) }}%
+                  </span>
                 </div>
               </div>
             </td>
@@ -125,11 +171,13 @@ function barWidth(v: number) {
             </td>
             <td><button class="ie__detail-btn" @click="showDetail(e)">详情</button></td>
           </tr>
+          <tr v-if="!loading && filtered.length === 0">
+            <td colspan="7" class="ie__empty">暂无互锁触发记录</td>
+          </tr>
         </tbody>
       </table>
     </div>
 
-    <!-- 详情抽屉 -->
     <ElDrawer v-model="drawerVisible" title="互锁事件详情" size="480px">
       <template v-if="drawerEvent">
         <div class="ie__drawer">
@@ -148,8 +196,11 @@ function barWidth(v: number) {
           <div class="ie__drawer-row">
             <span>下游水位</span><b>{{ drawerEvent.downstreamLevel }}m</b>
           </div>
+          <div v-if="drawerEvent.inflowRate" class="ie__drawer-row">
+            <span>入库流量</span><b>{{ drawerEvent.inflowRate }}m³/s</b>
+          </div>
           <div class="ie__drawer-row">
-            <span>触发条件</span><b>{{ drawerEvent.actionDetail.trigger }}</b>
+            <span>触发原因</span><b>{{ drawerEvent.actionDetail.trigger }}</b>
           </div>
           <div class="ie__drawer-row">
             <span>约束动作</span><b>{{ drawerEvent.actionDetail.constraint }}</b>
@@ -158,9 +209,9 @@ function barWidth(v: number) {
             <span>变化</span><b style="color: #f97316">{{ drawerEvent.actionDetail.change }}</b>
           </div>
           <div class="ie__drawer-row">
-            <span>关联调度决策</span
-            ><b v-if="drawerEvent.decisionId">#{{ drawerEvent.decisionId }}</b
-            ><span v-else>—</span>
+            <span>关联调度决策</span>
+            <b v-if="drawerEvent.decisionId">#{{ drawerEvent.decisionId }}</b>
+            <span v-else>—</span>
           </div>
         </div>
       </template>
@@ -176,17 +227,29 @@ function barWidth(v: number) {
   height: 100%;
   padding: 18px 24px;
   gap: 12px;
+
   &__filters {
     display: flex;
     align-items: center;
     gap: 12px;
     flex-shrink: 0;
+    flex-wrap: wrap;
   }
   &__sel {
     padding: 8px 12px;
     font-size: 14px;
     border: 1px solid #d1d5db;
     border-radius: 6px;
+  }
+  &__date {
+    padding: 8px 12px;
+    font-size: 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+  }
+  &__sep {
+    color: #94a3b8;
+    font-size: 14px;
   }
   &__btn {
     padding: 8px 16px;
@@ -196,6 +259,10 @@ function barWidth(v: number) {
     border: none;
     border-radius: 6px;
     cursor: pointer;
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
   }
   &__table-wrap {
     flex: 1;
@@ -231,6 +298,10 @@ function barWidth(v: number) {
       background: #f8fafc;
     }
   }
+  &__flow {
+    color: #94a3b8;
+    font-size: 13px;
+  }
   &__gates {
     display: flex;
     gap: 12px;
@@ -257,7 +328,6 @@ function barWidth(v: number) {
     background: #cbd5e1;
     border-radius: 3px;
     min-width: 4px;
-    transition: width 0.3s;
   }
   &__gate-arrow {
     font-size: 12px;
@@ -286,6 +356,11 @@ function barWidth(v: number) {
   &__na {
     color: #94a3b8;
   }
+  &__empty {
+    text-align: center;
+    color: #94a3b8;
+    padding: 24px !important;
+  }
   &__detail-btn {
     padding: 4px 12px;
     font-size: 13px;
@@ -312,6 +387,8 @@ function barWidth(v: number) {
     > b {
       font-weight: 600;
       color: #1e293b;
+      text-align: right;
+      max-width: 62%;
     }
   }
 }

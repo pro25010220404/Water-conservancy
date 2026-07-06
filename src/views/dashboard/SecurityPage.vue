@@ -5,13 +5,38 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElNotification } from 'element-plus'
 import { pendingAlarmCount } from '@/composables/useAlarmNotify'
+import { fetchSecurityCameras, fetchSecurityDoors, fetchSecurityPatrols, fetchSecurityAlarmList } from '@/api/monitoring'
 
 // ── USB 摄像头 ──
 const usbStream = ref<MediaStream | null>(null)
 const usbConnected = ref(false)
 const videoRef = ref<HTMLVideoElement | null>(null)
 
+async function loadData() {
+  const [cam, doorList, pat, secAlarms] = await Promise.all([
+    fetchSecurityCameras(), fetchSecurityDoors(), fetchSecurityPatrols(), fetchSecurityAlarmList(),
+  ])
+  cameras.value = cam.map((c, i) => {
+    const zone = c.alarmZone ?? c.area ?? ''
+    ALARM_ZONE_TO_CAMERA[zone] = `c${i + 1}`
+    return { id: `c${i + 1}`, name: c.name, area: c.area ?? '', status: c.status as CameraDef['status'], motion: c.motion ?? '—', alarmZone: zone }
+  })
+  doors.value = doorList.map((d) => ({
+    id: `d${d.id}`, name: d.name, status: d.status as DoorDef['status'], last: d.last_access && d.last_user ? `${d.last_access} ${d.last_user}` : '—',
+  }))
+  patrols.value = pat.map((p) => ({
+    time: p.start_time?.slice(-5) ?? '--:--', route: p.route, person: p.patrol_user,
+    result: p.status === 'completed' ? (p.abnormal > 0 ? '异常' : '正常') : p.status === 'in_progress' ? '待执行' : '—',
+    dur: p.end_time ? `${Math.round((new Date(p.end_time).getTime() - new Date(p.start_time).getTime()) / 60000)}分钟` : '—',
+  }))
+  alarms.value = secAlarms.map((a) => ({
+    time: a.trigger_time?.slice(-5) ?? '--:--', loc: a.location, type: TYPE_CN[a.type] ?? a.type,
+    level: a.level as AlarmDef['level'], status: STATUS_CN[a.status] ?? a.status,
+  }))
+}
+
 onMounted(async () => {
+  loadData()
   containerRef.value?.focus()
   try {
     const devices = await navigator.mediaDevices.enumerateDevices()
@@ -50,21 +75,9 @@ interface CameraDef {
   alarmZone: string
 }
 
-const cameras: CameraDef[] = [
-  { id: 'c1', name: '坝顶 1#', area: '坝顶', status: 'online', motion: '2分钟前', alarmZone: '坝顶' },
-  { id: 'c2', name: '坝顶 2#', area: '坝顶', status: 'online', motion: '刚刚', alarmZone: '坝顶' },
-  { id: 'c3', name: '厂房入口', area: '厂房', status: 'online', motion: '5分钟前', alarmZone: '厂房' },
-  { id: 'c4', name: '中控室', area: '厂房', status: 'online', motion: '—', alarmZone: '中控室' },
-  { id: 'c5', name: '下游河道', area: '下游', status: 'offline', motion: '—', alarmZone: '下游' },
-  { id: 'c6', name: '开关站', area: '下游', status: 'online', motion: '1小时前', alarmZone: '开关站' },
-]
-
+const cameras = ref<CameraDef[]>([])
 const ALARM_ZONE_TO_CAMERA: Record<string, string> = {
-  坝顶: 'c1',
-  厂房: 'c3',
-  中控室: 'c4',
-  下游: 'c5',
-  开关站: 'c6',
+  坝顶: 'c1', 厂房: 'c3', 中控室: 'c4', 下游: 'c5', 下游河道: 'c5', 开关站: 'c6',
 }
 
 // ── 门禁 / 巡检 / 告警 ──
@@ -89,27 +102,13 @@ interface AlarmDef {
   status: string
 }
 
-const doors: DoorDef[] = [
-  { id: 'd1', name: '主厂房大门', status: 'locked', last: '14:25 张工' },
-  { id: 'd2', name: '中控室', status: 'locked', last: '14:10 李工' },
-  { id: 'd3', name: 'GIS 室', status: 'locked', last: '—' },
-  { id: 'd4', name: '坝顶通道', status: 'unlocked', last: '13:50 巡检员' },
-]
-
-const patrols: PatrolDef[] = [
-  { time: '09:30', route: '坝顶 → 厂房 → 下游', person: '王巡检', result: '正常', dur: '45分钟' },
-  { time: '14:00', route: 'GIS室 → 开关站 → 中控', person: '赵巡检', result: '正常', dur: '38分钟' },
-  { time: '18:30', route: '坝顶 → 下游河道 → 厂房', person: '王巡检', result: '待执行', dur: '—' },
-]
-
-const alarms = ref<AlarmDef[]>([
-  { time: '12:05', loc: '下游河道', type: '周界入侵', level: 'warning', status: '已处理' },
-  { time: '08:22', loc: '开关站', type: '门禁异常', level: 'critical', status: '已处理' },
-])
+const doors = ref<DoorDef[]>([])
+const patrols = ref<PatrolDef[]>([])
+const alarms = ref<AlarmDef[]>([])
 
 // ── 当前显示机位 ──
 const activeIdx = ref(0)
-const activeCamera = computed(() => cameras[activeIdx.value])
+const activeCamera = computed(() => cameras.value[activeIdx.value] ?? cameras.value[0] ?? { id: '', name: '', area: '', status: 'offline' as const, motion: '', alarmZone: '' })
 
 // 切换回 c1 时重新挂载视频流（v-show 不销毁元素，需手动恢复）
 watch(activeIdx, (idx) => {
@@ -140,9 +139,9 @@ function onTabKey(e: KeyboardEvent) {
   alarmSwitchedCamera.value = null
   alarmFlashActive.value = false
   if (e.shiftKey) {
-    activeIdx.value = activeIdx.value <= 0 ? cameras.length - 1 : activeIdx.value - 1
+    activeIdx.value = activeIdx.value <= 0 ? cameras.value.length - 1 : activeIdx.value - 1
   } else {
-    activeIdx.value = activeIdx.value >= cameras.length - 1 ? 0 : activeIdx.value + 1
+    activeIdx.value = activeIdx.value >= cameras.value.length - 1 ? 0 : activeIdx.value + 1
   }
 }
 
@@ -217,7 +216,29 @@ const SIMULATED_SCENARIOS = [
   { location: '下游', type: '非法闯入', level: 'warning' as const },
 ]
 
+function playAlarmSound() {
+  try {
+    const ctx = new AudioContext()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'square'
+    osc.frequency.value = 800
+    gain.gain.value = 0.15
+    // 嘟嘟嘟 三声
+    const now = ctx.currentTime
+    for (let i = 0; i < 3; i++) {
+      gain.gain.setValueAtTime(0.15, now + i * 0.4)
+      gain.gain.setValueAtTime(0, now + i * 0.4 + 0.2)
+    }
+    osc.start(now)
+    osc.stop(now + 1.4)
+  } catch { /* 浏览器不支持 */ }
+}
+
 function simulateAlarm() {
+  playAlarmSound()
   const scenario = SIMULATED_SCENARIOS[alarmScenarioIdx % SIMULATED_SCENARIOS.length]
   alarmScenarioIdx++
 
@@ -249,7 +270,7 @@ function simulateAlarm() {
 }
 
 function triggerAlarmSwitch(cameraId: string) {
-  const idx = cameras.findIndex((c) => c.id === cameraId)
+  const idx = cameras.value.findIndex((c) => c.id === cameraId)
   if (idx === -1) return
 
   activeIdx.value = idx
@@ -278,6 +299,9 @@ const sc: Record<string, { color: string; label: string }> = {
   unlocked: { color: '#f59e0b', label: '未锁' },
 }
 const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
+const LEVEL_CN: Record<string, string> = { warning: '警告', critical: '严重', urgent: '紧急', normal: '普通' }
+const STATUS_CN: Record<string, string> = { unhandled: '待处理', handled: '已处理', acknowledged: '已确认', pending: '待确认', processed: '已处理', confirmed: '已确认' }
+const TYPE_CN: Record<string, string> = { unauthorized_entry: '非法闯入', camera_offline: '摄像头离线', door_force: '门禁异常', intrusion: '周界入侵', fire: '火警', crowd: '人员聚集', equipment_offline: '设备离线' }
 </script>
 
 <template>
@@ -419,7 +443,7 @@ const alc: Record<string, string> = { warning: '#f59e0b', critical: '#ef4444' }
             <span class="al__d" :style="{ background: alc[a.level] }" />
             <div>
               <div class="al__h"><b>{{ a.loc }}</b> · {{ a.type }}</div>
-              <div class="al__f">{{ a.time }} · {{ a.status }}</div>
+              <div class="al__f">{{ a.time }} · {{ STATUS_CN[a.status] ?? a.status }}</div>
             </div>
           </div>
         </div>

@@ -1320,6 +1320,31 @@ export const mockApi = {
     return delay(ok({ stop_log_id: Date.now(), command_id: `estop-${Date.now()}` }))
   },
 
+  getEmergencyStops() {
+    return delay(
+      ok({
+        list: [
+          {
+            id: 3,
+            trigger_user_id: 1,
+            trigger_time: nowIso(30),
+            edge_ack_time: nowIso(28),
+            plc_shut_time: nowIso(27),
+            recover_time: null,
+            stop_reason: '人工触发急停',
+          },
+        ],
+        total: 1,
+      }),
+    )
+  },
+
+  recoverEmergencyStop(_id: number) {
+    dispatchStatus.mode = 'auto'
+    dispatchStatus.autoLevel = 2
+    return delay(ok(null))
+  },
+
   changeMode(params: { mode: 'auto' | 'manual' }) {
     dispatchStatus.mode = params.mode
     return delay(ok(null))
@@ -1399,6 +1424,36 @@ export const mockApi = {
       )
     }
     return delay(ok({ list, total: list.length, pageNum: 1, pageSize: list.length || 1 }))
+  },
+
+  getCommandTrace(commandId: string) {
+    return delay(
+      ok({
+        id: 1,
+        command_id: commandId,
+        trace_id: 'mock-trace',
+        decision_id: null,
+        gate_action_id: null,
+        edge_node_id: 1,
+        operator_id: null,
+        command_type: 'manual_adjust',
+        payload: { reservoir_id: 1, target_opening: 45 },
+        target_equipment: null,
+        target_opening: 45,
+        status: 'pending' as const,
+        sent_at: nowIso(0),
+        acknowledged_at: null,
+        verified_at: null,
+        executed_at: null,
+        feedback_at: null,
+        full_delay_ms: null,
+        execution_result: null,
+        reject_reason: null,
+        is_emergency: false,
+        created_at: nowIso(0),
+        updated_at: nowIso(0),
+      }),
+    )
   },
 
   getRiskLevel() {
