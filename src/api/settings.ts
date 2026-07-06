@@ -102,11 +102,25 @@ export function getModelDetail(id: number) {
 // ════════════════════════════════════════════════════════════
 
 export function getAIMetrics(params: { reservoir_id: number }) {
-  return http.get<ApiResponse<HealthOverview>>('/v1/settings/ai/metrics', { params })
+  return http.get<ApiResponse<HealthOverview>>('/settings/ai/metrics', { params })
 }
 
 export function getAIMetricsHistory(params: { reservoir_id: number; days?: number }) {
-  return http.get<ApiResponse<TrendPoint[]>>('/settings/ai/metrics/history', { params })
+  return http.get<ApiResponse<AIMetricsHistoryItem[]>>('/settings/ai/metrics/history', { params })
+}
+
+/** 历史趋势单条记录（与后端字段一致） */
+export interface AIMetricsHistoryItem {
+  metric_time: string
+  prediction_score: number
+  decision_score: number
+  compliance_score: number
+  overall_score: number
+  health_grade: string
+  water_level_mae_24h?: number
+  physics_correction_rate?: number
+  safety_override_rate?: number
+  avg_physics_violation?: number
 }
 
 export function getAIHealthOverview() {
@@ -136,22 +150,22 @@ export function getAIVersionCompare(params: {
 // ════════════════════════════════════════════════════════════
 
 export function getPhysicsGuard(params: { reservoir_id: number }) {
-  return http.get<ApiResponse<PhysicsGuardConfig>>('/v1/admin/physics-guard', { params })
+  return http.get<ApiResponse<PhysicsGuardConfig>>('/v1/settings/physics-guard', { params })
 }
 
 export function updatePhysicsGuard(id: number, data: Partial<PhysicsGuardConfig>) {
-  return http.put<ApiResponse<{ new_version: string }>>(`/v1/admin/physics-guard/${id}`, data)
+  return http.put<ApiResponse<{ new_version: string }>>(`/v1/settings/physics-guard/${id}`, data)
 }
 
 export function getPhysicsGuardHistory(params: { reservoir_id: number }) {
-  return http.get<ApiResponse<ConfigHistoryItem[]>>('/v1/admin/physics-guard/history', {
+  return http.get<ApiResponse<ConfigHistoryItem[]>>('/v1/settings/physics-guard/history', {
     params,
   })
 }
 
 export function rollbackPhysicsGuard(id: number) {
   return http.post<ApiResponse<{ new_version: string }>>(
-    `/v1/admin/physics-guard/${id}/rollback`,
+    `/v1/settings/physics-guard/${id}/rollback`,
   )
 }
 
@@ -159,7 +173,7 @@ export function clonePhysicsGuard(data: {
   source_reservoir_id: number
   target_reservoir_id: number
 }) {
-  return http.post<ApiResponse<PhysicsGuardConfig>>('/v1/admin/physics-guard/clone', data)
+  return http.post<ApiResponse<PhysicsGuardConfig>>('/v1/settings/physics-guard/clone', data)
 }
 
 // ════════════════════════════════════════════════════════════
@@ -185,12 +199,13 @@ export function getInterlockLogs(params: {
   page?: number
   page_size?: number
   rule_ids?: number[]
-  start?: string
-  end?: string
+  start_time?: string
+  end_time?: string
 }) {
-  return http.get<ApiResponse<PageResult<InterlockLog>>>('/v1/settings/gate-interlock/logs', {
-    params,
-  })
+  return http.get<ApiResponse<PageResult<import('@/types/gateai').GateInterlockLogApiItem>>>(
+    '/v1/settings/gate-interlock/logs',
+    { params },
+  )
 }
 
 export function getInterlockStats(params: { reservoir_id: number; days?: number }) {

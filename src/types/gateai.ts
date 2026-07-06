@@ -20,6 +20,7 @@ export interface ModelMetricHistoryPoint {
   decision_score: number
   compliance_score: number
   overall_score: number
+  health_grade?: HealthGrade
   grade_event?: { from: HealthGrade; to: HealthGrade; label: string }
 }
 
@@ -81,13 +82,40 @@ export interface GateInterlockLog {
   reservoir_name: string
   rule_name: string
   rule_code?: string
-  decision_id?: number
+  decision_id?: number | null
   upstream_level: number
   downstream_level: number
+  inflow_rate?: number
   openings_before: number[]
   openings_after: number[]
   changed_gates?: number[]
   reason: string
+}
+
+/** 后端 /v1/settings/gate-interlock/logs 原始字段 */
+export interface GateInterlockLogApiItem {
+  id: number
+  reservoir_id: number
+  rule_id?: number
+  decision_id?: number | null
+  trigger_time: string
+  gate1_opening_before?: string | number
+  gate2_opening_before?: string | number
+  gate3_opening_before?: string | number
+  gate1_opening_after?: string | number
+  gate2_opening_after?: string | number
+  gate3_opening_after?: string | number
+  upstream_level?: string | number
+  downstream_level?: string | number
+  inflow_rate?: string | number
+  action_detail?: {
+    reason?: string
+    triggered_rule?: string
+  }
+  rule?: {
+    rule_name?: string
+    rule_code?: string
+  }
 }
 
 export interface ModelHealthOverviewItem {
