@@ -20,6 +20,7 @@ import {
   fetchPhysicsGuardHistory,
   rollbackPhysicsGuard,
 } from '@/api/gateaiSettings'
+import { buildSettingsPath } from '@/constants/settings'
 
 const route = useRoute()
 const router = useRouter()
@@ -45,10 +46,7 @@ function openDetail(row: PhysicsGuardHistoryItem) {
 }
 
 function goPhysicsGuardConfig() {
-  router.push({
-    path: '/settings',
-    query: { tab: 'physics-guard', reservoir_id: String(reservoirId.value) },
-  })
+  router.push(buildSettingsPath('physics-guard', { reservoir_id: reservoirId.value }))
 }
 
 function applyReservoirQuery() {

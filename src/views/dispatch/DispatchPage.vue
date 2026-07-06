@@ -7,6 +7,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ElButton, ElSlider, ElSelect, ElOption, ElInput, ElInputNumber, ElMessage, ElMessageBox,
   ElDialog, ElFormItem, ElTable, ElTableColumn, ElProgress, ElTag, ElPagination, ElCollapse, ElCollapseItem,
+  ElTimeline, ElTimelineItem,
 } from 'element-plus'
 import { Refresh, CircleCheck, CircleClose, View } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
@@ -16,21 +17,23 @@ import { GridComponent, TooltipComponent, MarkLineComponent, LegendComponent } f
 import { CanvasRenderer } from 'echarts/renderers'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import GateActionsPanel from './components/GateActionsPanel.vue'
+import EmergencyStopPanel from './components/EmergencyStopPanel.vue'
 import { XIANGJIABA_HYDRO } from '@/constants/xiangjiaba'
 import {
   AUTO_LEVEL_OPTIONS, AUTO_LEVEL_MAP, DISPATCH_MODE_MAP,
   getConfidenceColor, FACTOR_DIRECTION_MAP,
   OPENING_MIN, OPENING_MAX, OPENING_STEP,
 } from '@/constants/dispatch'
-import type { DecisionDetail, DispatchRecord, DispatchStatus, PredictionData, PhysicsValidation, PhysicsGuardSummary, PhysicsGuardHistoryItem } from '@/types/dispatch'
+import type { DecisionDetail, DispatchRecord, DispatchStatus, PredictionData, PhysicsValidation, PhysicsGuardSummary, PhysicsGuardHistoryItem, CommandTrace } from '@/types/dispatch'
 import {
   fetchDispatchStatus, fetchDecisionDetail, fetchPrediction, fetchDispatchLogs,
   postExecute, postCancelExecute, postAcceptDecision, postIgnoreDecision, putDispatchMode, putAutoLevel,
-  fetchPhysicsGuardSummary, fetchPhysicsGuardHistory, postPhysicsGuardRollback,
+  fetchPhysicsGuardSummary, fetchPhysicsGuardHistory, postPhysicsGuardRollback, fetchCommandTrace,
 } from '@/api/dispatchPage'
 import { useUserStore } from '@/stores/user'
 import { useOperationLog } from '@/composables/useOperationLog'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
+import { buildSettingsPath } from '@/constants/settings'
 
 use([LineChart, GridComponent, TooltipComponent, MarkLineComponent, LegendComponent, CanvasRenderer])
 
@@ -76,6 +79,11 @@ const historyVisible = ref(false)
 const historyDetailVisible = ref(false)
 const historyDetailRow = ref<PhysicsGuardHistoryItem | null>(null)
 
+const lastCommandId = ref<string | null>(null)
+const traceVisible = ref(false)
+const traceLoading = ref(false)
+const commandTrace = ref<CommandTrace | null>(null)
+
 const SYNC_STATUS_MAP: Record<string, { label: string; type: 'success' | 'warning' | 'danger' }> = {
   synced: { label: '已同步', type: 'success' },
   stale: { label: '待同步', type: 'warning' },
@@ -103,6 +111,80 @@ const INTERLOCK_RULE_MAP: Record<string, string> = {
   downstream_impact_protect: '下游冲击保护',
   symmetry_constraint: '对称性约束',
   min_discharge_guarantee: '最小下泄保障',
+}
+
+const COMMAND_STATUS_MAP: Record<string, { label: string; type: 'success' | 'warning' | 'danger' | 'info' | 'primary' }> = {
+  pending: { label: '待下发', type: 'warning' },
+  sent: { label: '已发送', type: 'info' },
+  acknowledged: { label: '边缘已确认', type: 'primary' },
+  verified: { label: '校验通过', type: 'primary' },
+  executed: { label: '已执行', type: 'success' },
+  failed: { label: '失败', type: 'danger' },
+}
+
+const COMMAND_TYPE_MAP: Record<string, string> = {
+  manual_adjust: '手动调开度',
+  auto_dispatch: '自动调度',
+  emergency_stop: '全局急停',
+}
+
+const traceSteps = computed(() => {
+  const t = commandTrace.value
+  if (!t) return []
+  return [
+    { key: 'sent', label: '云端下发', time: t.sent_at ?? t.created_at },
+    { key: 'ack', label: '边缘确认', time: t.acknowledged_at },
+    { key: 'verified', label: '校验通过', time: t.verified_at },
+    { key: 'executed', label: 'PLC 执行', time: t.executed_at },
+    { key: 'feedback', label: '执行回执', time: t.feedback_at },
+  ]
+})
+
+function isTraceStepDone(stepKey: string, trace: CommandTrace) {
+  const order = ['sent', 'ack', 'verified', 'executed', 'feedback']
+  const statusIdx: Record<string, number> = {
+    pending: 0,
+    sent: 1,
+    acknowledged: 2,
+    verified: 3,
+    executed: 4,
+    failed: -1,
+  }
+  const current = statusIdx[trace.status] ?? 0
+  const step = order.indexOf(stepKey)
+  if (trace.status === 'failed') return step < current
+  return step <= current && !!(
+    stepKey === 'sent' ? (trace.sent_at || trace.created_at)
+    : stepKey === 'ack' ? trace.acknowledged_at
+    : stepKey === 'verified' ? trace.verified_at
+    : stepKey === 'executed' ? trace.executed_at
+    : trace.feedback_at
+  )
+}
+
+async function openCommandTrace(commandId: string) {
+  lastCommandId.value = commandId
+  traceVisible.value = true
+  traceLoading.value = true
+  try {
+    const res = await fetchCommandTrace(commandId)
+    commandTrace.value = res.data
+  } catch {
+    commandTrace.value = null
+    ElMessage.error('获取指令追踪失败')
+  } finally {
+    traceLoading.value = false
+  }
+}
+
+async function refreshCommandTrace() {
+  if (!lastCommandId.value) return
+  await openCommandTrace(lastCommandId.value)
+}
+
+function afterExecuteSuccess(res: { data?: { command_id?: string } | null }) {
+  const id = res.data?.command_id
+  if (id) openCommandTrace(id)
 }
 
 function contributionClass(val: number) {
@@ -179,7 +261,7 @@ async function handleRollback(row: PhysicsGuardHistoryItem) {
 
 function goPhysicsGuardHistorySettings() {
   historyVisible.value = false
-  router.push({ path: '/settings', query: { tab: 'physics-guard-history', reservoir_id: '1' } })
+  router.push(buildSettingsPath('physics-guard-history', { reservoir_id: 1 }))
 }
 
 function interlockLabel(pv: PhysicsValidation) {
@@ -238,6 +320,7 @@ const filteredRecords = computed(() => {
   return records.value.filter((r) => fuzzyMatch(
     kw,
     r.decision_mode,
+    r.decision_mode_label,
     r.action,
     r.operator_name,
     String(r.recommended_opening),
@@ -260,15 +343,16 @@ const chartOption = computed(() => {
   if (!data) return {}
   const seq = metricKey.value === 'water' ? data.water_seq : data.flow_seq
   const isWater = metricKey.value === 'water'
+  const histLen = seq.length > HIST_LEN ? HIST_LEN : 1
   const times = seq.map((p) => {
     const d = new Date(p.time)
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   })
-  const histValues = seq.slice(0, HIST_LEN).map((p) => p.value)
-  const predValues = seq.slice(HIST_LEN - 1).map((p) => p.value)
-  const histData = [...histValues, ...Array(seq.length - HIST_LEN).fill(null)]
-  const predData = [...Array(HIST_LEN - 1).fill(null), ...predValues]
-  const nowLabel = times[HIST_LEN - 1] ?? ''
+  const histValues = seq.slice(0, histLen).map((p) => p.value)
+  const predValues = seq.slice(histLen - 1).map((p) => p.value)
+  const histData = [...histValues, ...Array(seq.length - histLen).fill(null)]
+  const predData = [...Array(histLen - 1).fill(null), ...predValues]
+  const nowLabel = times[histLen - 1] ?? ''
   const warnLevel = XIANGJIABA_HYDRO.warningLevel
 
   return {
@@ -385,6 +469,10 @@ async function toggleMode(next: 'auto' | 'manual') {
   } catch { /* cancel */ }
 }
 
+function executeSuccessMsg(res: { data?: { command_id?: string } | null }, fallback = '指令已下发') {
+  return res.data?.command_id ? `${fallback} · ${res.data.command_id}` : fallback
+}
+
 async function handleAccept() {
   if (!decision.value || status.value.isExecuting) return
   try {
@@ -392,9 +480,10 @@ async function handleAccept() {
       `确认采纳建议，将开度调整至 ${decision.value.recommended_opening}%？`,
       '采纳建议', { type: 'warning' },
     )
-    await postAcceptDecision()
+    const res = await postAcceptDecision(decision.value.id, decision.value.recommended_opening)
     recordLog('调度决策', '采纳建议', `开度 → ${decision.value.recommended_opening}%`, 1)
-    ElMessage.success('建议已采纳并下发')
+    ElMessage.success(executeSuccessMsg(res, '建议已采纳并下发'))
+    afterExecuteSuccess(res)
     decisionDialogVisible.value = false
     await refreshAll()
   } catch { /* cancel */ }
@@ -415,10 +504,11 @@ async function handleExecute() {
       `目标开度 ${targetOpening.value}%（较当前 ${delta >= 0 ? '+' : ''}${delta}%）`,
       '确认执行', { type: 'warning' },
     )
-    await postExecute(targetOpening.value)
+    const res = await postExecute(targetOpening.value)
     userModifiedTarget.value = false
     recordLog('调度决策', '手动执行', `开度 ${targetOpening.value}%`, 1)
-    ElMessage.success('指令已下发')
+    ElMessage.success(executeSuccessMsg(res))
+    afterExecuteSuccess(res)
     await refreshAll()
   } catch { /* cancel */ }
 }
@@ -449,10 +539,11 @@ async function handleReDispatch() {
       '改派执行', { type: 'warning' },
     )
     await postCancelExecute()
-    await postExecute(to)
+    const res = await postExecute(to)
     userModifiedTarget.value = false
     recordLog('调度决策', '改派执行', `${from}% → ${to}%`, 1)
-    ElMessage.success('已改派并重新下发')
+    ElMessage.success(executeSuccessMsg(res, '已改派并重新下发'))
+    afterExecuteSuccess(res)
     await refreshAll()
   } catch { /* cancel */ }
 }
@@ -600,6 +691,10 @@ onUnmounted(() => {
               @click="handleExecute"
             >执行</ElButton>
           </div>
+          <p v-if="lastCommandId" class="trace-link">
+            最近指令 <code>{{ lastCommandId }}</code>
+            <ElButton link type="primary" @click="openCommandTrace(lastCommandId!)">查看全链路追踪</ElButton>
+          </p>
         </GlassPanel3D>
       </div>
 
@@ -680,7 +775,7 @@ onUnmounted(() => {
         <template v-for="row in pagedRecords" :key="row.id">
           <div class="record-row" @click="toggleRecordExpand(row.id)">
             <span class="mono">{{ formatTime(row.decision_time) }}</span>
-            <span>{{ row.decision_mode }}</span>
+            <span>{{ row.decision_mode_label ?? row.decision_mode }}</span>
             <span>{{ row.action ?? '—' }}</span>
             <span>{{ row.recommended_opening }}%</span>
             <span class="record-interlock">
@@ -737,6 +832,10 @@ onUnmounted(() => {
 
     <GlassPanel3D title="闸门动作历史" class="panel-gate-actions">
       <GateActionsPanel />
+    </GlassPanel3D>
+
+    <GlassPanel3D title="急停日志" class="panel-estop-logs">
+      <EmergencyStopPanel />
     </GlassPanel3D>
 
     <!-- 决策详情弹窗 §3.4 -->
@@ -918,6 +1017,42 @@ onUnmounted(() => {
       </template>
     </ElDialog>
 
+    <ElDialog v-model="traceVisible" title="指令全链路追踪" width="640px">
+      <div v-loading="traceLoading">
+        <template v-if="commandTrace">
+          <div class="trace-head">
+            <p><strong>{{ commandTrace.command_id }}</strong></p>
+            <p class="trace-meta">
+              <ElTag :type="COMMAND_STATUS_MAP[commandTrace.status]?.type ?? 'info'" size="small">
+                {{ COMMAND_STATUS_MAP[commandTrace.status]?.label ?? commandTrace.status }}
+              </ElTag>
+              · {{ COMMAND_TYPE_MAP[commandTrace.command_type] ?? commandTrace.command_type }}
+              · 目标开度 {{ commandTrace.target_opening }}%
+              <span v-if="commandTrace.full_delay_ms != null"> · 全链路 {{ commandTrace.full_delay_ms }}ms</span>
+            </p>
+            <p class="trace-meta muted">trace: {{ commandTrace.trace_id }}</p>
+          </div>
+          <ElTimeline>
+            <ElTimelineItem
+              v-for="step in traceSteps"
+              :key="step.key"
+              :type="isTraceStepDone(step.key, commandTrace) ? 'success' : 'info'"
+              :hollow="!isTraceStepDone(step.key, commandTrace)"
+              :timestamp="step.time ? formatTime(step.time) : '—'"
+            >
+              {{ step.label }}
+            </ElTimelineItem>
+          </ElTimeline>
+          <p v-if="commandTrace.reject_reason" class="trace-reject">驳回原因：{{ commandTrace.reject_reason }}</p>
+        </template>
+        <p v-else-if="!traceLoading" class="trace-empty">暂无追踪数据</p>
+      </div>
+      <template #footer>
+        <ElButton @click="traceVisible = false">关闭</ElButton>
+        <ElButton type="primary" :loading="traceLoading" @click="refreshCommandTrace">刷新状态</ElButton>
+      </template>
+    </ElDialog>
+
     <ElDialog v-model="levelDialogVisible" title="变更自动执行权限" width="480px">
       <p>确认切换为：<strong>{{ AUTO_LEVEL_MAP[pendingLevel]?.label }}</strong></p>
       <p class="sub">{{ AUTO_LEVEL_MAP[pendingLevel]?.description }}</p>
@@ -1090,8 +1225,18 @@ onUnmounted(() => {
 }
 .manual-action-btn { flex: 1; min-width: 0; height: 40px; font-size: 15px; }
 .manual-exec { margin-top: 0; height: 40px; font-size: 15px; }
+.trace-link {
+  margin: 12px 0 0; font-size: 13px; color: #64748b;
+  code { font-size: 12px; color: #334155; margin-right: 8px; }
+}
+.trace-head { margin-bottom: 16px; }
+.trace-meta { margin: 6px 0 0; font-size: 13px; color: #475569; }
+.trace-meta.muted { color: #94a3b8; }
+.trace-reject { margin-top: 12px; color: #dc2626; font-size: 13px; }
+.trace-empty { color: #94a3b8; text-align: center; padding: 24px 0; }
 
 .panel-gate-actions { flex-shrink: 0; margin-top: 12px; }
+.panel-estop-logs { flex-shrink: 0; margin-top: 12px; }
 .panel-records { flex: 1; min-height: 320px; }
 .record-search { margin-bottom: 14px; max-width: 420px; }
 .record-table-wrap { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }

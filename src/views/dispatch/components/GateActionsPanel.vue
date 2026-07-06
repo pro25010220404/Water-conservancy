@@ -41,11 +41,19 @@ onMounted(load)
       <ElTableColumn label="设备" min-width="90">
         <template #default="{ row }">{{ (row as GateAction).equipment_id }}#闸</template>
       </ElTableColumn>
-      <ElTableColumn label="开度变化" min-width="150">
-        <template #default="{ row }"
-          >{{ (row as GateAction).previous_opening }}% →
-          {{ (row as GateAction).actual_opening }}%</template
-        >
+      <ElTableColumn label="开度变化" min-width="170">
+        <template #default="{ row }">
+          {{ (row as GateAction).previous_opening }}% →
+          <template v-if="(row as GateAction).actual_opening != null">
+            {{ (row as GateAction).actual_opening }}%
+          </template>
+          <template v-else>
+            {{ (row as GateAction).target_opening }}%<span class="muted">（目标）</span>
+          </template>
+        </template>
+      </ElTableColumn>
+      <ElTableColumn label="动作" min-width="80">
+        <template #default="{ row }">{{ (row as GateAction).action_type }}</template>
       </ElTableColumn>
       <ElTableColumn label="来源" min-width="120">
         <template #default="{ row }">

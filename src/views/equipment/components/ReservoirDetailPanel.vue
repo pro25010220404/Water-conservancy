@@ -12,6 +12,7 @@ import {
 import type { ReservoirDetail } from '@/api/reservoir'
 import { getReservoirDetail, fetchReservoirPhysicsSummary } from '@/api/reservoir'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
+import { buildSettingsPath } from '@/constants/settings'
 
 const props = defineProps<{ reservoirId: number; equipmentCount?: number }>()
 
@@ -81,10 +82,7 @@ onMounted(load)
             type="primary"
             link
             size="small"
-            @click="router.push({
-                path: '/settings',
-                query: { tab: 'physics-guard', reservoir_id: String(props.reservoirId) },
-              })"
+            @click="router.push(buildSettingsPath('physics-guard', { reservoir_id: props.reservoirId }))"
           >
             管理配置 →
           </ElButton>

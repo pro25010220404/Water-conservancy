@@ -13,10 +13,11 @@ import { useSmoothNumber } from '@/composables/useSmoothNumber'
 import { useSimulationStream, mapProgressToRealtime } from '@/composables/useSimulationStream'
 import { useUserStore } from '@/stores/user'
 import SimulationTabPanel from './components/SimulationTabPanel.vue'
+import ScenarioListPanel from './components/ScenarioListPanel.vue'
 import type {
   SimulationScene, SimulationSpeed, SimulationParams,
   SimulationRealtimeData, AiModel, SimulationReport, FaultReview, FaultConclusion,
-  SimulationScenarioItem, SimulationProgressPayload,
+  SimulationScenarioItem, SimulationProgressPayload, SimulationScenarioPayload,
 } from '@/types/simulation'
 import { XIANGJIABA_HYDRO, getLevelStatus, levelGaugePercent } from '@/constants/xiangjiaba'
 import {
@@ -30,7 +31,8 @@ import {
   setSimulationGateOpening,
   getModelList, activateModel, uploadModel, startTraining, generateReport, getReportList,
   getFaultReviewList, getFaultReviewDetail, importToSimulation, getPhysicsGuardSummary,
-  getSimulationScenarios, resolveScenarioId, getSimulationResult, applyResultToRealtime,
+  getSimulationScenarios, createSimulationScenario, updateSimulationScenario, deleteSimulationScenario,
+  resolveScenarioId, getSimulationResult, applyResultToRealtime,
 } from '@/api/simulation'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 
@@ -41,6 +43,21 @@ const { connected: wsConnected, connect: connectSimStream, disconnect: disconnec
 // ── 5. 响应式数据 ──
 const activeTab = ref<SimulationTab>('control')
 const scenarios = ref<SimulationScenarioItem[]>([])
+const scenarioLoading = ref(false)
+const scenarioDialogVisible = ref(false)
+const scenarioEditingId = ref<number | null>(null)
+const scenarioForm = reactive<SimulationScenarioPayload>({
+  name: '',
+  type: 'production',
+  description: '',
+  duration: 3600,
+  speed: 1,
+})
+const SCENARIO_TYPE_OPTIONS = [
+  { value: 'production', label: '生产工况' },
+  { value: 'energy', label: '能源/枯水' },
+  { value: 'fault', label: '故障复盘' },
+]
 const activeSimulationId = ref<string | null>(null)
 const simStatus = ref<SimulationRealtimeData>({
   status: 'idle', elapsedSec: 0,
@@ -161,12 +178,74 @@ function startPoll() {
 }
 
 async function fetchScenarios() {
+  scenarioLoading.value = true
   try {
     const res = await getSimulationScenarios()
     scenarios.value = res.data.list ?? []
   } catch {
     scenarios.value = []
+  } finally {
+    scenarioLoading.value = false
   }
+}
+
+function resetScenarioForm(item?: SimulationScenarioItem) {
+  if (item) {
+    scenarioEditingId.value = item.id
+    scenarioForm.name = item.name
+    scenarioForm.type = item.type
+    scenarioForm.description = item.description ?? ''
+    scenarioForm.duration = item.duration ?? simParams.durationMin * 60
+    scenarioForm.speed = item.speed ?? simSpeed.value
+    scenarioForm.status = item.status
+  } else {
+    scenarioEditingId.value = null
+    scenarioForm.name = `${sceneLabel.value}仿真`
+    scenarioForm.type = simScene.value === 'dry' ? 'energy' : 'production'
+    scenarioForm.description = ''
+    scenarioForm.duration = simParams.durationMin * 60
+    scenarioForm.speed = simSpeed.value
+    scenarioForm.status = 'draft'
+  }
+}
+
+function openCreateScenario() {
+  resetScenarioForm()
+  scenarioDialogVisible.value = true
+}
+
+function openEditScenario(item: SimulationScenarioItem) {
+  resetScenarioForm(item)
+  scenarioDialogVisible.value = true
+}
+
+async function submitScenarioForm() {
+  if (!scenarioForm.name.trim()) {
+    ElMessage.warning('请填写场景名称')
+    return
+  }
+  try {
+    if (scenarioEditingId.value) {
+      await updateSimulationScenario(scenarioEditingId.value, scenarioForm)
+      ElMessage.success('场景已更新')
+    } else {
+      const res = await createSimulationScenario(scenarioForm)
+      ElMessage.success(`场景已创建 · ID ${res.data.id}`)
+    }
+    scenarioDialogVisible.value = false
+    await fetchScenarios()
+  } catch {
+    ElMessage.error('保存失败')
+  }
+}
+
+async function handleDeleteScenario(item: SimulationScenarioItem) {
+  try {
+    await ElMessageBox.confirm(`确认删除场景「${item.name}」？`, '删除场景', { type: 'warning' })
+    await deleteSimulationScenario(item.id)
+    ElMessage.success('已删除')
+    await fetchScenarios()
+  } catch { /* cancel */ }
 }
 
 function onSimProgress(payload: SimulationProgressPayload) {
@@ -562,6 +641,17 @@ onUnmounted(() => {
             </p>
           </GlassPanel3D>
 
+          <GlassPanel3D title="仿真场景库" compact large class="twin-scenario-panel">
+            <ScenarioListPanel
+              :scenarios="scenarios"
+              :loading="scenarioLoading"
+              @refresh="fetchScenarios"
+              @create="openCreateScenario"
+              @edit="openEditScenario"
+              @delete="handleDeleteScenario"
+            />
+          </GlassPanel3D>
+
           <GlassPanel3D :title="activeTabLabel" large class="sim-func-panel">
             <SimulationTabPanel
               :active-tab="activeTab"
@@ -651,6 +741,42 @@ onUnmounted(() => {
             />
           </ElFormItem>
         </ElForm>
+      </ElDialog>
+
+      <ElDialog
+        v-model="scenarioDialogVisible"
+        :title="scenarioEditingId ? '编辑仿真场景' : '新建仿真场景'"
+        width="480px"
+        destroy-on-close
+      >
+        <ElForm label-position="top">
+          <ElFormItem label="场景名称">
+            <ElInput v-model="scenarioForm.name" placeholder="如：枯水季仿真" />
+          </ElFormItem>
+          <ElFormItem label="场景类型">
+            <ElSelect v-model="scenarioForm.type" style="width: 100%">
+              <ElOption
+                v-for="t in SCENARIO_TYPE_OPTIONS"
+                :key="t.value"
+                :label="t.label"
+                :value="t.value"
+              />
+            </ElSelect>
+          </ElFormItem>
+          <ElFormItem label="描述">
+            <ElInput v-model="scenarioForm.description" type="textarea" :rows="2" />
+          </ElFormItem>
+          <ElFormItem label="时长（秒）">
+            <ElInputNumber v-model="scenarioForm.duration" :min="60" :max="86400" controls-position="right" />
+          </ElFormItem>
+          <ElFormItem label="倍速">
+            <ElInputNumber v-model="scenarioForm.speed" :min="1" :max="10" controls-position="right" />
+          </ElFormItem>
+        </ElForm>
+        <template #footer>
+          <ElButton @click="scenarioDialogVisible = false">取消</ElButton>
+          <ElButton type="primary" @click="submitScenarioForm">保存</ElButton>
+        </template>
       </ElDialog>
 
       <ElDialog v-model="reviewDetailVisible" title="历史故障复盘详情" width="720px">

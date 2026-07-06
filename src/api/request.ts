@@ -49,6 +49,14 @@ http.interceptors.response.use(
       ElMessage.error('网络异常，请检查网络连接')
     } else {
       const status = error.response.status
+      if (status === 401) {
+        localStorage.removeItem('token')
+        localStorage.removeItem('userInfo')
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+          return Promise.reject(error)
+        }
+      }
       const msgMap: Record<number, string> = {
         400: '请求参数错误',
         401: '登录已过期，请重新登录',

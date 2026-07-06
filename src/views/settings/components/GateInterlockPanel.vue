@@ -10,6 +10,7 @@ import {
   fetchReservoirOptions, fetchInterlockRules, toggleInterlockRule,
   fetchInterlockLogs, updateInterlockRule, createInterlockRule, reorderInterlockRules,
 } from '@/api/gateaiSettings'
+import { buildSettingsPath } from '@/constants/settings'
 
 const props = withDefaults(defineProps<{
   fixedView?: 'rules' | 'logs' | 'both'
@@ -148,15 +149,12 @@ function openRuleLogs(rule: GateInterlockRule) {
 
   if (props.fixedView === 'both') {
     view.value = 'logs'
-    router.replace({
-      path: '/settings',
-      query: {
-        tab: 'gate-interlock',
-        rule_code: rule.rule_code,
-        reservoir_id: String(reservoirId.value),
-        days: '7',
-      },
+    const target = buildSettingsPath('gate-interlock', {
+      rule_code: rule.rule_code,
+      reservoir_id: reservoirId.value,
+      days: '7',
     })
+    router.replace(target)
     load()
     return
   }

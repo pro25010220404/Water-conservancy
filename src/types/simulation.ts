@@ -52,10 +52,26 @@ export interface SimulationScenarioItem {
   id: number
   name: string
   type: string
-  description?: string
+  description?: string | null
   status: string
-  model_id: number
+  model_id: number | null
+  duration?: number
+  speed?: number
+  scenario_config?: Record<string, unknown> | null
   created_at?: string
+  updated_at?: string
+}
+
+/** 创建/更新仿真场景请求体 */
+export interface SimulationScenarioPayload {
+  name: string
+  type: string
+  description?: string | null
+  duration?: number
+  speed?: number
+  model_id?: number | null
+  scenario_config?: Record<string, unknown> | null
+  status?: string
 }
 
 /** WebSocket / Reverb 进度推送 */

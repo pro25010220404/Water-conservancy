@@ -11,6 +11,7 @@ import {
   ElInput,
   ElButton,
   ElMessage,
+  ElMessageBox,
   ElDialog,
   ElTable,
   ElTableColumn,
@@ -24,15 +25,13 @@ import {
   clonePhysicsGuardConfig,
   fetchPhysicsGuardHistoryVersions,
 } from '@/api/gateaiSettings'
+import { buildSettingsPath, type SettingsTabName } from '@/constants/settings'
 
 const route = useRoute()
 const router = useRouter()
 
-function goSettingsTab(tab: string) {
-  router.push({
-    path: '/settings',
-    query: { tab, reservoir_id: String(reservoirId.value) },
-  })
+function goSettingsTab(tab: SettingsTabName) {
+  router.push(buildSettingsPath(tab, { reservoir_id: reservoirId.value }))
 }
 
 function applyReservoirQuery() {
@@ -49,6 +48,7 @@ const original = ref<PhysicsGuardConfig | null>(null)
 const interlockStats = ref({ enabled_count: 0, trigger_24h: 0, trigger_7d: 0 })
 const loading = ref(false)
 const saving = ref(false)
+const editing = ref(false)
 const saveDialogVisible = ref(false)
 const saveDescription = ref('')
 const cloneDialogVisible = ref(false)
@@ -104,9 +104,26 @@ async function load() {
     form.value = await fetchPhysicsGuardConfig(reservoirId.value)
     original.value = JSON.parse(JSON.stringify(form.value))
     interlockStats.value = await fetchInterlockStats(reservoirId.value)
+    editing.value = false
   } finally {
     loading.value = false
   }
+}
+
+function startEdit() {
+  editing.value = true
+}
+
+async function cancelEdit() {
+  if (isDirty.value) {
+    try {
+      await ElMessageBox.confirm('放弃未保存的修改？', '取消编辑', { type: 'warning' })
+    } catch {
+      return
+    }
+  }
+  handleReset()
+  editing.value = false
 }
 
 function openSaveDialog() {
@@ -122,6 +139,7 @@ async function confirmSave() {
     await savePhysicsGuardConfig(form.value, { description: saveDescription.value || undefined })
     ElMessage.success('配置已保存，边缘端下一同步周期生效')
     saveDialogVisible.value = false
+    editing.value = false
     await load()
   } finally {
     saving.value = false
@@ -155,7 +173,19 @@ async function confirmClone() {
   cloneDialogVisible.value = false
 }
 
-watch(reservoirId, load)
+watch(reservoirId, async (_newVal, oldVal) => {
+  if (editing.value && isDirty.value) {
+    try {
+      await ElMessageBox.confirm('切换水库将放弃未保存的修改，是否继续？', '提示', {
+        type: 'warning',
+      })
+    } catch {
+      reservoirId.value = oldVal
+      return
+    }
+  }
+  await load()
+})
 watch(cloneSourceId, async (id) => {
   historyVersions.value = await fetchPhysicsGuardHistoryVersions(id)
   cloneVersion.value = historyVersions.value[0]?.config_version ?? ''
@@ -188,40 +218,44 @@ onMounted(async () => {
       <ElButton type="primary" link @click="goSettingsTab('physics-guard-history')"
         >变更历史</ElButton
       >
-      <div v-if="isDirty" class="physics-dirty">
-        配置已修改，保存后将生成新版本 v{{ bumpVersion(original?.config_version ?? '1.0.0') }}
-      </div>
-      <ElButton @click="handleReset">重置</ElButton>
-      <ElButton type="primary" :disabled="!isDirty" @click="openSaveDialog">保存</ElButton>
+      <template v-if="editing">
+        <div v-if="isDirty" class="physics-dirty">
+          配置已修改，保存后将生成新版本 v{{ bumpVersion(original?.config_version ?? '1.0.0') }}
+        </div>
+        <ElButton @click="cancelEdit">取消</ElButton>
+        <ElButton @click="handleReset">重置</ElButton>
+        <ElButton type="primary" :disabled="!isDirty" @click="openSaveDialog">保存</ElButton>
+      </template>
+      <ElButton v-else type="primary" @click="startEdit">编辑</ElButton>
     </div>
 
-    <div v-if="form" class="physics-layout">
+    <div v-if="form" class="physics-layout" :class="{ 'physics-layout--readonly': !editing }">
       <ElCollapse :model-value="['upstream', 'downstream', 'shadow', 'fusion', 'gate']">
         <ElCollapseItem title="上游水位阈值" name="upstream">
           <div class="form-grid">
             <ElFormItem label="危险水位(m)"
-              ><ElInputNumber v-model="form.upstream_danger" :step="0.1" controls-position="right"
+              ><ElInputNumber :disabled="!editing" v-model="form.upstream_danger" :step="0.1" controls-position="right"
             /></ElFormItem>
             <ElFormItem label="紧急水位(m)"
-              ><ElInputNumber
+              ><ElInputNumber :disabled="!editing"
                 v-model="form.upstream_emergency"
                 :step="0.1"
                 controls-position="right"
             /></ElFormItem>
             <ElFormItem label="预警水位(m)"
-              ><ElInputNumber v-model="form.upstream_warning" :step="0.1" controls-position="right"
+              ><ElInputNumber :disabled="!editing" v-model="form.upstream_warning" :step="0.1" controls-position="right"
             /></ElFormItem>
             <ElFormItem label="死水位(m)"
-              ><ElInputNumber v-model="form.upstream_min" :step="0.1" controls-position="right"
+              ><ElInputNumber :disabled="!editing" v-model="form.upstream_min" :step="0.1" controls-position="right"
             /></ElFormItem>
             <ElFormItem label="理想区间下限"
-              ><ElInputNumber v-model="form.ideal_min" :step="0.1" controls-position="right"
+              ><ElInputNumber :disabled="!editing" v-model="form.ideal_min" :step="0.1" controls-position="right"
             /></ElFormItem>
             <ElFormItem label="理想区间上限"
-              ><ElInputNumber v-model="form.ideal_max" :step="0.1" controls-position="right"
+              ><ElInputNumber :disabled="!editing" v-model="form.ideal_max" :step="0.1" controls-position="right"
             /></ElFormItem>
             <ElFormItem label="最大变化/h(m)"
-              ><ElInputNumber
+              ><ElInputNumber :disabled="!editing"
                 v-model="form.max_level_change_per_hour"
                 :step="0.1"
                 :min="0"
@@ -232,33 +266,33 @@ onMounted(async () => {
         <ElCollapseItem title="下游 / 生态" name="downstream">
           <div class="form-grid">
             <ElFormItem label="下游危险(m)"
-              ><ElInputNumber
+              ><ElInputNumber :disabled="!editing"
                 v-model="form.downstream_danger"
                 :step="0.1"
                 controls-position="right"
             /></ElFormItem>
             <ElFormItem label="下游上限(m)"
-              ><ElInputNumber v-model="form.downstream_max" :step="0.1" controls-position="right"
+              ><ElInputNumber :disabled="!editing" v-model="form.downstream_max" :step="0.1" controls-position="right"
             /></ElFormItem>
             <ElFormItem label="下游下限(m)"
-              ><ElInputNumber v-model="form.downstream_min" :step="0.1" controls-position="right"
+              ><ElInputNumber :disabled="!editing" v-model="form.downstream_min" :step="0.1" controls-position="right"
             /></ElFormItem>
             <ElFormItem label="最小生态流量"
-              ><ElInputNumber v-model="form.eco_flow_min" :step="1" controls-position="right"
+              ><ElInputNumber :disabled="!editing" v-model="form.eco_flow_min" :step="1" controls-position="right"
             /></ElFormItem>
           </div>
         </ElCollapseItem>
         <ElCollapseItem title="物理参数 / 影子模型" name="shadow">
           <div class="form-grid">
             <ElFormItem label="水面面积(m²)"
-              ><ElInputNumber
+              ><ElInputNumber :disabled="!editing"
                 v-model="form.reservoir_area"
                 :step="100000"
                 :min="0"
                 controls-position="right"
             /></ElFormItem>
             <ElFormItem label="影子前瞻步数"
-              ><ElInputNumber
+              ><ElInputNumber :disabled="!editing"
                 v-model="form.shadow_lookahead_steps"
                 :step="1"
                 :min="1"
@@ -266,13 +300,13 @@ onMounted(async () => {
                 controls-position="right"
             /></ElFormItem>
             <ElFormItem label="影子危险偏移"
-              ><ElInputNumber
+              ><ElInputNumber :disabled="!editing"
                 v-model="form.shadow_danger_offset"
                 :step="0.1"
                 controls-position="right"
             /></ElFormItem>
             <ElFormItem label="死区(%)"
-              ><ElInputNumber
+              ><ElInputNumber :disabled="!editing"
                 v-model="form.deadband_percent"
                 :step="0.01"
                 :min="0"
@@ -280,7 +314,7 @@ onMounted(async () => {
                 controls-position="right"
             /></ElFormItem>
             <ElFormItem label="最大变化率/h"
-              ><ElInputNumber
+              ><ElInputNumber :disabled="!editing"
                 v-model="form.max_rate_per_hour"
                 :step="0.01"
                 :min="0"
@@ -292,7 +326,7 @@ onMounted(async () => {
         <ElCollapseItem title="融合决策阈值" name="fusion">
           <div class="form-grid">
             <ElFormItem label="L3置信度"
-              ><ElInputNumber
+              ><ElInputNumber :disabled="!editing"
                 v-model="form.fusion_l3_confidence"
                 :step="0.01"
                 :min="0"
@@ -300,7 +334,7 @@ onMounted(async () => {
                 controls-position="right"
             /></ElFormItem>
             <ElFormItem label="L3风险概率"
-              ><ElInputNumber
+              ><ElInputNumber :disabled="!editing"
                 v-model="form.fusion_l3_risk"
                 :step="0.01"
                 :min="0"
@@ -308,7 +342,7 @@ onMounted(async () => {
                 controls-position="right"
             /></ElFormItem>
             <ElFormItem label="L2置信度"
-              ><ElInputNumber
+              ><ElInputNumber :disabled="!editing"
                 v-model="form.fusion_l2_confidence"
                 :step="0.01"
                 :min="0"
@@ -316,7 +350,7 @@ onMounted(async () => {
                 controls-position="right"
             /></ElFormItem>
             <ElFormItem label="L2风险概率"
-              ><ElInputNumber
+              ><ElInputNumber :disabled="!editing"
                 v-model="form.fusion_l2_risk"
                 :step="0.01"
                 :min="0"
@@ -332,7 +366,7 @@ onMounted(async () => {
               :key="idx"
               :label="`${idx + 1}号闸`"
             >
-              <ElInputNumber
+              <ElInputNumber :disabled="!editing"
                 v-model="form.gate_max_discharge[idx]"
                 :step="10"
                 :min="0"
@@ -442,6 +476,14 @@ onMounted(async () => {
   gap: 20px;
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
+  }
+
+  &--readonly :deep(.el-input-number) {
+    pointer-events: none;
+  }
+  &--readonly :deep(.el-input-number .el-input__wrapper) {
+    background-color: #f5f7fa;
+    cursor: default;
   }
 }
 .form-grid {

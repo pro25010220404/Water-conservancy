@@ -17,9 +17,10 @@ async function handleClick() {
       '全局紧急停止',
       { type: 'error', confirmButtonText: '确认急停', cancelButtonText: '取消' },
     )
-    await globalEmergencyStop()
-    recordLog('全局', '急停', '触发紧急停止 · 闸门已关闭', 1)
-    ElMessage.error('急停已执行 · 所有闸门已关闭')
+    const res = await globalEmergencyStop()
+    recordLog('全局', '急停', `触发紧急停止 · ${res.data.command_id}`, 1)
+    window.dispatchEvent(new Event('gateai:estop'))
+    ElMessage.error(`急停已执行 · ${res.data.command_id}`)
   } catch { /* 用户取消 */ }
 }
 </script>

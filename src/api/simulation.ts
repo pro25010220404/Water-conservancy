@@ -11,6 +11,7 @@ import type {
   SimulationStartPayload,
   SimulationStartResult,
   SimulationScenarioItem,
+  SimulationScenarioPayload,
   SimulationResultData,
   AiModel,
   TrainingTask,
@@ -20,12 +21,56 @@ import type {
 } from '@/types/simulation'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 import { mockApi } from './mockStore'
+import {
+  mapBackendScenario,
+  mapBackendIncident,
+  incidentToSimulationParams,
+  toBackendIncidentQuery,
+  type BackendScenarioItem,
+  type BackendIncidentItem,
+} from './simulationAdapter'
 
 const V1_PREFIX = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
 const SIM_BASE = `${V1_PREFIX}/simulation`
 const DEFAULT_RESERVOIR_ID = 1
 const DEFAULT_MODEL_ID = 2
 const DEFAULT_SCENARIO_ID = 1
+
+/** 列表拉取后缓存，供详情 / 导入仿真回退 */
+const incidentCache = new Map<number, BackendIncidentItem>()
+
+function cacheIncidents(list: BackendIncidentItem[]) {
+  list.forEach((item) => incidentCache.set(item.id, item))
+}
+
+async function fetchIncidentById(id: number): Promise<BackendIncidentItem | null> {
+  const cached = incidentCache.get(id)
+  if (cached) return cached
+
+  try {
+    const res = await http.get<ApiResponse<BackendIncidentItem>>(`${SIM_BASE}/incidents/${id}`)
+    const body = unwrap(res)
+    if (body?.data) {
+      incidentCache.set(id, body.data)
+      return body.data
+    }
+  } catch {
+    /* 无详情接口时走列表缓存 */
+  }
+
+  try {
+    const res = await http.get<ApiResponse<PageResult<BackendIncidentItem>>>(
+      `${SIM_BASE}/incidents`,
+      { params: { page: 1, page_size: 100, reservoir_id: DEFAULT_RESERVOIR_ID } },
+    )
+    const body = unwrap(res)
+    const list = body?.data?.list ?? []
+    cacheIncidents(list)
+    return list.find((item) => item.id === id) ?? null
+  } catch {
+    return null
+  }
+}
 
 function unwrap<T>(res: { data: ApiResponse<T> }): ApiResponse<T> | null {
   if (res.data?.code === 0) return res.data
@@ -66,13 +111,14 @@ export async function getSimulationScenarios(params?: {
 }): Promise<ApiResponse<PageResult<SimulationScenarioItem>>> {
   return withMockFallback(
     async () => {
-      const res = await http.get<ApiResponse<PageResult<SimulationScenarioItem>>>(
+      const res = await http.get<ApiResponse<PageResult<BackendScenarioItem>>>(
         `${SIM_BASE}/scenarios`,
         { params: { page: 1, page_size: 50, ...params } },
       )
       const body = unwrap(res)
       if (!body?.data) throw new Error('scenarios failed')
-      return body
+      const list = (body.data.list ?? []).map(mapBackendScenario)
+      return { ...body, data: { list, total: body.data.total ?? list.length } }
     },
     async () => ({
       code: 0,
@@ -90,9 +136,92 @@ export async function getSimulationScenarios(params?: {
           },
         ],
         total: 1,
-        pageNum: 1,
-        pageSize: 50,
       },
+    }),
+  )
+}
+
+/** 创建仿真场景 */
+export async function createSimulationScenario(
+  payload: SimulationScenarioPayload,
+): Promise<ApiResponse<SimulationScenarioItem>> {
+  return withMockFallback(
+    async () => {
+      const res = await http.post<ApiResponse<BackendScenarioItem>>(
+        `${SIM_BASE}/scenarios`,
+        payload,
+      )
+      const body = unwrap(res)
+      if (!body?.data) throw new Error('create scenario failed')
+      return { ...body, data: mapBackendScenario(body.data) }
+    },
+    async () => ({
+      code: 0,
+      msg: 'ok',
+      success: true,
+      trace_id: 'mock-create-scenario',
+      data: {
+        id: Date.now(),
+        name: payload.name,
+        type: payload.type,
+        description: payload.description ?? null,
+        status: payload.status ?? 'draft',
+        model_id: payload.model_id ?? null,
+        duration: payload.duration,
+        speed: payload.speed ?? 1,
+        scenario_config: payload.scenario_config ?? null,
+        created_at: new Date().toISOString(),
+      },
+    }),
+  )
+}
+
+/** 更新仿真场景 */
+export async function updateSimulationScenario(
+  id: number,
+  payload: Partial<SimulationScenarioPayload>,
+): Promise<ApiResponse<SimulationScenarioItem>> {
+  return withMockFallback(
+    async () => {
+      const res = await http.put<ApiResponse<BackendScenarioItem>>(
+        `${SIM_BASE}/scenarios/${id}`,
+        payload,
+      )
+      const body = unwrap(res)
+      if (!body?.data) throw new Error('update scenario failed')
+      return { ...body, data: mapBackendScenario(body.data) }
+    },
+    async () => ({
+      code: 0,
+      msg: 'ok',
+      success: true,
+      trace_id: 'mock-update-scenario',
+      data: {
+        id,
+        name: payload.name ?? '场景',
+        type: payload.type ?? 'production',
+        status: payload.status ?? 'draft',
+        model_id: payload.model_id ?? null,
+      },
+    }),
+  )
+}
+
+/** 删除仿真场景 */
+export async function deleteSimulationScenario(id: number): Promise<ApiResponse<null>> {
+  return withMockFallback(
+    async () => {
+      const res = await http.delete<ApiResponse<null>>(`${SIM_BASE}/scenarios/${id}`)
+      const body = unwrap(res)
+      if (!body) throw new Error('delete scenario failed')
+      return body
+    },
+    async () => ({
+      code: 0,
+      msg: 'ok',
+      success: true,
+      trace_id: 'mock-delete-scenario',
+      data: null,
     }),
   )
 }
@@ -294,7 +423,7 @@ export async function downloadReport(_id: number): Promise<Blob> {
   return mockApi.downloadReport()
 }
 
-export async function getFaultReviewList(_params: {
+export async function getFaultReviewList(params: {
   pageNum: number
   pageSize: number
   type?: string
@@ -303,16 +432,32 @@ export async function getFaultReviewList(_params: {
 }): Promise<ApiResponse<PageResult<FaultReview>>> {
   return withMockFallback(
     async () => {
-      throw new Error('fault list not on api')
+      const res = await http.get<ApiResponse<PageResult<BackendIncidentItem>>>(
+        `${SIM_BASE}/incidents`,
+        { params: toBackendIncidentQuery(params) },
+      )
+      const body = unwrap(res)
+      if (!body?.data) throw new Error('incidents failed')
+      const list = body.data.list ?? []
+      cacheIncidents(list)
+      return {
+        ...body,
+        data: {
+          list: list.map(mapBackendIncident),
+          total: body.data.total ?? list.length,
+        },
+      }
     },
-    () => mockApi.getFaultReviewList(),
+    () => mockApi.getFaultReviewList(params),
   )
 }
 
 export async function getFaultReviewDetail(id: number): Promise<ApiResponse<FaultReview>> {
   return withMockFallback(
     async () => {
-      throw new Error('fault detail not on api')
+      const raw = await fetchIncidentById(id)
+      if (!raw) throw new Error('incident not found')
+      return { code: 0, msg: 'ok', success: true, trace_id: '', data: mapBackendIncident(raw) }
     },
     () => mockApi.getFaultReviewDetail(id),
   )
@@ -330,10 +475,18 @@ export async function submitFaultConclusion(
   )
 }
 
-export async function importToSimulation(_id: number): Promise<ApiResponse<SimulationParams>> {
+export async function importToSimulation(id: number): Promise<ApiResponse<SimulationParams>> {
   return withMockFallback(
     async () => {
-      throw new Error('import not on api')
+      const raw = await fetchIncidentById(id)
+      if (!raw) throw new Error('incident not found')
+      return {
+        code: 0,
+        msg: 'ok',
+        success: true,
+        trace_id: '',
+        data: incidentToSimulationParams(raw),
+      }
     },
     () => mockApi.importToSimulation(),
   )
@@ -383,16 +536,27 @@ export function resolveScenarioId(
   const keywords: Record<string, string[]> = {
     normal: ['正常', '工况'],
     flood: ['洪水', '汛'],
-    dry: ['枯水'],
+    dry: ['枯水', '淡水'],
     rainstorm: ['暴雨'],
+  }
+  const typeMap: Record<string, string> = {
+    normal: 'production',
+    flood: 'production',
+    dry: 'energy',
+    rainstorm: 'production',
   }
   const keys = keywords[scene] ?? []
   const matched = scenarios.find(
     (s) =>
-      s.status === 'active' &&
-      keys.some((k) => s.name.includes(k) || (s.description ?? '').includes(k)),
+      (s.status === 'active' || s.status === 'draft') &&
+      (s.type === typeMap[scene] ||
+        keys.some((k) => s.name.includes(k) || (s.description ?? '').includes(k))),
   )
-  const pick = matched ?? scenarios.find((s) => s.status === 'active') ?? scenarios[0]
+  const pick =
+    matched ??
+    scenarios.find((s) => s.status === 'active') ??
+    scenarios.find((s) => s.status === 'draft') ??
+    scenarios[0]
   return {
     scenarioId: pick?.id ?? DEFAULT_SCENARIO_ID,
     modelId: pick?.model_id ?? DEFAULT_MODEL_ID,

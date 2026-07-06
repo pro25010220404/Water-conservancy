@@ -9,6 +9,7 @@ import {
 import { Search, Refresh, VideoPlay, VideoPause } from '@element-plus/icons-vue'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import { DEBOUNCE_DELAY, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '@/constants'
+import { buildSettingsPath } from '@/constants/settings'
 import {
   ALARM_LEVEL_MAP, ALARM_TYPE_MAP, ALARM_STATUS_MAP,
   ALARM_LEVEL_OPTIONS, ALARM_TYPE_OPTIONS, ALARM_STATUS_OPTIONS,
@@ -345,7 +346,7 @@ onUnmounted(() => {
               <div>
                 <ElButton size="small" type="primary" link @click="router.push('/settings/ai/metrics')">模型健康度</ElButton>
                 <ElButton size="small" type="primary" link @click="router.push('/dispatch')">调度决策</ElButton>
-                <ElButton size="small" type="primary" link @click="router.push({ path: '/settings', query: { tab: 'physics-guard-history', reservoir_id: '1' } })">配置回滚</ElButton>
+                <ElButton size="small" type="primary" link @click="router.push(buildSettingsPath('physics-guard-history', { reservoir_id: 1 }))">配置回滚</ElButton>
               </div>
             </div>
           </ElDescriptionsItem>

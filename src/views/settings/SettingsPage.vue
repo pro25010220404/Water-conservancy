@@ -7,8 +7,6 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ElTabs,
-  ElTabPane,
   ElCard,
   ElTable,
   ElTableColumn,
@@ -55,6 +53,11 @@ import {
   deleteModel,
 } from '@/api/settings'
 import type { ThresholdRule, WeightConfig, ModelInfo, SystemUser } from '@/shared/types'
+import {
+  SETTINGS_TAB_ROUTES,
+  settingsTabFromPath,
+  type SettingsTabName,
+} from '@/constants/settings'
 
 const { record: recordLog } = useOperationLog()
 const route = useRoute()
@@ -84,6 +87,8 @@ const thresholdsEditing = ref<Record<number, ThresholdRule>>({})
 // Tab2: 权重
 const weights = ref<WeightConfig | null>(null)
 const weightForm = ref({ power_weight: 0.4, safety_weight: 0.35, ecology_weight: 0.25 })
+const weightOriginal = ref({ power_weight: 0.4, safety_weight: 0.35, ecology_weight: 0.25 })
+const weightEditing = ref(false)
 const weightLoading = ref(false)
 const presetOptions = [
   { label: '均衡方案', power: 0.4, safety: 0.35, ecology: 0.25 },
@@ -95,6 +100,7 @@ const presetOptions = [
 type Preset = (typeof presetOptions)[number]
 
 function applyPreset(p: Preset) {
+  if (!weightEditing.value) return
   weightForm.value = { power_weight: p.power, safety_weight: p.safety, ecology_weight: p.ecology }
 }
 
@@ -156,6 +162,33 @@ const weightSum = computed(
     ).toFixed(2),
 )
 const weightValid = computed(() => Math.abs(weightSum.value - 1.0) < 0.001)
+const weightIsDirty = computed(
+  () => JSON.stringify(weightForm.value) !== JSON.stringify(weightOriginal.value),
+)
+
+function syncWeightOriginal() {
+  weightOriginal.value = JSON.parse(JSON.stringify(weightForm.value))
+}
+
+function startWeightEdit() {
+  weightEditing.value = true
+}
+
+async function cancelWeightEdit() {
+  if (weightIsDirty.value) {
+    try {
+      await ElMessageBox.confirm('放弃未保存的修改？', '取消编辑', { type: 'warning' })
+    } catch {
+      return
+    }
+  }
+  weightForm.value = JSON.parse(JSON.stringify(weightOriginal.value))
+  weightEditing.value = false
+}
+
+function resetWeightEdit() {
+  weightForm.value = JSON.parse(JSON.stringify(weightOriginal.value))
+}
 
 // ── 联动滑块 ──
 function onSliderChange(changed: string) {
@@ -519,6 +552,8 @@ async function fetchWeights() {
         safety_weight: d.safety_weight,
         ecology_weight: d.ecology_weight,
       }
+      syncWeightOriginal()
+      weightEditing.value = false
       weightLoading.value = false
       return
     }
@@ -531,6 +566,8 @@ async function fetchWeights() {
     safety_weight: MOCK_WEIGHTS.safety_weight,
     ecology_weight: MOCK_WEIGHTS.ecology_weight,
   }
+  syncWeightOriginal()
+  weightEditing.value = false
   weightLoading.value = false
 }
 
@@ -550,6 +587,9 @@ async function saveWeights() {
       1,
     )
     ElMessage.success('权重已保存并推送至边缘端')
+    syncWeightOriginal()
+    weightEditing.value = false
+    await fetchWeights()
   } catch {
     /* 取消 */
   } finally {
@@ -763,24 +803,40 @@ async function handleDelete(row: SystemUser) {
   }
 }
 
-function applySettingsTabQuery() {
-  const tab = route.query.tab as string | undefined
-  if (tab && (SETTINGS_TAB_NAMES as readonly string[]).includes(tab)) {
-    activeTab.value = tab
+function applyRouteTab() {
+  const legacyTab = route.query.tab as SettingsTabName | undefined
+  if (legacyTab && SETTINGS_TAB_ROUTES[legacyTab]) {
+    const target = SETTINGS_TAB_ROUTES[legacyTab]
+    if (route.path !== target) {
+      const query = { ...route.query }
+      delete query.tab
+      router.replace({ path: target, query })
+      return
+    }
+    activeTab.value = legacyTab
+    return
+  }
+
+  const metaTab = route.meta.settingsTab as string | undefined
+  if (metaTab && (SETTINGS_TAB_NAMES as readonly string[]).includes(metaTab)) {
+    activeTab.value = metaTab
+    return
+  }
+  const fromPath = settingsTabFromPath(route.path)
+  if (fromPath) {
+    activeTab.value = fromPath
   }
 }
 
-watch(() => route.query.tab, applySettingsTabQuery)
-
-watch(activeTab, (tab) => {
-  if (route.path !== '/settings') return
-  if (route.query.tab === tab) return
-  router.replace({ path: '/settings', query: { ...route.query, tab } })
-})
+watch(
+  () => [route.path, route.meta.settingsTab, route.query.tab] as const,
+  () => applyRouteTab(),
+  { immediate: true },
+)
 
 // ── 生命周期 ──
 onMounted(() => {
-  applySettingsTabQuery()
+  applyRouteTab()
   fetchThresholds()
   fetchWeights()
   fetchModels()
@@ -790,9 +846,9 @@ onMounted(() => {
 
 <template>
   <div class="page settings-page">
-    <ElTabs v-model="activeTab" type="border-card" class="settings-page__tabs">
-      <!-- ═══ Tab1: 告警阈值 ═══ -->
-      <ElTabPane label="告警阈值配置" name="thresholds">
+    <div class="settings-page__content">
+      <!-- 告警阈值 -->
+      <div v-if="activeTab === 'thresholds'" class="settings-page__panel">
         <ElTable v-loading="thresholdsLoading" :data="thresholds" style="width: 100%">
           <ElTableColumn prop="metric" label="监控指标" min-width="140">
             <template #default="scope">
@@ -908,24 +964,40 @@ onMounted(() => {
             </template>
           </ElTableColumn>
         </ElTable>
-      </ElTabPane>
+      </div>
 
-      <!-- ═══ Tab2: 多目标权重 ═══ -->
-      <ElTabPane label="多目标权重配置" name="weights">
+      <!-- 多目标权重 -->
+      <div v-else-if="activeTab === 'weights'" class="settings-page__panel">
         <ElCard v-loading="weightLoading" class="settings-page__weight-card" shadow="never">
           <div class="weight-section">
+            <div class="weight-toolbar">
+              <template v-if="weightEditing">
+                <ElButton @click="cancelWeightEdit">取消</ElButton>
+                <ElButton :disabled="!weightIsDirty" @click="resetWeightEdit">重置</ElButton>
+                <ElButton
+                  type="primary"
+                  :disabled="!weightValid || !weightIsDirty"
+                  :loading="saveLoadingTab2"
+                  @click="saveWeights"
+                >
+                  保存并推送至边缘端
+                </ElButton>
+              </template>
+              <ElButton v-else type="primary" @click="startWeightEdit">编辑</ElButton>
+            </div>
             <div class="weight-presets">
               <span class="weight-label">预设方案：</span>
               <ElButton
                 v-for="p in presetOptions"
                 :key="p.label"
+                :disabled="!weightEditing"
                 style="margin-right: 8px"
                 @click="applyPreset(p)"
               >
                 {{ p.label }}
               </ElButton>
             </div>
-            <div class="weight-sliders">
+            <div class="weight-sliders" :class="{ 'weight-sliders--readonly': !weightEditing }">
               <div class="weight-row">
                 <span class="weight-row__label">发电效益</span>
                 <ElSlider
@@ -933,6 +1005,7 @@ onMounted(() => {
                   :min="0"
                   :max="1"
                   :step="0.01"
+                  :disabled="!weightEditing"
                   style="flex: 1; margin: 0 16px"
                   @input="onSliderChange('power_weight')"
                 />
@@ -947,6 +1020,7 @@ onMounted(() => {
                   :min="0"
                   :max="1"
                   :step="0.01"
+                  :disabled="!weightEditing"
                   style="flex: 1; margin: 0 16px"
                   @input="onSliderChange('safety_weight')"
                 />
@@ -961,6 +1035,7 @@ onMounted(() => {
                   :min="0"
                   :max="1"
                   :step="0.01"
+                  :disabled="!weightEditing"
                   style="flex: 1; margin: 0 16px"
                   @input="onSliderChange('ecology_weight')"
                 />
@@ -972,25 +1047,16 @@ onMounted(() => {
             <div class="weight-summary">
               <span>合计：</span>
               <span :class="{ 'weight-summary--invalid': !weightValid }">{{ weightSum }}</span>
-              <span v-if="!weightValid" class="weight-summary--warn"
+              <span v-if="weightEditing && !weightValid" class="weight-summary--warn"
                 ><el-icon><Warning /></el-icon>三权重之和必须等于 1.0 才能保存</span
               >
             </div>
-            <ElButton
-              type="primary"
-              :disabled="!weightValid"
-              :loading="saveLoadingTab2"
-              style="margin-top: 16px"
-              @click="saveWeights"
-            >
-              保存并推送至边缘端
-            </ElButton>
           </div>
         </ElCard>
-      </ElTabPane>
+      </div>
 
-      <!-- ═══ Tab3: 模型管理 ═══ -->
-      <ElTabPane label="模型管理" name="models">
+      <!-- 模型管理 -->
+      <div v-else-if="activeTab === 'models'" class="settings-page__panel">
         <div class="settings-page__toolbar">
           <ElInput
             v-model="modelKeyword"
@@ -1117,38 +1183,38 @@ onMounted(() => {
           style="margin-top: 12px; justify-content: flex-end"
           @current-change="fetchModels"
         />
-      </ElTabPane>
+      </div>
 
-      <!-- ═══ Tab4: 模型健康度（文档 §1.5） ═══ -->
-      <ElTabPane label="模型健康度" name="ai-metrics">
+      <!-- 模型健康度 -->
+      <div v-else-if="activeTab === 'ai-metrics'" class="settings-page__panel">
         <div class="gateai-tab-content">
           <ModelMetricsPanel />
         </div>
-      </ElTabPane>
+      </div>
 
-      <!-- ═══ Tab5: 物理防护配置（文档 §2.5） ═══ -->
-      <ElTabPane label="物理防护配置" name="physics-guard">
+      <!-- 物理防护配置 -->
+      <div v-else-if="activeTab === 'physics-guard'" class="settings-page__panel">
         <div class="gateai-tab-content">
           <PhysicsGuardPanel />
         </div>
-      </ElTabPane>
+      </div>
 
-      <!-- ═══ Tab5b: 配置变更历史 ═══ -->
-      <ElTabPane label="配置变更历史" name="physics-guard-history">
+      <!-- 配置变更历史 -->
+      <div v-else-if="activeTab === 'physics-guard-history'" class="settings-page__panel">
         <div class="gateai-tab-content">
           <PhysicsGuardHistoryPanel />
         </div>
-      </ElTabPane>
+      </div>
 
-      <!-- ═══ Tab6: 闸门互锁（文档 §3.6） ═══ -->
-      <ElTabPane label="闸门互锁规则" name="gate-interlock">
+      <!-- 闸门互锁规则 -->
+      <div v-else-if="activeTab === 'gate-interlock'" class="settings-page__panel">
         <div class="gateai-tab-content">
           <GateInterlockPanel />
         </div>
-      </ElTabPane>
+      </div>
 
-      <!-- ═══ Tab7: 用户管理 ═══ -->
-      <ElTabPane label="用户管理" name="users">
+      <!-- 用户管理 -->
+      <div v-else-if="activeTab === 'users'" class="settings-page__panel">
         <div class="settings-page__toolbar">
           <ElInput
             v-model="userKeyword"
@@ -1292,8 +1358,8 @@ onMounted(() => {
             </ElButton>
           </template>
         </ElDialog>
-      </ElTabPane>
-    </ElTabs>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1315,16 +1381,12 @@ onMounted(() => {
     font-size: var(--font-size-sm);
   }
 
-  &__tabs {
-    :deep(.el-tabs__content) {
-      padding: 20px 24px;
-    }
-    :deep(.el-tabs__item) {
-      font-size: var(--font-size-base);
-      padding: 0 18px;
-      height: 44px;
-      line-height: 44px;
-    }
+  &__content {
+    padding: 4px 0;
+  }
+
+  &__panel {
+    padding: 8px 4px;
   }
 
   &__toolbar {
@@ -1359,6 +1421,13 @@ onMounted(() => {
   flex-direction: column;
   gap: 36px;
   padding: var(--spacing-lg) 0;
+}
+
+.weight-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: -12px;
 }
 
 .weight-presets {
