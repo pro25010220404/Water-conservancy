@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElIcon } from 'element-plus'
 import { DataAnalysis } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
@@ -32,12 +32,6 @@ const metricOptions = [
   { value: 'outflowRate', label: '出库流量', unit: 'm³/s', color: '#22c55e' },
   { value: 'gateOpening', label: '闸门开度', unit: '%', color: '#f59e0b' },
   { value: 'powerOutput', label: '发电功率', unit: 'MW', color: '#ef4444' },
-]
-const granularityOptions = [
-  { value: 'raw', label: '原始' },
-  { value: '5min', label: '5分钟' },
-  { value: 'hour', label: '小时' },
-  { value: 'day', label: '日' },
 ]
 const queried = ref(false)
 

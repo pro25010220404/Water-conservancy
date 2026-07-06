@@ -4,7 +4,7 @@
 // ============================================================
 
 import { computed } from 'vue'
-import { ElButton, ElDivider } from 'element-plus'
+import { ElButton } from 'element-plus'
 import {
   RefreshRight,
   Setting,

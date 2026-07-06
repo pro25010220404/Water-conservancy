@@ -13,7 +13,7 @@ import {
   ElSkeleton,
 } from 'element-plus'
 import { Close } from '@element-plus/icons-vue'
-import { DEVICE_TYPE, DEVICE_STATUS } from '@/constants'
+// DEVICE_TYPE/STATUS 已由子组件自行引用
 import { useEquipmentStore } from '@/stores/equipment'
 import DeviceBasicInfo from './DeviceBasicInfo.vue'
 import DeviceRealtimeData from './DeviceRealtimeData.vue'
@@ -34,6 +34,23 @@ function handleClose() {
 }
 function handleRestart() {
   if (detail.value) emit('restart', { name: detail.value.name, type: detail.value.type })
+}
+
+function handleEditConfig() {
+  // TODO: 对接设备参数配置
+  console.warn('[DeviceDetail] 参数配置功能待实现')
+}
+function handleMarkFault() {
+  // TODO: 对接标记故障 API
+  console.warn('[DeviceDetail] 标记故障功能待实现')
+}
+function handleMarkNormal() {
+  // TODO: 对接标记正常 API
+  console.warn('[DeviceDetail] 标记正常功能待实现')
+}
+function handleViewLogs() {
+  // TODO: 对接查看日志功能
+  console.warn('[DeviceDetail] 查看日志功能待实现')
 }
 
 const isSensorOrActuator = computed(() => {
@@ -128,7 +145,14 @@ function getSyncStatusLabel(status: string): string {
         <!-- 维护操作区 -->
         <ElCard shadow="never" class="device-detail__section">
           <template #header><span class="device-detail__section-title">维护操作</span></template>
-          <DeviceOperations :detail="detail" @restart="handleRestart" />
+          <DeviceOperations
+            :detail="detail"
+            @restart="handleRestart"
+            @edit-config="handleEditConfig"
+            @mark-fault="handleMarkFault"
+            @mark-normal="handleMarkNormal"
+            @view-logs="handleViewLogs"
+          />
         </ElCard>
       </template>
     </ElSkeleton>

@@ -109,12 +109,7 @@ onMounted(() => {
         <ElAvatar
           :size="96"
           :src="currentAvatarUrl"
-          style="
-            background: linear-gradient(135deg, #1890ff, #00d4ff);
-            color: #fff;
-            font-size: 38px;
-            font-weight: 600;
-          "
+          class="profile-card__avatar"
         >
           {{ avatarChar }}
         </ElAvatar>
@@ -189,6 +184,15 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+}
+
+.profile-card__avatar {
+  :deep(.el-avatar) {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent)) !important;
+    color: #fff;
+    font-size: 38px;
+    font-weight: 600;
+  }
 }
 
 .profile-info {

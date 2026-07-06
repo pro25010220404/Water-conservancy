@@ -85,7 +85,7 @@ export async function getReservoirDetail(
   equipmentCount = 0,
 ): Promise<ApiResponse<ReservoirDetail>> {
   try {
-    const res = await http.get<ApiResponse<ReservoirDetail>>(`/reservoirs/${id}`)
+    const res = await http.get<ApiResponse<ReservoirDetail>>(`/v1/reservoirs/${id}`)
     if (res.data?.code === 0 && res.data.data) return res.data
   } catch {
     /* mock */
