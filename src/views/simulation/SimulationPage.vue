@@ -141,6 +141,9 @@ const elapsedLabel = computed(() => {
 })
 const statusInfo = computed(() => SIMULATION_STATUS_MAP[simStatus.value.status])
 const sceneLabel = computed(() => SIMULATION_SCENE_MAP[simScene.value]?.label ?? '')
+const speedLabel = computed(
+  () => SPEED_OPTIONS.find((s) => s.value === simSpeed.value)?.label ?? `${simSpeed.value}x`,
+)
 const simActive = computed(() =>
   simStatus.value.status === 'running'
   || simStatus.value.status === 'paused'
@@ -153,7 +156,6 @@ const canStart = computed(() =>
   simStatus.value.status === 'idle' || simStatus.value.status === 'finished',
 )
 const durationSec = computed(() => Math.max(60, simParams.durationMin * 60))
-const activeTabLabel = computed(() => SIMULATION_TABS.find((t) => t.value === activeTab.value)?.label ?? '功能面板')
 /** 主视窗：2D 剖面示意 / 3D 场景 */
 const viewMode = ref<'2d' | '3d'>('3d')
 const panoramaVisible = ref(false)
@@ -472,9 +474,9 @@ onUnmounted(() => {
 <template>
   <div class="sim-page sim-page--twin sim-page--sky">
       <div class="sim-page__grid">
-        <!-- 左栏：水情数据 -->
+        <!-- 左栏：水情 + 曲线 + 场景库 -->
         <aside class="sim-page__col sim-page__col--left">
-          <GlassPanel3D title="水情实时统计" large>
+          <GlassPanel3D title="水情实时统计" compact class="twin-kpi-panel">
             <div class="twin-kpi-row">
               <div class="twin-kpi">
                 <div class="twin-kpi__ring" :style="{ '--pct': gaugePct + '%', '--c': levelStatus.color }">
@@ -508,7 +510,7 @@ onUnmounted(() => {
             </ul>
           </GlassPanel3D>
 
-          <GlassPanel3D title="库区水位曲线" compact large class="twin-chart-panel">
+          <GlassPanel3D title="库区水位曲线" compact class="twin-chart-panel">
             <div class="twin-bars">
               <div
                 v-for="(bar, i) in levelHistoryBars"
@@ -518,6 +520,17 @@ onUnmounted(() => {
                 :title="bar.v.toFixed(2) + 'm'"
               />
             </div>
+          </GlassPanel3D>
+
+          <GlassPanel3D title="仿真场景库" compact fill class="twin-scenario-panel">
+            <ScenarioListPanel
+              :scenarios="scenarios"
+              :loading="scenarioLoading"
+              @refresh="fetchScenarios"
+              @create="openCreateScenario"
+              @edit="openEditScenario"
+              @delete="handleDeleteScenario"
+            />
           </GlassPanel3D>
         </aside>
 
@@ -589,31 +602,14 @@ onUnmounted(() => {
               </button>
             </div>
             <span class="sim-toolbar__sep" />
-            <label class="sim-toolbar__field">
+            <div class="sim-toolbar__field sim-toolbar__field--readonly" title="点击「打开控制」修改场景与倍速">
               <span>场景</span>
-              <select
-                class="sim-toolbar__select"
-                :value="simScene"
-                :disabled="!canStart"
-                @change="onSceneChange(($event.target as HTMLSelectElement).value as SimulationScene)"
-              >
-                <option v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :value="s.value">
-                  {{ s.label }}
-                </option>
-              </select>
-            </label>
-            <label class="sim-toolbar__field">
+              <span class="sim-toolbar__value">{{ sceneLabel }}</span>
+            </div>
+            <div class="sim-toolbar__field sim-toolbar__field--readonly" title="点击「打开控制」修改场景与倍速">
               <span>倍速</span>
-              <select
-                v-model.number="simSpeed"
-                class="sim-toolbar__select"
-                :disabled="simStatus.status === 'running'"
-              >
-                <option v-for="s in SPEED_OPTIONS" :key="s.value" :value="s.value">
-                  {{ s.label }}
-                </option>
-              </select>
-            </label>
+              <span class="sim-toolbar__value">{{ speedLabel }}</span>
+            </div>
             <span class="sim-toolbar__spacer" />
             <button
               type="button"
@@ -629,50 +625,55 @@ onUnmounted(() => {
 
         <!-- 右栏：闸门监测 + 功能面板 -->
         <aside class="sim-page__col sim-page__col--right">
-          <GlassPanel3D title="泄洪闸门监测" compact large class="twin-gate-panel">
-            <ul class="twin-gate-list">
+          <GlassPanel3D title="泄洪闸门监测" compact class="twin-gate-panel">
+            <ul class="twin-gate-grid">
               <li v-for="n in 5" :key="n">
-                <span>{{ n }} 号表孔闸门</span>
-                <b class="is-open">{{ gateOpening }}% · 运行正常</b>
+                <span>{{ n }} 号表孔</span>
+                <b>{{ gateOpening }}%</b>
               </li>
             </ul>
-            <p class="twin-alert">
-              运行正常 · 同步泄洪 {{ gateOpening }}%
-            </p>
+            <p class="twin-gate-summary">5 孔同步 · 运行正常</p>
           </GlassPanel3D>
 
-          <GlassPanel3D title="仿真场景库" compact large class="twin-scenario-panel">
-            <ScenarioListPanel
-              :scenarios="scenarios"
-              :loading="scenarioLoading"
-              @refresh="fetchScenarios"
-              @create="openCreateScenario"
-              @edit="openEditScenario"
-              @delete="handleDeleteScenario"
-            />
-          </GlassPanel3D>
-
-          <GlassPanel3D :title="activeTabLabel" large class="sim-func-panel">
-            <SimulationTabPanel
-              :active-tab="activeTab"
-              :sim-scene="simScene"
-              :sim-status="simStatus"
-              :physics-guard="physicsGuard"
-              :models="models"
-              :reports="reports"
-              :reviews="reviews"
-              :model-loading="modelLoading"
-              :report-loading="reportLoading"
-              :review-loading="reviewLoading"
-              compact
-              @tab-change="onTabChange"
-              @activate="handleActivateModel"
-              @upload="handleUploadModel"
-              @train="handleTrainModel"
-              @generate="handleGenerateReport"
-              @open-review="openReviewDetail"
-              @import-review="handleImportToSim"
-            />
+          <GlassPanel3D title="功能面板" fill class="sim-func-panel">
+            <div class="sim-func-panel__inner">
+              <div class="sim-func-tabs">
+                <button
+                  v-for="t in SIMULATION_TABS"
+                  :key="t.value"
+                  type="button"
+                  class="sim-func-tabs__btn"
+                  :class="{ 'is-active': activeTab === t.value }"
+                  @click="onTabChange(t.value)"
+                >
+                  {{ t.label }}
+                </button>
+              </div>
+              <div class="sim-func-panel__scroll">
+                <SimulationTabPanel
+                  class="sim-func-panel__content"
+                  :active-tab="activeTab"
+                  :sim-scene="simScene"
+                  :sim-status="simStatus"
+                  :physics-guard="physicsGuard"
+                  :models="models"
+                  :reports="reports"
+                  :reviews="reviews"
+                  :model-loading="modelLoading"
+                  :report-loading="reportLoading"
+                  :review-loading="reviewLoading"
+                  compact
+                  hide-tabs
+                  @tab-change="onTabChange"
+                  @activate="handleActivateModel"
+                  @upload="handleUploadModel"
+                  @train="handleTrainModel"
+                  @generate="handleGenerateReport"
+                  @open-review="openReviewDetail"
+                  @import-review="handleImportToSim"
+                />
+              </div>
+            </div>
           </GlassPanel3D>
         </aside>
       </div>
@@ -810,53 +811,89 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0;
-  min-height: calc(100vh - var(--header-height) - var(--tabs-height));
-  height: calc(100vh - var(--header-height) - var(--tabs-height));
-  padding: 12px var(--spacing-lg) var(--spacing-lg);
+  min-height: 0;
+  height: 100%;
+  /* 与侧栏、右边缘留出一致内边距，避免面板贴边或被裁切 */
+  padding: 14px 18px 16px;
   color: #1e4976;
   overflow: hidden;
   font-size: $cockpit-font-md;
+  box-sizing: border-box;
 
-  :deep(.glass-panel__title) { font-size: 20px; }
-  :deep(.glass-panel__body) { font-size: 17px; }
-  :deep(.glass-panel__header) { padding: 16px 20px; }
-  :deep(.glass-panel__deco) { height: 20px; }
+  :deep(.glass-panel) {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    border: 1px solid rgba(24, 144, 255, 0.16);
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(24, 144, 255, 0.06);
+  }
 
-  /* 三栏：左右约 24%，中间主视窗约 52% */
+  :deep(.glass-panel__title) { font-size: $cockpit-font-md; font-weight: 600; }
+  :deep(.glass-panel__body) { font-size: $cockpit-font-base; line-height: 1.55; }
+  :deep(.glass-panel__header) { padding: 12px 14px; }
+  :deep(.glass-panel__deco) { height: 16px; }
+
+  /* 三栏：左 ~27% · 中 ~46% · 右 ~27% */
   .sim-page__grid {
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(300px, 24%) minmax(0, 1fr) minmax(300px, 24%);
-    gap: 12px;
+    grid-template-columns: minmax(288px, 27fr) minmax(0, 46fr) minmax(300px, 27fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 14px;
     align-items: stretch;
+    overflow: hidden;
   }
 
   .sim-page__col {
     min-height: 0;
     min-width: 0;
     height: 100%;
+    overflow: hidden;
 
     &--left {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-rows: auto auto minmax(0, 1fr);
       gap: 10px;
       overflow: hidden;
 
-      > :first-child { flex-shrink: 0; }
-
+      .twin-kpi-panel,
       .twin-chart-panel {
-        flex: 1;
         min-height: 0;
-        display: flex;
-        flex-direction: column;
+      }
+
+      :deep(.glass-panel__body) {
+        padding: 10px 12px;
+      }
+
+      .twin-chart-panel :deep(.glass-panel__body) {
+        padding: 8px 12px 10px;
+      }
+
+      .twin-scenario-panel {
+        min-height: 0;
+        overflow: hidden;
 
         :deep(.glass-panel__body) {
-          flex: 1;
-          min-height: 0;
-          display: flex;
-          flex-direction: column;
-          padding-bottom: 14px;
+          padding: 8px 12px 10px;
+        }
+
+        :deep(.scenario-panel__toolbar .el-button) {
+          font-size: $cockpit-font-sm;
+          padding: 6px 12px;
+        }
+
+        :deep(.scenario-panel__head) {
+          font-size: $cockpit-font-base;
+        }
+
+        :deep(.scenario-panel__meta) {
+          font-size: $cockpit-font-sm;
+        }
+
+        :deep(.scenario-panel__actions .el-button) {
+          font-size: $cockpit-font-sm;
         }
       }
     }
@@ -866,60 +903,144 @@ onUnmounted(() => {
       flex-direction: column;
       gap: 8px;
       min-height: 0;
+      min-width: 0;
     }
 
     .sim-viewport-label {
       flex-shrink: 0;
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 700;
       color: #1e4976;
-      padding: 0 4px;
+      padding: 0 2px;
     }
 
     &--right {
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
       gap: 10px;
       overflow: hidden;
+      min-height: 0;
 
-      .twin-gate-panel { flex-shrink: 0; }
+      .twin-gate-panel {
+        align-self: start;
+
+        :deep(.glass-panel__body) {
+          padding: 8px 12px 10px;
+        }
+      }
+
+      .sim-func-panel {
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+    }
+  }
+
+  .sim-func-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex-shrink: 0;
+    margin-bottom: 2px;
+
+    &__btn {
+      flex-shrink: 0;
+      padding: 6px 10px;
+      font-size: $cockpit-font-sm;
+      font-weight: 600;
+      line-height: 1.35;
+      color: #64748b;
+      background: #f1f5f9;
+      border: 1px solid rgba(24, 144, 255, 0.12);
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+
+      &:hover {
+        color: #1890ff;
+        border-color: rgba(24, 144, 255, 0.28);
+        background: #e6f4ff;
+      }
+
+      &.is-active {
+        color: #fff;
+        background: linear-gradient(135deg, #1890ff, #096dd9);
+        border-color: transparent;
+      }
     }
   }
 
   .sim-func-panel {
-    flex: 1;
     min-height: 0;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
     overflow: hidden;
 
-    :deep(.glass-panel) {
-      min-width: 0;
-      overflow: hidden;
+    :deep(.glass-panel__header) {
+      padding: 12px 14px;
     }
 
     :deep(.glass-panel__body) {
       flex: 1;
       min-height: 0;
-      min-width: 0;
-      overflow-x: hidden;
-      overflow-y: auto;
       display: flex;
       flex-direction: column;
-      padding: 8px 10px 10px;
+      overflow: hidden;
+      padding: 0;
+    }
+
+    &__inner {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px 12px 12px;
+      overflow: hidden;
+    }
+
+    &__scroll {
+      flex: 1 1 0;
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
       @include hide-scrollbar;
+    }
+
+    &__content {
+      min-height: min-content;
     }
 
     :deep(.sim-tab-panel) {
       min-width: 0;
-      overflow: hidden;
+    }
+
+    :deep(.sim-tab-panel--compact) {
+      display: block;
+      height: auto;
+      overflow: visible;
+    }
+
+    :deep(.sim-tab-panel__compact-body) {
+      overflow: visible;
+      padding-bottom: 4px;
+    }
+
+    :deep(.entity-list) {
+      padding-bottom: 12px;
+    }
+
+    :deep(.entity-list__item:last-child) {
+      margin-bottom: 0;
+      padding-bottom: 14px;
     }
 
     :deep(.scene-brief h4) {
       color: #1890ff;
       margin: 0 0 6px;
-      font-size: 18px;
+      font-size: $cockpit-font-md;
       font-weight: 700;
     }
 
@@ -927,37 +1048,51 @@ onUnmounted(() => {
     :deep(.summary-list dt),
     :deep(.hint-text) {
       color: #64748b;
-      font-size: 16px;
+      font-size: $cockpit-font-base;
     }
 
     :deep(.summary-list dd) {
       color: #1890ff;
       font-weight: 700;
-      font-size: 18px;
+      font-size: $cockpit-font-md;
     }
 
-    :deep(.sim-tab-panel__compact-body) {
-      color: #334155;
-      overflow-x: hidden;
-      font-size: 16px;
+    :deep(.summary-list__row) {
+      padding: 9px 0;
+      font-size: $cockpit-font-base;
+    }
+
+    :deep(.panel-actions) {
+      margin-bottom: 10px;
+
+      .el-button {
+        font-size: $cockpit-font-base;
+        padding: 9px 16px;
+      }
+    }
+
+    :deep(.hint-text) {
+      margin-bottom: 10px;
+      line-height: 1.55;
     }
 
     :deep(.history-block h5) {
       color: #1e4976;
-      font-size: 16px;
+      font-size: $cockpit-font-base;
       font-weight: 700;
     }
 
     :deep(.history-list) {
       color: #475569;
-      font-size: 16px;
+      font-size: $cockpit-font-base;
     }
 
-    :deep(.sim-tab-panel__tab) { font-size: 16px; padding: 8px 14px; }
-    :deep(.entity-list__main strong) { font-size: 18px; }
+    :deep(.entity-list__main strong) { font-size: $cockpit-font-base; }
     :deep(.entity-list__meta),
-    :deep(.entity-list__desc) { font-size: 15px; }
-    :deep(.el-button) { font-size: 15px; }
+    :deep(.entity-list__desc) { font-size: $cockpit-font-base; }
+    :deep(.el-button) { font-size: $cockpit-font-base; }
+    :deep(.el-input__inner) { font-size: $cockpit-font-base; }
+    :deep(.el-tag) { font-size: $cockpit-font-sm; }
   }
 
   .sim-viewport--twin {
@@ -1206,6 +1341,20 @@ onUnmounted(() => {
       color: #64748b;
 
       span { white-space: nowrap; }
+
+      &--readonly {
+        padding: 8px 12px;
+        background: rgba(241, 245, 249, 0.85);
+        border: 1px solid rgba(24, 144, 255, 0.12);
+        border-radius: 8px;
+        cursor: default;
+        user-select: none;
+      }
+    }
+
+    &__value {
+      font-weight: 600;
+      color: #1890ff;
     }
 
     &__select {
@@ -1249,26 +1398,27 @@ onUnmounted(() => {
 .twin-kpi-row {
   display: flex;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .twin-kpi {
   flex: 1;
+  min-width: 0;
   text-align: center;
   font-size: $cockpit-font-sm;
   color: #64748b;
-  padding: 8px 6px;
-  border-radius: 10px;
+  padding: 4px 2px;
+  border-radius: 8px;
   @include interactive-card;
   cursor: pointer;
 
-  span { color: #1890ff; font-size: 15px; font-weight: 600; }
+  span { color: #1890ff; font-size: $cockpit-font-sm; font-weight: 600; }
 
   &__ring {
-    width: 76px;
-    height: 76px;
-    margin: 0 auto 8px;
+    width: 68px;
+    height: 68px;
+    margin: 0 auto 6px;
     border-radius: 50%;
     background: conic-gradient(var(--c, #1890ff) var(--pct), #e2e8f0 0);
     display: flex;
@@ -1289,8 +1439,8 @@ onUnmounted(() => {
     }
 
     b, small { position: relative; z-index: 1; line-height: 1.1; }
-    b { font-size: 18px; color: #1e4976; font-weight: 700; }
-    small { font-size: 13px; color: #64748b; }
+    b { font-size: $cockpit-font-md; color: #1e4976; font-weight: 700; }
+    small { font-size: $cockpit-font-sm; color: #64748b; }
 
     &--flow {
       background: conic-gradient(#1890ff 65%, #e2e8f0 0);
@@ -1311,34 +1461,23 @@ onUnmounted(() => {
   padding: 0;
   list-style: none;
   font-size: $cockpit-font-base;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 8px;
 
   li {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 10px;
-    margin: 0 -8px;
+    gap: 6px;
+    padding: 7px 4px;
+    margin: 0;
     border-bottom: 1px dashed rgba(24, 144, 255, 0.12);
-    border-radius: 6px;
+    border-radius: 4px;
     color: #64748b;
-    cursor: pointer;
-    transition:
-      transform 0.2s ease,
-      background 0.2s ease,
-      padding-left 0.2s ease;
 
-    &:hover {
-      transform: translateX(4px);
-      background: rgba(24, 144, 255, 0.06);
-      padding-left: 14px;
-    }
-
-    &:active {
-      transform: translateX(2px) scale(0.99);
-    }
-
-    span { font-size: 16px; }
-    b { color: #1890ff; font-weight: 700; font-size: 18px; }
+    span { font-size: $cockpit-font-sm; white-space: nowrap; }
+    b { color: #1890ff; font-weight: 700; font-size: $cockpit-font-base; white-space: nowrap; }
   }
 }
 
@@ -1346,10 +1485,8 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-end;
   gap: 5px;
-  flex: 1;
-  min-height: 120px;
-  height: 100%;
-  padding-top: 4px;
+  height: 100px;
+  padding-top: 2px;
 
   &__item {
     position: relative;
@@ -1388,6 +1525,47 @@ onUnmounted(() => {
       animation: bar-shimmer 2.8s linear infinite;
     }
   }
+}
+
+.twin-gate-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 4px;
+    border-radius: 6px;
+    background: rgba(34, 197, 94, 0.06);
+    border: 1px solid rgba(34, 197, 94, 0.18);
+    text-align: center;
+
+    span {
+      font-size: $cockpit-font-sm;
+      color: #64748b;
+      white-space: nowrap;
+    }
+
+    b {
+      font-size: $cockpit-font-md;
+      font-weight: 700;
+      color: #16a34a;
+    }
+  }
+}
+
+.twin-gate-summary {
+  margin: 0;
+  padding: 0;
+  font-size: $cockpit-font-sm;
+  color: #16a34a;
+  text-align: center;
 }
 
 .twin-gate-list {

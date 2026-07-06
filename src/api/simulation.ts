@@ -31,7 +31,10 @@ import {
 } from './simulationAdapter'
 
 const V1_PREFIX = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
-const SIM_BASE = `${V1_PREFIX}/simulation`
+// 场景CRUD用 v1（接口总表 #56-59）
+const SIM_V1_BASE = `${V1_PREFIX}/simulation`
+// start/result/report/incidents 不用 v1（接口总表 #60/62-65）
+const SIM_BASE = '/simulation'
 const DEFAULT_RESERVOIR_ID = 1
 const DEFAULT_MODEL_ID = 2
 const DEFAULT_SCENARIO_ID = 1
@@ -112,7 +115,7 @@ export async function getSimulationScenarios(params?: {
   return withMockFallback(
     async () => {
       const res = await http.get<ApiResponse<PageResult<BackendScenarioItem>>>(
-        `${SIM_BASE}/scenarios`,
+        `${SIM_V1_BASE}/scenarios`,
         { params: { page: 1, page_size: 50, ...params } },
       )
       const body = unwrap(res)
@@ -148,7 +151,7 @@ export async function createSimulationScenario(
   return withMockFallback(
     async () => {
       const res = await http.post<ApiResponse<BackendScenarioItem>>(
-        `${SIM_BASE}/scenarios`,
+        `${SIM_V1_BASE}/scenarios`,
         payload,
       )
       const body = unwrap(res)
@@ -184,7 +187,7 @@ export async function updateSimulationScenario(
   return withMockFallback(
     async () => {
       const res = await http.put<ApiResponse<BackendScenarioItem>>(
-        `${SIM_BASE}/scenarios/${id}`,
+        `${SIM_V1_BASE}/scenarios/${id}`,
         payload,
       )
       const body = unwrap(res)
@@ -211,7 +214,7 @@ export async function updateSimulationScenario(
 export async function deleteSimulationScenario(id: number): Promise<ApiResponse<null>> {
   return withMockFallback(
     async () => {
-      const res = await http.delete<ApiResponse<null>>(`${SIM_BASE}/scenarios/${id}`)
+      const res = await http.delete<ApiResponse<null>>(`${SIM_V1_BASE}/scenarios/${id}`)
       const body = unwrap(res)
       if (!body) throw new Error('delete scenario failed')
       return body
@@ -284,7 +287,10 @@ export async function getSimulationResult(
 export async function pauseSimulation(): Promise<ApiResponse<null>> {
   return withMockFallback(
     async () => {
-      throw new Error('pause not on api')
+      const res = await http.post<ApiResponse<null>>(`${SIM_BASE}/pause`)
+      const body = unwrap(res)
+      if (!body) throw new Error('pause failed')
+      return body
     },
     () => mockApi.pauseSimulation(),
   )
@@ -293,7 +299,10 @@ export async function pauseSimulation(): Promise<ApiResponse<null>> {
 export async function resumeSimulation(): Promise<ApiResponse<null>> {
   return withMockFallback(
     async () => {
-      throw new Error('resume not on api')
+      const res = await http.post<ApiResponse<null>>(`${SIM_BASE}/resume`)
+      const body = unwrap(res)
+      if (!body) throw new Error('resume failed')
+      return body
     },
     () => mockApi.resumeSimulation(),
   )
@@ -302,7 +311,10 @@ export async function resumeSimulation(): Promise<ApiResponse<null>> {
 export async function resetSimulation(): Promise<ApiResponse<null>> {
   return withMockFallback(
     async () => {
-      throw new Error('reset not on api')
+      const res = await http.post<ApiResponse<null>>(`${SIM_BASE}/reset`)
+      const body = unwrap(res)
+      if (!body) throw new Error('reset failed')
+      return body
     },
     () => mockApi.resetSimulation(),
   )
@@ -320,7 +332,12 @@ export async function getSimulationStatus(): Promise<ApiResponse<SimulationRealt
 export async function setSimulationGateOpening(opening: number): Promise<ApiResponse<null>> {
   return withMockFallback(
     async () => {
-      throw new Error('gate not on api')
+      const res = await http.put<ApiResponse<null>>(`${SIM_BASE}/gate`, {
+        gate_opening: Math.round(opening),
+      })
+      const body = unwrap(res)
+      if (!body) throw new Error('gate set failed')
+      return body
     },
     () => mockApi.setGateOpening(opening),
   )
