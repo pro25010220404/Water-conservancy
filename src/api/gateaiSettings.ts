@@ -296,7 +296,6 @@ export async function fetchPhysicsGuardHistory(reservoirId: number) {
   try {
     const res = await getPhysicsGuardHistory({ reservoir_id: reservoirId })
     if (res.data?.code === 0 && Array.isArray(res.data.data)) {
-      // 后端 ConfigHistoryItem → gateai PhysicsGuardHistoryItem，字段有差异用类型断言
       return res.data.data as unknown as ReturnType<typeof gateaiSharedStore.getPhysicsHistory> extends Promise<infer T> ? T : never
     }
   } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
@@ -304,7 +303,6 @@ export async function fetchPhysicsGuardHistory(reservoirId: number) {
 }
 
 export async function fetchPhysicsGuardHistoryVersions(reservoirId: number) {
-  // 后端未提供独立的版本列表接口，复用 history 接口
   return fetchPhysicsGuardHistory(reservoirId)
 }
 
@@ -355,7 +353,6 @@ export async function updateInterlockRule(ruleId: number, patch: Partial<GateInt
 }
 
 export function createInterlockRule(data: Omit<GateInterlockRule, 'id' | 'trigger_count_7d'>) {
-  // 后端暂无独立的创建接口，使用 POST /v1/settings/gate-interlock/rules（如存在）
   return delay(gateaiSharedStore.createInterlockRule(data))
 }
 
@@ -389,7 +386,6 @@ export async function fetchInterlockStats(
   try {
     const res = await getInterlockStats({ reservoir_id: reservoirId })
     if (res.data?.code === 0 && Array.isArray(res.data.data)) {
-      // 后端返回数组，聚合为面板需要的摘要格式
       const arr = res.data.data
       return {
         enabled_count: arr.length,

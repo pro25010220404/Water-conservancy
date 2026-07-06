@@ -133,11 +133,17 @@ onMounted(() => {
         </div>
         <div class="profile-info__row">
           <span class="profile-info__label">邮箱</span>
-          <span class="profile-info__value">{{ email || '未填写' }}</span>
+          <span
+            class="profile-info__value"
+            :class="{ 'profile-info__value--empty': !email || email === '未填写' }"
+          >{{ email && email !== '未填写' ? email : '未填写' }}</span>
         </div>
         <div class="profile-info__row">
           <span class="profile-info__label">手机号</span>
-          <span class="profile-info__value">{{ phone || '未填写' }}</span>
+          <span
+            class="profile-info__value"
+            :class="{ 'profile-info__value--empty': !phone || phone === '未填写' }"
+          >{{ phone && phone !== '未填写' ? phone : '未填写' }}</span>
         </div>
         <div class="profile-info__row">
           <span class="profile-info__label">注册时间</span>
@@ -229,6 +235,12 @@ onMounted(() => {
     font-size: 17px;
     color: var(--color-text);
     font-weight: 500;
+
+    &--empty {
+      color: var(--color-text-placeholder, #c0c4cc);
+      font-weight: 400;
+      font-style: italic;
+    }
   }
 }
 </style>

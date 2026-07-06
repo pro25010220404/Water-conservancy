@@ -39,9 +39,8 @@ export function changePassword(data: ChangePasswordParams) {
 export function getOperationLogs(params?: {
   page?: number
   page_size?: number
-  module?: string
-  start?: string
-  end?: string
+  start_time?: string
+  end_time?: string
 }) {
   return http.get<ApiResponse<PageResult<OperationLog>>>('/login-logs', { params })
 }
