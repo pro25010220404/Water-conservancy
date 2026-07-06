@@ -3,11 +3,13 @@
 // 个人信息卡片 — 展示用户基本资料，触发编辑弹窗
 // ============================================================
 import { ref, computed, onMounted } from 'vue'
-import { ElCard, ElAvatar, ElTag, ElButton } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { ElCard, ElAvatar, ElTag, ElButton, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useProfileStore } from '@/stores/profile'
 import EditProfileDialog from './EditProfileDialog.vue'
 
+const router = useRouter()
 const userStore = useUserStore()
 const profileStore = useProfileStore()
 const editVisible = ref(false)
@@ -69,6 +71,21 @@ function openEditDialog() {
 function onProfileSaved() {
   initProfile()
 }
+
+async function handleLogout() {
+  try {
+    await ElMessageBox.confirm('确定要退出登录吗？', '退出确认', {
+      confirmButtonText: '退出',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    userStore.logout()
+    router.push('/login')
+  } catch {
+    // 用户取消
+  }
+}
+
 onMounted(() => {
   initProfile()
 })
@@ -79,7 +96,10 @@ onMounted(() => {
     <template #header>
       <div class="profile-card__header">
         <span>个人信息</span>
-        <ElButton type="primary" @click="openEditDialog"> 编辑 </ElButton>
+        <div class="profile-card__actions">
+          <ElButton type="primary" @click="openEditDialog"> 编辑 </ElButton>
+          <ElButton type="primary" @click="handleLogout"> 退出登录 </ElButton>
+        </div>
       </div>
     </template>
 
@@ -163,6 +183,12 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.profile-card__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 
 .profile-info {
