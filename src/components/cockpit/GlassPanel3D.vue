@@ -5,6 +5,8 @@ defineProps<{
   variant?: 'default' | 'danger' | 'success' | 'warning'
   compact?: boolean
   large?: boolean
+  /** 在 flex/grid 布局中占满剩余高度并可滚动 */
+  fill?: boolean
   /** cyber = 全息 HUD 深色面板 */
   theme?: 'light' | 'dark' | 'cyber'
 }>()
@@ -18,7 +20,7 @@ defineProps<{
       variant ? `glass-panel--${variant}` : '',
       theme === 'dark' ? 'glass-panel--dark' : '',
       theme === 'cyber' ? 'glass-panel--cyber' : '',
-      { 'glass-panel--compact': compact, 'glass-panel--large': large },
+      { 'glass-panel--compact': compact, 'glass-panel--large': large, 'glass-panel--fill': fill },
     ]"
   >
     <div v-if="title" class="glass-panel__header">
@@ -83,6 +85,27 @@ defineProps<{
   &--compact .glass-panel__body { padding: 12px 14px; }
   &--large .glass-panel__title { font-size: 20px; }
   &--large .glass-panel__body { padding: 18px 20px; }
+
+  &--fill {
+    flex: 1 1 0;
+    min-height: 0;
+    flex-shrink: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .glass-panel__header {
+      flex-shrink: 0;
+    }
+
+    .glass-panel__body {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+  }
 
   &__header {
     display: flex;

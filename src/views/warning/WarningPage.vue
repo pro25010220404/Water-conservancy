@@ -268,7 +268,7 @@ onUnmounted(() => {
         </template>
       </div>
       <div class="table-footer">
-        <ElPagination v-model:current-page="filter.pageNum" v-model:page-size="filter.pageSize" :page-sizes="PAGE_SIZE_OPTIONS" :total="total" layout="total, sizes, prev, pager, next" background small @current-change="fetchList" @size-change="(s: number) => { filter.pageSize = s; filter.pageNum = 1; fetchList() }" />
+        <ElPagination v-model:current-page="filter.pageNum" v-model:page-size="filter.pageSize" :page-sizes="PAGE_SIZE_OPTIONS" :total="total" layout="total, sizes, prev, pager, next" background @current-change="fetchList" @size-change="(s: number) => { filter.pageSize = s; filter.pageNum = 1; fetchList() }" />
       </div>
     </GlassPanel3D>
 
@@ -296,8 +296,8 @@ onUnmounted(() => {
     </ElDialog>
 
     <!-- 确认弹窗 -->
-    <ElDialog v-model="confirmVisible" title="确认告警" width="540px" class="glass-dialog">
-      <ElDescriptions v-if="confirmRow" :column="1" border size="small">
+    <ElDialog v-model="confirmVisible" title="确认告警" width="640px" class="glass-dialog">
+      <ElDescriptions v-if="confirmRow" :column="1" border class="alarm-desc">
         <ElDescriptionsItem label="级别"><span class="level-badge" :class="levelClass(confirmRow.level)">{{ ALARM_LEVEL_MAP[confirmRow.level]?.label }}</span></ElDescriptionsItem>
         <ElDescriptionsItem label="类型">{{ ALARM_TYPE_MAP[confirmRow.type]?.label }}</ElDescriptionsItem>
         <ElDescriptionsItem label="内容">{{ confirmRow.content }}</ElDescriptionsItem>
@@ -312,8 +312,8 @@ onUnmounted(() => {
     </ElDialog>
 
     <!-- 处置弹窗 -->
-    <ElDialog v-model="handleVisible" title="处置告警" width="540px">
-      <ElDescriptions v-if="handleRow" :column="1" border size="small" class="handle-preview">
+    <ElDialog v-model="handleVisible" title="处置告警" width="640px">
+      <ElDescriptions v-if="handleRow" :column="1" border class="handle-preview alarm-desc">
         <ElDescriptionsItem label="告警内容">{{ handleRow.content }}</ElDescriptionsItem>
         <ElDescriptionsItem label="监测点位">{{ handleRow.pointName }}</ElDescriptionsItem>
         <ElDescriptionsItem label="当前值/阈值">{{ handleRow.currentValue }} / {{ handleRow.threshold }}</ElDescriptionsItem>
@@ -324,8 +324,8 @@ onUnmounted(() => {
     </ElDialog>
 
     <!-- 已处置详情 -->
-    <ElDialog v-model="detailVisible" title="告警详情" width="560px">
-      <ElDescriptions v-if="detailRow" :column="1" border size="small">
+    <ElDialog v-model="detailVisible" title="告警详情" width="640px">
+      <ElDescriptions v-if="detailRow" :column="1" border class="alarm-desc">
         <ElDescriptionsItem label="级别"><span class="level-badge" :class="levelClass(detailRow.level)">{{ ALARM_LEVEL_MAP[detailRow.level]?.label }}</span></ElDescriptionsItem>
         <ElDescriptionsItem label="类型">{{ ALARM_TYPE_MAP[detailRow.type]?.label }}</ElDescriptionsItem>
         <ElDescriptionsItem label="监测点位">{{ detailRow.pointName }}</ElDescriptionsItem>
@@ -344,9 +344,9 @@ onUnmounted(() => {
             <div class="alarm-actions">
               <span>核查模型健康度后，可回滚物理防护配置或切换 L1 人工模式</span>
               <div>
-                <ElButton size="small" type="primary" link @click="router.push('/settings/ai/metrics')">模型健康度</ElButton>
-                <ElButton size="small" type="primary" link @click="router.push('/dispatch')">调度决策</ElButton>
-                <ElButton size="small" type="primary" link @click="router.push(buildSettingsPath('physics-guard-history', { reservoir_id: 1 }))">配置回滚</ElButton>
+                <ElButton type="primary" link @click="router.push('/settings/ai/metrics')">模型健康度</ElButton>
+                <ElButton type="primary" link @click="router.push('/dispatch')">调度决策</ElButton>
+                <ElButton type="primary" link @click="router.push(buildSettingsPath('physics-guard-history', { reservoir_id: 1 }))">配置回滚</ElButton>
               </div>
             </div>
           </ElDescriptionsItem>
@@ -363,27 +363,48 @@ onUnmounted(() => {
 <style scoped lang="scss">
 @use '@/assets/styles/cockpit.scss' as *;
 
-.alarm-page { @include cockpit-page-white; display: flex; flex-direction: column; gap: 14px; padding: 0 16px 16px; font-size: $cockpit-font-base; }
-.alarm-actions { display: flex; flex-direction: column; gap: 8px; }
+.alarm-page {
+  @include cockpit-page-white;
+  @include cockpit-typography;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 16px 16px;
+  font-size: $cockpit-font-md;
+
+  :deep(.glass-panel__title) {
+    font-size: $cockpit-font-lg;
+  }
+
+  :deep(.glass-panel__body) {
+    font-size: $cockpit-font-md;
+  }
+}
+.alarm-actions { display: flex; flex-direction: column; gap: 8px; font-size: $cockpit-font-base; }
 .filter-grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; padding: 4px; }
 .filter-item {
-  display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; min-width: 120px;
-  label { font-size: $cockpit-font-sm; color: $cockpit-text-dim; font-weight: 500; }
+  display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; min-width: 130px;
+  label { font-size: $cockpit-font-base; color: $cockpit-text-dim; font-weight: 600; }
   :deep(.el-select), :deep(.el-input) { width: 100%; }
+  :deep(.el-input__inner),
+  :deep(.el-select__wrapper) { font-size: $cockpit-font-base; }
   &--wide { flex: 1 1 280px; min-width: 280px; }
   &--range { min-width: 360px; :deep(.el-date-editor) { width: 100%; } }
 }
-.filter-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
-.pending-badge { font-size: $cockpit-font-sm; color: $cockpit-text-dim; strong { color: #ff4757; font-size: $cockpit-font-xl; margin-left: 6px; } }
-.exceed-dialog__hint { margin: 0 0 12px; font-size: $cockpit-font-sm; color: $cockpit-text-dim; }
+.filter-actions {
+  display: flex; align-items: center; gap: 10px; margin-left: auto;
+  :deep(.el-button) { font-size: $cockpit-font-base; padding: 10px 18px; }
+}
+.pending-badge { font-size: $cockpit-font-base; color: $cockpit-text-dim; strong { color: #ff4757; font-size: $cockpit-font-2xl; margin-left: 6px; } }
+.exceed-dialog__hint { margin: 0 0 12px; font-size: $cockpit-font-base; color: $cockpit-text-dim; }
 .exceed-table {
   border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;
   &__head, &__row {
-    display: grid; grid-template-columns: 148px 1fr 88px 108px 120px;
-    gap: 10px; padding: 12px 14px; font-size: $cockpit-font-sm; align-items: center;
+    display: grid; grid-template-columns: 160px 1fr 96px 120px 120px;
+    gap: 10px; padding: 14px 16px; font-size: $cockpit-font-base; align-items: center;
   }
   &__head {
-    color: $cockpit-text-dim; font-weight: 600;
+    color: $cockpit-text-dim; font-weight: 600; font-size: $cockpit-font-md;
     border-bottom: 1px solid #e2e8f0; background: #f8fafc;
   }
   &__row { border-bottom: 1px solid #f1f5f9; &:last-child { border-bottom: none; } }
@@ -391,28 +412,56 @@ onUnmounted(() => {
 .duration--formal { color: #16a34a; }
 .duration--log { color: #64748b; font-weight: 500; }
 .table-panel { flex: 1; min-height: 420px; display: flex; flex-direction: column; }
-.table-3d { flex: 1; overflow: auto; &__head, &__row { display: grid; grid-template-columns: 148px 72px 88px 1fr 108px 72px 80px 120px; gap: 10px; padding: 12px 14px; font-size: $cockpit-font-sm; align-items: center; }
-  &__head { color: $cockpit-accent; font-weight: 600; letter-spacing: 1px; border-bottom: 1px solid rgba(24,144,255,0.12); background: rgba(24,144,255,0.05); position: sticky; top: 0; }
+.table-3d {
+  flex: 1; overflow: auto;
+  &__head, &__row {
+    display: grid;
+    grid-template-columns: 160px 80px 96px 1fr 120px 80px 88px 132px;
+    gap: 10px; padding: 14px 16px; font-size: $cockpit-font-base; align-items: center;
+  }
+  &__head { color: $cockpit-accent; font-weight: 600; font-size: $cockpit-font-md; letter-spacing: 1px; border-bottom: 1px solid rgba(24,144,255,0.12); background: rgba(24,144,255,0.05); position: sticky; top: 0; }
   &__row { border-bottom: 1px solid rgba(15,23,42,0.06); cursor: pointer; &.expanded { background: rgba(24,144,255,0.06); } }
-  &__expand { padding: 12px 14px 14px 148px; background: rgba(24,144,255,0.03); border-bottom: 1px solid rgba(15,23,42,0.08); }
+  &__expand { padding: 14px 16px 16px 160px; background: rgba(24,144,255,0.03); border-bottom: 1px solid rgba(15,23,42,0.08); }
 }
-.val-threshold { color: #0ea5e9; font-weight: 600; }
-.expand-title { font-size: $cockpit-font-sm; color: $cockpit-accent; font-weight: 600; margin-bottom: 10px; }
-.expand-grid { display: grid; grid-template-columns: 80px 1fr 80px 1fr; gap: 8px 16px; font-size: $cockpit-font-sm; span { color: $cockpit-text-dim; } strong { color: $cockpit-text; } }
-.expand-empty { font-size: $cockpit-font-sm; color: $cockpit-text-dim; }
-.mono { font-family: 'SF Mono', monospace; font-size: $cockpit-font-sm; color: $cockpit-text-dim; }
-.content { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.duration { color: #ffa502; font-weight: 600; font-family: 'SF Mono', monospace; font-size: $cockpit-font-sm; }
-.level-badge { padding: 4px 12px; border-radius: 4px; font-size: $cockpit-font-xs; font-weight: 700; &.urgent { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; } &.important { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; } &.normal { background: #fefce8; color: #a16207; border: 1px solid #fef08a; } }
-.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; &.pending { background: #ff4757; animation: pulse 1.5s infinite; } &.confirmed { background: #ffa502; } &.handled { background: #2ed573; } }
-.act-btn { padding: 6px 14px; font-size: $cockpit-font-sm; border: 1px solid rgba(24,144,255,0.3); border-radius: 6px; background: #e6f4ff; color: $cockpit-accent; cursor: pointer; margin-right: 6px; &--link { border-color: rgba(15,23,42,0.12); background: #fff; color: $cockpit-text-dim; } }
-.table-footer { padding-top: 14px; display: flex; justify-content: flex-end; }
-.table-empty { padding: 48px; text-align: center; color: $cockpit-text-dim; font-size: $cockpit-font-base; }
+.val-threshold { color: #0ea5e9; font-weight: 600; font-size: $cockpit-font-base; }
+.expand-title { font-size: $cockpit-font-base; color: $cockpit-accent; font-weight: 600; margin-bottom: 10px; }
+.expand-grid { display: grid; grid-template-columns: 88px 1fr 88px 1fr; gap: 8px 16px; font-size: $cockpit-font-base; span { color: $cockpit-text-dim; } strong { color: $cockpit-text; font-size: $cockpit-font-md; } }
+.expand-empty { font-size: $cockpit-font-base; color: $cockpit-text-dim; }
+.mono { font-family: 'SF Mono', monospace; font-size: $cockpit-font-base; color: $cockpit-text-dim; }
+.content { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: $cockpit-font-base; }
+.duration { color: #ffa502; font-weight: 600; font-family: 'SF Mono', monospace; font-size: $cockpit-font-base; }
+.level-badge { padding: 5px 14px; border-radius: 4px; font-size: $cockpit-font-sm; font-weight: 700; &.urgent { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; } &.important { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; } &.normal { background: #fefce8; color: #a16207; border: 1px solid #fef08a; } }
+.status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; &.pending { background: #ff4757; animation: pulse 1.5s infinite; } &.confirmed { background: #ffa502; } &.handled { background: #2ed573; } }
+.act-btn { padding: 8px 16px; font-size: $cockpit-font-base; border: 1px solid rgba(24,144,255,0.3); border-radius: 6px; background: #e6f4ff; color: $cockpit-accent; cursor: pointer; margin-right: 6px; &--link { border-color: rgba(15,23,42,0.12); background: #fff; color: $cockpit-text-dim; } }
+.table-footer {
+  padding-top: 14px; display: flex; justify-content: flex-end;
+  :deep(.el-pagination),
+  :deep(.el-pagination button),
+  :deep(.el-pagination span),
+  :deep(.el-select__wrapper) { font-size: $cockpit-font-base; }
+}
+.table-empty { padding: 48px; text-align: center; color: $cockpit-text-dim; font-size: $cockpit-font-md; }
 .handle-preview { margin-bottom: 16px; }
+.alarm-desc {
+  :deep(.el-descriptions__label),
+  :deep(.el-descriptions__content) {
+    font-size: $cockpit-font-md;
+    line-height: 1.6;
+    padding: 14px 16px;
+  }
+  :deep(.el-descriptions__label) {
+    font-weight: 600;
+    width: 120px;
+  }
+}
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 :deep(.el-select), :deep(.el-input) { --el-fill-color-blank: #ffffff; }
 :deep(.el-input__wrapper) { background: #ffffff; border-color: rgba(24,144,255,0.2); box-shadow: none; }
-:deep(.el-input__inner) { color: $cockpit-text; }
+:deep(.el-input__inner) { color: $cockpit-text; font-size: $cockpit-font-base; }
 :deep(.el-dialog) { --el-bg-color: #ffffff; }
+:deep(.el-dialog__title) { font-size: $cockpit-font-xl; font-weight: 700; }
+:deep(.el-dialog__body) { font-size: $cockpit-font-md; }
+:deep(.el-form-item__label) { font-size: $cockpit-font-base; font-weight: 600; }
+:deep(.el-textarea__inner) { font-size: $cockpit-font-base; }
 :deep(.el-pagination) { --el-color-primary: #{$cockpit-accent}; }
 </style>

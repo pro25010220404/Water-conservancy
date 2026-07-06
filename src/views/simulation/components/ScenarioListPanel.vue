@@ -65,11 +65,21 @@ function formatDuration(sec?: number) {
 </template>
 
 <style scoped lang="scss">
+@use '@/assets/styles/cockpit.scss' as *;
+
 .scenario-panel {
+  font-size: $cockpit-font-base;
+
   &__toolbar {
     display: flex;
     gap: 8px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
+
+    :deep(.el-button) {
+      padding: 6px 12px;
+      font-size: $cockpit-font-sm;
+      height: auto;
+    }
   }
 
   &__list {
@@ -78,15 +88,13 @@ function formatDuration(sec?: number) {
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    max-height: 220px;
-    overflow-y: auto;
+    gap: 6px;
   }
 
   &__item {
-    padding: 10px 12px;
+    padding: 8px 10px;
     border: 1px solid #e2e8f0;
-    border-radius: 8px;
+    border-radius: 6px;
     background: #f8fafc;
   }
 
@@ -95,12 +103,17 @@ function formatDuration(sec?: number) {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    font-size: 14px;
+    font-size: $cockpit-font-base;
+
+    strong {
+      font-size: $cockpit-font-base;
+      font-weight: 600;
+    }
   }
 
   &__meta {
     margin-top: 4px;
-    font-size: 12px;
+    font-size: $cockpit-font-sm;
     color: #64748b;
   }
 
@@ -108,6 +121,12 @@ function formatDuration(sec?: number) {
     margin-top: 6px;
     display: flex;
     gap: 8px;
+
+    :deep(.el-button) {
+      padding: 0;
+      font-size: $cockpit-font-sm;
+      height: auto;
+    }
   }
 }
 </style>

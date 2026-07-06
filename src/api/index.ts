@@ -10,6 +10,9 @@ export * as warningApi from './warning'
 export * as dispatchApi from './dispatch'
 export * as dispatchPageApi from './dispatchPage'
 
+// 水库管理 (§5)
+export * as reservoirApi from './reservoir'
+
 // 边缘节点管理 (§6)
 export * as edgeNodeApi from './edgeNode'
 

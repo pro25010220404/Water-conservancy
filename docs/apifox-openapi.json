@@ -3,7 +3,7 @@
   "info": {
     "title": "水电站闸门智能调度系统 API",
     "version": "v2.4",
-    "description": "告警管理 / 调度决策 / 边缘节点管理 / 数字孪生 / 边缘端上报 / 边缘端配置下发 六大模块接口"
+    "description": "告警管理 / 调度决策 / 水库管理 / 边缘节点管理 / 数字孪生 / 边缘端上报 / 边缘端配置下发 / 闸门互锁 / 模型健康度"
   },
   "servers": [
     { "url": "http://47.108.169.152:8089", "description": "生产环境" },
@@ -136,10 +136,13 @@
   "tags": [
     { "name": "告警管理", "description": "§3 告警管理模块 — Wjc 负责" },
     { "name": "调度决策", "description": "§4 调度决策模块 — Wjc 负责" },
+    { "name": "水库管理", "description": "§5 水库管理模块 — Wjc 负责" },
     { "name": "边缘节点管理", "description": "§6 边缘节点管理模块 — Wjc 负责" },
     { "name": "数字孪生", "description": "§9 数字孪生模块 — LX 负责" },
     { "name": "边缘端上报", "description": "§11 边缘端数据上报接口 — LX 负责" },
-    { "name": "边缘端配置下发", "description": "§12 物理配置 + §8.3.6 模型下发 — 边缘端配置管理" }
+    { "name": "边缘端配置下发", "description": "§12 物理配置 + §8.3.6 模型下发 — 边缘端配置管理" },
+    { "name": "闸门互锁", "description": "§13 闸门互锁规则模块 — Wjc 负责" },
+    { "name": "模型健康度", "description": "模型评判标准（三维评判体系）— AI模型健康监控" }
   ],
   "paths": {
     "/api/v1/alarms": {
@@ -359,6 +362,81 @@
           { "name": "reservoir_id", "in": "query", "schema": { "type": "integer" } },
           { "name": "start_time", "in": "query", "schema": { "type": "string" } },
           { "name": "end_time", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/api/v1/reservoirs": {
+      "get": {
+        "tags": ["水库管理"],
+        "summary": "§5.1 水库列表",
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["active","inactive","maintenance"] } },
+          { "name": "keyword", "in": "query", "schema": { "type": "string", "description": "名称/编码关键字搜索" } }
+        ],
+        "responses": { "200": { "description": "ok" } }
+      },
+      "post": {
+        "tags": ["水库管理"],
+        "summary": "§5.3 新增水库",
+        "description": "role.admin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name","code","type","dead_water_level","normal_water_level","flood_limit_level","design_flood_level","check_flood_level","total_capacity","ecological_flow"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "code": { "type": "string", "description": "水库编码，唯一" },
+                  "type": { "type": "string", "enum": ["daily_regulation","seasonal","multi_year"] },
+                  "dead_water_level": { "type": "number" },
+                  "normal_water_level": { "type": "number" },
+                  "flood_limit_level": { "type": "number" },
+                  "design_flood_level": { "type": "number" },
+                  "check_flood_level": { "type": "number" },
+                  "total_capacity": { "type": "number" },
+                  "installed_capacity": { "type": "number" },
+                  "ecological_flow": { "type": "number" },
+                  "location_lat": { "type": "number" },
+                  "location_lng": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/api/reservoirs/{id}": {
+      "get": {
+        "tags": ["水库管理"],
+        "summary": "§5.2 水库详情",
+        "description": "返回 reservoirs 表全部字段 + 关联节点数 + 设备数。注意：无 v1 前缀",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/api/v1/reservoirs/{id}": {
+      "put": {
+        "tags": ["水库管理"],
+        "summary": "§5.4 更新水库",
+        "description": "role.admin。全部字段可选",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "ok" } }
+      },
+      "delete": {
+        "tags": ["水库管理"],
+        "summary": "§5.5 删除水库",
+        "description": "软删除，role.admin。关联有设备/节点时返回 30006",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
         ],
         "responses": { "200": { "description": "ok" } }
       }
@@ -1052,6 +1130,179 @@
                   "gate2_opening_after": { "type": "number" },
                   "gate3_opening_after": { "type": "number" },
                   "action_detail": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/api/v1/settings/gate-interlock/rules": {
+      "get": {
+        "tags": ["闸门互锁"],
+        "summary": "§13.1 互锁规则列表",
+        "description": "返回全局默认 + 指定水库专属规则，按 priority 排序",
+        "parameters": [
+          { "name": "reservoir_id", "in": "query", "schema": { "type": "integer" }, "description": "不传仅返回全局默认规则" }
+        ],
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/api/v1/settings/gate-interlock/rules/{id}": {
+      "put": {
+        "tags": ["闸门互锁"],
+        "summary": "§13.2 更新互锁规则",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rule_name": { "type": "string" },
+                  "description": { "type": "string" },
+                  "enabled": { "type": "boolean" },
+                  "priority": { "type": "integer" },
+                  "trigger_conditions": { "type": "object" },
+                  "constraint_action": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/api/v1/settings/gate-interlock/rules/{id}/toggle": {
+      "post": {
+        "tags": ["闸门互锁"],
+        "summary": "§13.3 启用/禁用规则",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["enabled"],
+                "properties": {
+                  "enabled": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/api/v1/settings/gate-interlock/logs": {
+      "get": {
+        "tags": ["闸门互锁"],
+        "summary": "§13.4 互锁触发日志",
+        "description": "查询互锁规则触发历史，支持按水库/规则/时间筛选",
+        "parameters": [
+          { "name": "reservoir_id", "in": "query", "schema": { "type": "integer" } },
+          { "name": "rule_id", "in": "query", "schema": { "type": "integer" } },
+          { "name": "start_time", "in": "query", "schema": { "type": "string" } },
+          { "name": "end_time", "in": "query", "schema": { "type": "string" } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer", "default": 20 } }
+        ],
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/api/v1/settings/gate-interlock/stats": {
+      "get": {
+        "tags": ["闸门互锁"],
+        "summary": "§13.5 互锁触发统计",
+        "parameters": [
+          { "name": "reservoir_id", "in": "query", "schema": { "type": "integer" } },
+          { "name": "days", "in": "query", "schema": { "type": "integer", "default": 7 } }
+        ],
+        "responses": { "200": { "description": "返回各规则触发次数" } }
+      }
+    },
+    "/api/v1/settings/ai/metrics": {
+      "get": {
+        "tags": ["模型健康度"],
+        "summary": "最新模型指标",
+        "description": "查询某水库最新一条模型评判指标",
+        "parameters": [
+          { "name": "reservoir_id", "in": "query", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "返回三维评分 + 综合评分 + 健康等级" } }
+      }
+    },
+    "/api/v1/settings/ai/metrics/history": {
+      "get": {
+        "tags": ["模型健康度"],
+        "summary": "模型指标历史趋势",
+        "parameters": [
+          { "name": "reservoir_id", "in": "query", "required": true, "schema": { "type": "integer" } },
+          { "name": "days", "in": "query", "schema": { "type": "integer", "default": 7 } }
+        ],
+        "responses": { "200": { "description": "返回时序趋势数据" } }
+      }
+    },
+    "/api/v1/settings/ai/health": {
+      "get": {
+        "tags": ["模型健康度"],
+        "summary": "全局模型健康概览",
+        "description": "汇总所有水库的模型健康状态",
+        "responses": { "200": { "description": "ok" } }
+      }
+    },
+    "/api/v1/settings/ai/metrics/detail": {
+      "get": {
+        "tags": ["模型健康度"],
+        "summary": "模型指标明细列表",
+        "parameters": [
+          { "name": "reservoir_id", "in": "query", "required": true, "schema": { "type": "integer" } },
+          { "name": "page", "in": "query", "schema": { "type": "integer" } },
+          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
+          { "name": "start_time", "in": "query", "schema": { "type": "string" } },
+          { "name": "end_time", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "按小时展示各维度子指标" } }
+      }
+    },
+    "/api/v1/settings/ai/version-compare": {
+      "get": {
+        "tags": ["模型健康度"],
+        "summary": "模型版本对比",
+        "parameters": [
+          { "name": "reservoir_id", "in": "query", "required": true, "schema": { "type": "integer" } },
+          { "name": "current_version", "in": "query", "schema": { "type": "string" } },
+          { "name": "previous_version", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "返回两个版本的各维度评分对比" } }
+      }
+    },
+    "/api/edge/model-metrics": {
+      "post": {
+        "tags": ["模型健康度"],
+        "summary": "边缘端上报模型指标",
+        "description": "边缘端定时上报 model_metrics 数据",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["edge_node_id","reservoir_id"],
+                "properties": {
+                  "edge_node_id": { "type": "integer" },
+                  "reservoir_id": { "type": "integer" },
+                  "metric_time": { "type": "string" },
+                  "prediction_score": { "type": "number" },
+                  "decision_score": { "type": "number" },
+                  "compliance_score": { "type": "number" },
+                  "overall_score": { "type": "number" },
+                  "health_grade": { "type": "string", "enum": ["S","A","B","C","D"] }
                 }
               }
             }
