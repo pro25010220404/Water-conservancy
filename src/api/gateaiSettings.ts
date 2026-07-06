@@ -340,6 +340,21 @@ export async function fetchInterlockStats(
   return delay(gateaiSharedStore.getInterlockStats(reservoirId))
 }
 
+/** 仪表盘互锁摘要：24h 触发数 + 最近触发的规则 */
+export async function fetchInterlockDashboardSummary(reservoirId: number): Promise<{
+  trigger_24h: number
+  recent_rule: { name: string; time: string } | null
+}> {
+  const stats = gateaiSharedStore.getInterlockStats(reservoirId)
+  const logs = gateaiSharedStore.getInterlockLogs({ reservoirId })
+  return {
+    trigger_24h: stats.trigger_24h ?? 0,
+    recent_rule: logs?.length > 0
+      ? { name: logs[0].rule_name ?? '—', time: logs[0].trigger_time ?? new Date().toISOString() }
+      : null,
+  }
+}
+
 export function fetchEdgeSyncStatus(edgeNodeId: number) {
   // 边缘同步状态暂无后端接口，使用 Mock
   return delay(gateaiSharedStore.getEdgeSyncStatus(edgeNodeId))
