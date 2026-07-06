@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { ElIcon } from 'element-plus'
 import { DataAnalysis } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
