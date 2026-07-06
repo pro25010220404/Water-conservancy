@@ -1,6 +1,8 @@
-// GateAI 调度模块 — 真实 API + Mock 降级（GATEAI_MOCK_FALLBACK 控制）
-// 优先调用后端接口，失败时使用本地 Mock 数据
-export const GATEAI_MOCK_FALLBACK = false
+// GateAI 调度模块 — 真实 API + Mock 降级（VITE_GATEAI_MOCK_FALLBACK 控制）
+// 开发环境默认开启：后端 401/404 时自动用本地 Mock，避免设置页白屏
+export const GATEAI_MOCK_FALLBACK =
+  import.meta.env.VITE_GATEAI_MOCK_FALLBACK === 'true' ||
+  (import.meta.env.VITE_GATEAI_MOCK_FALLBACK !== 'false' && import.meta.env.DEV)
 
 import type {
   ModelMetricLatest,
@@ -38,6 +40,14 @@ import {
   getInterlockStats,
   type AIMetricsHistoryItem,
 } from './settings'
+import http from './request'
+import {
+  normalizeInterlockRules,
+  normalizeInterlockStats,
+  interlockStatsCountMap,
+  toGateInterlockRule,
+  toInterlockUpdatePayload,
+} from './interlockAdapter'
 
 const METRICS: Record<number, ModelMetricLatest> = {
   1: {
@@ -516,26 +526,39 @@ export async function clonePhysicsGuardConfig(fromId: number, toId: number, _ver
 // ═══ 闸门互锁 ═══
 export async function fetchInterlockRules(reservoirId: number): Promise<GateInterlockRule[]> {
   try {
-    const res = await getInterlockRules({ reservoir_id: reservoirId })
-    if (res.data?.code === 0 && res.data.data) {
-      return res.data.data as unknown as GateInterlockRule[]
+    const [rulesRes, statsRes] = await Promise.all([
+      getInterlockRules({ reservoir_id: reservoirId }),
+      getInterlockStats({ reservoir_id: reservoirId, days: 7 }),
+    ])
+    if (rulesRes.data?.code === 0 && rulesRes.data.data) {
+      const statsMap = statsRes.data?.code === 0 && statsRes.data.data
+        ? interlockStatsCountMap(normalizeInterlockStats(statsRes.data.data))
+        : new Map<number, number>()
+      return normalizeInterlockRules(rulesRes.data.data).map((raw) => {
+        const rule = toGateInterlockRule(raw)
+        rule.trigger_count_7d = statsMap.get(rule.id) ?? 0
+        return rule
+      })
     }
   } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.getInterlockRules(reservoirId))
 }
 
-export async function toggleInterlockRule(ruleId: number, enabled: boolean): Promise<null> {
+export async function toggleInterlockRule(ruleId: number, enabled: boolean): Promise<boolean> {
   try {
-    const res = await toggleInterlockRuleApi(ruleId)
-    if (res.data?.code === 0) return null
+    const res = await toggleInterlockRuleApi(ruleId, enabled)
+    if (res.data?.code === 0) {
+      return res.data.data?.enabled ?? enabled
+    }
+    throw new Error('toggle failed')
   } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   gateaiSharedStore.toggleInterlockRule(ruleId, enabled)
-  return delay(null)
+  return delay(enabled)
 }
 
 export async function updateInterlockRule(ruleId: number, patch: Partial<GateInterlockRule>) {
   try {
-    const res = await updateInterlockRuleApi(ruleId, patch as Record<string, unknown>)
+    const res = await updateInterlockRuleApi(ruleId, toInterlockUpdatePayload(patch))
     if (res.data?.code === 0) return res.data
   } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.updateInterlockRule(ruleId, patch))
@@ -635,17 +658,23 @@ export async function fetchInterlockStats(
   reservoirId: number,
 ): Promise<{ enabled_count: number; trigger_24h: number; trigger_7d: number }> {
   try {
-    const res = await getInterlockStats({ reservoir_id: reservoirId })
-    if (res.data?.code === 0 && Array.isArray(res.data.data)) {
-      // 后端返回数组，聚合为面板需要的摘要格式
-      const arr = res.data.data
+    const [statsRes, rulesRes] = await Promise.all([
+      getInterlockStats({ reservoir_id: reservoirId, days: 7 }),
+      getInterlockRules({ reservoir_id: reservoirId }),
+    ])
+    if (statsRes.data?.code === 0 && Array.isArray(statsRes.data.data)) {
+      const stats = normalizeInterlockStats(statsRes.data.data)
+      const rules = rulesRes.data?.code === 0 && rulesRes.data.data
+        ? normalizeInterlockRules(rulesRes.data.data)
+        : []
       return {
-        enabled_count: arr.length,
-        trigger_24h: arr.filter((s) => {
+        enabled_count: rules.filter((r) => r.enabled).length,
+        trigger_24h: stats.filter((s) => {
+          if (!s.last_triggered) return false
           const t = new Date(s.last_triggered).getTime()
           return !isNaN(t) && Date.now() - t < 86400000
-        }).length,
-        trigger_7d: arr.reduce((sum, s) => sum + (s.trigger_count || 0), 0),
+        }).reduce((sum, s) => sum + s.trigger_count, 0),
+        trigger_7d: stats.reduce((sum, s) => sum + (s.trigger_count || 0), 0),
       }
     }
   } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
@@ -661,7 +690,7 @@ export async function fetchInterlockDashboardSummary(reservoirId: number): Promi
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().replace('T', ' ').slice(0, 19)
     const [statsRes, logsRes] = await Promise.allSettled([
-      getInterlockStats({ reservoir_id: reservoirId }),
+      getInterlockStats({ reservoir_id: reservoirId, days: 7 }),
       getInterlockLogs({
         reservoir_id: reservoirId,
         page: 1,
@@ -673,11 +702,12 @@ export async function fetchInterlockDashboardSummary(reservoirId: number): Promi
 
     let trigger_24h = 0
     if (statsRes.status === 'fulfilled' && statsRes.value.data?.code === 0 && Array.isArray(statsRes.value.data.data)) {
-      const arr = statsRes.value.data.data
-      trigger_24h = arr.filter((s) => {
+      const stats = normalizeInterlockStats(statsRes.value.data.data)
+      trigger_24h = stats.filter((s) => {
+        if (!s.last_triggered) return false
         const t = new Date(s.last_triggered).getTime()
         return !isNaN(t) && Date.now() - t < 86400000
-      }).length
+      }).reduce((sum, s) => sum + s.trigger_count, 0)
     }
 
     let recent_rule: { name: string; time: string } | null = null
@@ -685,8 +715,8 @@ export async function fetchInterlockDashboardSummary(reservoirId: number): Promi
       const list = (logsRes.value.data.data.list ?? []).map(normalizeInterlockLog)
       if (list.length > 0) {
         recent_rule = {
-          name: list[0].rule_name ?? list[0].rule_code ?? '—',
-          time: list[0].trigger_time ?? new Date().toISOString(),
+          name: list[0].rule_name,
+          time: list[0].trigger_time,
         }
       }
     }

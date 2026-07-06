@@ -3,7 +3,7 @@
   "info": {
     "title": "水电站闸门智能调度系统 API",
     "version": "v2.4",
-    "description": "告警管理 / 调度决策 / 水库管理 / 边缘节点管理 / 数字孪生 / 边缘端上报 / 边缘端配置下发 / 闸门互锁 / 模型健康度"
+    "description": "告警管理 / 调度决策 / 水库管理 / 边缘节点管理 / 数字孪生 / 边缘端上报 / 边缘端配置下发 / 闸门互锁"
   },
   "servers": [
     { "url": "http://47.108.169.152:8089", "description": "生产环境" },
@@ -141,8 +141,7 @@
     { "name": "数字孪生", "description": "§9 数字孪生模块 — LX 负责" },
     { "name": "边缘端上报", "description": "§11 边缘端数据上报接口 — LX 负责" },
     { "name": "边缘端配置下发", "description": "§12 物理配置 + §8.3.6 模型下发 — 边缘端配置管理" },
-    { "name": "闸门互锁", "description": "§13 闸门互锁规则模块 — Wjc 负责" },
-    { "name": "模型健康度", "description": "模型评判标准（三维评判体系）— AI模型健康监控" }
+    { "name": "闸门互锁", "description": "§13 闸门互锁规则模块 — Wjc 负责" }
   ],
   "paths": {
     "/api/v1/alarms": {
@@ -984,7 +983,7 @@
         "responses": { "200": { "description": "ok" } }
       }
     },
-    "/api/v1/settings/physics-guard": {
+    "/api/v1/admin/physics-guard": {
       "get": {
         "tags": ["边缘端配置下发"],
         "summary": "§12.5 获取物理防护配置（后台）",
@@ -994,7 +993,7 @@
         "responses": { "200": { "description": "ok" } }
       }
     },
-    "/api/v1/settings/physics-guard/{id}": {
+    "/api/v1/admin/physics-guard/{id}": {
       "put": {
         "tags": ["边缘端配置下发"],
         "summary": "§12.6 更新物理防护配置（后台）",
@@ -1038,7 +1037,7 @@
         "responses": { "200": { "description": "ok" } }
       }
     },
-    "/api/v1/settings/physics-guard/history": {
+    "/api/v1/admin/physics-guard/history": {
       "get": {
         "tags": ["边缘端配置下发"],
         "summary": "§12.7 物理防护配置变更历史（后台）",
@@ -1048,7 +1047,7 @@
         "responses": { "200": { "description": "ok" } }
       }
     },
-    "/api/v1/settings/physics-guard/{id}/rollback": {
+    "/api/v1/admin/physics-guard/{id}/rollback": {
       "post": {
         "tags": ["边缘端配置下发"],
         "summary": "§12.8 回滚物理防护配置（后台）",
@@ -1058,7 +1057,7 @@
         "responses": { "200": { "description": "ok" } }
       }
     },
-    "/api/v1/settings/physics-guard/clone": {
+    "/api/v1/admin/physics-guard/clone": {
       "post": {
         "tags": ["边缘端配置下发"],
         "summary": "§12.9 跨水库复制物理防护配置（后台）",
@@ -1224,91 +1223,6 @@
           { "name": "days", "in": "query", "schema": { "type": "integer", "default": 7 } }
         ],
         "responses": { "200": { "description": "返回各规则触发次数" } }
-      }
-    },
-    "/api/v1/settings/ai/metrics": {
-      "get": {
-        "tags": ["模型健康度"],
-        "summary": "最新模型指标",
-        "description": "查询某水库最新一条模型评判指标",
-        "parameters": [
-          { "name": "reservoir_id", "in": "query", "required": true, "schema": { "type": "integer" } }
-        ],
-        "responses": { "200": { "description": "返回三维评分 + 综合评分 + 健康等级" } }
-      }
-    },
-    "/api/v1/settings/ai/metrics/history": {
-      "get": {
-        "tags": ["模型健康度"],
-        "summary": "模型指标历史趋势",
-        "parameters": [
-          { "name": "reservoir_id", "in": "query", "required": true, "schema": { "type": "integer" } },
-          { "name": "days", "in": "query", "schema": { "type": "integer", "default": 7 } }
-        ],
-        "responses": { "200": { "description": "返回时序趋势数据" } }
-      }
-    },
-    "/api/v1/settings/ai/health": {
-      "get": {
-        "tags": ["模型健康度"],
-        "summary": "全局模型健康概览",
-        "description": "汇总所有水库的模型健康状态",
-        "responses": { "200": { "description": "ok" } }
-      }
-    },
-    "/api/v1/settings/ai/metrics/detail": {
-      "get": {
-        "tags": ["模型健康度"],
-        "summary": "模型指标明细列表",
-        "parameters": [
-          { "name": "reservoir_id", "in": "query", "required": true, "schema": { "type": "integer" } },
-          { "name": "page", "in": "query", "schema": { "type": "integer" } },
-          { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
-          { "name": "start_time", "in": "query", "schema": { "type": "string" } },
-          { "name": "end_time", "in": "query", "schema": { "type": "string" } }
-        ],
-        "responses": { "200": { "description": "按小时展示各维度子指标" } }
-      }
-    },
-    "/api/v1/settings/ai/version-compare": {
-      "get": {
-        "tags": ["模型健康度"],
-        "summary": "模型版本对比",
-        "parameters": [
-          { "name": "reservoir_id", "in": "query", "required": true, "schema": { "type": "integer" } },
-          { "name": "current_version", "in": "query", "schema": { "type": "string" } },
-          { "name": "previous_version", "in": "query", "schema": { "type": "string" } }
-        ],
-        "responses": { "200": { "description": "返回两个版本的各维度评分对比" } }
-      }
-    },
-    "/api/edge/model-metrics": {
-      "post": {
-        "tags": ["模型健康度"],
-        "summary": "边缘端上报模型指标",
-        "description": "边缘端定时上报 model_metrics 数据",
-        "security": [{ "BearerAuth": [] }],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["edge_node_id","reservoir_id"],
-                "properties": {
-                  "edge_node_id": { "type": "integer" },
-                  "reservoir_id": { "type": "integer" },
-                  "metric_time": { "type": "string" },
-                  "prediction_score": { "type": "number" },
-                  "decision_score": { "type": "number" },
-                  "compliance_score": { "type": "number" },
-                  "overall_score": { "type": "number" },
-                  "health_grade": { "type": "string", "enum": ["S","A","B","C","D"] }
-                }
-              }
-            }
-          }
-        },
-        "responses": { "200": { "description": "ok" } }
       }
     }
   }

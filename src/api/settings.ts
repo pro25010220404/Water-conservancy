@@ -29,8 +29,9 @@ import type {
   CompareResult,
 } from '@/stores/aiHealth'
 import type { PhysicsGuardConfig, ConfigHistoryItem } from '@/stores/physicsGuard'
-import type { InterlockRule, InterlockStats } from '@/stores/gateInterlock'
+import type { InterlockRule } from '@/stores/gateInterlock'
 import type { AIHealthOverviewResponse } from '@/types/gateai'
+import type { ApiInterlockRule, ApiInterlockStat } from './interlockAdapter'
 
 // ════════════════════════════════════════════════════════════
 // Tab1: 告警阈值
@@ -187,13 +188,14 @@ export function getInterlockRules(params: { reservoir_id: number }) {
   return http.get<ApiResponse<InterlockRule[]>>('/v1/settings/gate-interlock/rules', { params })
 }
 
-export function updateInterlockRule(id: number, data: Partial<InterlockRule>) {
-  return http.put<ApiResponse<null>>(`/v1/settings/gate-interlock/rules/${id}`, data)
+export function updateInterlockRule(id: number, data: Record<string, unknown>) {
+  return http.put<ApiResponse<ApiInterlockRule>>(`/v1/settings/gate-interlock/rules/${id}`, data)
 }
 
-export function toggleInterlockRule(id: number) {
-  return http.post<ApiResponse<{ is_enabled: boolean }>>(
+export function toggleInterlockRule(id: number, enabled: boolean) {
+  return http.post<ApiResponse<ApiInterlockRule>>(
     `/v1/settings/gate-interlock/rules/${id}/toggle`,
+    { enabled },
   )
 }
 
@@ -212,7 +214,7 @@ export function getInterlockLogs(params: {
 }
 
 export function getInterlockStats(params: { reservoir_id: number; days?: number }) {
-  return http.get<ApiResponse<InterlockStats[]>>('/v1/settings/gate-interlock/stats', { params })
+  return http.get<ApiResponse<ApiInterlockStat[]>>('/v1/settings/gate-interlock/stats', { params })
 }
 
 // ════════════════════════════════════════════════════════════

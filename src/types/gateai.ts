@@ -73,6 +73,9 @@ export interface GateInterlockRule {
   trigger_label: string
   action_label: string
   trigger_count_7d: number
+  /** 后端原始 JSON，保存时回传 */
+  trigger_conditions?: Record<string, unknown>
+  constraint_action?: Record<string, unknown>
 }
 
 export interface GateInterlockLog {

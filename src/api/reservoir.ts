@@ -94,7 +94,7 @@ import type { PhysicsGuardSummary } from '@/types/dispatch'
 export async function fetchReservoirPhysicsSummary(reservoirId: number): Promise<PhysicsGuardSummary> {
   try {
     const res = await http.get<ApiResponse<PhysicsGuardSummary>>(
-      `${V1_PREFIX}/settings/physics-guard`,
+      `${V1_PREFIX}/admin/physics-guard`,
       { params: { reservoir_id: reservoirId } },
     )
     if (res.data?.code === 0 && res.data.data) return res.data.data
