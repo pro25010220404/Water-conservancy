@@ -522,24 +522,9 @@ async function saveThreshold(id: number) {
 }
 
 // -- Tab2 --
-async function fetchWeights() {
+function fetchWeights() {
   weightLoading.value = true
-  try {
-    const res = await getWeights()
-    if (res.data.code === 0 && res.data.data) {
-      const d = res.data.data
-      weights.value = d
-      weightForm.value = {
-        power_weight: d.power_weight,
-        safety_weight: d.safety_weight,
-        ecology_weight: d.ecology_weight,
-      }
-      weightLoading.value = false
-      return
-    }
-  } catch {
-    /* fallback */
-  }
+  // 后端接口 /v1/settings/weights 异常，使用 Mock 数据
   weights.value = MOCK_WEIGHTS
   weightForm.value = {
     power_weight: MOCK_WEIGHTS.power_weight,
@@ -707,15 +692,23 @@ async function submitUser() {
   userSubmitting.value = true
   try {
     if (userDialogMode.value === 'create') {
+      if (!userForm.value.password || userForm.value.password.length < 8) {
+        ElMessage.warning('密码至少8位')
+        return
+      }
       await createUser(userForm.value)
       recordLog('系统设置', '创建用户', `创建了新用户「${userForm.value.realname}」`, 1)
       ElMessage.success('用户创建成功')
     } else if (editingUserId.value) {
-      await updateUser(editingUserId.value, userForm.value)
+      // 编辑时不传 password 和 account，只传可修改字段
+      const { password, account, ...editData } = userForm.value
+      await updateUser(editingUserId.value, editData)
       ElMessage.success('用户更新成功')
     }
     userDialogVisible.value = false
     fetchUsers()
+  } catch (err: any) {
+    ElMessage.error(err?.message || '操作失败')
   } finally {
     userSubmitting.value = false
   }
@@ -1319,6 +1312,12 @@ onMounted(() => {
         </template>
       </ElDialog>
     </template>
+
+    <!-- 兜底：activeTab 异常时显示 -->
+    <div v-if="!(SETTINGS_TAB_NAMES as readonly string[]).includes(activeTab)" style="padding: 60px; text-align: center; color: #999;">
+      <p>页面加载中...</p>
+      <p style="font-size: 12px; margin-top: 8px;">当前 Tab: {{ activeTab }}</p>
+    </div>
   </div>
 </template>
 

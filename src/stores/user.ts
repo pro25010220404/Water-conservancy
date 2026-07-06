@@ -39,14 +39,34 @@ export const useUserStore = defineStore('user', () => {
   }
 
   async function login(credentials: { username: string; password: string }): Promise<void> {
-    // TODO: 对接 POST /api/auth/login
-    setSession('dev-token', {
-      id: 1,
-      username: credentials.username,
-      nickname: credentials.username,
-      roles: ['admin'],
-      permissions: [],
+    // 调用真实登录接口 POST /api/auth/login
+    const http = (await import('@/api/request')).default
+    const res = await http.post<{
+      code: number
+      msg: string
+      data: {
+        token: string
+        token_expire_time: string
+        user_info: { id: number; account: string; realname: string; role_code: string; role_name: string }
+      }
+    }>('/auth/login', {
+      account: credentials.username,
+      password: credentials.password,
     })
+
+    if (res.data.code === 0 && res.data.data) {
+      const d = res.data.data
+      setSession(d.token, {
+        id: d.user_info.id,
+        username: d.user_info.account,
+        nickname: d.user_info.realname,
+        roles: [d.user_info.role_code],
+        permissions: [],
+      })
+      return
+    }
+
+    throw new Error(res.data.msg || '登录失败')
   }
 
   function logout(): void {

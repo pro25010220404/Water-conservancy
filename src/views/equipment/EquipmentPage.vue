@@ -93,6 +93,7 @@ type TagType = 'success' | 'danger' | 'info' | 'warning'
 function statusTagType(status: string): TagType {
   const map: Record<string, TagType> = {
     online: 'success',
+    active: 'success',
     offline: 'info',
     fault: 'danger',
     maintenance: 'warning',
