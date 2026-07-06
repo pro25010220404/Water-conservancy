@@ -134,10 +134,10 @@ onUnmounted(() => {
 // ═══ 图表 ═══
 const chartOpt = computed(() => {
   const data = allData.value
-  const series: any[] = metrics.map((m) => ({
+  const series: Array<Record<string, unknown>> = metrics.map((m) => ({
     name: m.label,
     type: 'line',
-    data: data.map((d) => [d.label, d[m.key]]),
+    data: data.map((d) => [d.label, d[m.key as keyof typeof d]]),
     smooth: true,
     symbol: 'none',
     lineStyle: { color: m.color, width: 1.5 },

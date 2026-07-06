@@ -51,15 +51,18 @@ http.interceptors.response.use(
       ElMessage.error('请求超时，请稍后重试')
     } else if (!error.response) {
       // 网络不通时静默失败，由各页面 mock 降级处理
-      // 仅在开发环境 console 输出，不弹 toast 打断用户
       if (import.meta.env.DEV) {
         console.warn('[API] 网络不可达，使用 Mock 降级:', error.config?.url)
       }
     } else {
       const status = error.response.status
-      // 业务级 auth 错误已在 success 拦截器中处理（code>=20001），
-      // HTTP 401 仅弹 toast 不强制登出（dev token 可能不被后端识别）
       if (status === 401) {
+        localStorage.removeItem('token')
+        localStorage.removeItem('userInfo')
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+          return Promise.reject(error)
+        }
         ElMessage.error('登录已过期，请重新登录')
       } else if (status === 404) {
         // 404 静默处理，使用 Mock 降级

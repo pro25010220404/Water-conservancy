@@ -17,12 +17,11 @@ async function handleClick() {
       '全局紧急停止',
       { type: 'error', confirmButtonText: '确认急停', cancelButtonText: '取消' },
     )
-    await globalEmergencyStop()
-    recordLog('全局', '急停', '触发紧急停止 · 闸门已关闭', 1)
-    ElMessage.error('急停已执行 · 所有闸门已关闭')
-  } catch {
-    /* 用户取消 */
-  }
+    const res = await globalEmergencyStop()
+    recordLog('全局', '急停', `触发紧急停止 · ${res.data.command_id}`, 1)
+    window.dispatchEvent(new Event('gateai:estop'))
+    ElMessage.error(`急停已执行 · ${res.data.command_id}`)
+  } catch { /* 用户取消 */ }
 }
 </script>
 
@@ -46,15 +45,16 @@ async function handleClick() {
   color: #fff;
   font-weight: 800;
   letter-spacing: 0.08em;
-  transition: none;
 
   &--header {
     flex-shrink: 0;
     height: 36px;
     padding: 0 20px;
     border-radius: 8px;
-    background: #e02020;
+    background: linear-gradient(145deg, #ff4757, #e02020);
     font-size: 15px;
+    box-shadow: 0 2px 12px rgba(255, 71, 87, 0.45);
+    animation: global-estop-pulse-header 2s ease-in-out infinite;
   }
 
   &--floating {
@@ -65,8 +65,20 @@ async function handleClick() {
     width: 68px;
     height: 68px;
     border-radius: 50%;
-    background: #e02020;
+    background: linear-gradient(145deg, #ff4757, #e02020);
     font-size: 16px;
+    box-shadow: 0 4px 20px rgba(255, 71, 87, 0.45);
+    animation: global-estop-pulse 2s ease-in-out infinite;
   }
+}
+
+@keyframes global-estop-pulse-header {
+  0%, 100% { box-shadow: 0 2px 10px rgba(255, 71, 87, 0.35); }
+  50% { box-shadow: 0 2px 20px rgba(255, 71, 87, 0.75); }
+}
+
+@keyframes global-estop-pulse {
+  0%, 100% { box-shadow: 0 4px 16px rgba(255, 71, 87, 0.35); }
+  50% { box-shadow: 0 4px 32px rgba(255, 71, 87, 0.8); }
 }
 </style>

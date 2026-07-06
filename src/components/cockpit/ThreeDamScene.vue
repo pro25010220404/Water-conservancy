@@ -12,55 +12,36 @@ import { createWaterMaterial } from '@/utils/waterShader'
 import { createCinematicSky } from '@/utils/cinematicSky'
 import { simulationSceneToWeather } from '@/utils/weatherSystem'
 import { createDischargeSheet } from '@/utils/dischargeShader'
+import { buildValleyTerrain, buildRiverbed, buildDistantRidgeline, buildForestHillside, buildFoamZone } from '@/utils/terrainBuilder'
 import {
-  buildValleyTerrain,
-  buildRiverbed,
-  buildDistantRidgeline,
-  buildForestHillside,
-  buildFoamZone,
-} from '@/utils/terrainBuilder'
-import {
-  loadDamModel,
-  getDamHeroCamera,
-  getTwinCinematicCamera,
-  getPanoramaCamera,
-  getSimulationFocusCamera,
-  collectDamMeshes,
-  applyTwinLightBackgroundMaterials,
-  type DamModelInstance,
+  loadDamModel, getDamHeroCamera, getTwinCinematicCamera, getPanoramaCamera,
+  getSimulationFocusCamera, collectDamMeshes, applyTwinLightBackgroundMaterials, type DamModelInstance,
 } from '@/utils/damModelLoader'
-import {
-  XIANGJIABA_HYDRO,
-  upstreamLevelToSceneY,
-  getLevelStatus,
-  levelGaugePercent,
-} from '@/constants/xiangjiaba'
+import { XIANGJIABA_HYDRO, upstreamLevelToSceneY, getLevelStatus, levelGaugePercent } from '@/constants/xiangjiaba'
+import { getBimDisplayName, getBimDefaultDetail } from '@/utils/bimDisplayName'
 import type { SimulationScene } from '@/types/simulation'
 
-const props = withDefaults(
-  defineProps<{
-    waterLevel?: number
-    downstreamLevel?: number
-    gateOpening?: number
-    flowRate?: number
-    autoRotate?: boolean
-    simScene?: SimulationScene
-    /** twin = 数字孪生驾驶舱；panorama = 全景弹窗 */
-    visualMode?: 'default' | 'twin' | 'panorama'
-    /** 仿真运行中 — 触发镜头近景聚焦 */
-    simRunning?: boolean
-  }>(),
-  {
-    waterLevel: XIANGJIABA_HYDRO.normalPoolLevel,
-    downstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
-    gateOpening: 45,
-    flowRate: XIANGJIABA_HYDRO.normalInflow,
-    autoRotate: false,
-    simScene: 'normal',
-    visualMode: 'twin',
-    simRunning: false,
-  },
-)
+const props = withDefaults(defineProps<{
+  waterLevel?: number
+  downstreamLevel?: number
+  gateOpening?: number
+  flowRate?: number
+  autoRotate?: boolean
+  simScene?: SimulationScene
+  /** twin = 数字孪生驾驶舱；panorama = 全景弹窗 */
+  visualMode?: 'default' | 'twin' | 'panorama'
+  /** 仿真运行中 — 触发镜头近景聚焦 */
+  simRunning?: boolean
+}>(), {
+  waterLevel: XIANGJIABA_HYDRO.normalPoolLevel,
+  downstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
+  gateOpening: 45,
+  flowRate: XIANGJIABA_HYDRO.normalInflow,
+  autoRotate: false,
+  simScene: 'normal',
+  visualMode: 'twin',
+  simRunning: false,
+})
 
 const levelStatus = computed(() => getLevelStatus(props.waterLevel))
 const gaugePct = computed(() => levelGaugePercent(props.waterLevel))
@@ -73,11 +54,7 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLDivElement | null>(null)
 const damModelLabel = ref('加载中…')
 const tooltip = ref<{ name: string; detail: string; x: number; y: number; visible: boolean }>({
-  name: '',
-  detail: '',
-  x: 0,
-  y: 0,
-  visible: false,
+  name: '', detail: '', x: 0, y: 0, visible: false,
 })
 
 const DEFAULT_CAMERA = {
@@ -154,7 +131,10 @@ function initScene() {
 
   scene = new THREE.Scene()
   scene.background = new THREE.Color(isTwinStyle ? 0xf7fbff : 0x0a1628)
-  scene.fog = new THREE.FogExp2(isTwinStyle ? 0xf0f4f8 : 0x1a2838, isTwinStyle ? 0.0005 : 0.0038)
+  scene.fog = new THREE.FogExp2(
+    isTwinStyle ? 0xf0f4f8 : 0x1a2838,
+    isTwinStyle ? 0.0005 : 0.0038,
+  )
 
   camera = new THREE.PerspectiveCamera(36, w / h, 0.5, 600)
   const camPreset = isTwin ? TWIN_CAMERA : isPanorama ? PANORAMA_CAMERA : DEFAULT_CAMERA
@@ -164,11 +144,7 @@ function initScene() {
   }
   camera.position.copy(camPreset.pos)
 
-  renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha: false,
-    powerPreference: 'high-performance',
-  })
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' })
   renderer.setSize(w, h)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3))
   renderer.shadowMap.enabled = true
@@ -207,10 +183,7 @@ function initScene() {
     controls.screenSpacePanning = false
   }
 
-  ambientLight = new THREE.AmbientLight(
-    isTwinStyle ? 0xe8eef4 : 0x2a3850,
-    isTwinStyle ? 0.72 : 0.42,
-  )
+  ambientLight = new THREE.AmbientLight(isTwinStyle ? 0xe8eef4 : 0x2a3850, isTwinStyle ? 0.72 : 0.42)
   scene.add(ambientLight)
   hemiLight = new THREE.HemisphereLight(
     isTwinStyle ? 0xffffff : 0x5588aa,
@@ -219,10 +192,7 @@ function initScene() {
   )
   scene.add(hemiLight)
 
-  sunLight = new THREE.DirectionalLight(
-    isTwinStyle ? 0xfff5eb : 0xffcc88,
-    isTwinStyle ? 0.92 : 0.65,
-  )
+  sunLight = new THREE.DirectionalLight(isTwinStyle ? 0xfff5eb : 0xffcc88, isTwinStyle ? 0.92 : 0.65)
   sunLight.position.set(isTwinStyle ? -65 : 55, isTwinStyle ? 82 : 75, isTwinStyle ? 48 : 35)
   sunLight.castShadow = true
   sunLight.shadow.mapSize.set(4096, 4096)
@@ -236,10 +206,7 @@ function initScene() {
   sunLight.shadow.camera.bottom = -70
   scene.add(sunLight)
 
-  const fill = new THREE.DirectionalLight(
-    isTwinStyle ? 0xd0dce8 : 0x6699cc,
-    isTwinStyle ? 0.32 : 0.38,
-  )
+  const fill = new THREE.DirectionalLight(isTwinStyle ? 0xd0dce8 : 0x6699cc, isTwinStyle ? 0.32 : 0.38)
   fill.position.set(-50, 30, -40)
   scene.add(fill)
 
@@ -247,10 +214,7 @@ function initScene() {
   rimLight.position.set(20, 15, -60)
   scene.add(rimLight)
 
-  damFillLight = new THREE.DirectionalLight(
-    isTwinStyle ? 0xfff0e0 : 0xffeedd,
-    isTwinStyle ? 0.22 : 0.35,
-  )
+  damFillLight = new THREE.DirectionalLight(isTwinStyle ? 0xfff0e0 : 0xffeedd, isTwinStyle ? 0.22 : 0.35)
   damFillLight.position.set(isTwinStyle ? -40 : 30, isTwinStyle ? 55 : 20, isTwinStyle ? 30 : 50)
   scene.add(damFillLight)
 
@@ -258,14 +222,7 @@ function initScene() {
   damSpotTarget.position.set(0, 14, 0)
   scene.add(damSpotTarget)
 
-  damSpotLight = new THREE.SpotLight(
-    0xffffff,
-    isTwinStyle ? 0.6 : 3.2,
-    160,
-    Math.PI / 5.5,
-    0.35,
-    1.2,
-  )
+  damSpotLight = new THREE.SpotLight(0xffffff, isTwinStyle ? 0.6 : 3.2, 160, Math.PI / 5.5, 0.35, 1.2)
   damSpotLight.position.set(18, 38, 28)
   damSpotLight.target = damSpotTarget
   damSpotLight.castShadow = false
@@ -378,12 +335,11 @@ async function mountDamModel() {
   if (!scene || !cinematicSky) return
   const twinStyle = props.visualMode === 'twin' || props.visualMode === 'panorama'
   damInstance = await loadDamModel(twinStyle ? null : cinematicSky.envMap)
-  damModelLabel.value =
-    damInstance.gateLeaves.length > 0
-      ? '向家坝实体大坝'
-      : damInstance.fromGltf
-        ? '混元 GLB 模型'
-        : '程序化回退模型'
+  damModelLabel.value = damInstance.gateLeaves.length > 0
+    ? '向家坝实体大坝'
+    : damInstance.fromGltf
+      ? '混元 GLB 模型'
+      : '程序化回退模型'
   damGroup = damInstance.root
   scene.add(damGroup)
   damInstance.hoverables.forEach((obj) => {
@@ -420,7 +376,11 @@ async function mountDamModel() {
   if (props.simRunning) focusSimulationView()
 }
 
-function animateCameraTo(position: THREE.Vector3, target: THREE.Vector3, duration = 1.3) {
+function animateCameraTo(
+  position: THREE.Vector3,
+  target: THREE.Vector3,
+  duration = 1.3,
+) {
   if (!camera || !controls) return
   cameraAnim = {
     fromPos: camera.position.clone(),
@@ -498,11 +458,7 @@ function buildWaterLevelMarkers() {
 
   for (const z of [-22, 22]) {
     const postGeo = new THREE.CylinderGeometry(0.18, 0.18, 1.2, 8)
-    const postMat = new THREE.MeshBasicMaterial({
-      color: 0x1890ff,
-      transparent: true,
-      opacity: 0.85,
-    })
+    const postMat = new THREE.MeshBasicMaterial({ color: 0x1890ff, transparent: true, opacity: 0.85 })
     const post = new THREE.Mesh(postGeo, postMat)
     post.position.set(-6, 0, z)
     post.name = 'levelPost'
@@ -690,12 +646,12 @@ function updatePierScreenLabels() {
   const w = containerRef.value.clientWidth
   const h = containerRef.value.clientHeight
   const v = new THREE.Vector3()
-  pierScreenLabels.value = pierObjects.map((obj, i) => {
+  pierScreenLabels.value = pierObjects.map((obj) => {
     obj.getWorldPosition(v)
     v.y += 9
     v.project(camera!)
     return {
-      name: `pier_${i + 1}`,
+      name: getBimDisplayName(obj.name),
       x: (v.x * 0.5 + 0.5) * w,
       y: (-v.y * 0.5 + 0.5) * h,
       visible: v.z < 1 && v.z > -1,
@@ -705,12 +661,11 @@ function updatePierScreenLabels() {
 
 function frameCameraOnDam() {
   if (!damInstance || !camera || !controls) return
-  const getter =
-    props.visualMode === 'panorama'
-      ? getPanoramaCamera
-      : props.visualMode === 'twin'
-        ? getTwinCinematicCamera
-        : getDamHeroCamera
+  const getter = props.visualMode === 'panorama'
+    ? getPanoramaCamera
+    : props.visualMode === 'twin'
+      ? getTwinCinematicCamera
+      : getDamHeroCamera
   const { position, target } = getter(damInstance.root, damInstance.heroCenter)
   camera.position.copy(position)
   controls.target.copy(target)
@@ -856,7 +811,7 @@ function updateScene() {
           child.material.uniforms.uIntensity.value = openRatio
         }
         if (child instanceof THREE.Points) {
-          ;(child.material as THREE.PointsMaterial).opacity = openRatio * 0.92
+          (child.material as THREE.PointsMaterial).opacity = openRatio * 0.92
         }
       })
     })
@@ -975,11 +930,7 @@ function syncSunLight(dt: number) {
   if (!cinematicSky || !sunLight || !scene || !renderer) return
   const t = clock.getElapsedTime()
   cinematicSky.update(t, dt)
-  cinematicSky.applyToScene(
-    scene,
-    { sun: sunLight, ambient: ambientLight, hemi: hemiLight },
-    renderer,
-  )
+  cinematicSky.applyToScene(scene, { sun: sunLight, ambient: ambientLight, hemi: hemiLight }, renderer)
   const dir = cinematicSky.uniforms.uSunDir.value
   const sunCol = cinematicSky.currentWeather.sunColor
   if (upstreamMat) {
@@ -1046,16 +997,10 @@ function findNamedRoot(obj: THREE.Object3D): THREE.Object3D | null {
         p = p.parent
       }
     }
-    if (
-      cur.name &&
-      cur.name !== '坝顶' &&
-      (cur.name.includes('坝') ||
-        cur.name.includes('闸门') ||
-        cur.name.includes('站') ||
-        cur.name.includes('厂房') ||
-        cur.name.includes('水面') ||
-        cur.name.startsWith('pier_'))
-    ) {
+    if (cur.name && cur.name !== '坝顶' && (
+      cur.name.includes('坝') || cur.name.includes('闸门') || cur.name.includes('站')
+      || cur.name.includes('厂房') || cur.name.includes('水面') || cur.name.startsWith('pier_')
+    )) {
       return cur
     }
     cur = cur.parent
@@ -1084,15 +1029,10 @@ function onMouseMove(e: MouseEvent) {
         hoveredObject = outlineTarget
         outlinePass.selectedObjects = [outlineTarget]
       }
-      const detail = (root.userData.detail as string) || '向家坝水电站 BIM 工程构件'
-      tooltip.value = {
-        name: root.name,
-        detail,
-        x: e.clientX - rect.left + 14,
-        y: e.clientY - rect.top - 10,
-        visible: true,
-      }
-      emit('device-hover', { name: root.name, detail })
+      const detail = (root.userData.detail as string) || getBimDefaultDetail(root.name)
+      const displayName = getBimDisplayName(root.name)
+      tooltip.value = { name: displayName, detail, x: e.clientX - rect.left + 14, y: e.clientY - rect.top - 10, visible: true }
+      emit('device-hover', { name: displayName, detail })
       containerRef.value.style.cursor = 'pointer'
       return
     }
@@ -1100,7 +1040,9 @@ function onMouseMove(e: MouseEvent) {
 
   hoveredObject = null
   const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
-  outlinePass.selectedObjects = holo ? [] : damOutlineMeshes.length ? damOutlineMeshes : []
+  outlinePass.selectedObjects = holo
+    ? []
+    : (damOutlineMeshes.length ? damOutlineMeshes : [])
   tooltip.value.visible = false
   emit('device-hover', null)
   containerRef.value.style.cursor = 'grab'
@@ -1111,7 +1053,9 @@ function onMouseLeave() {
   emit('device-hover', null)
   if (outlinePass) {
     const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
-    outlinePass.selectedObjects = holo ? [] : damOutlineMeshes.length ? damOutlineMeshes : []
+    outlinePass.selectedObjects = holo
+      ? []
+      : (damOutlineMeshes.length ? damOutlineMeshes : [])
   }
   hoveredObject = null
   if (containerRef.value) containerRef.value.style.cursor = 'default'
@@ -1158,37 +1102,19 @@ function resetView() {
   controls.update()
 }
 
-function zoomIn() {
-  zoomTowardTarget(0.88)
-}
-function zoomOut() {
-  zoomTowardTarget(1.12)
-}
-function setAutoRotate(v: boolean) {
-  if (controls) controls.autoRotate = v
-}
+function zoomIn() { zoomTowardTarget(0.88) }
+function zoomOut() { zoomTowardTarget(1.12) }
+function setAutoRotate(v: boolean) { if (controls) controls.autoRotate = v }
 
 defineExpose({ resetView, zoomIn, zoomOut, setAutoRotate, focusSimulationView })
 
-watch(
-  () => [props.waterLevel, props.downstreamLevel, props.gateOpening, props.flowRate],
-  updateScene,
-)
-watch(
-  () => props.autoRotate,
-  (v) => setAutoRotate(v),
-)
-watch(
-  () => props.simScene,
-  () => applyWeatherFromScene(),
-)
-watch(
-  () => props.simRunning,
-  (running) => {
-    if (running) focusSimulationView()
-    else resetView()
-  },
-)
+watch(() => [props.waterLevel, props.downstreamLevel, props.gateOpening, props.flowRate], updateScene)
+watch(() => props.autoRotate, (v) => setAutoRotate(v))
+watch(() => props.simScene, () => applyWeatherFromScene())
+watch(() => props.simRunning, (running) => {
+  if (running) focusSimulationView()
+  else resetView()
+})
 
 onMounted(() => {
   initScene()
@@ -1205,8 +1131,7 @@ onUnmounted(() => {
   cinematicSky?.dispose()
   damInstance?.dispose()
   renderer?.dispose()
-  if (containerRef.value && renderer?.domElement)
-    containerRef.value.removeChild(renderer.domElement)
+  if (containerRef.value && renderer?.domElement) containerRef.value.removeChild(renderer.domElement)
 })
 </script>
 
@@ -1242,11 +1167,7 @@ onUnmounted(() => {
         <div class="three-scene__gauge-track">
           <div class="three-scene__gauge-fill" :style="{ height: gaugePct + '%' }" />
           <div class="three-scene__gauge-marker" style="bottom: 60%" title="正常蓄水 380m" />
-          <div
-            class="three-scene__gauge-marker three-scene__gauge-marker--warn"
-            style="bottom: 75%"
-            title="预警 381.5m"
-          />
+          <div class="three-scene__gauge-marker three-scene__gauge-marker--warn" style="bottom: 75%" title="预警 381.5m" />
         </div>
         <div class="three-scene__gauge-labels">
           <span>{{ XIANGJIABA_HYDRO.crestElevation }}m 坝顶</span>
@@ -1255,30 +1176,17 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="three-scene__data-ref">
-        较正常蓄水 {{ levelDelta >= 0 ? '+' : '' }}{{ levelDelta.toFixed(2) }}m · 汛限
-        {{ XIANGJIABA_HYDRO.floodLimitLevel }}m
+        较正常蓄水 {{ levelDelta >= 0 ? '+' : '' }}{{ levelDelta.toFixed(2) }}m · 汛限 {{ XIANGJIABA_HYDRO.floodLimitLevel }}m
       </div>
     </div>
-    <div
-      v-if="visualMode === 'default'"
-      class="three-scene__badge"
-      :class="{ 'is-fallback': damModelLabel === '程序化回退模型' }"
-    >
+    <div v-if="visualMode === 'default'" class="three-scene__badge" :class="{ 'is-fallback': damModelLabel === '程序化回退模型' }">
       {{ damModelLabel }}
     </div>
-    <div
-      v-if="visualMode === 'twin' || visualMode === 'panorama'"
-      class="three-scene__holo-overlay"
-    >
+    <div v-if="visualMode === 'twin' || visualMode === 'panorama'" class="three-scene__holo-overlay">
       <div class="three-scene__digital-particles" />
       <div class="three-scene__scan-strips" />
       <div class="three-scene__silk-streams" />
-      <svg
-        class="three-scene__flow-svg"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
+      <svg class="three-scene__flow-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         <defs>
           <linearGradient id="geoFlowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stop-color="rgba(64,200,255,0.15)" />
@@ -1286,27 +1194,9 @@ onUnmounted(() => {
             <stop offset="100%" stop-color="rgba(64,200,255,0.2)" />
           </linearGradient>
         </defs>
-        <path
-          class="three-scene__flow-path"
-          d="M 6 88 Q 18 68 34 52 T 58 38"
-          fill="none"
-          stroke="url(#geoFlowGrad)"
-          stroke-width="0.35"
-        />
-        <path
-          class="three-scene__flow-path three-scene__flow-path--d2"
-          d="M 6 88 Q 16 64 30 46 T 52 34"
-          fill="none"
-          stroke="url(#geoFlowGrad)"
-          stroke-width="0.25"
-        />
-        <path
-          class="three-scene__flow-path three-scene__flow-path--d3"
-          d="M 6 88 Q 14 60 28 42 T 48 30"
-          fill="none"
-          stroke="url(#geoFlowGrad)"
-          stroke-width="0.2"
-        />
+        <path class="three-scene__flow-path" d="M 6 88 Q 18 68 34 52 T 58 38" fill="none" stroke="url(#geoFlowGrad)" stroke-width="0.35" />
+        <path class="three-scene__flow-path three-scene__flow-path--d2" d="M 6 88 Q 16 64 30 46 T 52 34" fill="none" stroke="url(#geoFlowGrad)" stroke-width="0.25" />
+        <path class="three-scene__flow-path three-scene__flow-path--d3" d="M 6 88 Q 14 60 28 42 T 48 30" fill="none" stroke="url(#geoFlowGrad)" stroke-width="0.2" />
       </svg>
       <div class="three-scene__scan-sweep" />
     </div>
@@ -1327,11 +1217,7 @@ onUnmounted(() => {
     <div
       v-show="waterLevelScreenLabel.visible"
       class="three-scene__level-label"
-      :style="{
-        left: waterLevelScreenLabel.x + 'px',
-        top: waterLevelScreenLabel.y + 'px',
-        '--level-color': waterLevelScreenLabel.color,
-      }"
+      :style="{ left: waterLevelScreenLabel.x + 'px', top: waterLevelScreenLabel.y + 'px', '--level-color': waterLevelScreenLabel.color }"
     >
       <span class="three-scene__level-label-dot" />
       {{ waterLevelScreenLabel.text }}
@@ -1345,11 +1231,7 @@ onUnmounted(() => {
     >
       {{ pl.name }}
     </div>
-    <div
-      v-if="tooltip.visible"
-      class="three-scene__tooltip"
-      :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
-    >
+    <div v-if="tooltip.visible" class="three-scene__tooltip" :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }">
       <strong>{{ tooltip.name }}</strong>
       <span>{{ tooltip.detail }}</span>
     </div>
@@ -1424,35 +1306,18 @@ onUnmounted(() => {
   }
 
   @keyframes silk-drift {
-    0% {
-      background-position:
-        0% 0,
-        100% 0;
-    }
-    100% {
-      background-position:
-        200% 0,
-        -100% 0;
-    }
+    0% { background-position: 0% 0, 100% 0; }
+    100% { background-position: 200% 0, -100% 0; }
   }
 
   @keyframes particle-drift {
-    0%,
-    100% {
-      opacity: 0.55;
-    }
-    50% {
-      opacity: 1;
-    }
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
   }
 
   @keyframes holo-scan {
-    0% {
-      transform: translateY(0);
-    }
-    100% {
-      transform: translateY(6px);
-    }
+    0% { transform: translateY(0); }
+    100% { transform: translateY(6px); }
   }
 
   &__holo-overlay {
@@ -1475,14 +1340,8 @@ onUnmounted(() => {
     stroke-dasharray: 8 12;
     animation: flow-dash 3s linear infinite;
 
-    &--d2 {
-      animation-delay: 0.6s;
-      opacity: 0.7;
-    }
-    &--d3 {
-      animation-delay: 1.2s;
-      opacity: 0.5;
-    }
+    &--d2 { animation-delay: 0.6s; opacity: 0.7; }
+    &--d3 { animation-delay: 1.2s; opacity: 0.5; }
   }
 
   &__scan-sweep {
@@ -1541,12 +1400,8 @@ onUnmounted(() => {
   }
 
   @keyframes ring-spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
-    }
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
   }
 
   &__geo-tag {
@@ -1644,13 +1499,8 @@ onUnmounted(() => {
   }
 
   @keyframes level-pulse {
-    0%,
-    100% {
-      opacity: 0.92;
-    }
-    50% {
-      opacity: 1;
-    }
+    0%, 100% { opacity: 0.92; }
+    50% { opacity: 1; }
   }
 
   &--panorama &__pier-label {
@@ -1662,49 +1512,25 @@ onUnmounted(() => {
   }
 
   @keyframes pier-float {
-    0%,
-    100% {
-      margin-top: 0;
-    }
-    50% {
-      margin-top: -4px;
-    }
+    0%, 100% { margin-top: 0; }
+    50% { margin-top: -4px; }
   }
 
   @keyframes geo-float {
-    0%,
-    100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(-4px);
-    }
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
   }
 
   @keyframes flow-dash {
-    0% {
-      stroke-dashoffset: 0;
-    }
-    100% {
-      stroke-dashoffset: -40;
-    }
+    0% { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: -40; }
   }
 
   @keyframes scan-sweep {
-    0% {
-      top: -30%;
-      opacity: 0;
-    }
-    15% {
-      opacity: 1;
-    }
-    85% {
-      opacity: 1;
-    }
-    100% {
-      top: 100%;
-      opacity: 0;
-    }
+    0% { top: -30%; opacity: 0; }
+    15% { opacity: 1; }
+    85% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
   }
 
   &__badge {

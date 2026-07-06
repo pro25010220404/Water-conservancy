@@ -169,7 +169,10 @@ function addPier(
   displaceConcreteSurface(geo, 0.8)
   const m = new THREE.Mesh(geo, mat.clone())
   m.position.set(x, y, z)
-  if (name) m.name = name
+  if (name) {
+    m.name = name
+    m.userData.detail = '混凝土闸墩 · 分隔泄洪孔 · 承力结构'
+  }
   m.castShadow = true
   m.receiveShadow = true
   group.add(m)

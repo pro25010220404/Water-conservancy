@@ -6,6 +6,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
+import { buildSettingsPath } from '@/constants/settings'
 
 const props = defineProps<{
   data: PhysicsGuardSummary
@@ -40,7 +41,7 @@ const syncTimeDisplay = computed(() => {
 })
 
 function goSettings() {
-  router.push({ path: '/settings', query: { tab: 'physics-guard' } })
+  router.push(buildSettingsPath('physics-guard'))
 }
 </script>
 

@@ -7,7 +7,7 @@ import type { ApiResponse } from '@/shared/types'
 export interface LoginParams {
   account: string
   password: string
-  remember?: 0 | 1
+  remember?: boolean
 }
 
 export interface LoginUserInfo {
@@ -21,11 +21,17 @@ export interface LoginUserInfo {
 export interface LoginResult {
   token: string
   token_expire_time: string
-  remember: boolean
   user_info: LoginUserInfo
 }
 
-/** POST /auth/login */
-export function login(data: LoginParams) {
-  return http.post<ApiResponse<LoginResult>>('/auth/login', data)
+export function loginApi(params: LoginParams) {
+  return http.post<ApiResponse<LoginResult>>('/auth/login', {
+    account: params.account,
+    password: params.password,
+    remember: params.remember ? 1 : 0,
+  })
+}
+
+export function logoutApi() {
+  return http.post<ApiResponse<null>>('/auth/logout')
 }

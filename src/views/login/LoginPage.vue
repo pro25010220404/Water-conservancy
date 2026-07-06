@@ -39,9 +39,9 @@ async function handleLogin() {
       remember: rememberMe.value,
     })
     ElMessage.success('登录成功')
-    router.push((route.query.redirect as string) || '/dashboard/overview')
+    router.push((route.query.redirect as string) || '/dashboard')
   } catch {
-    // 错误提示由 request 拦截器统一处理
+    // 错误提示由 request 拦截器统一弹出
   } finally {
     loading.value = false
   }
@@ -154,25 +154,25 @@ class="login-form__checkbox"
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 440px;
-  padding: 20px;
+  max-width: 620px;
+  padding: 24px;
 
   &__card {
     width: 100%;
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 20px;
+    border-radius: 28px;
     overflow: hidden;
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 32px 64px rgba(0, 0, 0, 0.3);
   }
 
   &__header {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 32px 32px 20px;
+    padding: 48px 44px 32px;
     text-align: center;
   }
 
@@ -180,76 +180,76 @@ class="login-form__checkbox"
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 120px;
-    height: 120px;
-    margin-bottom: 14px;
+    width: 180px;
+    height: 180px;
+    margin-bottom: 24px;
     border-radius: 50%;
     background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
   }
 
   &__logo-img {
-    width: 100px;
-    height: 100px;
+    width: 160px;
+    height: 160px;
     object-fit: contain;
-    filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.2));
+    filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.2));
   }
 
   &__overline {
     font-family: 'SF Mono', 'Cascadia Code', monospace;
-    font-size: 11px;
-    letter-spacing: 2px;
+    font-size: 14px;
+    letter-spacing: 3px;
     color: rgba(255, 255, 255, 0.35);
     text-transform: uppercase;
-    margin: 0 0 8px;
+    margin: 0 0 14px;
   }
 
   &__brand-title {
-    margin: 0 0 8px;
-    font-size: 26px;
+    margin: 0 0 14px;
+    font-size: 36px;
     font-weight: 600;
     color: #fff;
     letter-spacing: 1px;
-    line-height: 1.3;
+    line-height: 1.4;
   }
 
   &__brand-desc {
-    margin: 0 0 14px;
-    font-size: 13px;
+    margin: 0 0 22px;
+    font-size: 18px;
     color: rgba(255, 255, 255, 0.45);
-    line-height: 1.7;
+    line-height: 1.8;
   }
 
   &__greeting {
     margin: 0;
-    font-size: 18px;
+    font-size: 24px;
     font-weight: 500;
     color: rgba(255, 255, 255, 0.75);
   }
 
   &__body {
-    padding: 4px 32px 36px;
+    padding: 8px 44px 52px;
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: 28px;
   }
 
   &__options {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 24px;
-    padding: 2px 2px 0;
+    gap: 32px;
+    padding: 4px 4px 0;
   }
 
   &__checkbox {
     :deep(.el-checkbox__label) {
       color: rgba(255, 255, 255, 0.65);
-      font-size: 13px;
+      font-size: 18px;
     }
 
     :deep(.el-checkbox__inner) {
-      width: 16px;
-      height: 16px;
+      width: 20px;
+      height: 20px;
       background: rgba(255, 255, 255, 0.06);
       border-color: rgba(255, 255, 255, 0.25);
     }
@@ -262,12 +262,12 @@ class="login-form__checkbox"
 
   &__btn {
     width: 100%;
-    height: 46px;
-    margin-top: 24px;
-    font-size: 17px;
+    height: 64px;
+    margin-top: 36px;
+    font-size: 24px;
     font-weight: 600;
-    letter-spacing: 5px;
-    border-radius: 12px;
+    letter-spacing: 10px;
+    border-radius: 16px;
     border: none;
     background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
     box-shadow: 0 10px 28px rgba(24, 144, 255, 0.4);
@@ -290,10 +290,10 @@ class="login-form__checkbox"
 .login-field {
   display: flex;
   align-items: stretch;
-  height: 48px;
+  height: 66px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
   transition:
     border-color 0.2s,
@@ -309,10 +309,10 @@ class="login-form__checkbox"
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 46px;
+    width: 66px;
     flex-shrink: 0;
     color: rgba(255, 255, 255, 0.5);
-    font-size: 22px;
+    font-size: 30px;
     border-right: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
   }
@@ -322,8 +322,8 @@ class="login-form__checkbox"
     min-width: 0;
 
     :deep(.el-input__wrapper) {
-      height: 48px;
-      padding: 0 14px;
+      height: 66px;
+      padding: 0 18px;
       background: transparent;
       border: none;
       border-radius: 0;
@@ -331,18 +331,18 @@ class="login-form__checkbox"
 
       .el-input__inner {
         color: #fff;
-        font-size: 15px;
+        font-size: 20px;
 
         &::placeholder {
           color: rgba(255, 255, 255, 0.3);
-          font-size: 13px;
+          font-size: 18px;
         }
       }
     }
 
     :deep(.el-input__suffix) {
       color: rgba(255, 255, 255, 0.45);
-      font-size: 18px;
+      font-size: 24px;
     }
   }
 }
@@ -353,29 +353,29 @@ class="login-form__checkbox"
   }
 
   .login-form {
-    padding: 12px;
+    padding: 16px;
   }
 
   .login-form__header {
-    padding: 28px 20px 20px;
+    padding: 36px 24px 28px;
   }
 
   .login-form__logo-wrap {
-    width: 100px;
-    height: 100px;
+    width: 150px;
+    height: 150px;
   }
 
   .login-form__logo-img {
-    width: 82px;
-    height: 82px;
+    width: 130px;
+    height: 130px;
   }
 
   .login-form__brand-title {
-    font-size: 22px;
+    font-size: 28px;
   }
 
   .login-form__body {
-    padding: 4px 20px 28px;
+    padding: 8px 24px 40px;
   }
 }
 </style>

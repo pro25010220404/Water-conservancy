@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElIcon } from 'element-plus'
 import { DataAnalysis } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
@@ -12,7 +12,7 @@ use([LineChart, GridComponent, TooltipComponent, LegendComponent, DataZoomCompon
 
 // ═══ 主题 ═══
 const darkMode = ref(localStorage.getItem('history-theme') === 'dark')
-watch(darkMode, (v) => localStorage.setItem('history-theme', v ? 'dark' : 'light'))
+watch(darkMode, (v: boolean) => localStorage.setItem('history-theme', v ? 'dark' : 'light'))
 
 // ═══ 离线检测 ═══
 const isOnline = ref(navigator.onLine)
