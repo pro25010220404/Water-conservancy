@@ -5,15 +5,13 @@
 // ============================================================
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { fetchInterlockDashboardSummary } from '@/api/gateaiSettings'
 
 const router = useRouter()
 
-// ── Mock 数据（后续接入 fetchInterlockStats / fetchInterlockLogs）──
+// ── 从 API 获取数据 ──
 const triggerCount24h = ref(3)
-const recentRule = ref<{ name: string; time: string } | null>({
-  name: '泄洪-发电互斥',
-  time: new Date(Date.now() - 5 * 60000).toISOString(), // 5 分钟前
-})
+const recentRule = ref<{ name: string; time: string } | null>(null)
 
 // ── D-99: 计数颜色 ──
 const countColor = computed(() => {
@@ -50,8 +48,10 @@ function goRules() {
   router.push('/settings/gate-interlock')
 }
 
-onMounted(() => {
-  // 实际接入: fetchInterlockStats(reservoirId).then(...)
+onMounted(async () => {
+  const summary = await fetchInterlockDashboardSummary(1)
+  triggerCount24h.value = summary.trigger_24h
+  recentRule.value = summary.recent_rule
 })
 </script>
 

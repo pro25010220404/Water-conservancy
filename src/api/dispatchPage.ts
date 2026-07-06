@@ -220,45 +220,20 @@ export function putAutoLevel(level: 1 | 2 | 3) {
 }
 
 export function fetchPhysicsGuardSummary() {
-  return withMockFallback(
-    async () => {
-      const res = await http.get<ApiResponse<PhysicsGuardSummary>>(
-        `${V1_PREFIX}/settings/physics-guard`,
-        { params: { reservoir_id: DEFAULT_RESERVOIR_ID } },
-      )
-      const body = unwrap(res)
-      if (!body?.data) throw new Error('physics guard failed')
-      return body
-    },
-    () => mockApi.getPhysicsGuardSummary(),
+  return withMockFallback('/v1/admin/physics-guard?reservoir_id=1', () =>
+    mockApi.getPhysicsGuardSummary(),
   )
 }
 
 export function fetchPhysicsGuardHistory() {
-  return withMockFallback(
-    async () => {
-      const res = await http.get<ApiResponse<PageResult<PhysicsGuardHistoryItem>>>(
-        `${V1_PREFIX}/settings/physics-guard/history`,
-        { params: { reservoir_id: DEFAULT_RESERVOIR_ID } },
-      )
-      const body = unwrap(res)
-      if (!body?.data) throw new Error('physics guard history failed')
-      return body
-    },
-    () => mockApi.getPhysicsGuardHistory(),
+  return withMockFallback('/v1/admin/physics-guard/history?reservoir_id=1', () =>
+    mockApi.getPhysicsGuardHistory(),
   )
 }
 
 export function postPhysicsGuardRollback(id: number) {
   return withMockFallback(
-    async () => {
-      const res = await http.post<ApiResponse<null>>(
-        `${V1_PREFIX}/settings/physics-guard/${id}/rollback`,
-      )
-      const body = unwrap(res)
-      if (!body) throw new Error('rollback failed')
-      return body
-    },
+    `/v1/admin/physics-guard/${id}/rollback`,
     () => mockApi.rollbackPhysicsGuardConfig(id),
   )
 }

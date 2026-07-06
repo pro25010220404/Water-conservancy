@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { ElTag, ElDrawer } from 'element-plus'
+import { fetchInterlockLogs } from '@/api/gateaiSettings'
+import type { GateInterlockLog } from '@/types/gateai'
 
 interface InterlockEvent {
   id: number
@@ -23,40 +25,48 @@ const drawerEvent = ref<InterlockEvent | null>(null)
 
 const ruleOptions = ['泄洪-发电互斥', '下游冲击保护', '对称性约束', '最小下泄保障']
 
-function genMock() {
-  const arr: InterlockEvent[] = []
-  const now = Date.now()
-  for (let i = 0; i < 30; i++) {
-    const rule = ruleOptions[Math.floor(Math.random() * ruleOptions.length)]
-    const before = [Math.random() * 100, Math.random() * 100, Math.random() * 100].map(
-      (v) => +v.toFixed(0),
-    )
-    const modIdx = Math.floor(Math.random() * 3)
-    const after = [...before]
-    after[modIdx] = +(after[modIdx] * (0.5 + Math.random() * 0.4)).toFixed(0)
-
-    arr.push({
-      id: 1001 + i,
-      time: new Date(now - i * 7200000).toISOString().replace('T', ' ').slice(0, 19),
-      reservoir: ['向家坝', '溪洛渡', '三峡'][Math.floor(Math.random() * 3)],
-      rule,
-      upstreamLevel: +(378 + Math.random() * 3).toFixed(2),
-      downstreamLevel: +(269 + Math.random()).toFixed(2),
-      gatesBefore: before,
-      gatesAfter: after,
-      modifiedGate: modIdx,
-      decisionId: Math.random() > 0.3 ? 5000 + i : null,
-      actionDetail: {
-        trigger: `溢洪道开度${before[0]}% > 80%阈值`,
-        constraint: '发电引水闸强制限制至50%',
-        change: `发电闸 ${before[modIdx]}% → ${after[modIdx]}%`,
-      },
-    })
+function mapLogToEvent(log: GateInterlockLog): InterlockEvent {
+  const before = log.openings_before ?? []
+  const after = log.openings_after ?? []
+  const changed = log.changed_gates?.[0] ?? 0
+  return {
+    id: log.id,
+    time: log.trigger_time?.replace('T', ' ').slice(0, 19) ?? '--',
+    reservoir: log.reservoir_name ?? '--',
+    rule: log.rule_name ?? log.rule_code ?? '--',
+    upstreamLevel: log.upstream_level ?? 0,
+    downstreamLevel: log.downstream_level ?? 0,
+    gatesBefore: before,
+    gatesAfter: after,
+    modifiedGate: changed,
+    decisionId: log.decision_id ?? null,
+    actionDetail: {
+      trigger: `闸门开度变化触发`,
+      constraint: log.rule_name ?? '互锁约束',
+      change: before.length > 0 && after.length > 0
+        ? `闸门 ${before[changed]}% → ${after[changed]}%`
+        : log.reason ?? '—',
+    },
   }
-  events.value = arr
 }
 
-genMock()
+async function loadEvents() {
+  try {
+    const logs = await fetchInterlockLogs({ reservoirId: 1 })
+    if (logs && logs.length > 0) {
+      events.value = logs.map(mapLogToEvent)
+      // 动态提取规则名称用于筛选
+      const names = new Set(events.value.map((e) => e.rule))
+      ruleOptions.length = 0
+      ruleOptions.push(...names)
+      return
+    }
+  } catch {
+    /* Mock 降级已在 fetchInterlockLogs 内部处理 */
+  }
+}
+
+loadEvents()
 
 const filtered = computed(() => {
   if (!filterRule.value) return events.value
@@ -80,7 +90,7 @@ function barWidth(v: number) {
         <option value="">全部规则</option>
         <option v-for="r in ruleOptions" :key="r" :value="r">{{ r }}</option>
       </select>
-      <button class="ie__btn" @click="genMock">刷新</button>
+      <button class="ie__btn" @click="loadEvents">刷新</button>
     </div>
 
     <div class="ie__table-wrap">

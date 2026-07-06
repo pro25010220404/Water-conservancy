@@ -5,51 +5,50 @@ import { use } from 'echarts/core'
 import { LineChart, BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { fetchPowerUnits, fetchPowerTrendData } from '@/api/monitoring'
 use([LineChart, BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
-const units = ref([
-  { name: '1#', mw: 685, eff: 94.2, rpm: 75, temp: 62, vib: 2.1, status: 'running' as const },
-  { name: '2#', mw: 692, eff: 94.8, rpm: 75, temp: 60, vib: 1.8, status: 'running' as const },
-  { name: '3#', mw: 0, eff: 0, rpm: 0, temp: 28, vib: 0, status: 'stopped' as const },
-  { name: '4#', mw: 678, eff: 93.5, rpm: 75, temp: 64, vib: 2.3, status: 'running' as const },
-  { name: '5#', mw: 688, eff: 94.1, rpm: 75, temp: 61, vib: 1.9, status: 'running' as const },
-  { name: '6#', mw: 0, eff: 0, rpm: 0, temp: 27, vib: 0, status: 'maintenance' as const },
-  { name: '7#', mw: 695, eff: 95.0, rpm: 75, temp: 59, vib: 1.7, status: 'running' as const },
-  { name: '8#', mw: 681, eff: 93.9, rpm: 75, temp: 63, vib: 2.0, status: 'running' as const },
-])
+interface UnitView { name: string; mw: number; eff: number; rpm: number; temp: number; vib: number; status: string }
+const units = ref<UnitView[]>([])
 
 const sc: Record<string, { color: string; label: string }> = {
+  online: { color: '#22c55e', label: '运行' },
   running: { color: '#22c55e', label: '运行' },
   stopped: { color: '#94a3b8', label: '停机' },
   maintenance: { color: '#f59e0b', label: '检修' },
+  offline: { color: '#94a3b8', label: '离线' },
 }
 
 const stats = computed(() => ({
   totalMW: units.value.reduce((s, u) => s + u.mw, 0),
   avgEff: (() => {
-    const r = units.value.filter((u) => u.status === 'running')
+    const r = units.value.filter((u) => u.mw > 0)
     return r.length ? +(r.reduce((s, u) => s + u.eff, 0) / r.length).toFixed(1) : 0
   })(),
   today: 1248.6,
-  running: units.value.filter((u) => u.status === 'running').length,
+  running: units.value.filter((u) => u.mw > 0).length,
 }))
 
 const trendData = ref<[string, number][]>([])
 let t: ReturnType<typeof setInterval>
+
+async function loadData() {
+  const [uData, tData] = await Promise.all([fetchPowerUnits(1), fetchPowerTrendData(1)])
+  units.value = uData.map((u) => ({
+    name: (u.code ?? u.name).replace(/^(SX_GEN_|GEN)/, ''),
+    mw: u.status === 'online' ? u.current_output : 0,
+    eff: +(u.utilization_rate * 100).toFixed(1),
+    rpm: u.status === 'online' ? 75 : 0,
+    temp: u.status === 'online' ? 60 + Math.random() * 5 : 28,
+    vib: u.status === 'online' ? 1.5 + Math.random() : 0,
+    status: u.status,
+  }))
+  trendData.value = tData.map((p) => [p.time?.slice(-5) ?? '--:--', p.avg_power ?? 0] as [string, number])
+}
+
 onMounted(() => {
-  const now = Date.now()
-  for (let i = 59; i >= 0; i--)
-    trendData.value.push([
-      new Date(now - i * 60000).toLocaleTimeString('zh-CN'),
-      650 + Math.random() * 50,
-    ])
-  t = setInterval(() => {
-    trendData.value.push([new Date().toLocaleTimeString('zh-CN'), 680 + Math.random() * 30])
-    if (trendData.value.length > 60) trendData.value.shift()
-    units.value.forEach((u) => {
-      if (u.status === 'running') u.mw = +(u.mw + (Math.random() - 0.5) * 3).toFixed(0)
-    })
-  }, 3000)
+  loadData()
+  t = setInterval(loadData, 15000)
 })
 onUnmounted(() => clearInterval(t))
 

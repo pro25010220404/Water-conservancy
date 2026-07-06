@@ -8,7 +8,6 @@ import { useRouter } from 'vue-router'
 import { ElSelect, ElOption, ElNotification } from 'element-plus'
 import { EVAL_DIMENSIONS, AI_HEALTH_REFRESH_INTERVAL } from '@/constants/aiHealth'
 import { RESERVOIR_OPTIONS } from '@/constants/settings'
-import { fetchModelMetricsLatest } from '@/api/gateaiSettings'
 import type { ModelMetricLatest, HealthGrade } from '@/types/gateai'
 
 const router = useRouter()
@@ -146,27 +145,37 @@ watch(flashTrigger, async () => {
   }, 2400)
 })
 
-// ── 获取数据 ──
+// ── Mock 数据（后端 AI 接口未部署）──
+function mockData(): ModelMetricLatest {
+  return {
+    overall_score: 0.82,
+    health_grade: 'A' as HealthGrade,
+    water_level_mae_24h: 0.042,
+    safety_override_rate: 0.08,
+    l3_auto_rate: 0.71,
+    prediction_score: 0.85,
+    decision_score: 0.80,
+    compliance_score: 0.81,
+    metric_time: new Date().toISOString(),
+  }
+}
+
 async function fetchData() {
   loading.value = true
   try {
-    const data = await fetchModelMetricsLatest(reservoirId.value)
-    if (data) {
-      if (currentData.value && data.health_grade !== currentData.value.health_grade) {
-        previousGrade.value = currentData.value.health_grade
-        flashTrigger.value++
-      } else if (!currentData.value) {
-        previousGrade.value = data.health_grade
-      }
-      currentData.value = data
-      if (data.health_grade === 'D') {
-        rollbackVersion.value = rollbackVersion.value ?? 'v4.9'
-      } else {
-        rollbackVersion.value = null
-      }
+    const data = mockData()
+    if (currentData.value && data.health_grade !== currentData.value.health_grade) {
+      previousGrade.value = currentData.value.health_grade
+      flashTrigger.value++
+    } else if (!currentData.value) {
+      previousGrade.value = data.health_grade
     }
-  } catch {
-    /* 静默 */
+    currentData.value = data
+    if (data.health_grade === 'D') {
+      rollbackVersion.value = rollbackVersion.value ?? 'v4.9'
+    } else {
+      rollbackVersion.value = null
+    }
   } finally {
     loading.value = false
   }
