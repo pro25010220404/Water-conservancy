@@ -41,6 +41,7 @@ export const useEquipmentStore = defineStore('equipment', () => {
         page_size: pagination.pageSize,
         type: filters.type || undefined,
         status: filters.status || undefined,
+        group: filters.group || undefined,
         keyword: filters.keyword || undefined,
       })
       const body = res.data
@@ -51,8 +52,9 @@ export const useEquipmentStore = defineStore('equipment', () => {
       }
     } catch {
       /* API 不可用时由页面组件接管 mock */
+    } finally {
+      listLoading.value = false
     }
-    listLoading.value = false
   }
 
   async function fetchDeviceDetail(id: number) {

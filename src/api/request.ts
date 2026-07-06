@@ -27,8 +27,8 @@ http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 http.interceptors.response.use(
   (response: AxiosResponse) => {
     const data = response.data
-    // 业务级错误
-    if (data.code !== undefined && data.code !== 0) {
+    // 业务级错误（仅当 data 是 JSON 对象时处理）
+    if (data && typeof data === 'object' && data.code !== undefined && data.code !== 0) {
       // 认证类错误自动跳转登录
       if (data.code >= 20001 && data.code <= 20008) {
         localStorage.removeItem('token')
@@ -36,27 +36,44 @@ http.interceptors.response.use(
         if (window.location.pathname !== '/login') {
           window.location.href = '/login'
         }
+        return Promise.reject(new Error(data.msg || '认证失败'))
       }
-      ElMessage.error(data.msg || '请求失败')
+      // 业务错误不弹 toast，由调用方决定是否提示
       return Promise.reject(new Error(data.msg || '请求失败'))
     }
     return response
   },
   (error) => {
+    // 请求被取消（如防抖）不提示
+    if (axios.isCancel(error)) return Promise.reject(error)
+
     if (error.code === 'ECONNABORTED') {
       ElMessage.error('请求超时，请稍后重试')
     } else if (!error.response) {
-      ElMessage.error('网络异常，请检查网络连接')
+      // 网络不通时静默失败，由各页面 mock 降级处理
+      // 仅在开发环境 console 输出，不弹 toast 打断用户
+      if (import.meta.env.DEV) {
+        console.warn('[API] 网络不可达，使用 Mock 降级:', error.config?.url)
+      }
     } else {
       const status = error.response.status
-      const msgMap: Record<number, string> = {
-        400: '请求参数错误',
-        401: '登录已过期，请重新登录',
-        403: '无访问权限',
-        404: '请求资源不存在',
-        500: '服务器内部错误',
+      // 业务级 auth 错误已在 success 拦截器中处理（code>=20001），
+      // HTTP 401 仅弹 toast 不强制登出（dev token 可能不被后端识别）
+      if (status === 401) {
+        ElMessage.error('登录已过期，请重新登录')
+      } else if (status === 404) {
+        // 404 静默处理，使用 Mock 降级
+        if (import.meta.env.DEV) {
+          console.warn('[API] 接口不存在 (404)，使用 Mock 降级:', error.config?.url)
+        }
+      } else {
+        const msgMap: Record<number, string> = {
+          400: '请求参数错误',
+          403: '无访问权限',
+          500: '服务器内部错误',
+        }
+        ElMessage.error(msgMap[status] || `请求失败 (${status})`)
       }
-      ElMessage.error(msgMap[status] || `请求失败 (${status})`)
     }
     return Promise.reject(error)
   },

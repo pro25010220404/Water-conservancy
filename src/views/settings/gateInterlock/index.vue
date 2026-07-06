@@ -91,9 +91,10 @@ async function fetchRules() {
     }
   } catch {
     /* fallback */
+  } finally {
+    loading.value = false
   }
   rules.value = generateMockRules()
-  loading.value = false
 }
 
 function onReservoirChange() {
@@ -112,12 +113,16 @@ function handleNew() {
 
 async function handleToggle(rule: InterlockRule) {
   try {
+    await ElMessageBox.confirm(
+      `确定${rule.is_enabled ? '禁用' : '启用'}规则「${rule.name}」？`,
+      '确认操作',
+      { type: 'warning' },
+    )
     await toggleInterlockRule(rule.id)
     rule.is_enabled = !rule.is_enabled
     ElMessage.success(`规则「${rule.name}」已${rule.is_enabled ? '启用' : '禁用'}`)
   } catch {
-    rule.is_enabled = !rule.is_enabled
-    ElMessage.error('操作失败')
+    /* 取消或失败 */
   }
 }
 

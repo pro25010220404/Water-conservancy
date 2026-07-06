@@ -88,6 +88,26 @@ const typeLabelMap = computed(() => {
 
 const pageSizeOptions = [10, 15, 20, 50]
 
+/** ElTag 类型映射，避免模板中 as 类型断言 */
+type TagType = 'success' | 'danger' | 'info' | 'warning'
+function statusTagType(status: string): TagType {
+  const map: Record<string, TagType> = {
+    online: 'success',
+    offline: 'info',
+    fault: 'danger',
+    maintenance: 'warning',
+  }
+  return map[status] ?? 'info'
+}
+function alarmLevelTagType(level: string): TagType {
+  const map: Record<string, TagType> = {
+    urgent: 'danger',
+    important: 'warning',
+    normal: 'info',
+  }
+  return map[level] ?? 'info'
+}
+
 // ── 7. 方法函数 ──
 
 /** Mock 设备数据（14 种硬件） */
@@ -289,9 +309,9 @@ async function fetchList() {
       keyword: keyword.value || undefined,
     })
     const body = res.data
-    if (body.code === 0 && body.data.list.length > 0) {
-      list.value = body.data.list
-      total.value = body.data.total
+    if (body.code === 0 && body.data) {
+      list.value = body.data.list ?? []
+      total.value = body.data.total ?? 0
       return
     }
   } catch {
@@ -394,7 +414,11 @@ async function onRowClick(row: Equipment) {
   detailLoading.value = false
   edgeSync.value = null
   if (row.type === 'gateway') {
-    edgeSync.value = await fetchEdgeSyncStatus(row.id)
+    try {
+      edgeSync.value = await fetchEdgeSyncStatus(row.id)
+    } catch {
+      edgeSync.value = null
+    }
   }
 }
 
@@ -430,6 +454,10 @@ async function handleRestart() {
       ElMessage.success('重启指令已下发')
       restartVisible.value = false
     }
+  } catch {
+    ElMessage.warning('重启指令已模拟下发（后端未连接）')
+    recordLog('设备管理', '重启', `远程重启设备「${restartDeviceName.value}」(模拟)`, 1)
+    restartVisible.value = false
   } finally {
     submitting.value = false
   }
@@ -614,15 +642,7 @@ watch([typeFilter, statusFilter, reservoirFilter], onFilterChange)
         <ElTableColumn prop="status" label="状态" width="90">
           <template #default="scope">
             <ElTag
-              :type="
-                (scope.row.status === 'online'
-                  ? 'success'
-                  : scope.row.status === 'fault'
-                    ? 'danger'
-                    : scope.row.status === 'offline'
-                      ? 'info'
-                      : 'warning') as 'success' | 'danger' | 'info' | 'warning'
-              "
+              :type="statusTagType(scope.row.status)"
               size="small"
               disable-transitions
             >
@@ -687,15 +707,7 @@ watch([typeFilter, statusFilter, reservoirFilter], onFilterChange)
               </ElDescriptionsItem>
               <ElDescriptionsItem label="状态">
                 <ElTag
-                  :type="
-                    (detail.status === 'online'
-                      ? 'success'
-                      : detail.status === 'fault'
-                        ? 'danger'
-                        : detail.status === 'offline'
-                          ? 'info'
-                          : 'warning') as 'success' | 'danger' | 'info' | 'warning'
-                  "
+                  :type="statusTagType(detail.status)"
                   size="small"
                 >
                   {{ EQUIPMENT_STATUS[detail.status]?.label ?? detail.status }}
@@ -770,13 +782,7 @@ watch([typeFilter, statusFilter, reservoirFilter], onFilterChange)
                   class="equipment-page__alarm-item"
                 >
                   <ElTag
-                    :type="
-                      (alarm.level === 'urgent'
-                        ? 'danger'
-                        : alarm.level === 'important'
-                          ? 'warning'
-                          : 'info') as 'danger' | 'warning' | 'info'
-                    "
+                    :type="alarmLevelTagType(alarm.level)"
                     size="small"
                   >
                     {{ alarm.level }}

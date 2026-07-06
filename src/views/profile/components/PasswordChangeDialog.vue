@@ -12,6 +12,7 @@ import {
   ElButton,
   ElProgress,
   ElMessage,
+  ElMessageBox,
 } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { useUserStore } from '@/stores/user'
@@ -103,6 +104,17 @@ async function submitPassword() {
   if (strength.value.level === 'weak') {
     ElMessage.warning('新密码强度太弱，请按规则设置')
     return
+  }
+
+  // 二次确认
+  try {
+    await ElMessageBox.confirm('确定要修改密码吗？修改后需重新登录。', '修改密码确认', {
+      confirmButtonText: '确认修改',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
+    return // 用户取消
   }
 
   submitting.value = true

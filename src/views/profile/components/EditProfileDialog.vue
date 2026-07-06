@@ -4,11 +4,10 @@
 // ============================================================
 import { ref, reactive, watch } from 'vue'
 import { ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElMessage } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import type { FormInstance } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useProfileStore } from '@/stores/profile'
 import { updateProfile } from '@/api/profile'
-import { FORM_RULES } from '@/constants/validation'
 import { useOperationLog } from '@/composables/useOperationLog'
 import AvatarUpload from './AvatarUpload.vue'
 
@@ -48,14 +47,17 @@ const form = reactive<EditForm>({
   phone: '',
 })
 
-const rules: FormRules = {
-  realname: [...(FORM_RULES.realname as any[])],
+const rules = {
+  realname: [
+    { required: true, message: '请输入姓名', trigger: 'blur' },
+    { min: 2, max: 20, message: '2-20个字符', trigger: 'blur' },
+  ],
   email: [
     { required: true, message: '请输入邮箱地址', trigger: 'blur' },
-    ...(FORM_RULES.email as any[]),
+    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' },
   ],
-  phone: [...(FORM_RULES.phone as any[])],
-}
+  phone: [{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的11位手机号', trigger: 'blur' }],
+} as const
 
 // ── 弹窗打开时回填数据 ──
 
@@ -63,11 +65,11 @@ watch(
   () => props.visible,
   (val) => {
     if (val) {
+      formRef.value?.resetFields()
       form.avatar = profileStore.userInfo?.avatar || userStore.userInfo?.avatar || ''
       form.realname = profileStore.userInfo?.realname || userStore.userInfo?.nickname || ''
       form.email = profileStore.userInfo?.email || ''
       form.phone = profileStore.userInfo?.phone || ''
-      formRef.value?.resetFields()
     }
   },
 )

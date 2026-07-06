@@ -74,9 +74,7 @@ export function getModels(params?: {
 }
 
 export function uploadModel(formData: FormData) {
-  return http.post<ApiResponse<ModelInfo>>('/v1/settings/models/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  })
+  return http.post<ApiResponse<ModelInfo>>('/v1/settings/models/upload', formData)
 }
 
 export function activateModel(id: number, data?: ModelActivateParams) {

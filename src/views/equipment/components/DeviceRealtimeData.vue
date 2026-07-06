@@ -14,7 +14,7 @@ const props = defineProps<{
 const monitoring = computed(() => props.detail.latest_monitoring ?? null)
 
 const isSensor = computed(() => {
-  return props.detail.type === 'level_sensor' || props.detail.type === 'flow_sensor'
+  return props.detail.type === 'sensor' || props.detail.type === 'level_sensor' || props.detail.type === 'flow_sensor'
 })
 
 const isActuator = computed(() => {

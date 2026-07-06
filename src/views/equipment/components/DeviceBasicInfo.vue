@@ -9,11 +9,10 @@ import {
   ElDescriptionsItem,
   ElButton,
   ElInput,
-  ElTag,
   ElMessage,
 } from 'element-plus'
 import { Edit, Check, Close } from '@element-plus/icons-vue'
-import { DEVICE_TYPE, DEVICE_STATUS } from '@/constants'
+import { DEVICE_TYPE } from '@/constants'
 import { updateEquipment } from '@/api/equipment'
 import { useOperationLog } from '@/composables/useOperationLog'
 import type { EquipmentDetail } from '@/shared/types'

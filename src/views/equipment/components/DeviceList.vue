@@ -16,8 +16,6 @@ const props = defineProps<{
   total: number
   currentPage: number
   pageSize: number
-  selectedId: number | null
-  statusMap: Record<number, string>
 }>()
 
 // ── Emits ──
@@ -25,7 +23,6 @@ const emit = defineEmits<{
   (e: 'row-click', row: Equipment): void
   (e: 'page-change', page: number): void
   (e: 'size-change', size: number): void
-  (e: 'selection-change', ids: number[]): void
 }>()
 
 // ── 字典映射 ──
@@ -48,13 +45,6 @@ function getStatusType(status: string): 'success' | 'info' | 'danger' | 'warning
   return map[status] ?? 'info'
 }
 
-function onSelectionChange(rows: Equipment[]) {
-  emit(
-    'selection-change',
-    rows.map((r) => r.id),
-  )
-}
-
 const pageSizeOptions = [10, 15, 20, 50]
 </script>
 
@@ -67,7 +57,6 @@ const pageSizeOptions = [10, 15, 20, 50]
       highlight-current-row
       class="device-list__table"
       @row-click="(row: Equipment) => emit('row-click', row)"
-      @selection-change="onSelectionChange"
     >
       <ElTableColumn type="selection" width="50" />
       <ElTableColumn prop="name" label="设备名称" min-width="160" show-overflow-tooltip />

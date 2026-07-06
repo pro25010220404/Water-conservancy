@@ -66,6 +66,7 @@ async function fetchLogs() {
       logs.value = res.data.data.list
       total.value = res.data.data.total
       profileStore.setOperationLogs(res.data.data.list, res.data.data.total)
+      loading.value = false
       return
     }
   } catch {
