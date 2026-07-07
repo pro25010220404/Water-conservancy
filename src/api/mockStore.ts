@@ -118,7 +118,7 @@ let alarmPushSeq = 0
 type AutoLevel = 1 | 2 | 3
 
 let dispatchStatus: DispatchStatus = {
-  mode: 'auto',
+  mode: (localStorage.getItem('dispatch_mode') as 'auto' | 'manual') || 'auto',
   autoLevel: 2 as AutoLevel,
   upstreamLevel: stationLive.upstreamLevel,
   downstreamLevel: stationLive.downstreamLevel,
@@ -1347,6 +1347,7 @@ export const mockApi = {
 
   changeMode(params: { mode: 'auto' | 'manual' }) {
     dispatchStatus.mode = params.mode
+    localStorage.setItem('dispatch_mode', params.mode)
     return delay(ok(null))
   },
 
