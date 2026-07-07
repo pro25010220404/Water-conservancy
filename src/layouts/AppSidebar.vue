@@ -58,7 +58,6 @@ const visibleMenus = computed(() =>
     <ElMenu
       :default-active="route.path"
       :collapse="collapsed"
-      :collapse-transition="false"
       background-color="transparent"
       text-color="var(--color-layout-blue-text-secondary)"
       active-text-color="var(--color-layout-blue-brand)"

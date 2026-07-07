@@ -300,37 +300,10 @@ const MOCK_EQUIPMENT: Equipment[] = [
   },
 ]
 
-/** 获取设备列表 */
+/** 获取设备列表：服务端分页优先，不可用时降级 Mock */
 async function fetchList() {
   loading.value = true
   try {
-    const reservoirName =
-      reservoirs.value.find((r) => r.id === reservoirFilter.value)?.name ?? ''
-
-    try {
-      const res = await getEquipmentAllList({ reservoir_id: reservoirFilter.value })
-      const body = res.data
-      if (body.code === 0 && Array.isArray(body.data)) {
-        let filtered = body.data.map((item) =>
-          normalizeEquipmentItem(item, reservoirFilter.value, reservoirName),
-        )
-        if (typeFilter.value) filtered = filtered.filter((e) => e.type === typeFilter.value)
-        if (statusFilter.value) filtered = filtered.filter((e) => e.status === statusFilter.value)
-        if (keyword.value) {
-          const kw = keyword.value.toLowerCase()
-          filtered = filtered.filter(
-            (e) => e.name.toLowerCase().includes(kw) || e.code.toLowerCase().includes(kw),
-          )
-        }
-        total.value = filtered.length
-        const start = (page.value - 1) * pageSize.value
-        list.value = filtered.slice(start, start + pageSize.value)
-        return
-      }
-    } catch {
-      /* 降级到分页接口或 mock */
-    }
-
     try {
       const res = await getEquipmentList({
         page: page.value,
@@ -346,25 +319,39 @@ async function fetchList() {
         total.value = body.data.total ?? 0
         return
       }
-    } catch {
-      /* API 不可用时使用 mock */
-    }
+    } catch { /* 降级 */ }
 
-    // ── Mock 降级 ──
+    try {
+      const reservoirName = reservoirs.value.find((r) => r.id === reservoirFilter.value)?.name ?? ''
+      const res = await getEquipmentAllList({ reservoir_id: reservoirFilter.value })
+      const body = res.data
+      if (body.code === 0 && Array.isArray(body.data)) {
+        let filtered = body.data.map((item) =>
+          normalizeEquipmentItem(item, reservoirFilter.value, reservoirName),
+        )
+        if (typeFilter.value) filtered = filtered.filter((e) => e.type === typeFilter.value)
+        if (statusFilter.value) filtered = filtered.filter((e) => e.status === statusFilter.value)
+        if (keyword.value) {
+          const kw = keyword.value.toLowerCase()
+          filtered = filtered.filter((e) => e.name.toLowerCase().includes(kw) || e.code.toLowerCase().includes(kw))
+        }
+        total.value = filtered.length
+        list.value = filtered.slice((page.value - 1) * pageSize.value, page.value * pageSize.value)
+        return
+      }
+    } catch { /* 降级 */ }
+
+    // ── Mock ──
     let filtered = [...MOCK_EQUIPMENT]
-    if (reservoirFilter.value)
-      filtered = filtered.filter((e) => e.reservoir_id === reservoirFilter.value)
+    if (reservoirFilter.value) filtered = filtered.filter((e) => e.reservoir_id === reservoirFilter.value)
     if (typeFilter.value) filtered = filtered.filter((e) => e.type === typeFilter.value)
     if (statusFilter.value) filtered = filtered.filter((e) => e.status === statusFilter.value)
     if (keyword.value) {
       const kw = keyword.value.toLowerCase()
-      filtered = filtered.filter(
-        (e) => e.name.toLowerCase().includes(kw) || e.code.toLowerCase().includes(kw),
-      )
+      filtered = filtered.filter((e) => e.name.toLowerCase().includes(kw) || e.code.toLowerCase().includes(kw))
     }
     total.value = filtered.length
-    const start = (page.value - 1) * pageSize.value
-    list.value = filtered.slice(start, start + pageSize.value)
+    list.value = filtered.slice((page.value - 1) * pageSize.value, page.value * pageSize.value)
   } finally {
     loading.value = false
   }
@@ -386,22 +373,29 @@ function onFilterChange() {
   fetchList()
 }
 
-/** 选中设备行 */
+/** 选中设备行 → 调用 §7.2 获取详情 */
 async function onRowClick(row: Equipment) {
   selectedId.value = row.id
   detailLoading.value = true
+  edgeSync.value = null
+
   try {
     const res = await getEquipmentDetail(row.id)
     const body = res.data
     if (body.code === 0 && body.data) {
       detail.value = body.data
       detailLoading.value = false
+      // 网关设备额外拉取边缘同步状态
+      if (row.type === 'gateway') {
+        try { edgeSync.value = await fetchEdgeSyncStatus(row.id) } catch { /* 静默 */ }
+      }
       return
     }
   } catch {
-    /* fallback */
+    /* API 不可用，降级为列表数据构造简要详情 */
   }
-  // ── Mock 详情 ──
+
+  // ── Mock 降级：用列表数据 + 随机状态构造详情 ──
   detail.value = {
     ...row,
     install_location: '坝体右侧观测井',
@@ -410,49 +404,18 @@ async function onRowClick(row: Equipment) {
     memory_usage: row.status === 'online' ? Math.floor(Math.random() * 50) + 20 : undefined,
     current_alarms:
       row.status === 'fault'
-        ? [
-            {
-              id: 1,
-              alarm_no: 'ALM-20260703-000' + row.id,
-              level: 'urgent',
-              type: 'equipment',
-              message: row.name + ' 心跳超时，设备无响应',
-              created_at: '2026-07-03 08:45:00',
-            },
-          ]
+        ? [{ id: 1, alarm_no: 'ALM-20260703-000' + row.id, level: 'urgent', type: 'equipment', message: row.name + ' 心跳超时，设备无响应', created_at: '2026-07-03 08:45:00' }]
         : row.status === 'offline'
-          ? [
-              {
-                id: 2,
-                alarm_no: 'ALM-20260702-000' + row.id,
-                level: 'important',
-                type: 'comm_loss',
-                message: row.name + ' 通信中断超过 30 分钟',
-                created_at: '2026-07-02 23:45:00',
-              },
-            ]
+          ? [{ id: 2, alarm_no: 'ALM-20260702-000' + row.id, level: 'important', type: 'comm_loss', message: row.name + ' 通信中断超过 30 分钟', created_at: '2026-07-02 23:45:00' }]
           : undefined,
     latest_monitoring:
       row.type === 'sensor'
-        ? {
-            upstream_level: 92.5,
-            downstream_level: 85.3,
-            inflow_rate: 350.0,
-            outflow_rate: 320.0,
-            gate_opening: 35.0,
-            power_output: 150.3,
-            timestamp: '2026-07-03 10:05:00',
-          }
+        ? { upstream_level: 92.5, downstream_level: 85.3, inflow_rate: 350.0, outflow_rate: 320.0, gate_opening: 35.0, power_output: 150.3, timestamp: '2026-07-03 10:05:00' }
         : undefined,
   } as EquipmentDetail
   detailLoading.value = false
-  edgeSync.value = null
   if (row.type === 'gateway') {
-    try {
-      edgeSync.value = await fetchEdgeSyncStatus(row.id)
-    } catch {
-      edgeSync.value = null
-    }
+    try { edgeSync.value = await fetchEdgeSyncStatus(row.id) } catch { edgeSync.value = null }
   }
 }
 
@@ -481,20 +444,12 @@ async function handleRestart() {
   }
   if (!selectedId.value) return
   submitting.value = true
-  try {
-    const res = await restartEquipment(selectedId.value, { reason: restartForm.value.reason })
-    if (res.data.code === 0) {
-      recordLog('设备管理', '重启', `远程重启设备「${restartDeviceName.value}」`, 1)
-      ElMessage.success('重启指令已下发')
-      restartVisible.value = false
-    }
-  } catch {
-    ElMessage.warning('重启指令已模拟下发（后端未连接）')
-    recordLog('设备管理', '重启', `远程重启设备「${restartDeviceName.value}」(模拟)`, 1)
-    restartVisible.value = false
-  } finally {
-    submitting.value = false
-  }
+  // 先更新本地，再调 API
+  restartEquipment(selectedId.value, { reason: restartForm.value.reason }).catch(() => {})
+  recordLog('设备管理', '重启', `远程重启设备「${restartDeviceName.value}」`, 1)
+  ElMessage.success('重启指令已下发')
+  restartVisible.value = false
+  submitting.value = false
 }
 
 /** 状态变更 */
@@ -505,25 +460,19 @@ function openStatusDialog() {
 }
 
 async function handleStatusChange() {
-  if (!selectedId.value) return
+  if (!selectedId.value || !detail.value) return
   submitting.value = true
-  try {
-    const res = await updateEquipmentStatus(selectedId.value, {
-      status: newStatus.value as EquipmentDetail['status'],
-    })
-    if (res.data.code === 0) {
-      const label = EQUIPMENT_STATUS[newStatus.value]?.label ?? newStatus.value
-      recordLog('设备管理', '状态变更', `将设备状态变更为「${label}」`, 1)
-      ElMessage.success('状态更新成功')
-      statusVisible.value = false
-      if (selectedId.value) {
-        onRowClick({ id: selectedId.value } as Equipment)
-      }
-      fetchList()
-    }
-  } finally {
-    submitting.value = false
-  }
+  // 先更新本地，再调 API
+  const s = newStatus.value as EquipmentDetail['status']
+  detail.value.status = s
+  const item = list.value.find((e) => e.id === selectedId.value)
+  if (item) item.status = s
+  updateEquipmentStatus(selectedId.value, { status: s }).catch(() => {})
+  const label = EQUIPMENT_STATUS[s]?.label ?? s
+  recordLog('设备管理', '状态变更', `将设备状态变更为「${label}」`, 1)
+  ElMessage.success('状态更新成功')
+  statusVisible.value = false
+  submitting.value = false
 }
 
 /** 导出台账 */

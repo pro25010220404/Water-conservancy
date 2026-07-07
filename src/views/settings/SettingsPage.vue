@@ -5,7 +5,7 @@
 
 // ── 1. 外部依赖 ──
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import {
   ElCard,
   ElTable,
@@ -54,14 +54,14 @@ import {
 } from '@/api/settings'
 import type { ThresholdRule, WeightConfig, ModelInfo, SystemUser } from '@/shared/types'
 import {
-  SETTINGS_TAB_ROUTES,
-  settingsTabFromPath,
-  type SettingsTabName,
-} from '@/constants/settings'
+  getUserStatusMeta,
+  isUserLoginLocked,
+  normalizeSystemUser,
+  userNeedsUnlock,
+} from '@/utils/userStatus'
 
 const { record: recordLog } = useOperationLog()
 const route = useRoute()
-const router = useRouter()
 
 const SETTINGS_TAB_NAMES = [
   'thresholds',
@@ -87,8 +87,6 @@ const thresholdsEditing = ref<Record<number, ThresholdRule>>({})
 // Tab2: 权重
 const weights = ref<WeightConfig | null>(null)
 const weightForm = ref({ power_weight: 0.4, safety_weight: 0.35, ecology_weight: 0.25 })
-const weightOriginal = ref({ power_weight: 0.4, safety_weight: 0.35, ecology_weight: 0.25 })
-const weightEditing = ref(false)
 const weightLoading = ref(false)
 const presetOptions = [
   { label: '均衡方案', power: 0.4, safety: 0.35, ecology: 0.25 },
@@ -100,7 +98,6 @@ const presetOptions = [
 type Preset = (typeof presetOptions)[number]
 
 function applyPreset(p: Preset) {
-  if (!weightEditing.value) return
   weightForm.value = { power_weight: p.power, safety_weight: p.safety, ecology_weight: p.ecology }
 }
 
@@ -162,33 +159,6 @@ const weightSum = computed(
     ).toFixed(2),
 )
 const weightValid = computed(() => Math.abs(weightSum.value - 1.0) < 0.001)
-const weightIsDirty = computed(
-  () => JSON.stringify(weightForm.value) !== JSON.stringify(weightOriginal.value),
-)
-
-function syncWeightOriginal() {
-  weightOriginal.value = JSON.parse(JSON.stringify(weightForm.value))
-}
-
-function startWeightEdit() {
-  weightEditing.value = true
-}
-
-async function cancelWeightEdit() {
-  if (weightIsDirty.value) {
-    try {
-      await ElMessageBox.confirm('放弃未保存的修改？', '取消编辑', { type: 'warning' })
-    } catch {
-      return
-    }
-  }
-  weightForm.value = JSON.parse(JSON.stringify(weightOriginal.value))
-  weightEditing.value = false
-}
-
-function resetWeightEdit() {
-  weightForm.value = JSON.parse(JSON.stringify(weightOriginal.value))
-}
 
 // ── 联动滑块 ──
 function onSliderChange(changed: string) {
@@ -400,75 +370,21 @@ const MOCK_MODELS: ModelInfo[] = [
     health_grade: 'C',
   },
 ]
-const MOCK_USERS: SystemUser[] = [
-  {
-    id: 1,
-    account: 'admin',
-    realname: '系统管理员',
-    role_id: 4,
-    role_name: '系统管理员',
-    phone: '13800001000',
-    is_enabled: 1,
-    created_at: '2026-06-01 08:00:00',
-  },
-  {
-    id: 2,
-    account: 'zhangsan',
-    realname: '张三',
-    role_id: 1,
-    role_name: '值班运维人员',
-    phone: '13800001001',
-    is_enabled: 1,
-    created_at: '2026-06-15 09:30:00',
-  },
-  {
-    id: 3,
-    account: 'lisi',
-    realname: '李四',
-    role_id: 2,
-    role_name: '调度决策工程师',
-    phone: '13800001002',
-    is_enabled: 1,
-    created_at: '2026-06-20 10:00:00',
-  },
-  {
-    id: 4,
-    account: 'wangwu',
-    realname: '王五',
-    role_id: 3,
-    role_name: '站长/管理人员',
-    phone: '13800001003',
-    is_enabled: 1,
-    created_at: '2026-06-22 14:00:00',
-  },
-  {
-    id: 5,
-    account: 'zhaoliu',
-    realname: '赵六',
-    role_id: 5,
-    role_name: '算法工程师',
-    phone: '13800001004',
-    is_enabled: 0,
-    created_at: '2026-06-25 11:00:00',
-  },
-  {
-    id: 6,
-    account: 'sunqi',
-    realname: '孙七',
-    role_id: 1,
-    role_name: '值班运维人员',
-    phone: '13800001005',
-    is_enabled: 1,
-    created_at: '2026-07-02 08:30:00',
-  },
-]
-
 // Tab3: 模型
 const models = ref<ModelInfo[]>([])
 const modelsTotal = ref(0)
 const modelsPage = ref(1)
 const modelsLoading = ref(false)
 const modelKeyword = ref('')
+let modelSearchTimer: ReturnType<typeof setTimeout> | null = null
+
+function onModelKeywordInput() {
+  if (modelSearchTimer) clearTimeout(modelSearchTimer)
+  modelSearchTimer = setTimeout(() => {
+    modelsPage.value = 1
+    fetchModels()
+  }, 300)
+}
 
 // Tab4: 用户
 const users = ref<SystemUser[]>([])
@@ -476,11 +392,31 @@ const usersTotal = ref(0)
 const usersPage = ref(1)
 const usersLoading = ref(false)
 const userKeyword = ref('')
+let userSearchTimer: ReturnType<typeof setTimeout> | null = null
+
+function onUserKeywordInput() {
+  if (userSearchTimer) clearTimeout(userSearchTimer)
+  userSearchTimer = setTimeout(() => {
+    usersPage.value = 1
+    fetchUsers()
+  }, 300)
+}
 const userDialogVisible = ref(false)
 const userDialogMode = ref<'create' | 'edit'>('create')
 const userForm = ref({ account: '', password: '', realname: '', role_id: 4, phone: '' })
 const editingUserId = ref<number | null>(null)
 const userSubmitting = ref(false)
+
+// 新增用户的表单校验规则（密码无限制，不校验）
+const userFormRules = computed(() => {
+  if (userDialogMode.value === 'create') {
+    return {
+      account: FORM_RULES.account,
+      realname: FORM_RULES.realname,
+    }
+  }
+  return { realname: FORM_RULES.realname }
+})
 
 // ── 7. 方法 ──
 
@@ -539,12 +475,12 @@ async function saveThreshold(id: number) {
   }
 }
 
-// -- Tab2 --
+// -- Tab2 §8.2 多目标权重 --
 async function fetchWeights() {
   weightLoading.value = true
   try {
     const res = await getWeights()
-    if (res.data.code === 0 && res.data.data) {
+    if (res.data?.code === 0 && res.data.data) {
       const d = res.data.data
       weights.value = d
       weightForm.value = {
@@ -552,13 +488,11 @@ async function fetchWeights() {
         safety_weight: d.safety_weight,
         ecology_weight: d.ecology_weight,
       }
-      syncWeightOriginal()
-      weightEditing.value = false
       weightLoading.value = false
       return
     }
   } catch {
-    /* fallback */
+    /* API 不可用，降级 Mock */
   }
   weights.value = MOCK_WEIGHTS
   weightForm.value = {
@@ -566,8 +500,6 @@ async function fetchWeights() {
     safety_weight: MOCK_WEIGHTS.safety_weight,
     ecology_weight: MOCK_WEIGHTS.ecology_weight,
   }
-  syncWeightOriginal()
-  weightEditing.value = false
   weightLoading.value = false
 }
 
@@ -587,9 +519,6 @@ async function saveWeights() {
       1,
     )
     ElMessage.success('权重已保存并推送至边缘端')
-    syncWeightOriginal()
-    weightEditing.value = false
-    await fetchWeights()
   } catch {
     /* 取消 */
   } finally {
@@ -688,26 +617,30 @@ async function handleDeleteModel(id: number) {
 async function fetchUsers() {
   usersLoading.value = true
   try {
-    const res = await getUsers({ page: usersPage.value, keyword: userKeyword.value || undefined })
-    if (res.data.code === 0 && res.data.data.list.length) {
-      users.value = res.data.data.list
-      usersTotal.value = res.data.data.total
-      usersLoading.value = false
+    const res = await getUsers({
+      page: usersPage.value,
+      page_size: 10,
+      keyword: userKeyword.value || undefined,
+    })
+    if (res.data.code === 0 && res.data.data) {
+      const list = res.data.data.list ?? []
+      users.value = list.map((item) =>
+        normalizeSystemUser(item as unknown as Record<string, unknown>),
+      )
+      usersTotal.value = res.data.data.total ?? list.length
       return
     }
-  } catch {
-    /* fallback */
+    users.value = []
+    usersTotal.value = 0
+    ElMessage.warning(res.data.msg || '用户列表加载失败')
+  } catch (err: unknown) {
+    users.value = []
+    usersTotal.value = 0
+    const msg = err instanceof Error ? err.message : '用户列表加载失败'
+    ElMessage.error(msg.includes('登录') || msg.includes('Token') ? '登录已失效，请重新登录' : msg)
+  } finally {
+    usersLoading.value = false
   }
-  let filtered = [...MOCK_USERS]
-  if (userKeyword.value) {
-    const kw = userKeyword.value.toLowerCase()
-    filtered = filtered.filter(
-      (u) => u.account.toLowerCase().includes(kw) || u.realname.includes(kw),
-    )
-  }
-  usersTotal.value = filtered.length
-  users.value = filtered.slice((usersPage.value - 1) * 10, usersPage.value * 10)
-  usersLoading.value = false
 }
 
 function openUserDialog(mode: 'create' | 'edit', row?: SystemUser) {
@@ -723,7 +656,7 @@ function openUserDialog(mode: 'create' | 'edit', row?: SystemUser) {
     }
   } else {
     editingUserId.value = null
-    userForm.value = { account: '', password: '', realname: '', role_id: 4, phone: '' }
+    userForm.value = { account: '', password: '12345678', realname: '', role_id: 4, phone: '' }
   }
   userDialogVisible.value = true
 }
@@ -736,11 +669,15 @@ async function submitUser() {
       recordLog('系统设置', '创建用户', `创建了新用户「${userForm.value.realname}」`, 1)
       ElMessage.success('用户创建成功')
     } else if (editingUserId.value) {
-      await updateUser(editingUserId.value, userForm.value)
+      // 编辑时不传 password 和 account，只传可修改字段
+      const { password, account, ...editData } = userForm.value
+      await updateUser(editingUserId.value, editData)
       ElMessage.success('用户更新成功')
     }
     userDialogVisible.value = false
     fetchUsers()
+  } catch (err: any) {
+    ElMessage.error(err?.message || '操作失败')
   } finally {
     userSubmitting.value = false
   }
@@ -755,21 +692,27 @@ async function handleLock(row: SystemUser) {
     await lockUser(row.id, { reason: reason.value || '管理员锁定' })
     recordLog('系统设置', '锁定账号', `锁定了用户「${row.realname}」`, 1)
     ElMessage.success('账号已锁定')
-    fetchUsers()
+    await fetchUsers()
   } catch {
-    /* 取消 */
+    /* 取消或失败 */
   }
 }
 
 async function handleUnlock(row: SystemUser) {
+  const lockedByLogin = isUserLoginLocked(row)
   try {
-    await ElMessageBox.confirm(`确定解锁用户「${row.realname}」？`, '解锁确认')
+    await ElMessageBox.confirm(
+      lockedByLogin
+        ? `用户「${row.realname}」因密码错误被临时锁定，确定提前解锁？`
+        : `确定解锁用户「${row.realname}」？`,
+      '解锁确认',
+    )
     await unlockUser(row.id)
     recordLog('系统设置', '解锁账号', `解锁了用户「${row.realname}」`, 1)
     ElMessage.success('账号已解锁')
-    fetchUsers()
+    await fetchUsers()
   } catch {
-    /* 取消 */
+    /* 取消或失败 */
   }
 }
 
@@ -780,7 +723,19 @@ async function handleResetPwd(row: SystemUser) {
       cancelButtonText: '取消',
       inputType: 'text',
     })
-    await resetUserPassword(row.id, pwd.value ? { new_password: pwd.value } : undefined)
+    const val = pwd.value?.trim()
+    if (val) {
+      if (val.length < 8) {
+        ElMessage.warning('密码至少需要8位字符')
+        return
+      }
+      if (!/[a-zA-Z]/.test(val) || !/[0-9]/.test(val)) {
+        ElMessage.warning('密码必须包含字母和数字')
+        return
+      }
+    }
+    // 填了密码就传给后端，留空传空对象让后端自己生成
+    await resetUserPassword(row.id, val ? { new_password: val } : ({} as any))
     recordLog('系统设置', '重置密码', `重置了用户「${row.realname}」的密码`, 1)
     ElMessage.success('密码重置成功')
     fetchUsers()
@@ -803,40 +758,36 @@ async function handleDelete(row: SystemUser) {
   }
 }
 
-function applyRouteTab() {
-  const legacyTab = route.query.tab as SettingsTabName | undefined
-  if (legacyTab && SETTINGS_TAB_ROUTES[legacyTab]) {
-    const target = SETTINGS_TAB_ROUTES[legacyTab]
-    if (route.path !== target) {
-      const query = { ...route.query }
-      delete query.tab
-      router.replace({ path: target, query })
-      return
-    }
-    activeTab.value = legacyTab
-    return
+function syncTabFromRoute() {
+  // 优先使用路由路径，其次使用 meta.settingsTab
+  const pathTabMap: Record<string, string> = {
+    '/settings/thresholds': 'thresholds',
+    '/settings/weights': 'weights',
+    '/settings/models': 'models',
+    '/settings/users': 'users',
+    '/settings/physics-guard': 'physics-guard',
+    '/settings/physics-guard-history': 'physics-guard-history',
+    '/settings/gate-interlock': 'gate-interlock',
+    '/settings/ai/metrics': 'ai-metrics',
+    '/settings/ai/compare': 'ai-metrics',
   }
-
-  const metaTab = route.meta.settingsTab as string | undefined
-  if (metaTab && (SETTINGS_TAB_NAMES as readonly string[]).includes(metaTab)) {
-    activeTab.value = metaTab
-    return
-  }
-  const fromPath = settingsTabFromPath(route.path)
+  const fromPath = pathTabMap[route.path]
   if (fromPath) {
     activeTab.value = fromPath
+    return
+  }
+  // 其次从 meta 读取
+  const fromMeta = route.meta.settingsTab as string | undefined
+  if (fromMeta && (SETTINGS_TAB_NAMES as readonly string[]).includes(fromMeta)) {
+    activeTab.value = fromMeta
   }
 }
 
-watch(
-  () => [route.path, route.meta.settingsTab, route.query.tab] as const,
-  () => applyRouteTab(),
-  { immediate: true },
-)
+watch(() => route.path, syncTabFromRoute)
 
 // ── 生命周期 ──
 onMounted(() => {
-  applyRouteTab()
+  syncTabFromRoute()
   fetchThresholds()
   fetchWeights()
   fetchModels()
@@ -846,519 +797,518 @@ onMounted(() => {
 
 <template>
   <div class="page settings-page">
-    <div class="settings-page__content">
-      <!-- 告警阈值 -->
-      <div v-if="activeTab === 'thresholds'" class="settings-page__panel">
-        <ElTable v-loading="thresholdsLoading" :data="thresholds" style="width: 100%">
-          <ElTableColumn prop="metric" label="监控指标" min-width="140">
-            <template #default="scope">
-              {{
-                metricLabelMap[(scope.row as ThresholdRule).metric] ??
-                (scope.row as ThresholdRule).metric
-              }}
-            </template>
-          </ElTableColumn>
-          <ElTableColumn label="预警上限" width="130" align="center">
-            <template #default="scope">
-              <ElInputNumber
-                v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
-                v-model="thresholdsEditing[(scope.row as ThresholdRule).id].warning_upper"
-                :step="0.1"
-                controls-position="right"
-                style="width: 110px"
-              />
-              <span v-else>{{ (scope.row as ThresholdRule).warning_upper }}</span>
-            </template>
-          </ElTableColumn>
-          <ElTableColumn label="预警下限" width="130" align="center">
-            <template #default="scope">
-              <ElInputNumber
-                v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
-                v-model="thresholdsEditing[(scope.row as ThresholdRule).id].warning_lower"
-                :step="0.1"
-                controls-position="right"
-                style="width: 110px"
-              />
-              <span v-else>{{ (scope.row as ThresholdRule).warning_lower }}</span>
-            </template>
-          </ElTableColumn>
-          <ElTableColumn label="紧急上限" width="130" align="center">
-            <template #default="scope">
-              <ElInputNumber
-                v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
-                v-model="thresholdsEditing[(scope.row as ThresholdRule).id].critical_upper"
-                :step="0.1"
-                controls-position="right"
-                style="width: 110px"
-              />
-              <span v-else>{{ (scope.row as ThresholdRule).critical_upper }}</span>
-            </template>
-          </ElTableColumn>
-          <ElTableColumn label="紧急下限" width="130" align="center">
-            <template #default="scope">
-              <ElInputNumber
-                v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
-                v-model="thresholdsEditing[(scope.row as ThresholdRule).id].critical_lower"
-                :step="0.1"
-                controls-position="right"
-                style="width: 110px"
-              />
-              <span v-else>{{ (scope.row as ThresholdRule).critical_lower }}</span>
-            </template>
-          </ElTableColumn>
-          <ElTableColumn label="防抖(秒)" width="120" align="center">
-            <template #default="scope">
-              <ElInputNumber
-                v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
-                v-model="thresholdsEditing[(scope.row as ThresholdRule).id].debounce_seconds"
-                :min="10"
-                :max="120"
-                :step="5"
-                controls-position="right"
-                style="width: 105px"
-              />
-              <span v-else>{{ (scope.row as ThresholdRule).debounce_seconds }}s</span>
-            </template>
-          </ElTableColumn>
-          <ElTableColumn label="启用" width="70" align="center">
-            <template #default="scope">
-              <ElSwitch
-                v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
-                v-model="thresholdsEditing[(scope.row as ThresholdRule).id].enabled"
-                :active-value="1"
-                :inactive-value="0"
-              />
-              <ElTag v-else :type="(scope.row as ThresholdRule).enabled === 1 ? 'success' : 'info'">
-                {{ (scope.row as ThresholdRule).enabled === 1 ? '启用' : '停用' }}
-              </ElTag>
-            </template>
-          </ElTableColumn>
-          <ElTableColumn label="操作" width="150" fixed="right" align="center">
-            <template #default="scope">
-              <template v-if="thresholdsEditing[(scope.row as ThresholdRule).id]">
-                <div class="threshold-actions">
-                  <ElButton
-                    type="primary"
-                    size="small"
-                    :loading="saveLoadingTab1"
-                    @click="saveThreshold((scope.row as ThresholdRule).id)"
-                  >
-                    保存
-                  </ElButton>
-                  <ElButton
-                    size="small"
-                    @click="cancelEditThreshold((scope.row as ThresholdRule).id)"
-                  >
-                    取消
-                  </ElButton>
-                </div>
-              </template>
-              <ElButton
-                v-else
-                type="primary"
-                link
-                @click="startEditThreshold(scope.row as ThresholdRule)"
-              >
-                编辑
-              </ElButton>
-            </template>
-          </ElTableColumn>
-        </ElTable>
-      </div>
-
-      <!-- 多目标权重 -->
-      <div v-else-if="activeTab === 'weights'" class="settings-page__panel">
-        <ElCard v-loading="weightLoading" class="settings-page__weight-card" shadow="never">
-          <div class="weight-section">
-            <div class="weight-toolbar">
-              <template v-if="weightEditing">
-                <ElButton @click="cancelWeightEdit">取消</ElButton>
-                <ElButton :disabled="!weightIsDirty" @click="resetWeightEdit">重置</ElButton>
+    <!-- ═══ Tab1: 告警阈值 ═══ -->
+    <template v-if="activeTab === 'thresholds'">
+      <ElTable v-loading="thresholdsLoading" :data="thresholds" style="width: 100%">
+        <ElTableColumn prop="metric" label="监控指标" min-width="140">
+          <template #default="scope">
+            {{
+              metricLabelMap[(scope.row as ThresholdRule).metric] ??
+              (scope.row as ThresholdRule).metric
+            }}
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="预警上限" width="130" align="center">
+          <template #default="scope">
+            <ElInputNumber
+              v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
+              v-model="thresholdsEditing[(scope.row as ThresholdRule).id].warning_upper"
+              :step="0.1"
+              controls-position="right"
+              style="width: 110px"
+            />
+            <span v-else>{{ (scope.row as ThresholdRule).warning_upper }}</span>
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="预警下限" width="130" align="center">
+          <template #default="scope">
+            <ElInputNumber
+              v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
+              v-model="thresholdsEditing[(scope.row as ThresholdRule).id].warning_lower"
+              :step="0.1"
+              controls-position="right"
+              style="width: 110px"
+            />
+            <span v-else>{{ (scope.row as ThresholdRule).warning_lower }}</span>
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="紧急上限" width="130" align="center">
+          <template #default="scope">
+            <ElInputNumber
+              v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
+              v-model="thresholdsEditing[(scope.row as ThresholdRule).id].critical_upper"
+              :step="0.1"
+              controls-position="right"
+              style="width: 110px"
+            />
+            <span v-else>{{ (scope.row as ThresholdRule).critical_upper }}</span>
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="紧急下限" width="130" align="center">
+          <template #default="scope">
+            <ElInputNumber
+              v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
+              v-model="thresholdsEditing[(scope.row as ThresholdRule).id].critical_lower"
+              :step="0.1"
+              controls-position="right"
+              style="width: 110px"
+            />
+            <span v-else>{{ (scope.row as ThresholdRule).critical_lower }}</span>
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="防抖(秒)" width="120" align="center">
+          <template #default="scope">
+            <ElInputNumber
+              v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
+              v-model="thresholdsEditing[(scope.row as ThresholdRule).id].debounce_seconds"
+              :min="10"
+              :max="120"
+              :step="5"
+              controls-position="right"
+              style="width: 105px"
+            />
+            <span v-else>{{ (scope.row as ThresholdRule).debounce_seconds }}s</span>
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="启用" width="70" align="center">
+          <template #default="scope">
+            <ElSwitch
+              v-if="thresholdsEditing[(scope.row as ThresholdRule).id]"
+              v-model="thresholdsEditing[(scope.row as ThresholdRule).id].enabled"
+              :active-value="1"
+              :inactive-value="0"
+            />
+            <ElTag v-else :type="(scope.row as ThresholdRule).enabled === 1 ? 'success' : 'info'">
+              {{ (scope.row as ThresholdRule).enabled === 1 ? '启用' : '停用' }}
+            </ElTag>
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="操作" width="150" fixed="right" align="center">
+          <template #default="scope">
+            <template v-if="thresholdsEditing[(scope.row as ThresholdRule).id]">
+              <div class="threshold-actions">
                 <ElButton
                   type="primary"
-                  :disabled="!weightValid || !weightIsDirty"
-                  :loading="saveLoadingTab2"
-                  @click="saveWeights"
+                  size="small"
+                  :loading="saveLoadingTab1"
+                  @click="saveThreshold((scope.row as ThresholdRule).id)"
                 >
-                  保存并推送至边缘端
+                  保存
                 </ElButton>
-              </template>
-              <ElButton v-else type="primary" @click="startWeightEdit">编辑</ElButton>
-            </div>
-            <div class="weight-presets">
-              <span class="weight-label">预设方案：</span>
-              <ElButton
-                v-for="p in presetOptions"
-                :key="p.label"
-                :disabled="!weightEditing"
-                style="margin-right: 8px"
-                @click="applyPreset(p)"
+                <ElButton
+                  size="small"
+                  @click="cancelEditThreshold((scope.row as ThresholdRule).id)"
+                >
+                  取消
+                </ElButton>
+              </div>
+            </template>
+            <ElButton
+              v-else
+              type="primary"
+              link
+              @click="startEditThreshold(scope.row as ThresholdRule)"
+            >
+              编辑
+            </ElButton>
+          </template>
+        </ElTableColumn>
+      </ElTable>
+    </template>
+
+    <!-- ═══ Tab2: 多目标权重 ═══ -->
+    <template v-if="activeTab === 'weights'">
+      <ElCard v-loading="weightLoading" class="settings-page__weight-card" shadow="never">
+        <div class="weight-section">
+          <div class="weight-presets">
+            <span class="weight-label">预设方案：</span>
+            <ElButton
+              v-for="p in presetOptions"
+              :key="p.label"
+              style="margin-right: 8px"
+              @click="applyPreset(p)"
+            >
+              {{ p.label }}
+            </ElButton>
+          </div>
+          <div class="weight-sliders">
+            <div class="weight-row">
+              <span class="weight-row__label">发电效益</span>
+              <ElSlider
+                v-model="weightForm.power_weight"
+                :min="0"
+                :max="1"
+                :step="0.01"
+                style="flex: 1; margin: 0 16px"
+                @input="onSliderChange('power_weight')"
+              />
+              <span class="weight-row__value"
+                >{{ (weightForm.power_weight * 100).toFixed(0) }}%</span
               >
-                {{ p.label }}
-              </ElButton>
             </div>
-            <div class="weight-sliders" :class="{ 'weight-sliders--readonly': !weightEditing }">
-              <div class="weight-row">
-                <span class="weight-row__label">发电效益</span>
-                <ElSlider
-                  v-model="weightForm.power_weight"
-                  :min="0"
-                  :max="1"
-                  :step="0.01"
-                  :disabled="!weightEditing"
-                  style="flex: 1; margin: 0 16px"
-                  @input="onSliderChange('power_weight')"
-                />
-                <span class="weight-row__value"
-                  >{{ (weightForm.power_weight * 100).toFixed(0) }}%</span
-                >
-              </div>
-              <div class="weight-row">
-                <span class="weight-row__label">防洪安全</span>
-                <ElSlider
-                  v-model="weightForm.safety_weight"
-                  :min="0"
-                  :max="1"
-                  :step="0.01"
-                  :disabled="!weightEditing"
-                  style="flex: 1; margin: 0 16px"
-                  @input="onSliderChange('safety_weight')"
-                />
-                <span class="weight-row__value"
-                  >{{ (weightForm.safety_weight * 100).toFixed(0) }}%</span
-                >
-              </div>
-              <div class="weight-row">
-                <span class="weight-row__label">生态流量</span>
-                <ElSlider
-                  v-model="weightForm.ecology_weight"
-                  :min="0"
-                  :max="1"
-                  :step="0.01"
-                  :disabled="!weightEditing"
-                  style="flex: 1; margin: 0 16px"
-                  @input="onSliderChange('ecology_weight')"
-                />
-                <span class="weight-row__value"
-                  >{{ (weightForm.ecology_weight * 100).toFixed(0) }}%</span
-                >
-              </div>
+            <div class="weight-row">
+              <span class="weight-row__label">防洪安全</span>
+              <ElSlider
+                v-model="weightForm.safety_weight"
+                :min="0"
+                :max="1"
+                :step="0.01"
+                style="flex: 1; margin: 0 16px"
+                @input="onSliderChange('safety_weight')"
+              />
+              <span class="weight-row__value"
+                >{{ (weightForm.safety_weight * 100).toFixed(0) }}%</span
+              >
             </div>
-            <div class="weight-summary">
-              <span>合计：</span>
-              <span :class="{ 'weight-summary--invalid': !weightValid }">{{ weightSum }}</span>
-              <span v-if="weightEditing && !weightValid" class="weight-summary--warn"
-                ><el-icon><Warning /></el-icon>三权重之和必须等于 1.0 才能保存</span
+            <div class="weight-row">
+              <span class="weight-row__label">生态流量</span>
+              <ElSlider
+                v-model="weightForm.ecology_weight"
+                :min="0"
+                :max="1"
+                :step="0.01"
+                style="flex: 1; margin: 0 16px"
+                @input="onSliderChange('ecology_weight')"
+              />
+              <span class="weight-row__value"
+                >{{ (weightForm.ecology_weight * 100).toFixed(0) }}%</span
               >
             </div>
           </div>
-        </ElCard>
-      </div>
-
-      <!-- 模型管理 -->
-      <div v-else-if="activeTab === 'models'" class="settings-page__panel">
-        <div class="settings-page__toolbar">
-          <ElInput
-            v-model="modelKeyword"
-            placeholder="搜索模型名称"
-            :prefix-icon="Search"
-            clearable
-            style="width: 220px"
-            @input="modelsPage = 1; fetchModels()"
-          />
-          <ElButton :icon="Refresh" @click="fetchModels"> 刷新 </ElButton>
-          <ElUpload
-            ref="uploadRef"
-            :http-request="handleUpload"
-            :limit="1"
-            accept=".pt,.pth,.onnx,.h5,.pb,.zip"
-            :show-file-list="false"
-            :on-exceed="() => ElMessage.warning('仅允许上传一个文件')"
-            style="display: inline-block; margin-left: auto"
-          >
-            <ElButton type="primary" :icon="Upload" :loading="uploading">
-              {{ uploading ? `上传中 ${uploadProgress}%` : '上传模型' }}
-            </ElButton>
-            <template #tip>
-              <div
-                class="upload-tip"
-                style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px"
-              >
-                支持 .pt / .pth / .onnx / .h5 / .pb / .zip，单文件 ≤500MB
-              </div>
-            </template>
-          </ElUpload>
-        </div>
-        <ElTable
-          v-loading="modelsLoading"
-          :data="models"
-          stripe
-          border
-          style="width: 100%; margin-top: 12px"
-          table-layout="auto"
-        >
-          <ElTableColumn prop="name" label="模型名称" min-width="150" />
-          <ElTableColumn label="类型" width="100">
-            <template #default="scope">
-              {{ modelTypeMap[(scope.row as ModelInfo).type] ?? (scope.row as ModelInfo).type }}
-            </template>
-          </ElTableColumn>
-          <ElTableColumn prop="version" label="版本" width="80" />
-          <ElTableColumn label="健康状态" width="100" align="center">
-            <template #default="scope">
-              <ElTag
-                v-if="(scope.row as ModelInfo).health_grade"
-                :color="healthGradeColor[(scope.row as ModelInfo).health_grade!] ?? '#6b7280'"
-                effect="dark"
-                size="small"
-              >
-                {{ (scope.row as ModelInfo).health_grade }} ·
-                {{ (((scope.row as ModelInfo).overall_score ?? 0) * 100).toFixed(0) }}
-              </ElTag>
-              <span v-else>—</span>
-            </template>
-          </ElTableColumn>
-          <ElTableColumn label="状态" width="90">
-            <template #default="scope">
-              <ElTag
-                :type="
-                  ((scope.row as ModelInfo).status === 'active'
-                    ? 'success'
-                    : (scope.row as ModelInfo).status === 'validating'
-                      ? 'warning'
-                      : (scope.row as ModelInfo).status === 'deprecated'
-                        ? 'danger'
-                        : 'info') as 'success' | 'warning' | 'danger' | 'info'
-                "
-              >
-                {{
-                  modelStatusMap[(scope.row as ModelInfo).status] ?? (scope.row as ModelInfo).status
-                }}
-              </ElTag>
-            </template>
-          </ElTableColumn>
-          <ElTableColumn prop="accuracy" label="准确率" width="80">
-            <template #default="scope"> {{ (scope.row as ModelInfo).accuracy ?? '-' }}% </template>
-          </ElTableColumn>
-          <ElTableColumn prop="size" label="大小(MB)" width="90" />
-          <ElTableColumn prop="deployed_nodes" label="已下发节点" width="100" />
-          <ElTableColumn label="操作" width="240" fixed="right">
-            <template #default="scope">
-              <ElButton
-                v-if="(scope.row as ModelInfo).status !== 'active'"
-                type="success"
-                link
-                @click="handleActivateModel((scope.row as ModelInfo).id)"
-              >
-                激活
-              </ElButton>
-              <ElButton
-                v-else
-                type="warning"
-                link
-                @click="handleRollbackModel((scope.row as ModelInfo).id)"
-              >
-                回滚
-              </ElButton>
-              <ElButton type="primary" link @click="handleDeployModel((scope.row as ModelInfo).id)">
-                下发
-              </ElButton>
-              <ElButton
-                v-if="(scope.row as ModelInfo).status !== 'active'"
-                type="danger"
-                link
-                @click="handleDeleteModel((scope.row as ModelInfo).id)"
-              >
-                删除
-              </ElButton>
-            </template>
-          </ElTableColumn>
-        </ElTable>
-        <ElPagination
-          v-model:current-page="modelsPage"
-          :page-size="10"
-          :total="modelsTotal"
-          layout="total, prev, pager, next"
-          background
-          style="margin-top: 12px; justify-content: flex-end"
-          @current-change="fetchModels"
-        />
-      </div>
-
-      <!-- 模型健康度 -->
-      <div v-else-if="activeTab === 'ai-metrics'" class="settings-page__panel">
-        <div class="gateai-tab-content">
-          <ModelMetricsPanel />
-        </div>
-      </div>
-
-      <!-- 物理防护配置 -->
-      <div v-else-if="activeTab === 'physics-guard'" class="settings-page__panel">
-        <div class="gateai-tab-content">
-          <PhysicsGuardPanel />
-        </div>
-      </div>
-
-      <!-- 配置变更历史 -->
-      <div v-else-if="activeTab === 'physics-guard-history'" class="settings-page__panel">
-        <div class="gateai-tab-content">
-          <PhysicsGuardHistoryPanel />
-        </div>
-      </div>
-
-      <!-- 闸门互锁规则 -->
-      <div v-else-if="activeTab === 'gate-interlock'" class="settings-page__panel">
-        <div class="gateai-tab-content">
-          <GateInterlockPanel />
-        </div>
-      </div>
-
-      <!-- 用户管理 -->
-      <div v-else-if="activeTab === 'users'" class="settings-page__panel">
-        <div class="settings-page__toolbar">
-          <ElInput
-            v-model="userKeyword"
-            placeholder="搜索用户名/姓名"
-            :prefix-icon="Search"
-            clearable
-            style="width: 220px"
-            @input="usersPage = 1; fetchUsers()"
-          />
-          <ElButton :icon="Refresh" @click="fetchUsers"> 刷新 </ElButton>
+          <div class="weight-summary">
+            <span>合计：</span>
+            <span :class="{ 'weight-summary--invalid': !weightValid }">{{ weightSum }}</span>
+            <span v-if="!weightValid" class="weight-summary--warn"
+              ><el-icon><Warning /></el-icon>三权重之和必须等于 1.0 才能保存</span
+            >
+          </div>
           <ElButton
             type="primary"
-            :icon="Plus"
-            style="margin-left: auto"
-            @click="openUserDialog('create')"
+            :disabled="!weightValid"
+            :loading="saveLoadingTab2"
+            style="margin-top: 16px"
+            @click="saveWeights"
           >
-            新增用户
+            保存并推送至边缘端
           </ElButton>
         </div>
-        <ElTable
-          v-loading="usersLoading"
-          :data="users"
-          stripe
-          border
-          style="width: 100%; margin-top: 12px"
-          table-layout="auto"
-        >
-          <ElTableColumn type="index" label="#" width="50" align="center" />
-          <ElTableColumn prop="account" label="用户名" min-width="100" />
-          <ElTableColumn prop="realname" label="姓名" min-width="80" />
-          <ElTableColumn label="角色" min-width="110" align="center">
-            <template #default="scope">
-              <ElTag type="info">
-                {{
-                  roleLabel[(scope.row as SystemUser).role_id] ??
-                  (scope.row as SystemUser).role_name
-                }}
-              </ElTag>
-            </template>
-          </ElTableColumn>
-          <ElTableColumn label="状态" width="80" align="center">
-            <template #default="scope">
-              <ElTag
-                :type="(scope.row as SystemUser).is_enabled === 1 ? 'success' : 'danger'"
-                effect="plain"
-              >
-                {{ (scope.row as SystemUser).is_enabled === 1 ? '启用' : '禁用' }}
-              </ElTag>
-            </template>
-          </ElTableColumn>
-          <ElTableColumn prop="phone" label="手机号" min-width="120" />
-          <ElTableColumn prop="created_at" label="注册时间" min-width="150" />
-          <ElTableColumn label="操作" width="240" fixed="right" align="center">
-            <template #default="scope">
-              <ElButton
-                type="primary"
-                link
-                @click="openUserDialog('edit', scope.row as SystemUser)"
-              >
-                编辑
-              </ElButton>
-              <ElButton link @click="handleResetPwd(scope.row as SystemUser)"> 重置 </ElButton>
-              <ElButton
-                v-if="(scope.row as SystemUser).is_enabled === 1"
-                type="warning"
-                link
-                @click="handleLock(scope.row as SystemUser)"
-              >
-                锁定
-              </ElButton>
-              <ElButton v-else type="success" link @click="handleUnlock(scope.row as SystemUser)">
-                解锁
-              </ElButton>
-              <ElButton type="danger" link @click="handleDelete(scope.row as SystemUser)">
-                删除
-              </ElButton>
-            </template>
-          </ElTableColumn>
-        </ElTable>
-        <ElPagination
-          v-model:current-page="usersPage"
-          :page-size="10"
-          :total="usersTotal"
-          layout="total, prev, pager, next"
-          background
-          style="margin-top: 12px; justify-content: flex-end"
-          @current-change="fetchUsers"
-        />
+      </ElCard>
+    </template>
 
-        <!-- 用户弹窗 -->
-        <ElDialog
-          v-model="userDialogVisible"
-          :title="userDialogMode === 'create' ? '新增用户' : '编辑用户'"
-          width="480px"
+    <!-- ═══ Tab3: 模型管理 ═══ -->
+    <template v-if="activeTab === 'models'">
+      <div class="settings-page__toolbar">
+        <ElInput
+          v-model="modelKeyword"
+          placeholder="搜索模型名称"
+          :prefix-icon="Search"
+          clearable
+          style="width: 220px"
+          @input="onModelKeywordInput()"
+        />
+        <ElButton :icon="Refresh" @click="fetchModels"> 刷新 </ElButton>
+        <ElUpload
+          ref="uploadRef"
+          :http-request="handleUpload"
+          :limit="1"
+          accept=".pt,.pth,.onnx,.h5,.pb,.zip"
+          :show-file-list="false"
+          :on-exceed="() => ElMessage.warning('仅允许上传一个文件')"
+          style="display: inline-block; margin-left: auto"
         >
-          <ElForm
-            :model="userForm"
-            label-width="80px"
-            :rules="
-              userDialogMode === 'create'
-                ? {
-                    account: FORM_RULES.account,
-                    password: FORM_RULES.password,
-                    realname: FORM_RULES.realname,
-                  }
-                : { realname: FORM_RULES.realname }
-            "
-          >
-            <ElFormItem v-if="userDialogMode === 'create'" label="用户名" prop="account">
-              <ElInput v-model="userForm.account" placeholder="≥3位字母数字下划线" />
-            </ElFormItem>
-            <ElFormItem v-if="userDialogMode === 'create'" label="密码" prop="password">
-              <ElInput
-                v-model="userForm.password"
-                type="password"
-                placeholder="≥8位含字母数字"
-                show-password
-              />
-            </ElFormItem>
-            <ElFormItem label="姓名" prop="realname">
-              <ElInput v-model="userForm.realname" placeholder="2-20个字符" maxlength="20" />
-            </ElFormItem>
-            <ElFormItem label="角色">
-              <ElSelect v-model="userForm.role_id" style="width: 100%">
-                <ElOption
-                  v-for="r in roleOptions"
-                  :key="r.value"
-                  :label="r.label"
-                  :value="r.value"
-                />
-              </ElSelect>
-            </ElFormItem>
-            <ElFormItem label="手机号">
-              <ElInput v-model="userForm.phone" placeholder="11位手机号" maxlength="11" />
-            </ElFormItem>
-          </ElForm>
-          <template #footer>
-            <ElButton @click="userDialogVisible = false"> 取消 </ElButton>
-            <ElButton type="primary" :loading="userSubmitting" @click="submitUser">
-              {{ userDialogMode === 'create' ? '创建' : '保存' }}
+          <ElButton type="primary" :icon="Upload" :loading="uploading">
+            {{ uploading ? `上传中 ${uploadProgress}%` : '上传模型' }}
+          </ElButton>
+          <template #tip>
+            <div
+              class="upload-tip"
+              style="font-size: 12px; color: var(--color-text-secondary); margin-top: 4px"
+            >
+              支持 .pt / .pth / .onnx / .h5 / .pb / .zip，单文件 ≤500MB
+            </div>
+          </template>
+        </ElUpload>
+      </div>
+      <ElTable
+        v-loading="modelsLoading"
+        :data="models"
+        stripe
+        border
+        style="width: 100%; margin-top: 12px"
+        table-layout="auto"
+      >
+        <ElTableColumn prop="name" label="模型名称" min-width="150" />
+        <ElTableColumn label="类型" width="100">
+          <template #default="scope">
+            {{ modelTypeMap[(scope.row as ModelInfo).type] ?? (scope.row as ModelInfo).type }}
+          </template>
+        </ElTableColumn>
+        <ElTableColumn prop="version" label="版本" width="80" />
+        <ElTableColumn label="健康状态" width="100" align="center">
+          <template #default="scope">
+            <ElTag
+              v-if="(scope.row as ModelInfo).health_grade"
+              :color="healthGradeColor[(scope.row as ModelInfo).health_grade!] ?? '#6b7280'"
+              effect="dark"
+              size="small"
+            >
+              {{ (scope.row as ModelInfo).health_grade }} ·
+              {{ (((scope.row as ModelInfo).overall_score ?? 0) * 100).toFixed(0) }}
+            </ElTag>
+            <span v-else>—</span>
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="状态" width="90">
+          <template #default="scope">
+            <ElTag
+              :type="
+                ((scope.row as ModelInfo).status === 'active'
+                  ? 'success'
+                  : (scope.row as ModelInfo).status === 'validating'
+                    ? 'warning'
+                    : (scope.row as ModelInfo).status === 'deprecated'
+                      ? 'danger'
+                      : 'info') as 'success' | 'warning' | 'danger' | 'info'
+              "
+            >
+              {{
+                modelStatusMap[(scope.row as ModelInfo).status] ?? (scope.row as ModelInfo).status
+              }}
+            </ElTag>
+          </template>
+        </ElTableColumn>
+        <ElTableColumn prop="accuracy" label="准确率" width="80">
+          <template #default="scope"> {{ (scope.row as ModelInfo).accuracy ?? '-' }}% </template>
+        </ElTableColumn>
+        <ElTableColumn prop="size" label="大小(MB)" width="90" />
+        <ElTableColumn prop="deployed_nodes" label="已下发节点" width="100" />
+        <ElTableColumn label="操作" width="240" fixed="right">
+          <template #default="scope">
+            <ElButton
+              v-if="(scope.row as ModelInfo).status === 'ready' || (scope.row as ModelInfo).status === 'validating'"
+              type="success"
+              link
+              @click="handleActivateModel((scope.row as ModelInfo).id)"
+            >
+              激活
+            </ElButton>
+            <ElButton
+              v-else
+              type="warning"
+              link
+              @click="handleRollbackModel((scope.row as ModelInfo).id)"
+            >
+              回滚
+            </ElButton>
+            <ElButton type="primary" link @click="handleDeployModel((scope.row as ModelInfo).id)">
+              下发
+            </ElButton>
+            <ElButton
+              v-if="(scope.row as ModelInfo).status !== 'active' && (scope.row as ModelInfo).status !== 'deprecated'"
+              type="danger"
+              link
+              @click="handleDeleteModel((scope.row as ModelInfo).id)"
+            >
+              删除
             </ElButton>
           </template>
-        </ElDialog>
+        </ElTableColumn>
+      </ElTable>
+      <ElPagination
+        v-model:current-page="modelsPage"
+        :page-size="10"
+        :total="modelsTotal"
+        layout="total, prev, pager, next"
+        background
+        style="margin-top: 12px; justify-content: flex-end"
+        @current-change="fetchModels"
+      />
+    </template>
+
+    <!-- ═══ Tab4: 模型健康度 ═══ -->
+    <template v-if="activeTab === 'ai-metrics'">
+      <div class="gateai-tab-content">
+        <ModelMetricsPanel />
       </div>
+    </template>
+
+    <!-- ═══ Tab5: 物理防护配置 ═══ -->
+    <template v-if="activeTab === 'physics-guard'">
+      <div class="gateai-tab-content">
+        <PhysicsGuardPanel />
+      </div>
+    </template>
+
+    <!-- ═══ Tab5b: 配置变更历史 ═══ -->
+    <template v-if="activeTab === 'physics-guard-history'">
+      <div class="gateai-tab-content">
+        <PhysicsGuardHistoryPanel />
+      </div>
+    </template>
+
+    <!-- ═══ Tab6: 闸门互锁 ═══ -->
+    <template v-if="activeTab === 'gate-interlock'">
+      <div class="gateai-tab-content">
+        <GateInterlockPanel />
+      </div>
+    </template>
+
+    <!-- ═══ Tab7: 用户管理 ═══ -->
+    <template v-if="activeTab === 'users'">
+      <div class="settings-page__toolbar">
+        <ElInput
+          v-model="userKeyword"
+          placeholder="搜索用户名/姓名"
+          :prefix-icon="Search"
+          clearable
+          style="width: 220px"
+          @input="onUserKeywordInput()"
+        />
+        <ElButton :icon="Refresh" @click="fetchUsers"> 刷新 </ElButton>
+        <ElButton
+          type="primary"
+          :icon="Plus"
+          style="margin-left: auto"
+          @click="openUserDialog('create')"
+        >
+          新增用户
+        </ElButton>
+      </div>
+      <ElTable
+        v-loading="usersLoading"
+        :data="users"
+        stripe
+        border
+        style="width: 100%; margin-top: 12px"
+        table-layout="auto"
+      >
+        <ElTableColumn type="index" label="#" width="50" align="center" />
+        <ElTableColumn prop="account" label="用户名" min-width="100" />
+        <ElTableColumn prop="realname" label="姓名" min-width="80" />
+        <ElTableColumn label="角色" min-width="110" align="center">
+          <template #default="scope">
+            <ElTag type="info">
+              {{
+                roleLabel[(scope.row as SystemUser).role_id] ??
+                (scope.row as SystemUser).role_name
+              }}
+            </ElTag>
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="状态" width="100" align="center">
+          <template #default="scope">
+            <ElTag
+              :type="getUserStatusMeta(scope.row as SystemUser).type"
+              effect="plain"
+            >
+              {{ getUserStatusMeta(scope.row as SystemUser).label }}
+            </ElTag>
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="锁定/到期" min-width="150">
+          <template #default="scope">
+            <span v-if="isUserLoginLocked(scope.row as SystemUser)" class="users-lock-expire">
+              {{ (scope.row as SystemUser).lock_expire_time?.slice(0, 16) ?? '—' }}
+            </span>
+            <span v-else class="users-lock-expire users-lock-expire--muted">—</span>
+          </template>
+        </ElTableColumn>
+        <ElTableColumn prop="phone" label="手机号" min-width="120" />
+        <ElTableColumn prop="created_at" label="注册时间" min-width="150" />
+        <ElTableColumn label="操作" width="240" fixed="right" align="center">
+          <template #default="scope">
+            <ElButton
+              type="primary"
+              link
+              @click="openUserDialog('edit', scope.row as SystemUser)"
+            >
+              编辑
+            </ElButton>
+            <ElButton link @click="handleResetPwd(scope.row as SystemUser)"> 重置 </ElButton>
+            <ElButton
+              v-if="!userNeedsUnlock(scope.row as SystemUser)"
+              type="warning"
+              link
+              @click="handleLock(scope.row as SystemUser)"
+            >
+              锁定
+            </ElButton>
+            <ElButton
+              v-else
+              type="success"
+              link
+              @click="handleUnlock(scope.row as SystemUser)"
+            >
+              解锁
+            </ElButton>
+            <ElButton type="danger" link @click="handleDelete(scope.row as SystemUser)">
+              删除
+            </ElButton>
+          </template>
+        </ElTableColumn>
+      </ElTable>
+      <ElPagination
+        v-model:current-page="usersPage"
+        :page-size="10"
+        :total="usersTotal"
+        layout="total, prev, pager, next"
+        background
+        style="margin-top: 12px; justify-content: flex-end"
+        @current-change="fetchUsers"
+      />
+
+      <!-- 用户弹窗 -->
+      <ElDialog
+        v-model="userDialogVisible"
+        :title="userDialogMode === 'create' ? '新增用户' : '编辑用户'"
+        width="480px"
+      >
+        <ElForm
+          :model="userForm"
+          label-width="80px"
+          :rules="userFormRules"
+        >
+          <ElFormItem v-if="userDialogMode === 'create'" label="用户名" prop="account">
+            <ElInput v-model="userForm.account" placeholder="≥3位字母数字下划线" />
+          </ElFormItem>
+          <ElFormItem v-if="userDialogMode === 'create'" label="密码">
+            <ElInput
+              v-model="userForm.password"
+              type="password"
+              placeholder="请输入密码（选填）"
+              show-password
+            />
+          </ElFormItem>
+          <ElFormItem label="姓名" prop="realname">
+            <ElInput v-model="userForm.realname" placeholder="2-20个字符" maxlength="20" />
+          </ElFormItem>
+          <ElFormItem label="角色">
+            <ElSelect v-model="userForm.role_id" style="width: 100%">
+              <ElOption
+                v-for="r in roleOptions"
+                :key="r.value"
+                :label="r.label"
+                :value="r.value"
+              />
+            </ElSelect>
+          </ElFormItem>
+          <ElFormItem label="手机号">
+            <ElInput v-model="userForm.phone" placeholder="11位手机号" maxlength="11" />
+          </ElFormItem>
+        </ElForm>
+        <template #footer>
+          <ElButton @click="userDialogVisible = false"> 取消 </ElButton>
+          <ElButton type="primary" :loading="userSubmitting" @click="submitUser">
+            {{ userDialogMode === 'create' ? '创建' : '保存' }}
+          </ElButton>
+        </template>
+      </ElDialog>
+    </template>
+
+    <!-- 兜底：activeTab 异常时显示 -->
+    <div v-if="!(SETTINGS_TAB_NAMES as readonly string[]).includes(activeTab)" style="padding: 60px; text-align: center; color: #999;">
+      <p>页面加载中...</p>
+      <p style="font-size: 12px; margin-top: 8px;">当前 Tab: {{ activeTab }}</p>
     </div>
   </div>
 </template>
@@ -1379,14 +1329,6 @@ onMounted(() => {
   }
   :deep(.el-tag) {
     font-size: var(--font-size-sm);
-  }
-
-  &__content {
-    padding: 4px 0;
-  }
-
-  &__panel {
-    padding: 8px 4px;
   }
 
   &__toolbar {
@@ -1416,18 +1358,20 @@ onMounted(() => {
   }
 }
 
+.users-lock-expire {
+  font-size: var(--font-size-sm);
+  color: #d48806;
+
+  &--muted {
+    color: var(--color-text-secondary, #c0c4cc);
+  }
+}
+
 .weight-section {
   display: flex;
   flex-direction: column;
   gap: 36px;
   padding: var(--spacing-lg) 0;
-}
-
-.weight-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-bottom: -12px;
 }
 
 .weight-presets {
@@ -1492,12 +1436,19 @@ onMounted(() => {
   }
 }
 
-// 阈值表格编辑按钮区
 .threshold-actions {
   display: flex;
   gap: 8px;
   justify-content: center;
 }
 
-// 阈值表格编辑按钮区
+.gateai-tab-content {
+  min-height: 400px;
+}
+
+.upload-tip {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
 </style>

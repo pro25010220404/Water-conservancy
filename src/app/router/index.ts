@@ -4,6 +4,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { APP_TITLE, ROUTE_ROLES } from '@/constants/roles'
+import { FORCE_PWD_CHANGE_KEY } from '@/constants/auth'
 import { useUserStore } from '@/stores/user'
 
 const routes: RouteRecordRaw[] = [
@@ -226,6 +227,17 @@ router.beforeEach((to, _from, next) => {
   // 未登录：除登录页和 404 外，一律跳转登录
   if (to.meta.requiresAuth !== false && !isLoggedIn) {
     next({ name: 'Login', query: { redirect: to.fullPath } })
+    return
+  }
+
+  // 已登录但需强制改密：只允许停留在登录页
+  const needForcePwdChange = sessionStorage.getItem(FORCE_PWD_CHANGE_KEY) === 'true'
+  if (isLoggedIn && needForcePwdChange) {
+    if (to.name !== 'Login') {
+      next({ name: 'Login' })
+      return
+    }
+    next()
     return
   }
 

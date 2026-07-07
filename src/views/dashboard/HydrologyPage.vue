@@ -125,11 +125,14 @@ function filterTrendPoints(all: readonly TrendPoint[], range: '1h' | '6h' | '24h
   return pts.filter((_, i) => i % step === 0 || i === pts.length - 1)
 }
 
-function formatAxisLabel(ts: string, range: '1h' | '6h' | '24h') {
+function formatAxisLabel(ts: string, range: '1h' | '6h' | '24h', compact = false) {
   const d = new Date(ts)
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
-  if (range === '24h') return `${d.getMonth() + 1}/${d.getDate()} ${hh}:00`
+  if (range === '24h') {
+    return compact ? `${d.getMonth() + 1}/${d.getDate()}` : `${d.getMonth() + 1}/${d.getDate()} ${hh}:00`
+  }
+  if (range === '6h' && compact) return `${hh}:${mm}`
   return `${hh}:${mm}`
 }
 
@@ -145,7 +148,8 @@ function estimateBounds(vals: number[], base: number): { upper: number[]; lower:
 const trendOpt = computed(() => {
   const range = chartRange.value
   const pts = filterTrendPoints(trend.value, range)
-  const labels = pts.map((p) => formatAxisLabel(p.timestamp, range))
+  const compactLabels = pts.length > 20 || range === '24h'
+  const labels = pts.map((p) => formatAxisLabel(p.timestamp, range, compactLabels))
   const levelData = pts.map((p) => p.upstreamLevel)
   const outflowData = pts.map((p) => p.outflowRate)
   const lastLevel = levelData[levelData.length - 1] || 378.5
@@ -155,18 +159,25 @@ const trendOpt = computed(() => {
   const predFlowVals = prediction.value.flow.map((p) => p.value)
   const predLabels = prediction.value.water.map((p) => {
     const d = new Date(p.time)
-    return isNaN(d.getTime()) ? formatAxisLabel(p.time, range) : formatAxisLabel(d.toISOString(), range)
+    return isNaN(d.getTime())
+      ? formatAxisLabel(p.time, range, compactLabels)
+      : formatAxisLabel(d.toISOString(), range, compactLabels)
   })
   const n = Math.max(predWaterVals.length, 16)
   const pw = predWaterVals.length > 0 ? predWaterVals : Array.from({ length: 16 }, (_, i) => { const v = lastLevel + (Math.random() - 0.48) * 0.08 * (i + 1); return +v.toFixed(2) })
   const pf = predFlowVals.length > 0 ? predFlowVals : Array.from({ length: 16 }, (_, i) => { const v = (outflowData[outflowData.length - 1] || 5820) + (Math.random() - 0.48) * 80 * (i + 1); return +Math.round(v) })
   const pl = predLabels.length > 0 ? predLabels : pw.map((_, i) => {
     const d = new Date(Date.now() + (i + 1) * 5 * 60000)
-    return formatAxisLabel(d.toISOString(), range)
+    return formatAxisLabel(d.toISOString(), range, compactLabels)
   })
   const { upper: wUpper, lower: wLower } = estimateBounds(pw, lastLevel)
 
   const xData = [...labels, ...pl]
+  const totalLabels = xData.length
+  const maxTicks = range === '24h' ? 8 : range === '6h' ? 7 : 6
+  const labelRotate = totalLabels > 12 ? (range === '24h' ? 40 : 30) : totalLabels > 8 ? 20 : 0
+  const axisInterval =
+    totalLabels <= maxTicks ? 0 : Math.max(1, Math.floor(totalLabels / maxTicks))
   const lvlA = [...levelData, ...Array(n).fill(null)]
   const lvlP = [...Array(labels.length).fill(null), ...pw]
   const lvlU = [...Array(labels.length).fill(null), ...wUpper]
@@ -181,7 +192,7 @@ const trendOpt = computed(() => {
 
   return {
     backgroundColor: 'transparent',
-    grid: { left: 52, right: 62, top: 44, bottom: 36 },
+    grid: { left: 52, right: 62, top: 44, bottom: labelRotate > 0 ? 56 : 36 },
     legend: {
       data: ['实测水位', 'AI水位预测', '出库流量', 'AI出库预测'],
       textStyle: { color: '#475569', fontSize: 14 },
@@ -197,8 +208,11 @@ const trendOpt = computed(() => {
       axisLine: { lineStyle: { color: '#e5e7eb' } },
       axisLabel: {
         color: '#64748b',
-        fontSize: 13,
-        interval: Math.max(1, Math.floor(labels.length / 5)),
+        fontSize: 12,
+        interval: axisInterval,
+        hideOverlap: true,
+        rotate: labelRotate,
+        margin: labelRotate > 0 ? 10 : 8,
       },
     },
     yAxis: [
@@ -354,7 +368,7 @@ function refresh() {
       u = su(s.cat)
     m.bindPopup(
       `<div style="text-align:center;min-width:100px;font-size:13px">${s.name}<br><span style="font-size:22px;font-weight:700;color:${SC[st]}">${fmt(v, s.cat === '流量' ? 0 : 2)}</span><small style="color:#9ca3af;font-size:11px"> ${u}</small></div>`,
-      { offset: [0, -6], className: 'mpop' },
+      { offset: [0, -6], className: 'mpop', closeButton: false },
     )
     stationLayer!.addLayer(m)
   })

@@ -38,7 +38,6 @@ function initData() {
       avatar: '',
       role_name: (userStore.userInfo?.roles ?? ['admin'])[0] ?? 'admin',
       phone: '未填写',
-      email: '未填写',
       created_at: new Date().toISOString().slice(0, 10),
     })
   }
@@ -75,11 +74,11 @@ shadow="never">
       </div>
     </ElCard>
 
-    <!-- 卡片3: 我的操作日志 -->
+    <!-- 卡片3: 登录日志 -->
     <ElCard class="logs-card"
 shadow="never">
       <template #header>
-        <span>我的操作日志</span>
+        <span>登录日志</span>
       </template>
       <MyOperationLogs />
     </ElCard>

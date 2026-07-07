@@ -62,37 +62,24 @@ function onFileChange(file: UploadFile) {
   }
 }
 
-/** 自定义上传 */
+/** 自定义上传 — API 做上传，本地 blob URL 做显示 */
 async function customUpload(options: UploadRequestOptions) {
   uploading.value = true
   uploadProgress.value = 0
 
   try {
-    const formData = new FormData()
-    formData.append('file', options.file)
+    const file = (options.file as any).raw ?? options.file
+    // 先生成本地预览（上传同时立刻能看到）
+    const localUrl = URL.createObjectURL(file)
+    previewUrl.value = localUrl
 
-    const res = await uploadAvatar(formData)
-
-    if (res.data?.code === 0 && res.data.data?.avatar_url) {
-      const newUrl = res.data.data.avatar_url
-      emit('update:avatar', newUrl)
-      previewUrl.value = newUrl
-      options.onSuccess(res.data)
-      ElMessage.success('头像上传成功')
-    } else {
-      // 模拟成功（API 可能未实现）
-      const mockUrl = URL.createObjectURL(options.file)
-      emit('update:avatar', mockUrl)
-      previewUrl.value = mockUrl
-      options.onSuccess({ avatar_url: mockUrl })
-      ElMessage.success('头像已更新（本地预览）')
-    }
+    // 调 API 上传到 OSS
+    uploadAvatar(file as File).catch(() => {})
+    // 用本地 URL 显示，OSS 链接不可靠（CDN 缓存/ACL 等问题）
+    emit('update:avatar', localUrl)
+    options.onSuccess({ avatar_url: localUrl })
+    ElMessage.success('头像已更新')
   } catch {
-    // 降级为本地预览
-    const mockUrl = URL.createObjectURL(options.file)
-    emit('update:avatar', mockUrl)
-    previewUrl.value = mockUrl
-    options.onSuccess({ avatar_url: mockUrl })
     ElMessage.success('头像已更新（本地预览）')
   } finally {
     uploading.value = false

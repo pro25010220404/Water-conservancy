@@ -7,6 +7,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios'
 import { ElMessage } from 'element-plus'
+import { ApiBusinessError } from '@/utils/apiError'
 
 const http: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -14,11 +15,19 @@ const http: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// ── 请求拦截：附加 Token ──
+// ── 请求拦截：附加 Token，FormData 上传时去掉 JSON Content-Type ──
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('token')
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`
+  // 登录接口不携带旧 token，避免后端误判为 token 过期
+  const isLoginRequest = config.url?.includes('/auth/login')
+  if (!isLoginRequest) {
+    const token = localStorage.getItem('token')
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+  }
+  if (config.data instanceof FormData) {
+    // 删掉默认的 application/json，让浏览器设 multipart/form-data
+    ;(config.headers as any)['Content-Type'] = undefined
   }
   return config
 })
@@ -29,17 +38,15 @@ http.interceptors.response.use(
     const data = response.data
     // 业务级错误（仅当 data 是 JSON 对象时处理）
     if (data && typeof data === 'object' && data.code !== undefined && data.code !== 0) {
-      // 认证类错误自动跳转登录
+      // 认证类错误：只 reject，不删 token（删 token 会导致误登出）
       if (data.code >= 20001 && data.code <= 20008) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('userInfo')
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login'
+        if (import.meta.env.DEV) {
+          console.warn('[API] 业务认证错误 (code=' + data.code + '): ' + data.msg)
         }
-        return Promise.reject(new Error(data.msg || '认证失败'))
+        return Promise.reject(new ApiBusinessError(data.code, data.msg || '认证失败', data.data))
       }
       // 业务错误不弹 toast，由调用方决定是否提示
-      return Promise.reject(new Error(data.msg || '请求失败'))
+      return Promise.reject(new ApiBusinessError(data.code, data.msg || '请求失败', data.data))
     }
     return response
   },
@@ -51,23 +58,27 @@ http.interceptors.response.use(
       ElMessage.error('请求超时，请稍后重试')
     } else if (!error.response) {
       // 网络不通时静默失败，由各页面 mock 降级处理
+      // 仅在开发环境 console 输出，不弹 toast 打断用户
       if (import.meta.env.DEV) {
         console.warn('[API] 网络不可达，使用 Mock 降级:', error.config?.url)
       }
     } else {
       const status = error.response.status
-      if (status === 401) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('userInfo')
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login'
-          return Promise.reject(error)
-        }
-        ElMessage.error('登录已过期，请重新登录')
-      } else if (status === 404) {
-        // 404 静默处理，由调用方决定是否降级或忽略
+      const body = error.response.data
+      if (body && typeof body === 'object' && body.code !== undefined) {
+        return Promise.reject(
+          new ApiBusinessError(
+            Number(body.code),
+            body.msg || body.message || '请求失败',
+            body.data ?? null,
+          ),
+        )
+      }
+      // 401/404 静默处理，页面自动 Mock 降级
+      // 真正的认证失效由 success 拦截器处理（业务 code>=20001）
+      if (status === 401 || status === 404) {
         if (import.meta.env.DEV) {
-          console.warn('[API] 接口不存在 (404):', error.config?.url)
+          console.warn(`[API] ${status}，使用 Mock 降级:`, error.config?.url)
         }
       } else {
         const msgMap: Record<number, string> = {

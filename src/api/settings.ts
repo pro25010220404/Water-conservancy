@@ -1,6 +1,6 @@
 // ============================================================
 // 系统设置 API
-// 按需求文档 5.10 节接口清单
+// 对接后端 §8 系统设置模块 + §12 物理配置（总接口文档 v2.2）
 // ============================================================
 import http from './request'
 import type {
@@ -33,36 +33,42 @@ import type { InterlockRule } from '@/stores/gateInterlock'
 import type { AIHealthOverviewResponse } from '@/types/gateai'
 import type { ApiInterlockRule, ApiInterlockStat } from './interlockAdapter'
 
+/** v1 路径前缀，由 .env 中 VITE_API_V1_PREFIX 控制 */
+const V1 = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
+
+/** 模型研判（Apifox「模型研判」）在 /api/settings/ai/*，不走 /v1 前缀 */
+const AI = '/settings/ai'
+
 // ════════════════════════════════════════════════════════════
-// Tab1: 告警阈值
+// Tab1: 告警阈值 §8.1
 // ════════════════════════════════════════════════════════════
 
 export function getThresholds(params?: { reservoir_id?: number; metric?: string }) {
-  return http.get<ApiResponse<ThresholdRule[]>>('/v1/settings/thresholds', { params })
+  return http.get<ApiResponse<ThresholdRule[]>>(`${V1}/settings/thresholds`, { params })
 }
 
 export function updateThreshold(id: number, data: ThresholdUpdateParams) {
-  return http.put<ApiResponse<null>>(`/v1/settings/thresholds/${id}`, data)
+  return http.put<ApiResponse<null>>(`${V1}/settings/thresholds/${id}`, data)
 }
 
 // ════════════════════════════════════════════════════════════
-// Tab2: 多目标权重
+// Tab2: 多目标权重 §8.2
 // ════════════════════════════════════════════════════════════
 
 export function getWeights() {
-  return http.get<ApiResponse<WeightConfig>>('/v1/settings/weights')
+  return http.get<ApiResponse<WeightConfig>>(`${V1}/settings/weights`)
 }
 
 export function updateWeights(data: WeightUpdateParams) {
-  return http.put<ApiResponse<null>>('/v1/settings/weights', data)
+  return http.put<ApiResponse<null>>(`${V1}/settings/weights`, data)
 }
 
 export function getWeightHistory(params?: { page?: number; page_size?: number }) {
-  return http.get<ApiResponse<WeightHistoryItem[]>>('/v1/settings/weights/history', { params })
+  return http.get<ApiResponse<WeightHistoryItem[]>>(`${V1}/settings/weights/history`, { params })
 }
 
 // ════════════════════════════════════════════════════════════
-// Tab3: AI 模型管理
+// Tab3: AI 模型管理 §8.3
 // ════════════════════════════════════════════════════════════
 
 export function getModels(params?: {
@@ -72,23 +78,23 @@ export function getModels(params?: {
   status?: string
   keyword?: string
 }) {
-  return http.get<ApiResponse<PageResult<ModelInfo>>>('/v1/settings/models', { params })
+  return http.get<ApiResponse<PageResult<ModelInfo>>>(`${V1}/settings/models`, { params })
 }
 
 export function uploadModel(formData: FormData) {
-  return http.post<ApiResponse<ModelInfo>>('/v1/settings/models/upload', formData)
+  return http.post<ApiResponse<ModelInfo>>(`${V1}/settings/models/upload`, formData)
 }
 
 export function activateModel(id: number, data?: ModelActivateParams) {
-  return http.post<ApiResponse<null>>(`/v1/settings/models/${id}/activate`, data)
+  return http.post<ApiResponse<null>>(`${V1}/settings/models/${id}/activate`, data)
 }
 
 export function rollbackModel(id: number, data?: ModelRollbackParams) {
-  return http.post<ApiResponse<null>>(`/v1/settings/models/${id}/rollback`, data)
+  return http.post<ApiResponse<null>>(`${V1}/settings/models/${id}/rollback`, data)
 }
 
 export function deleteModel(id: number) {
-  return http.delete<ApiResponse<null>>(`/v1/settings/models/${id}`)
+  return http.delete<ApiResponse<null>>(`${V1}/settings/models/${id}`)
 }
 
 export function deployModel(id: number, data: ModelDeployParams) {
@@ -97,19 +103,19 @@ export function deployModel(id: number, data: ModelDeployParams) {
 }
 
 export function getModelDetail(id: number) {
-  return http.get<ApiResponse<ModelInfo>>(`/v1/settings/models/${id}`)
+  return http.get<ApiResponse<ModelInfo>>(`${V1}/settings/models/${id}`)
 }
 
 // ════════════════════════════════════════════════════════════
-// Tab4: AI 模型健康度
+// Tab4: AI 模型健康度（前端扩展，后端文档暂未定义）
 // ════════════════════════════════════════════════════════════
 
 export function getAIMetrics(params: { reservoir_id: number }) {
-  return http.get<ApiResponse<HealthOverview>>('/settings/ai/metrics', { params })
+  return http.get<ApiResponse<HealthOverview>>(`${AI}/metrics`, { params })
 }
 
 export function getAIMetricsHistory(params: { reservoir_id: number; days?: number }) {
-  return http.get<ApiResponse<AIMetricsHistoryItem[]>>('/settings/ai/metrics/history', { params })
+  return http.get<ApiResponse<AIMetricsHistoryItem[]>>(`${AI}/metrics/history`, { params })
 }
 
 /** 历史趋势单条记录（与后端字段一致） */
@@ -127,17 +133,17 @@ export interface AIMetricsHistoryItem {
 }
 
 export function getAIHealthOverview() {
-  return http.get<ApiResponse<AIHealthOverviewResponse>>('/settings/ai/health')
+  return http.get<ApiResponse<AIHealthOverviewResponse>>(`${AI}/health`)
 }
 
-/** 模型指标明细（Apifox: GET 模型指标明细；若后端未部署则 404） */
+/** 模型指标明细（Apifox: GET 模型指标明细；后端若未部署则 404，前端用 history 降级） */
 export function getAIMetricsDetail(params: {
   reservoir_id: number
   page?: number
   page_size?: number
 }) {
   return http.get<ApiResponse<PageResult<MetricsDetailItem> | MetricsDetailItem[]>>(
-    '/settings/ai/metrics/detail',
+    `${AI}/metrics/detail`,
     { params },
   )
 }
@@ -147,7 +153,7 @@ export function getAIVersionCompare(params: {
   version1: string
   version2: string
 }) {
-  return http.get<ApiResponse<CompareResult>>('/v1/settings/ai/compare', { params })
+  return http.get<ApiResponse<CompareResult>>(`${AI}/compare`, { params })
 }
 
 // ════════════════════════════════════════════════════════════
@@ -187,20 +193,20 @@ export function clonePhysicsGuard(data: {
 }
 
 // ════════════════════════════════════════════════════════════
-// Tab6: 闸门互锁规则
+// Tab6: 闸门互锁规则（前端扩展，后端文档暂未定义）
 // ════════════════════════════════════════════════════════════
 
 export function getInterlockRules(params: { reservoir_id: number }) {
-  return http.get<ApiResponse<InterlockRule[]>>('/v1/settings/gate-interlock/rules', { params })
+  return http.get<ApiResponse<InterlockRule[]>>(`${V1}/settings/gate-interlock/rules`, { params })
 }
 
 export function updateInterlockRule(id: number, data: Record<string, unknown>) {
-  return http.put<ApiResponse<ApiInterlockRule>>(`/v1/settings/gate-interlock/rules/${id}`, data)
+  return http.put<ApiResponse<ApiInterlockRule>>(`${V1}/settings/gate-interlock/rules/${id}`, data)
 }
 
 export function toggleInterlockRule(id: number, enabled: boolean) {
   return http.post<ApiResponse<ApiInterlockRule>>(
-    `/v1/settings/gate-interlock/rules/${id}/toggle`,
+    `${V1}/settings/gate-interlock/rules/${id}/toggle`,
     { enabled },
   )
 }
@@ -214,17 +220,17 @@ export function getInterlockLogs(params: {
   end_time?: string
 }) {
   return http.get<ApiResponse<PageResult<import('@/types/gateai').GateInterlockLogApiItem>>>(
-    '/v1/settings/gate-interlock/logs',
+    `${V1}/settings/gate-interlock/logs`,
     { params },
   )
 }
 
 export function getInterlockStats(params: { reservoir_id: number; days?: number }) {
-  return http.get<ApiResponse<ApiInterlockStat[]>>('/v1/settings/gate-interlock/stats', { params })
+  return http.get<ApiResponse<ApiInterlockStat[]>>(`${V1}/settings/gate-interlock/stats`, { params })
 }
 
 // ════════════════════════════════════════════════════════════
-// Tab7: 用户管理
+// Tab7: 用户管理 §8.4
 // ════════════════════════════════════════════════════════════
 
 export function getUsers(params?: {
@@ -234,29 +240,29 @@ export function getUsers(params?: {
   is_enabled?: number
   keyword?: string
 }) {
-  return http.get<ApiResponse<PageResult<SystemUser>>>('/v1/settings/users', { params })
+  return http.get<ApiResponse<PageResult<SystemUser>>>(`${V1}/settings/users`, { params })
 }
 
 export function createUser(data: CreateUserParams) {
-  return http.post<ApiResponse<null>>('/v1/settings/users', data)
+  return http.post<ApiResponse<null>>(`${V1}/settings/users`, data)
 }
 
 export function updateUser(id: number, data: UpdateUserParams) {
-  return http.put<ApiResponse<null>>(`/v1/settings/users/${id}`, data)
+  return http.put<ApiResponse<null>>(`${V1}/settings/users/${id}`, data)
 }
 
 export function resetUserPassword(id: number, data?: ResetPasswordParams) {
-  return http.post<ApiResponse<null>>(`/v1/settings/users/${id}/reset-password`, data)
+  return http.post<ApiResponse<null>>(`${V1}/settings/users/${id}/reset-password`, data)
 }
 
 export function lockUser(id: number, data: LockUserParams) {
-  return http.post<ApiResponse<null>>(`/v1/settings/users/${id}/lock`, data)
+  return http.post<ApiResponse<null>>(`${V1}/settings/users/${id}/lock`, data)
 }
 
 export function unlockUser(id: number, data?: UnlockUserParams) {
-  return http.post<ApiResponse<null>>(`/v1/settings/users/${id}/unlock`, data)
+  return http.post<ApiResponse<null>>(`${V1}/settings/users/${id}/unlock`, data)
 }
 
 export function deleteUser(id: number) {
-  return http.delete<ApiResponse<null>>(`/v1/settings/users/${id}`)
+  return http.delete<ApiResponse<null>>(`${V1}/settings/users/${id}`)
 }

@@ -196,9 +196,8 @@ async function refreshAlarms() {
             :key="s.id"
             class="sec"
             :class="{ on: expanded === s.id }"
-            @click="toggle(s.id)"
           >
-            <div class="sec__top">
+            <div class="sec__top" @click="toggle(s.id)">
               <span class="sec__t">{{ s.title }}</span>
               <span class="sec__pre" v-if="expanded !== s.id">
                 <span v-for="p in s.preview" :key="p.l"

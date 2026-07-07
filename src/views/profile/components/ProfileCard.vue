@@ -41,7 +41,6 @@ const roleLabel = computed(() => {
   return roles.map((r) => map[r] ?? r).join('、') || '未分配'
 })
 
-const email = computed(() => profileStore.userInfo?.email || '未填写')
 const phone = computed(() => profileStore.userInfo?.phone || '未填写')
 const registerTime = computed(() => profileStore.userInfo?.created_at || '-')
 const currentAvatarUrl = computed(
@@ -58,7 +57,6 @@ function initProfile() {
       avatar: '',
       role_name: (userStore.userInfo?.roles ?? ['admin'])[0],
       phone: '未填写',
-      email: '未填写',
       created_at: new Date().toISOString().slice(0, 10),
     })
   }
@@ -107,8 +105,9 @@ onMounted(() => {
       <!-- 头像 -->
       <div class="profile-info__avatar">
         <ElAvatar
+          :key="currentAvatarUrl"
           :size="96"
-          :src="currentAvatarUrl"
+          :src="currentAvatarUrl || undefined"
           class="profile-card__avatar"
         >
           {{ avatarChar }}
@@ -132,12 +131,11 @@ onMounted(() => {
           </span>
         </div>
         <div class="profile-info__row">
-          <span class="profile-info__label">邮箱</span>
-          <span class="profile-info__value">{{ email || '未填写' }}</span>
-        </div>
-        <div class="profile-info__row">
           <span class="profile-info__label">手机号</span>
-          <span class="profile-info__value">{{ phone || '未填写' }}</span>
+          <span
+            class="profile-info__value"
+            :class="{ 'profile-info__value--empty': !phone || phone === '未填写' }"
+          >{{ phone && phone !== '未填写' ? phone : '未填写' }}</span>
         </div>
         <div class="profile-info__row">
           <span class="profile-info__label">注册时间</span>
@@ -229,6 +227,12 @@ onMounted(() => {
     font-size: 17px;
     color: var(--color-text);
     font-weight: 500;
+
+    &--empty {
+      color: var(--color-text-placeholder, #c0c4cc);
+      font-weight: 400;
+      font-style: italic;
+    }
   }
 }
 </style>

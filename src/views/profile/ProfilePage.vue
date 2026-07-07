@@ -26,7 +26,7 @@ import {
 } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { checkPasswordStrength, FORM_RULES } from '@/constants/validation'
-import { changePassword } from '@/api/profile'
+import { changePassword, updateProfile } from '@/api/profile'
 import type { OperationLog } from '@/shared/types'
 
 const router = useRouter()
@@ -138,18 +138,28 @@ function openInfoDialog() {
   infoVisible.value = true
 }
 
-function submitInfo() {
+async function submitInfo() {
   infoSubmitting.value = true
   try {
+    const userId = userStore.userInfo?.id
+    if (userId) {
+      // 调用真实 API §8.4.3 PUT /api/settings/users/{id}
+      await updateProfile(userId, {
+        realname: infoForm.value.realname || undefined,
+        phone: infoForm.value.phone || undefined,
+      })
+    }
+    // 同步更新本地缓存 + store
     saveExtProfile(infoForm.value)
     extProfile.value = loadExtProfile()
-    // 同步更新 store 昵称
     if (userStore.userInfo) {
       userStore.userInfo.nickname = infoForm.value.realname || userStore.userInfo.nickname
     }
     recordLog('个人中心', '编辑', '修改了个人资料', 1)
     ElMessage.success('资料更新成功')
     infoVisible.value = false
+  } catch (err: any) {
+    ElMessage.error(err?.message || '保存失败，请稍后重试')
   } finally {
     infoSubmitting.value = false
   }
@@ -491,17 +501,17 @@ onMounted(() => {
               <ElProgress
                 :percentage="(strength.score / 5) * 100"
                 :color="strengthColor"
-                :stroke-width="6"
+                :stroke-width="8"
                 :show-text="false"
               />
             </div>
-            <span class="pwd-strength__label" :style="{ color: strengthColor }">
+            <span class="pwd-strength__label" :class="`pwd-strength__label--${strength.level}`">
               {{ strength.level === 'strong' ? '强' : strength.level === 'medium' ? '中' : '弱' }}
             </span>
           </div>
           <ul class="pwd-checklist">
             <li v-for="(c, i) in strength.checks" :key="i" :class="{ 'is-passed': c.passed }">
-              <span class="pwd-checklist__icon">{{ c.passed ? '✓' : '×' }}</span>
+              <span class="pwd-checklist__icon">{{ c.passed ? '✓' : '○' }}</span>
               {{ c.label }}
             </li>
           </ul>
@@ -676,15 +686,40 @@ onMounted(() => {
 .pwd-strength {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  margin: var(--spacing-sm) 0 var(--spacing-sm) 100px;
+  gap: 12px;
+  margin: 4px 0 12px 100px;
 
   &__bar {
     flex: 1;
+    :deep(.el-progress-bar__outer) {
+      border-radius: 4px;
+      background: #e5e7eb;
+    }
+    :deep(.el-progress-bar__inner) {
+      border-radius: 4px;
+      transition: width 0.5s ease, background-color 0.5s ease;
+    }
   }
   &__label {
-    font-size: var(--font-size-sm);
-    font-weight: 600;
+    width: 32px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 2px 0;
+
+    &--weak {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.1);
+    }
+    &--medium {
+      color: #f59e0b;
+      background: rgba(245, 158, 11, 0.1);
+    }
+    &--strong {
+      color: #22c55e;
+      background: rgba(34, 197, 94, 0.1);
+    }
   }
 }
 
@@ -694,22 +729,24 @@ onMounted(() => {
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-sm) var(--spacing-lg);
+  gap: 6px 16px;
 
   li {
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    font-size: 12px;
+    color: #9ca3af;
+    transition: color 0.3s ease;
     &.is-passed {
       color: #22c55e;
     }
   }
 
   &__icon {
-    font-weight: 700;
+    font-size: 12px;
     width: 14px;
+    text-align: center;
   }
 }
 

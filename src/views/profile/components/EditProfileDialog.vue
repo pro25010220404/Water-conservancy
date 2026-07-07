@@ -7,7 +7,6 @@ import { ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElMessage } from 'elem
 import type { FormInstance } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useProfileStore } from '@/stores/profile'
-import { updateProfile } from '@/api/profile'
 import { useOperationLog } from '@/composables/useOperationLog'
 import AvatarUpload from './AvatarUpload.vue'
 
@@ -36,14 +35,12 @@ const submitting = ref(false)
 interface EditForm {
   avatar: string
   realname: string
-  email: string
   phone: string
 }
 
 const form = reactive<EditForm>({
   avatar: '',
   realname: '',
-  email: '',
   phone: '',
 })
 
@@ -51,10 +48,6 @@ const rules = {
   realname: [
     { required: true, message: '请输入姓名', trigger: 'blur' },
     { min: 2, max: 20, message: '2-20个字符', trigger: 'blur' },
-  ],
-  email: [
-    { required: true, message: '请输入邮箱地址', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' },
   ],
   phone: [{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的11位手机号', trigger: 'blur' }],
 } as const
@@ -68,8 +61,8 @@ watch(
       formRef.value?.resetFields()
       form.avatar = profileStore.userInfo?.avatar || userStore.userInfo?.avatar || ''
       form.realname = profileStore.userInfo?.realname || userStore.userInfo?.nickname || ''
-      form.email = profileStore.userInfo?.email || ''
-      form.phone = profileStore.userInfo?.phone || ''
+      const phone = profileStore.userInfo?.phone || ''
+      form.phone = phone === '未填写' ? '' : phone
     }
   },
 )
@@ -81,75 +74,25 @@ async function submit() {
   if (!valid) return
 
   submitting.value = true
-  try {
-    const res = await updateProfile({
+  // 更新 profileStore
+  if (profileStore.userInfo) {
+    profileStore.setUserInfo({
+      ...profileStore.userInfo,
       realname: form.realname,
-      email: form.email,
-      phone: form.phone || undefined,
+      phone: form.phone,
+      avatar: form.avatar || profileStore.userInfo.avatar,
     })
-
-    if (res.data?.code === 0) {
-      // 更新 profile store
-      if (profileStore.userInfo) {
-        profileStore.userInfo.realname = form.realname
-        profileStore.userInfo.email = form.email
-        profileStore.userInfo.phone = form.phone
-        profileStore.userInfo.avatar = form.avatar
-      }
-      // 同步 user store nickname
-      if (userStore.userInfo) {
-        userStore.userInfo.nickname = form.realname
-        if (form.avatar) {
-          userStore.userInfo.avatar = form.avatar
-        }
-      }
-
-      recordLog('个人中心', '修改', '更新了个人资料', 1)
-      ElMessage.success('资料已更新')
-      emit('saved')
-      emit('update:visible', false)
-    } else {
-      // 降级：直接写本地 store
-      if (profileStore.userInfo) {
-        profileStore.userInfo.realname = form.realname
-        profileStore.userInfo.email = form.email
-        profileStore.userInfo.phone = form.phone
-        profileStore.userInfo.avatar = form.avatar
-      }
-      if (userStore.userInfo) {
-        userStore.userInfo.nickname = form.realname
-        if (form.avatar) {
-          userStore.userInfo.avatar = form.avatar
-        }
-      }
-
-      recordLog('个人中心', '修改', '更新了个人资料', 1)
-      ElMessage.success('资料已更新')
-      emit('saved')
-      emit('update:visible', false)
-    }
-  } catch {
-    // API 不可用：local fallback
-    if (profileStore.userInfo) {
-      profileStore.userInfo.realname = form.realname
-      profileStore.userInfo.email = form.email
-      profileStore.userInfo.phone = form.phone
-      profileStore.userInfo.avatar = form.avatar
-    }
-    if (userStore.userInfo) {
-      userStore.userInfo.nickname = form.realname
-      if (form.avatar) {
-        userStore.userInfo.avatar = form.avatar
-      }
-    }
-
-    recordLog('个人中心', '修改', '更新了个人资料', 1)
-    ElMessage.success('资料已更新（本地保存）')
-    emit('saved')
-    emit('update:visible', false)
-  } finally {
-    submitting.value = false
   }
+  // 同步更新 userStore
+  if (userStore.userInfo) {
+    userStore.userInfo.nickname = form.realname
+    if (form.avatar) userStore.userInfo.avatar = form.avatar
+  }
+  recordLog('个人中心', '修改', '更新了个人资料', 1)
+  ElMessage.success('资料已更新')
+  emit('saved')
+  emit('update:visible', false)
+  submitting.value = false
 }
 
 function onAvatarUpdate(url: string) {
@@ -173,11 +116,6 @@ function onAvatarUpdate(url: string) {
       <!-- 姓名 -->
       <ElFormItem label="姓名" prop="realname">
         <ElInput v-model="form.realname" maxlength="20" placeholder="2-20个字符" />
-      </ElFormItem>
-
-      <!-- 邮箱 -->
-      <ElFormItem label="邮箱" prop="email">
-        <ElInput v-model="form.email" placeholder="请输入邮箱地址" />
       </ElFormItem>
 
       <!-- 手机号 -->

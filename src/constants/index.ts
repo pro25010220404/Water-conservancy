@@ -4,6 +4,7 @@
 // ============================================================
 import type { DictMap } from '@/shared/types'
 
+export * from './auth'
 export * from './roles'
 export * from './equipment'
 export * from './validation'

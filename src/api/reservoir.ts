@@ -69,9 +69,9 @@ export function getReservoirs(params?: {
   return http.get<ApiResponse<PageResult<ReservoirItem>>>(RESERVOIRS_BASE, { params })
 }
 
-// ── §5.2 水库详情（注意：文档路径无 v1 前缀）──
+// ── §5.2 水库详情 ──
 export function getReservoirDetail(id: number, _equipmentCount?: number) {
-  return http.get<ApiResponse<ReservoirDetail>>(`/reservoirs/${id}`)
+  return http.get<ApiResponse<ReservoirDetail>>(`${RESERVOIRS_BASE}/${id}`)
 }
 
 // ── 水库下拉列表（兼容旧调用）──
