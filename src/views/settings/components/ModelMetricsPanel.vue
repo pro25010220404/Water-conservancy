@@ -141,7 +141,6 @@ async function load() {
     const tasks: Promise<unknown>[] = [
       fetchModelMetricsLatest(rid),
       fetchModelMetricsHistory(rid, 7),
-      fetchModelMetricsDetail(rid, { hours: detailHours.value }),
     ]
     if (props.fixedMode !== 'compare') {
       tasks.push(fetchModelHealthOverview())
@@ -151,8 +150,7 @@ async function load() {
 
     const latestR = results[0]
     const historyR = results[1]
-    const detailR = results[2]
-    const healthR = props.fixedMode !== 'compare' ? results[3] : null
+    const healthR = props.fixedMode !== 'compare' ? results[2] : null
 
     if (latestR.status === 'fulfilled') {
       latest.value = latestR.value as ModelMetricLatest
@@ -164,14 +162,10 @@ async function load() {
     if (historyR.status === 'fulfilled') {
       history.value = historyR.value as typeof history.value
       historyEmpty.value = history.value.length === 0
+      detail.value = await fetchModelMetricsDetail(rid, { hours: detailHours.value })
     } else {
       history.value = []
       historyEmpty.value = true
-    }
-
-    if (detailR.status === 'fulfilled') {
-      detail.value = detailR.value as ModelMetricDetailRow[]
-    } else {
       detail.value = []
     }
 
