@@ -74,11 +74,11 @@ shadow="never">
       </div>
     </ElCard>
 
-    <!-- 卡片3: 我的操作日志 -->
+    <!-- 卡片3: 登录日志 -->
     <ElCard class="logs-card"
 shadow="never">
       <template #header>
-        <span>我的操作日志</span>
+        <span>登录日志</span>
       </template>
       <MyOperationLogs />
     </ElCard>

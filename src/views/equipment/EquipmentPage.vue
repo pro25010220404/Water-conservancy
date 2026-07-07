@@ -300,11 +300,10 @@ const MOCK_EQUIPMENT: Equipment[] = [
   },
 ]
 
-/** 获取设备列表：优先服务端分页 §7.1，不可用时降级 Mock */
+/** 获取设备列表：服务端分页优先，不可用时降级 Mock */
 async function fetchList() {
   loading.value = true
   try {
-    // ── 1. 服务端分页接口 §7.1 GET /api/equipment ──
     try {
       const res = await getEquipmentList({
         page: page.value,
@@ -320,14 +319,10 @@ async function fetchList() {
         total.value = body.data.total ?? 0
         return
       }
-    } catch {
-      /* 降级到 all-list 或 mock */
-    }
+    } catch { /* 降级 */ }
 
-    // ── 2. 全量接口降级 §2.1（监控大屏复用，客户端分页） ──
     try {
-      const reservoirName =
-        reservoirs.value.find((r) => r.id === reservoirFilter.value)?.name ?? ''
+      const reservoirName = reservoirs.value.find((r) => r.id === reservoirFilter.value)?.name ?? ''
       const res = await getEquipmentAllList({ reservoir_id: reservoirFilter.value })
       const body = res.data
       if (body.code === 0 && Array.isArray(body.data)) {
@@ -338,34 +333,25 @@ async function fetchList() {
         if (statusFilter.value) filtered = filtered.filter((e) => e.status === statusFilter.value)
         if (keyword.value) {
           const kw = keyword.value.toLowerCase()
-          filtered = filtered.filter(
-            (e) => e.name.toLowerCase().includes(kw) || e.code.toLowerCase().includes(kw),
-          )
+          filtered = filtered.filter((e) => e.name.toLowerCase().includes(kw) || e.code.toLowerCase().includes(kw))
         }
         total.value = filtered.length
-        const start = (page.value - 1) * pageSize.value
-        list.value = filtered.slice(start, start + pageSize.value)
+        list.value = filtered.slice((page.value - 1) * pageSize.value, page.value * pageSize.value)
         return
       }
-    } catch {
-      /* 最终降级 mock */
-    }
+    } catch { /* 降级 */ }
 
-    // ── 3. Mock 降级（后端不可用时） ──
+    // ── Mock ──
     let filtered = [...MOCK_EQUIPMENT]
-    if (reservoirFilter.value)
-      filtered = filtered.filter((e) => e.reservoir_id === reservoirFilter.value)
+    if (reservoirFilter.value) filtered = filtered.filter((e) => e.reservoir_id === reservoirFilter.value)
     if (typeFilter.value) filtered = filtered.filter((e) => e.type === typeFilter.value)
     if (statusFilter.value) filtered = filtered.filter((e) => e.status === statusFilter.value)
     if (keyword.value) {
       const kw = keyword.value.toLowerCase()
-      filtered = filtered.filter(
-        (e) => e.name.toLowerCase().includes(kw) || e.code.toLowerCase().includes(kw),
-      )
+      filtered = filtered.filter((e) => e.name.toLowerCase().includes(kw) || e.code.toLowerCase().includes(kw))
     }
     total.value = filtered.length
-    const start = (page.value - 1) * pageSize.value
-    list.value = filtered.slice(start, start + pageSize.value)
+    list.value = filtered.slice((page.value - 1) * pageSize.value, page.value * pageSize.value)
   } finally {
     loading.value = false
   }

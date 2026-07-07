@@ -105,8 +105,9 @@ onMounted(() => {
       <!-- 头像 -->
       <div class="profile-info__avatar">
         <ElAvatar
+          :key="currentAvatarUrl"
           :size="96"
-          :src="currentAvatarUrl"
+          :src="currentAvatarUrl || undefined"
           class="profile-card__avatar"
         >
           {{ avatarChar }}
