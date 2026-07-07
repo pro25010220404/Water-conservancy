@@ -81,6 +81,7 @@ async function doQuery() {
   } catch {
     timeError.value = '数据查询失败，请检查时间范围是否有效'
   }
+}
 
 // 差异统计
 const diffStats = computed(() => {
