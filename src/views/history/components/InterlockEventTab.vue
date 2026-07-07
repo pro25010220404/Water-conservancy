@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElTag, ElDrawer, ElMessage } from 'element-plus'
-import { RESERVOIR_OPTIONS } from '@/constants/settings'
-import { fetchInterlockLogs } from '@/api/gateaiSettings'
+import { fetchInterlockLogs, fetchModelHealthOverview } from '@/api/gateaiSettings'
 import type { GateInterlockLog } from '@/types/gateai'
 
 interface InterlockEvent {
@@ -21,6 +20,7 @@ interface InterlockEvent {
 }
 
 const reservoirId = ref(1)
+const reservoirOptions = ref<{ value: number; label: string }[]>([])
 const loading = ref(false)
 const events = ref<InterlockEvent[]>([])
 const filterRule = ref('')
@@ -70,11 +70,30 @@ function mapLogToEvent(log: GateInterlockLog): InterlockEvent {
   }
 }
 
+async function loadReservoirs() {
+  try {
+    const overview = await fetchModelHealthOverview()
+    if (overview.length > 0) {
+      reservoirOptions.value = overview.map((r) => ({
+        value: Number(r.reservoir_id),
+        label: r.reservoir_name || `水库 #${r.reservoir_id}`,
+      }))
+      if (!reservoirOptions.value.some((r) => r.value === Number(reservoirId.value))) {
+        reservoirId.value = reservoirOptions.value[0]?.value ?? 1
+      }
+    }
+  } catch {
+    if (reservoirOptions.value.length === 0) {
+      reservoirOptions.value = [{ value: 1, label: '水库 #1' }]
+    }
+  }
+}
+
 async function loadEvents() {
   loading.value = true
   try {
     const logs = await fetchInterlockLogs({
-      reservoirId: reservoirId.value,
+      reservoirId: Number(reservoirId.value),
       startTime: dateRange.value.start,
       endTime: dateRange.value.end,
       pageSize: 100,
@@ -82,7 +101,8 @@ async function loadEvents() {
     events.value = logs.map(mapLogToEvent)
     ruleOptions.value = [...new Set(events.value.map((item) => item.rule))]
     filterRule.value = ''
-  } catch {
+  } catch (err) {
+    console.warn('[InterlockEventTab] load failed:', err)
     ElMessage.error('加载互锁日志失败')
     events.value = []
     ruleOptions.value = []
@@ -91,7 +111,10 @@ async function loadEvents() {
   }
 }
 
-onMounted(() => loadEvents())
+onMounted(async () => {
+  await loadReservoirs()
+  await loadEvents()
+})
 
 const filtered = computed(() => {
   if (!filterRule.value) return events.value
@@ -112,7 +135,7 @@ function barWidth(value: number) {
   <div class="ie" v-loading="loading">
     <div class="ie__filters">
       <select v-model="reservoirId" class="ie__sel" @change="loadEvents">
-        <option v-for="r in RESERVOIR_OPTIONS" :key="r.value" :value="r.value">
+        <option v-for="r in reservoirOptions" :key="r.value" :value="r.value">
           {{ r.label }}
         </option>
       </select>

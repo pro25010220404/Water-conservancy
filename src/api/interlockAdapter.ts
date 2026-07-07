@@ -201,6 +201,7 @@ export function toGateInterlockLog(raw: ApiInterlockLog): GateInterlockLog {
     decision_id: raw.decision_id ?? undefined,
     upstream_level: toNum(raw.upstream_level),
     downstream_level: toNum(raw.downstream_level),
+    inflow_rate: raw.inflow_rate != null ? toNum(raw.inflow_rate) : undefined,
     openings_before: [
       openingToPercent(raw.gate1_opening_before),
       openingToPercent(raw.gate2_opening_before),

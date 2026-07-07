@@ -24,6 +24,11 @@ const {
 } = useModelHealth()
 
 const reservoirOptions = ref<{ value: number; label: string }[]>([])
+const healthOverview = ref<Array<{ reservoir_id: number; reservoir_name: string; overall_score: number; health_grade: string }>>([])
+
+const GRADE_CHIP_COLOR: Record<string, string> = {
+  S: '#52c41a', A: '#1890ff', B: '#faad14', C: '#fa8c16', D: '#f5222d',
+}
 
 // ── D-85 环形图颜色 ──
 const GRADE_COLORS: Record<string, string> = {
@@ -153,6 +158,7 @@ async function loadReservoirs() {
   try {
     const overview = await fetchModelHealthOverview()
     if (overview.length > 0) {
+      healthOverview.value = overview
       reservoirOptions.value = overview.map((r) => ({
         value: Number(r.reservoir_id),
         label: r.reservoir_name || `水库 #${r.reservoir_id}`,
@@ -169,6 +175,10 @@ async function loadReservoirs() {
       reservoirOptions.value = [{ value: 1, label: '示范水库' }]
     }
   }
+}
+
+function selectReservoir(id: number) {
+  setReservoir(id)
 }
 
 function onReservoirChange() {
@@ -203,6 +213,26 @@ onBeforeUnmount(() => {
           :value="opt.value"
         />
       </ElSelect>
+    </div>
+
+    <!-- 四水库健康概览 -->
+    <div v-if="healthOverview.length" class="ai-health-ring__overview">
+      <button
+        v-for="h in healthOverview"
+        :key="h.reservoir_id"
+        type="button"
+        class="ai-health-ring__chip"
+        :class="{ 'is-active': reservoirId === h.reservoir_id }"
+        @click="selectReservoir(h.reservoir_id)"
+      >
+        <span class="ai-health-ring__chip-name">{{ h.reservoir_name || `水库#${h.reservoir_id}` }}</span>
+        <span
+          class="ai-health-ring__chip-grade"
+          :style="{ color: GRADE_CHIP_COLOR[h.health_grade] ?? '#64748b' }"
+        >
+          {{ h.health_grade }} · {{ (h.overall_score * 100).toFixed(0) }}
+        </span>
+      </button>
     </div>
 
     <!-- D-85: SVG 环形仪表盘 -->
@@ -349,6 +379,49 @@ onBeforeUnmount(() => {
     align-items: center;
     justify-content: space-between;
     margin-bottom: 12px;
+  }
+
+  &__overview {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  &__chip {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 8px 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s, background 0.15s;
+
+    &:hover {
+      border-color: #93c5fd;
+      background: #f0f7ff;
+    }
+
+    &.is-active {
+      border-color: #3b82f6;
+      background: #eff6ff;
+    }
+  }
+
+  &__chip-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+  }
+
+  &__chip-grade {
+    font-size: 14px;
+    font-weight: 700;
+    font-family: 'SF Mono', monospace;
   }
 
   &__title {
