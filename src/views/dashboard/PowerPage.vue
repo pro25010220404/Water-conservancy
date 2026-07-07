@@ -33,17 +33,22 @@ const trendData = ref<[string, number][]>([])
 let t: ReturnType<typeof setInterval>
 
 async function loadData() {
-  const [uData, tData] = await Promise.all([fetchPowerUnits(1), fetchPowerTrendData(1)])
-  units.value = uData.map((u) => ({
-    name: u.name,
-    mw: u.status === 'online' ? u.current_output : 0,
-    eff: +(u.utilization_rate * 100).toFixed(1),
-    rpm: u.status === 'online' ? 75 : 0,
-    temp: u.status === 'online' ? 60 + Math.random() * 5 : 28,
-    vib: u.status === 'online' ? 1.5 + Math.random() : 0,
-    status: u.status,
-  }))
-  trendData.value = tData.map((p) => [p.time?.slice(-5) ?? '--:--', p.avg_power ?? 0] as [string, number])
+  try {
+    const uData = await fetchPowerUnits(1)
+    units.value = uData.map((u) => ({
+      name: u.name,
+      mw: u.status === 'online' ? u.current_output : 0,
+      eff: +(u.utilization_rate * 100).toFixed(1),
+      rpm: u.status === 'online' ? 75 : 0,
+      temp: u.status === 'online' ? 60 + Math.random() * 5 : 28,
+      vib: u.status === 'online' ? 1.5 + Math.random() : 0,
+      status: u.status,
+    }))
+  } catch { /* 机组接口暂不可用 */ }
+  try {
+    const tData = await fetchPowerTrendData(1)
+    trendData.value = tData.map((p) => [p.time?.slice(-5) ?? '--:--', p.avg_power ?? 0] as [string, number])
+  } catch { /* 趋势接口暂不可用 */ }
 }
 
 onMounted(() => {

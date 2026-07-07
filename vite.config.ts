@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget =
     env.VITE_DEV_PROXY_TARGET ||
     env.VITE_DEV_API_PROXY ||
-    'http://h63d7bc8.natappfree.cc'
+    'http://47.108.169.152:8089'
 
   return {
     plugins: [vue()],
