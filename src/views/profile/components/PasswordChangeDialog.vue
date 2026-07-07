@@ -17,7 +17,7 @@ import {
 import type { FormInstance } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { changePassword } from '@/api/profile'
-import { checkPasswordStrength } from '@/constants/validation'
+import { checkPasswordStrength, PASSWORD_RULE } from '@/constants/validation'
 import { useOperationLog } from '@/composables/useOperationLog'
 
 // ── Props & Emits ──
@@ -101,8 +101,14 @@ async function submitPassword() {
     ElMessage.warning('两次输入的新密码不一致')
     return
   }
-  if (strength.value.level === 'weak') {
-    ElMessage.warning('新密码强度太弱，请按规则设置')
+  // 强制要求全部 5 项密码规则通过（非仅拦截 weak）
+  if (!PASSWORD_RULE.pattern.test(pwdForm.new_password)) {
+    ElMessage.warning(PASSWORD_RULE.message)
+    return
+  }
+  if (strength.value.level !== 'strong') {
+    const failedChecks = strength.value.checks.filter((c) => !c.passed).map((c) => c.label)
+    ElMessage.warning(`新密码未满足全部规则：${failedChecks.join('、')}`)
     return
   }
 

@@ -84,3 +84,19 @@ export function uploadAvatar(file: File) {
   formData.append('avatar', file)
   return http.post<ApiResponse<{ avatar: string }>>(`${V1}/me/avatar`, formData, { timeout: 60000 })
 }
+
+/**
+ * 获取当前用户资料 — GET /api/v1/settings/users/{id}
+ * 用于页面刷新后回显后端最新数据
+ */
+export function getMyProfile(userId: number) {
+  return http.get<ApiResponse<{
+    id: number
+    account: string
+    realname: string
+    role_name: string
+    phone: string
+    email?: string
+    created_at: string
+  }>>(`${V1}/settings/users/${userId}`)
+}

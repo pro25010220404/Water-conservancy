@@ -78,13 +78,20 @@ async function submit() {
   try {
     // 先调后端持久化
     const userId = userStore.userInfo?.id
-    if (userId) {
-      await updateProfile(userId, {
-        realname: form.realname || undefined,
-        phone: form.phone || undefined,
-      })
+    if (!userId) {
+      ElMessage.error('用户信息异常，请重新登录后重试')
+      return
     }
-    // 更新 profileStore
+    const res = await updateProfile(userId, {
+      realname: form.realname || undefined,
+      phone: form.phone || undefined,
+    })
+    // 校验后端是否真正写入成功
+    if (res.data?.code !== 0) {
+      ElMessage.error(res.data?.msg || '保存失败，请稍后重试')
+      return
+    }
+    // 后端确认成功后才更新前端状态
     if (profileStore.userInfo) {
       profileStore.setUserInfo({
         ...profileStore.userInfo,
@@ -93,7 +100,7 @@ async function submit() {
         avatar: form.avatar || profileStore.userInfo.avatar,
       })
     }
-    // 同步更新 userStore + localStorage（ProfilePage 从这里读 phone）
+    // 同步更新 userStore + localStorage
     if (userStore.userInfo) {
       userStore.userInfo.nickname = form.realname
       if (form.avatar) userStore.userInfo.avatar = form.avatar
@@ -101,13 +108,6 @@ async function submit() {
       userStore.userInfo = updated
       localStorage.setItem('userInfo', JSON.stringify(updated))
     }
-    // 同步更新 profile localStorage
-    try {
-      const raw = localStorage.getItem('profile')
-      const profile = raw ? JSON.parse(raw) : {}
-      profile.phone = form.phone
-      localStorage.setItem('profile', JSON.stringify(profile))
-    } catch { /* ignore */ }
     recordLog('个人中心', '修改', '更新了个人资料', 1)
     ElMessage.success('资料已更新')
     emit('saved')

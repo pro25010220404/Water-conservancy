@@ -2,7 +2,7 @@
 // ============================================================
 // 我的操作日志 — 对接登录日志接口 §1.3，日期筛选
 // ============================================================
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import {
   ElTable, ElTableColumn, ElPagination,
   ElDatePicker, ElTag, ElMessage,
@@ -21,33 +21,48 @@ const profileStore = useProfileStore()
 const loading = ref(false)
 const logs = ref<OperationLog[]>([])
 const total = ref(0)
-/** 当前页码，v-model 即时同步避免 ElPagination 内部状态错乱 */
 const currentPage = ref(1)
 const pageSize = 15
 
-/** 取消上一次未完成的请求，避免快速翻页时并发请求打爆后端（502） */
+/** 取消上一次未完成的请求，避免快速翻页时并发请求 */
 let abortController: AbortController | null = null
 /** 请求序列号：丢弃过时响应 */
 let fetchSeq = 0
-/** 上次成功加载的页码，失败时回退到此 */
-let lastValidPage = 1
+/** 是否有请求正在飞行中，防止快速点击导致竞态 */
+let requestInFlight = false
 
 // 筛选（仅日期范围，登录日志无模块维度）
 const filterDateRange = ref<[string, string] | null>(null)
 
-// ── 种子数据（仅首次无任何数据时展示，API 不可用不替换已有数据） ──
+// ── 网络状态监听 ──
 
-const SEED_LOGS: OperationLog[] = [
-  { id: 1, time: '2026-07-03 10:05:22', module: '登录认证', type: '登录', description: '用户 admin 登录成功', result: 1 },
-  { id: 2, time: '2026-07-02 09:30:15', module: '登录认证', type: '登录', description: '用户 zhangsan 登录成功', result: 1 },
-  { id: 3, time: '2026-07-01 08:00:00', module: '登录认证', type: '登录', description: '用户 admin 登录成功', result: 1 },
-  { id: 4, time: '2026-06-30 17:00:00', module: '登录认证', type: '登录失败', description: '用户 lisi 登录失败（密码错误）', result: 0 },
-  { id: 5, time: '2026-06-29 08:45:00', module: '登录认证', type: '登录', description: '用户 admin 登录成功', result: 1 },
-]
+const isOnline = ref(navigator.onLine)
+
+function onOnline() {
+  isOnline.value = true
+}
+
+function onOffline() {
+  isOnline.value = false
+}
 
 // ── 方法 ──
 
+/** 请求前置检查：断网或请求飞行中则拦截 */
+function canProceed(): boolean {
+  if (!navigator.onLine) {
+    ElMessage.warning('网络已断开，无法加载数据')
+    return false
+  }
+  if (requestInFlight) {
+    return false
+  }
+  return true
+}
+
 async function fetchLogs(targetPage: number) {
+  if (!canProceed()) return
+
   // 取消上一次未完成的请求
   if (abortController) {
     abortController.abort()
@@ -56,6 +71,7 @@ async function fetchLogs(targetPage: number) {
   const signal = abortController.signal
 
   const seq = ++fetchSeq
+  requestInFlight = true
   loading.value = true
 
   try {
@@ -69,56 +85,59 @@ async function fetchLogs(targetPage: number) {
     if (seq !== fetchSeq) return
 
     if (res.data?.code === 0 && res.data.data) {
-      const scrollY = window.scrollY
       logs.value = res.data.data.list
       total.value = res.data.data.total
-      lastValidPage = targetPage
       profileStore.setOperationLogs(res.data.data.list, res.data.data.total)
-      nextTick(() => window.scrollTo(0, scrollY))
+      // 翻页后回到顶部，保证浏览位置一致
+      window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
-    // API 返回非 0 → 回退页码（直接改 ref，ElPagination :current-page 响应式更新）
+    // API 返回非 0 → 维持当前页和数据不变，仅提示
     if (seq === fetchSeq) {
-      currentPage.value = lastValidPage
-      ElMessage.warning(res.data?.msg || '登录日志加载失败')
+      ElMessage.warning(res.data?.msg || '登录日志加载失败，请稍后重试')
     }
   } catch (err: unknown) {
     if (err instanceof DOMException && err.name === 'AbortError') return
     if (seq !== fetchSeq) return
 
-    if (logs.value.length > 0) {
-      currentPage.value = lastValidPage
-      ElMessage.warning('网络异常，无法刷新登录日志')
+    // 网络错误 → 保持当前数据和页码不变，明确提示
+    if (!navigator.onLine) {
+      ElMessage.warning('网络已断开，请检查网络连接后重试')
+    } else if (logs.value.length > 0) {
+      ElMessage.warning('网络异常，无法刷新登录日志，当前显示为已缓存数据')
     } else {
-      logs.value = [...SEED_LOGS]
-      total.value = SEED_LOGS.length
-      lastValidPage = 1
-      profileStore.setOperationLogs(SEED_LOGS, SEED_LOGS.length)
-      ElMessage.warning('网络不可用，展示本地示例数据')
+      ElMessage.warning('网络不可用，请检查网络连接后刷新页面重试')
     }
   } finally {
     if (seq === fetchSeq) {
       loading.value = false
+      requestInFlight = false
     }
   }
 }
 
-/** 翻页：立刻同步 currentPage 避免 ElPagination 内外部不一致 → 重置到第1页 */
+/** 翻页：防快速点击 */
 function onPageChange(page: number) {
+  if (requestInFlight) return
   currentPage.value = page
   fetchLogs(page)
 }
 
 function onFilterChange() {
+  if (requestInFlight) return
   currentPage.value = 1
   fetchLogs(1)
 }
 
 onMounted(() => {
+  window.addEventListener('online', onOnline)
+  window.addEventListener('offline', onOffline)
   fetchLogs(currentPage.value)
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('online', onOnline)
+  window.removeEventListener('offline', onOffline)
   if (abortController) {
     abortController.abort()
   }
