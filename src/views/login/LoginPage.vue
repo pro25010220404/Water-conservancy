@@ -528,6 +528,7 @@ class="login-form__checkbox"
       .el-input__inner {
         color: #fff;
         font-size: 15px;
+        line-height: 48px;
 
         &::placeholder {
           color: rgba(255, 255, 255, 0.3);

@@ -437,6 +437,11 @@ async function refreshAll() {
     loadPhysicsGuard(),
   ])
   status.value = st.data
+  // localStorage 兜底：确保手动/自动模式刷新和轮询不丢失
+  const savedMode = localStorage.getItem('dispatch_mode')
+  if (savedMode === 'manual' || savedMode === 'auto') {
+    status.value.mode = savedMode
+  }
   decision.value = dec.data
   prediction.value = pred.data
   records.value = logs.data.list
@@ -463,6 +468,8 @@ async function toggleMode(next: 'auto' | 'manual') {
       '二次确认', { type: 'warning' },
     )
     await putDispatchMode(next)
+    // 前端也持久化一份，刷新不丢失
+    localStorage.setItem('dispatch_mode', next)
     recordLog('调度决策', '切换模式', `运行模式 → ${DISPATCH_MODE_MAP[next].label}`, 1)
     ElMessage.success('运行模式已更新')
     await refreshAll()
@@ -596,8 +603,13 @@ function applyRecordQuery() {
 
 watch(() => route.query.recordId, applyRecordQuery)
 
-onMounted(() => {
-  refreshAll()
+onMounted(async () => {
+  await refreshAll()
+  // 用 localStorage 兜底：确保刷新后模式不丢失
+  const savedMode = localStorage.getItem('dispatch_mode')
+  if (savedMode === 'manual' || savedMode === 'auto') {
+    status.value.mode = savedMode
+  }
   applyRecordQuery()
   pollTimer = setInterval(refreshAll, 10000)
 })
