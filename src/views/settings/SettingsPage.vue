@@ -489,9 +489,9 @@ async function fetchWeights() {
       const d = res.data.data
       weights.value = d
       weightForm.value = {
-        power_weight: d.power_weight,
-        safety_weight: d.safety_weight,
-        ecology_weight: d.ecology_weight,
+        power_weight: Number(d.power_weight),
+        safety_weight: Number(d.safety_weight),
+        ecology_weight: Number(d.ecology_weight),
       }
       weightLoading.value = false
       return
@@ -798,15 +798,31 @@ function syncTabFromRoute() {
   }
 }
 
+// ── 按需懒加载：每个 Tab 只加载自己的数据 ──
+const TAB_FETCHERS: Record<string, () => void> = {
+  thresholds: fetchThresholds,
+  weights: fetchWeights,
+  models: fetchModels,
+  users: fetchUsers,
+}
+
+function loadActiveTabData() {
+  const fetcher = TAB_FETCHERS[activeTab.value]
+  if (fetcher) fetcher()
+}
+
 watch(() => route.path, syncTabFromRoute)
+
+// 切 Tab 时按需加载
+watch(activeTab, (tab) => {
+  const fetcher = TAB_FETCHERS[tab]
+  if (fetcher) fetcher()
+})
 
 // ── 生命周期 ──
 onMounted(() => {
   syncTabFromRoute()
-  fetchThresholds()
-  fetchWeights()
-  fetchModels()
-  fetchUsers()
+  loadActiveTabData()
 })
 </script>
 
