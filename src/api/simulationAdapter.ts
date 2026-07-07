@@ -7,8 +7,11 @@ import type {
   FaultReview,
   FaultTimelineEvent,
   SimulationParams,
+  SimulationReport,
+  SimulationResultSummary,
   SimulationScene,
   SimulationScenarioItem,
+  SimulationSummary,
 } from '@/types/simulation'
 
 export interface BackendScenarioItem {
@@ -206,5 +209,61 @@ export function toBackendIncidentQuery(params: {
     start_time: params.startTime,
     end_time: params.endTime,
     reservoir_id: 1,
+  }
+}
+
+// ---------- 9.7 / 9.8 仿真结果与报告 ----------
+
+export interface BackendReportTask {
+  report_id?: string
+  status?: string
+  download_url?: string | null
+}
+
+export function resultSummaryToSimulationSummary(
+  summary: SimulationResultSummary,
+): SimulationSummary {
+  return {
+    maxLevel: summary.max_upstream_level ?? 0,
+    minLevel: summary.min_upstream_level ?? 0,
+    totalDischarge: summary.total_discharge ?? 0,
+    estimatedPower: summary.total_energy ?? 0,
+  }
+}
+
+export function buildReportContent(
+  simulationId: string,
+  summary: SimulationResultSummary,
+): string {
+  const maxLv = summary.max_upstream_level?.toFixed(2) ?? '—'
+  const minLv = summary.min_upstream_level?.toFixed(2) ?? '—'
+  const gate = summary.max_gate_opening ?? '—'
+  const energy = summary.total_energy ?? '—'
+  const anomaly = summary.anomaly_count ?? 0
+  const discharge = summary.total_discharge ?? '—'
+  return `仿真任务 ${simulationId}：最高水位 ${maxLv} m，最低 ${minLv} m，最大开度 ${gate}%，总下泄 ${discharge} m³，发电 ${energy} kWh，异常 ${anomaly} 次。`
+}
+
+export function buildSimulationReport(params: {
+  simulationId: string
+  scene: SimulationScene
+  simParams: SimulationParams
+  resultSummary: SimulationResultSummary
+  downloadUrl?: string | null
+  operatorName: string
+  reportId?: string
+}): SimulationReport {
+  const now = new Date()
+  const numericId = Number(`${now.getTime()}`.slice(-9))
+  return {
+    id: numericId,
+    runId: numericId,
+    scene: params.scene,
+    params: params.simParams,
+    summary: resultSummaryToSimulationSummary(params.resultSummary),
+    content: buildReportContent(params.simulationId, params.resultSummary),
+    filePath: params.downloadUrl ?? null,
+    createdAt: now.toLocaleString('zh-CN', { hour12: false }),
+    operatorName: params.operatorName,
   }
 }

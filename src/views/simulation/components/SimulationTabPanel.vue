@@ -42,7 +42,7 @@ const emit = defineEmits<{
   upload: []
   train: [modelId: number]
   generate: []
-  'open-review': [id: number]
+  'download-report': [id: number]
   'import-review': [id: number]
 }>()
 
@@ -205,9 +205,9 @@ function formatDuration(sec: number) {
 
       <template v-else-if="activeTab === 'report'">
         <div class="panel-actions">
-          <ElButton type="primary" @click="emit('generate')">生成方案评估报告</ElButton>
+          <ElButton type="primary" :loading="reportLoading" @click="emit('generate')">生成方案评估报告</ElButton>
         </div>
-        <p class="hint-text">基于仿真运行结果自动生成方案评估报告。</p>
+        <p class="hint-text">请先完成仿真，再基于真实结果生成报告（数据来自后端接口）。</p>
         <ElEmpty v-if="!filteredReports.length && !reportLoading" description="暂无方案评估报告" />
         <ul v-else class="entity-list">
           <li v-for="r in filteredReports" :key="r.id" class="entity-list__item">
@@ -217,6 +217,9 @@ function formatDuration(sec: number) {
             </div>
             <div class="entity-list__meta">{{ r.createdAt }} · {{ r.operatorName }}</div>
             <p class="entity-list__desc">{{ r.content }}</p>
+            <div v-if="r.filePath" class="entity-list__actions">
+              <ElButton link type="primary" @click="emit('download-report', r.id)">下载 PDF</ElButton>
+            </div>
           </li>
         </ul>
       </template>
@@ -237,7 +240,6 @@ function formatDuration(sec: number) {
             </div>
             <div class="entity-list__meta">{{ r.impactScope }} · {{ r.createdAt }}</div>
             <div class="entity-list__actions">
-              <ElButton link type="primary" @click="emit('open-review', r.id)">详情</ElButton>
               <ElButton link type="primary" @click="emit('import-review', r.id)">导入仿真</ElButton>
             </div>
           </li>
@@ -345,9 +347,9 @@ function formatDuration(sec: number) {
 
       <template v-else-if="activeTab === 'report'">
         <div class="panel-actions">
-          <ElButton type="primary" @click="emit('generate')">生成方案评估报告</ElButton>
+          <ElButton type="primary" :loading="reportLoading" @click="emit('generate')">生成方案评估报告</ElButton>
         </div>
-        <p class="hint-text">基于仿真运行结果自动生成方案评估报告。</p>
+        <p class="hint-text">请先完成仿真，再基于真实结果生成报告（数据来自后端接口）。</p>
         <ElEmpty v-if="!filteredReports.length && !reportLoading" description="暂无方案评估报告" />
         <ul v-else class="entity-list">
           <li v-for="r in filteredReports" :key="r.id" class="entity-list__item">
@@ -357,6 +359,9 @@ function formatDuration(sec: number) {
             </div>
             <div class="entity-list__meta">{{ r.createdAt }} · {{ r.operatorName }}</div>
             <p class="entity-list__desc">{{ r.content }}</p>
+            <div v-if="r.filePath" class="entity-list__actions">
+              <ElButton link type="primary" @click="emit('download-report', r.id)">下载 PDF</ElButton>
+            </div>
           </li>
         </ul>
       </template>
@@ -377,7 +382,6 @@ function formatDuration(sec: number) {
             </div>
             <div class="entity-list__meta">{{ r.impactScope }} · {{ r.createdAt }}</div>
             <div class="entity-list__actions">
-              <ElButton link type="primary" @click="emit('open-review', r.id)">详情</ElButton>
               <ElButton link type="primary" @click="emit('import-review', r.id)">导入仿真</ElButton>
             </div>
           </li>

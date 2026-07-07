@@ -3,7 +3,7 @@
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import {
   ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput,
-  ElTimeline, ElTimelineItem, ElSlider, ElInputNumber, ElSelect, ElOption, ElTag,
+  ElSlider, ElInputNumber, ElSelect, ElOption, ElTag,
 } from 'element-plus'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import ThreeDamScene from '@/components/cockpit/ThreeDamScene.vue'
@@ -16,7 +16,7 @@ import SimulationTabPanel from './components/SimulationTabPanel.vue'
 import ScenarioListPanel from './components/ScenarioListPanel.vue'
 import type {
   SimulationScene, SimulationSpeed, SimulationParams,
-  SimulationRealtimeData, AiModel, SimulationReport, FaultReview, FaultConclusion,
+  SimulationRealtimeData, AiModel, SimulationReport, FaultReview,
   SimulationScenarioItem, SimulationProgressPayload, SimulationScenarioPayload,
 } from '@/types/simulation'
 import { XIANGJIABA_HYDRO, getLevelStatus, levelGaugePercent } from '@/constants/xiangjiaba'
@@ -29,8 +29,8 @@ import {
 import {
   startSimulation, pauseSimulation, resumeSimulation, resetSimulation, getSimulationStatus,
   setSimulationGateOpening,
-  getModelList, activateModel, uploadModel, startTraining, generateReport, getReportList,
-  getFaultReviewList, getFaultReviewDetail, submitFaultConclusion, importToSimulation, getPhysicsGuardSummary,
+  getModelList, activateModel, uploadModel, startTraining, generateReport, getReportList, downloadReport,
+  getFaultReviewList, importToSimulation, getPhysicsGuardSummary,
   getSimulationScenarios, createSimulationScenario, updateSimulationScenario, deleteSimulationScenario,
   resolveScenarioId, getSimulationResult, applyResultToRealtime,
 } from '@/api/simulation'
@@ -105,6 +105,9 @@ watch(gateOpening, (v) => {
 watch(() => simStatus.value.status, (status, prev) => {
   if (status === 'finished' && prev === 'running') {
     ElMessage.success(`仿真已完成 · 时长 ${simParams.durationMin} min`)
+    if (activeSimulationId.value) {
+      void loadSimulationResult(activeSimulationId.value)
+    }
   }
 })
 
@@ -120,13 +123,6 @@ const modelLoading = ref(false)
 const reportLoading = ref(false)
 const reviewLoading = ref(false)
 const physicsGuard = ref<PhysicsGuardSummary | null>(null)
-
-const reviewDetailVisible = ref(false)
-const reviewDetail = ref<FaultReview | null>(null)
-const reviewSaving = ref(false)
-const reviewConclusion = reactive<FaultConclusion>({
-  rootCause: '', improvements: '', responsibleDept: '', reviewedBy: '', reviewedAt: '',
-})
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -478,54 +474,36 @@ async function handleGenerateReport() {
     ElMessage.warning('请先完成一次仿真')
     return
   }
+  reportLoading.value = true
   try {
-    await generateReport(id)
-    ElMessage.success('报告已生成')
-    fetchReports()
-  } catch { ElMessage.error('生成失败') }
-}
-function resetReviewConclusion(detail?: FaultReview | null) {
-  const c = detail?.conclusion
-  reviewConclusion.rootCause = c?.rootCause ?? ''
-  reviewConclusion.improvements = c?.improvements ?? ''
-  reviewConclusion.responsibleDept = c?.responsibleDept ?? ''
-  reviewConclusion.reviewedBy = c?.reviewedBy ?? userStore.userInfo?.nickname ?? ''
-  reviewConclusion.reviewedAt = c?.reviewedAt ?? ''
-}
-
-async function openReviewDetail(id: number) {
-  try {
-    reviewDetail.value = (await getFaultReviewDetail(id)).data
-    resetReviewConclusion(reviewDetail.value)
-    reviewDetailVisible.value = true
-  } catch {
-    ElMessage.error('加载复盘详情失败')
-  }
-}
-
-async function handleSaveReviewConclusion() {
-  if (!reviewDetail.value) return
-  if (!reviewConclusion.rootCause.trim()) {
-    ElMessage.warning('请填写根因分析')
-    return
-  }
-  reviewSaving.value = true
-  try {
-    const payload: FaultConclusion = {
-      rootCause: reviewConclusion.rootCause.trim(),
-      improvements: reviewConclusion.improvements.trim(),
-      responsibleDept: reviewConclusion.responsibleDept.trim(),
-      reviewedBy: userStore.userInfo?.nickname ?? reviewConclusion.reviewedBy,
-      reviewedAt: new Date().toISOString(),
-    }
-    await submitFaultConclusion(reviewDetail.value.id, payload)
-    ElMessage.success('复盘结论已保存')
-    reviewDetailVisible.value = false
-    await fetchReviews()
-  } catch {
-    ElMessage.error('保存失败，请稍后重试')
+    const res = await generateReport(id, {
+      scene: simScene.value,
+      params: { ...simParams, scene: simScene.value },
+      operatorName: userStore.userInfo?.nickname ?? userStore.userInfo?.username ?? '当前用户',
+    })
+    ElMessage.success(res.data.filePath ? '报告已生成，可下载 PDF' : '报告已生成')
+    await fetchReports()
+    activeTab.value = 'report'
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '生成失败'
+    ElMessage.error(msg || '生成失败，请确认已登录且仿真已完成')
   } finally {
-    reviewSaving.value = false
+    reportLoading.value = false
+  }
+}
+
+async function handleDownloadReport(id: number) {
+  try {
+    const blob = await downloadReport(id)
+    const report = reports.value.find((r) => r.id === id)
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `方案评估报告_${report?.scene ?? 'sim'}_${id}.pdf`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '下载失败'
+    ElMessage.error(msg)
   }
 }
 async function handleImportToSim(id: number) {
@@ -753,7 +731,7 @@ onUnmounted(() => {
                   @upload="handleUploadModel"
                   @train="handleTrainModel"
                   @generate="handleGenerateReport"
-                  @open-review="openReviewDetail"
+                  @download-report="handleDownloadReport"
                   @import-review="handleImportToSim"
                 />
               </div>
@@ -861,32 +839,6 @@ onUnmounted(() => {
         <template #footer>
           <ElButton @click="scenarioDialogVisible = false">取消</ElButton>
           <ElButton type="primary" @click="submitScenarioForm">保存</ElButton>
-        </template>
-      </ElDialog>
-
-      <ElDialog v-model="reviewDetailVisible" title="历史故障复盘详情" width="720px">
-        <template v-if="reviewDetail">
-          <div class="review-summary">
-            <p><strong>{{ reviewDetail.faultType }}</strong></p>
-            <p class="review-meta">影响范围：{{ reviewDetail.impactScope }} · 关联告警 #{{ reviewDetail.alarmId }}</p>
-          </div>
-          <ElTimeline>
-            <ElTimelineItem v-for="(e, i) in reviewDetail.timeline" :key="i" :timestamp="e.time">{{ e.event }}</ElTimelineItem>
-          </ElTimeline>
-        </template>
-        <ElForm label-position="top">
-          <ElFormItem label="根因分析">
-            <ElInput v-model="reviewConclusion.rootCause" type="textarea" :rows="3" placeholder="填写故障根因" />
-          </ElFormItem>
-          <ElFormItem label="改进措施">
-            <ElInput v-model="reviewConclusion.improvements" type="textarea" :rows="2" placeholder="填写改进措施" />
-          </ElFormItem>
-        </ElForm>
-        <template #footer>
-          <ElButton @click="reviewDetailVisible = false">取消</ElButton>
-          <ElButton type="primary" :loading="reviewSaving" @click="handleSaveReviewConclusion">
-            保存复盘结论
-          </ElButton>
         </template>
       </ElDialog>
     </div>

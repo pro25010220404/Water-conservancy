@@ -6,15 +6,14 @@ import type { ApiResponse, PageResult } from '@/shared/types'
 import type {
   SimulationParams,
   SimulationRealtimeData,
-  SimulationRun,
   SimulationReport,
   SimulationStartPayload,
   SimulationStartResult,
   SimulationScenarioItem,
   SimulationScenarioPayload,
   SimulationResultData,
+  SimulationScene,
   AiModel,
-  TrainingTask,
   TrainingConfig,
   FaultReview,
   FaultConclusion,
@@ -26,15 +25,56 @@ import {
   mapBackendIncident,
   incidentToSimulationParams,
   toBackendIncidentQuery,
+  buildSimulationReport,
   type BackendScenarioItem,
   type BackendIncidentItem,
+  type BackendReportTask,
 } from './simulationAdapter'
+import {
+  getModels as getSettingsModels,
+  uploadModel as uploadSettingsModel,
+  activateModel as activateSettingsModel,
+} from './settings'
+import type { ModelInfo } from '@/shared/types'
+
+// ── ModelInfo（settings API）→ AiModel（simulation 类型）映射 ──
+function modelInfoToAiModel(m: ModelInfo): AiModel {
+  const typeMap: Record<string, AiModel['type']> = {
+    lstm_prediction: 'LSTM',
+    dqn_decision: 'DQN',
+    fault_detection: 'LSTM',
+    general: 'DQN',
+  }
+  const statusMap: Record<string, AiModel['status']> = {
+    uploaded: 'inactive',
+    validating: 'validating',
+    ready: 'inactive',
+    active: 'active',
+    deprecated: 'inactive',
+  }
+  return {
+    id: m.id,
+    type: typeMap[m.type] ?? 'LSTM',
+    version: m.version,
+    filePath: '',
+    status: statusMap[m.status] ?? 'inactive',
+    metrics: {
+      accuracy: m.accuracy ?? 0,
+      overallScore: m.overall_score ?? 0,
+      healthGrade: (m.health_grade as 'S' | 'A' | 'B' | 'C' | 'D') ?? 'B',
+    },
+    remark: null,
+    createdAt: m.training_date ?? '',
+    activatedAt: m.is_active ? new Date().toISOString() : null,
+  }
+}
 
 const V1_PREFIX = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
 // 场景列表 GET 无 v1；创建/更新/删除用 v1（Apifox §9.1 vs §9.2-9.4）
 const SIM_V1_BASE = `${V1_PREFIX}/simulation`
-// start/result/report/incidents 不用 v1（接口总表 #60/62-65）
+// 仿真接口统一走 /api/v1/simulation/*
 const SIM_BASE = '/simulation'
+const REPORTS_STORAGE_KEY = 'simulation_reports_v1'
 const DEFAULT_RESERVOIR_ID = 1
 const DEFAULT_MODEL_ID = 2
 const DEFAULT_SCENARIO_ID = 1
@@ -46,26 +86,17 @@ function cacheIncidents(list: BackendIncidentItem[]) {
   list.forEach((item) => incidentCache.set(item.id, item))
 }
 
+// 9.6 故障复盘 — 固定 GET /api/v1/simulation/incidents
+const INCIDENTS_V1 = `${SIM_V1_BASE}/incidents`
+
 async function fetchIncidentById(id: number): Promise<BackendIncidentItem | null> {
   const cached = incidentCache.get(id)
   if (cached) return cached
 
   try {
-    const res = await http.get<ApiResponse<BackendIncidentItem>>(`${SIM_BASE}/incidents/${id}`)
-    const body = unwrap(res)
-    if (body?.data) {
-      incidentCache.set(id, body.data)
-      return body.data
-    }
-  } catch {
-    /* 无详情接口时走列表缓存 */
-  }
-
-  try {
-    const res = await http.get<ApiResponse<PageResult<BackendIncidentItem>>>(
-      `${SIM_BASE}/incidents`,
-      { params: { page: 1, page_size: 100, reservoir_id: DEFAULT_RESERVOIR_ID } },
-    )
+    const res = await http.get<ApiResponse<PageResult<BackendIncidentItem>>>(INCIDENTS_V1, {
+      params: { page: 1, page_size: 100, reservoir_id: DEFAULT_RESERVOIR_ID },
+    })
     const body = unwrap(res)
     const list = body?.data?.list ?? []
     cacheIncidents(list)
@@ -91,6 +122,88 @@ async function withMockFallback<T>(
   }
 }
 
+function loadStoredReports(): SimulationReport[] {
+  try {
+    const raw = localStorage.getItem(REPORTS_STORAGE_KEY)
+    if (!raw) return []
+    const list = JSON.parse(raw) as SimulationReport[]
+    return Array.isArray(list) ? list : []
+  } catch {
+    return []
+  }
+}
+
+function saveStoredReport(report: SimulationReport) {
+  const list = loadStoredReports().filter((r) => r.id !== report.id)
+  list.unshift(report)
+  localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(list.slice(0, 50)))
+}
+
+/** 生产/联调统一走 /api/v1/simulation/* */
+function simPaths(suffix: string): string[] {
+  return [`${SIM_V1_BASE}${suffix}`]
+}
+
+async function getSimPaths<T>(
+  paths: string[],
+  config?: { params?: Record<string, unknown> },
+): Promise<ApiResponse<T>> {
+  let lastErr: unknown
+  for (const path of paths) {
+    try {
+      const res = await http.get<ApiResponse<T>>(path, config)
+      const body = unwrap(res)
+      if (body) return body
+    } catch (err) {
+      lastErr = err
+    }
+  }
+  throw lastErr ?? new Error('request failed')
+}
+
+async function postSimPaths<T>(paths: string[], data?: unknown): Promise<ApiResponse<T>> {
+  let lastErr: unknown
+  for (const path of paths) {
+    try {
+      const res = await http.post<ApiResponse<T>>(path, data)
+      const body = unwrap(res)
+      if (body) return body
+    } catch (err) {
+      lastErr = err
+    }
+  }
+  throw lastErr ?? new Error('request failed')
+}
+
+async function putSimPaths<T>(paths: string[], data?: unknown): Promise<ApiResponse<T>> {
+  let lastErr: unknown
+  for (const path of paths) {
+    try {
+      const res = await http.put<ApiResponse<T>>(path, data)
+      const body = unwrap(res)
+      if (body) return body
+    } catch (err) {
+      lastErr = err
+    }
+  }
+  throw lastErr ?? new Error('request failed')
+}
+
+/** 结果/报告接口：优先 v1（生产 4088），再试无 v1 */
+async function getSimulationResultApi(simulationId: string) {
+  return getSimPaths<SimulationResultData>(
+    simPaths(`/${simulationId}/result`),
+    { params: { aggregation: 'raw' } },
+  )
+}
+
+async function postSimulationReportApi(
+  simulationId: string,
+  body: { report_type: string; format: string; include_charts: boolean },
+) {
+  return postSimPaths<BackendReportTask>(simPaths(`/${simulationId}/report`), body)
+}
+
 function toStartBody(payload: SimulationStartPayload) {
   return {
     scenario_id: payload.scenarioId ?? DEFAULT_SCENARIO_ID,
@@ -106,7 +219,7 @@ function toStartBody(payload: SimulationStartPayload) {
   }
 }
 
-/** 9.1 仿真场景列表 — GET /api/simulation/scenarios（无 v1） */
+/** 9.1 仿真场景列表 — GET /api/v1/simulation/scenarios */
 export async function getSimulationScenarios(params?: {
   page?: number
   page_size?: number
@@ -114,23 +227,16 @@ export async function getSimulationScenarios(params?: {
 }): Promise<ApiResponse<PageResult<SimulationScenarioItem>>> {
   const queryParams = { page: 1, page_size: 50, ...params }
 
-  async function fetchList(path: string) {
-    const res = await http.get<ApiResponse<PageResult<BackendScenarioItem>>>(path, {
-      params: queryParams,
-    })
-    const body = unwrap(res)
-    if (!body?.data) throw new Error('scenarios failed')
-    const list = (body.data.list ?? []).map(mapBackendScenario)
-    return { ...body, data: { list, total: body.data.total ?? list.length } }
-  }
-
   return withMockFallback(
     async () => {
-      try {
-        return await fetchList(`${SIM_BASE}/scenarios`)
-      } catch {
-        return await fetchList(`${SIM_V1_BASE}/scenarios`)
-      }
+      const res = await http.get<ApiResponse<PageResult<BackendScenarioItem>>>(
+        `${SIM_V1_BASE}/scenarios`,
+        { params: queryParams },
+      )
+      const body = unwrap(res)
+      if (!body?.data) throw new Error('scenarios failed')
+      const list = (body.data.list ?? []).map(mapBackendScenario)
+      return { ...body, data: { list, total: body.data.total ?? list.length } }
     },
     async () => ({
       code: 0,
@@ -211,12 +317,8 @@ export async function startSimulation(
 ): Promise<ApiResponse<SimulationStartResult>> {
   return withMockFallback(
     async () => {
-      const res = await http.post<ApiResponse<SimulationStartResult>>(
-        `${SIM_BASE}/start`,
-        toStartBody(params),
-      )
-      const body = unwrap(res)
-      if (!body?.data?.simulation_id) throw new Error('start failed')
+      const body = await postSimPaths<SimulationStartResult>(simPaths('/start'), toStartBody(params))
+      if (!body.data?.simulation_id) throw new Error('start failed')
       return body
     },
     async () => {
@@ -241,57 +343,26 @@ export async function startSimulation(
 export async function getSimulationResult(
   simulationId: string,
 ): Promise<ApiResponse<SimulationResultData>> {
-  return withMockFallback(
-    async () => {
-      const res = await http.get<ApiResponse<SimulationResultData>>(
-        `${SIM_BASE}/${simulationId}/result`,
-      )
-      const body = unwrap(res)
-      if (!body?.data) throw new Error('result failed')
-      return body
-    },
-    async () => ({
-      code: 0,
-      msg: 'ok',
-      success: true,
-      trace_id: 'mock-result',
-      data: { summary: {}, total: 0, points: [] },
-    }),
-  )
+  return getSimulationResultApi(simulationId)
 }
 
 export async function pauseSimulation(): Promise<ApiResponse<null>> {
   return withMockFallback(
-    async () => {
-      const res = await http.post<ApiResponse<null>>(`${SIM_BASE}/pause`)
-      const body = unwrap(res)
-      if (!body) throw new Error('pause failed')
-      return body
-    },
+    async () => postSimPaths<null>(simPaths('/pause')),
     () => mockApi.pauseSimulation(),
   )
 }
 
 export async function resumeSimulation(): Promise<ApiResponse<null>> {
   return withMockFallback(
-    async () => {
-      const res = await http.post<ApiResponse<null>>(`${SIM_BASE}/resume`)
-      const body = unwrap(res)
-      if (!body) throw new Error('resume failed')
-      return body
-    },
+    async () => postSimPaths<null>(simPaths('/resume')),
     () => mockApi.resumeSimulation(),
   )
 }
 
 export async function resetSimulation(): Promise<ApiResponse<null>> {
   return withMockFallback(
-    async () => {
-      const res = await http.post<ApiResponse<null>>(`${SIM_BASE}/reset`)
-      const body = unwrap(res)
-      if (!body) throw new Error('reset failed')
-      return body
-    },
+    async () => postSimPaths<null>(simPaths('/reset')),
     () => mockApi.resetSimulation(),
   )
 }
@@ -307,46 +378,46 @@ export async function getSimulationStatus(): Promise<ApiResponse<SimulationRealt
 
 export async function setSimulationGateOpening(opening: number): Promise<ApiResponse<null>> {
   return withMockFallback(
-    async () => {
-      const res = await http.put<ApiResponse<null>>(`${SIM_BASE}/gate`, {
-        gate_opening: Math.round(opening),
-      })
-      const body = unwrap(res)
-      if (!body) throw new Error('gate set failed')
-      return body
-    },
+    async () =>
+      putSimPaths<null>(simPaths('/gate'), { gate_opening: Math.round(opening) }),
     () => mockApi.setGateOpening(opening),
   )
-}
-
-export async function emergencyStopSimulation(): Promise<ApiResponse<null>> {
-  return withMockFallback(
-    async () => {
-      throw new Error('estop not on api')
-    },
-    () => mockApi.emergencyStopSimulation(),
-  )
-}
-
-export async function getSimulationScenes(): Promise<
-  ApiResponse<Array<{ scene: string; label: string; defaultParams: SimulationParams }>>
-> {
-  throw new Error('API not ready')
 }
 
 export async function getModelList(): Promise<ApiResponse<AiModel[]>> {
   return withMockFallback(
     async () => {
-      throw new Error('models not on api')
+      const res = await getSettingsModels({ page: 1, page_size: 100, status: 'active' })
+      if (res.data?.code === 0 && res.data?.data) {
+        const list = res.data.data.list ?? []
+        return {
+          code: 0,
+          msg: 'ok',
+          success: true,
+          trace_id: res.data.trace_id,
+          data: list.map(modelInfoToAiModel),
+        }
+      }
+      throw new Error('模型列表为空')
     },
     () => mockApi.getModelList(),
   )
 }
 
-export async function uploadModel(_formData: FormData): Promise<ApiResponse<AiModel>> {
+export async function uploadModel(formData: FormData): Promise<ApiResponse<AiModel>> {
   return withMockFallback(
     async () => {
-      throw new Error('upload not on api')
+      const res = await uploadSettingsModel(formData)
+      if (res.data?.code === 0 && res.data?.data) {
+        return {
+          code: 0,
+          msg: 'ok',
+          success: true,
+          trace_id: res.data.trace_id,
+          data: modelInfoToAiModel(res.data.data),
+        }
+      }
+      throw new Error('上传模型失败')
     },
     () => mockApi.uploadModel(),
   )
@@ -355,7 +426,11 @@ export async function uploadModel(_formData: FormData): Promise<ApiResponse<AiMo
 export async function activateModel(id: number): Promise<ApiResponse<null>> {
   return withMockFallback(
     async () => {
-      throw new Error('activate not on api')
+      const res = await activateSettingsModel(id)
+      if (res.data?.code === 0) {
+        return { code: 0, msg: 'ok', success: true, trace_id: res.data.trace_id, data: null }
+      }
+      throw new Error('激活模型失败')
     },
     () => mockApi.activateModel(id),
   )
@@ -372,31 +447,47 @@ export async function startTraining(
   )
 }
 
-export async function getTrainingProgress(taskId: string): Promise<ApiResponse<TrainingTask>> {
-  return withMockFallback(
-    async () => {
-      throw new Error('train progress not on api')
-    },
-    () => mockApi.getTrainingProgress(taskId),
-  )
-}
-
 export async function generateReport(
   simulationId: string | number,
+  context?: {
+    scene?: SimulationScene
+    params?: SimulationParams
+    operatorName?: string
+  },
 ): Promise<ApiResponse<SimulationReport>> {
   const id = String(simulationId)
-  return withMockFallback(
-    async () => {
-      const res = await http.post<ApiResponse<SimulationReport>>(
-        `${SIM_BASE}/${id}/report`,
-        { report_type: 'full', format: 'pdf', include_charts: true },
-      )
-      const body = unwrap(res)
-      if (!body) throw new Error('report failed')
-      return body
+  const reportTask = await postSimulationReportApi(id, {
+    report_type: 'full',
+    format: 'pdf',
+    include_charts: true,
+  })
+
+  const resultRes = await getSimulationResultApi(id)
+  const summary = resultRes.data.summary ?? {}
+
+  const report = buildSimulationReport({
+    simulationId: id,
+    scene: context?.scene ?? 'normal',
+    simParams: context?.params ?? {
+      scene: 'normal',
+      initialLevel: summary.max_upstream_level ?? 380,
+      inflowRate: summary.max_inflow_rate ?? 1900,
+      durationMin: 60,
     },
-    () => mockApi.generateReport(),
-  )
+    resultSummary: summary,
+    downloadUrl: reportTask.data?.download_url ?? null,
+    operatorName: context?.operatorName ?? '当前用户',
+    reportId: reportTask.data?.report_id,
+  })
+
+  saveStoredReport(report)
+  return {
+    code: 0,
+    msg: reportTask.msg || '报告已生成',
+    success: true,
+    trace_id: reportTask.trace_id,
+    data: report,
+  }
 }
 
 export async function getReportList(_params: {
@@ -404,16 +495,32 @@ export async function getReportList(_params: {
   pageSize: number
   scene?: string
 }): Promise<ApiResponse<PageResult<SimulationReport>>> {
-  return withMockFallback(
-    async () => {
-      throw new Error('reports not on api')
-    },
-    () => mockApi.getReportList(),
-  )
+  const list = loadStoredReports()
+  return {
+    code: 0,
+    msg: 'ok',
+    success: true,
+    trace_id: 'local-reports',
+    data: { list, total: list.length, pageNum: 1, pageSize: list.length || 10 },
+  }
 }
 
-export async function downloadReport(_id: number): Promise<Blob> {
-  return mockApi.downloadReport()
+export async function downloadReport(id: number): Promise<Blob> {
+  const report = loadStoredReports().find((r) => r.id === id)
+  if (!report?.filePath) {
+    throw new Error('报告暂无下载地址，请稍后重试或联系管理员')
+  }
+
+  const token = localStorage.getItem('token')
+  const url = report.filePath.startsWith('http')
+    ? report.filePath
+    : `${import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') ?? ''}${report.filePath}`
+
+  const res = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) throw new Error(`下载失败 (${res.status})`)
+  return await res.blob()
 }
 
 export async function getFaultReviewList(params: {
@@ -425,10 +532,9 @@ export async function getFaultReviewList(params: {
 }): Promise<ApiResponse<PageResult<FaultReview>>> {
   return withMockFallback(
     async () => {
-      const res = await http.get<ApiResponse<PageResult<BackendIncidentItem>>>(
-        `${SIM_BASE}/incidents`,
-        { params: toBackendIncidentQuery(params) },
-      )
+      const res = await http.get<ApiResponse<PageResult<BackendIncidentItem>>>(INCIDENTS_V1, {
+        params: toBackendIncidentQuery(params),
+      })
       const body = unwrap(res)
       if (!body?.data) throw new Error('incidents failed')
       const list = body.data.list ?? []
@@ -471,8 +577,21 @@ export async function submitFaultConclusion(
 export async function importToSimulation(id: number): Promise<ApiResponse<SimulationParams>> {
   return withMockFallback(
     async () => {
+      // 先用 GET 获取故障详情
       const raw = await fetchIncidentById(id)
       if (!raw) throw new Error('incident not found')
+      // 再调 POST /api/simulation/import-incident 触发后端导入
+      try {
+        await http.post(`${SIM_BASE}/import-incident`, {
+          incident_name: raw.incident_name ?? `故障 #${id}`,
+          severity: raw.severity ?? 'medium',
+          equipment_id: raw.equipment_id,
+          occurred_at: raw.occurred_at,
+          raw_data: raw,
+        })
+      } catch {
+        // import-incident 接口可选降级，不影响结果
+      }
       return {
         code: 0,
         msg: 'ok',
@@ -482,27 +601,6 @@ export async function importToSimulation(id: number): Promise<ApiResponse<Simula
       }
     },
     () => mockApi.importToSimulation(),
-  )
-}
-
-export async function getSimulationRuns(_params: {
-  pageNum: number
-  pageSize: number
-}): Promise<ApiResponse<PageResult<SimulationRun>>> {
-  return withMockFallback(
-    async () => {
-      throw new Error('runs not on api')
-    },
-    () => mockApi.getSimulationRuns(),
-  )
-}
-
-export async function getCockpitKpi(): Promise<ApiResponse<Record<string, unknown>>> {
-  return withMockFallback(
-    async () => {
-      throw new Error('kpi not on api')
-    },
-    () => mockApi.getCockpitKpi(),
   )
 }
 
