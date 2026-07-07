@@ -143,10 +143,10 @@ export function clearLocalFailCount(account: string): void {
   sessionStorage.removeItem(failCountKey(account))
 }
 
-/** 第 3、4 次失败时展示剩余次数预警（需求 L-25，第 5 次错误由后端锁定） */
+/** 第 3、4 次失败时展示剩余次数预警（需求 L-25） */
 export function buildAttemptWarning(failCount: number): string {
-  const remaining = Math.max(0, LOCKOUT_MAX_ATTEMPTS - failCount)
   if (failCount < 3 || failCount >= LOCKOUT_MAX_ATTEMPTS) return ''
+  const remaining = LOCKOUT_MAX_ATTEMPTS - failCount
   if (remaining === 1) return '还剩 1 次尝试机会，再次输入错误将锁定账号 30 分钟'
   return `还剩 ${remaining} 次尝试机会，连续 5 次错误将锁定账号 30 分钟`
 }
@@ -202,6 +202,18 @@ export function resolveLoginError(err: unknown, account = ''): LoginErrorAction 
         remainingFromApi != null
           ? LOCKOUT_MAX_ATTEMPTS - remainingFromApi
           : (failCount ?? 0)
+
+      // 后端常见实现：第 5 次仍返回 20008，第 6 次才 20007（差一次）
+      // 前端按需求：第 5 次错误即视为锁定
+      if (failCountForWarn >= LOCKOUT_MAX_ATTEMPTS) {
+        clearLocalFailCount(account)
+        return {
+          type: 'locked',
+          remainSeconds: parseLockRemainSeconds(apiErr.data),
+          message: '连续 5 次密码错误，账号已锁定 30 分钟',
+        }
+      }
+
       return {
         type: 'wrong_password',
         warning: buildAttemptWarning(failCountForWarn),
