@@ -9,6 +9,9 @@ import { User, Lock } from '@element-plus/icons-vue'
 import { APP_TITLE } from '@/constants'
 import { useUserStore } from '@/stores/user'
 import { useLoginScene } from '@/composables/useLoginScene'
+import { useAccountLockout } from '@/composables/useAccountLockout'
+import AccountLockDialog from '@/components/login/AccountLockDialog.vue'
+import { clearLocalFailCount } from '@/utils/loginError'
 import logoUrl from '@/assets/images/logo.png'
 
 const route = useRoute()
@@ -21,16 +24,30 @@ const rememberMe = ref(false)
 const autoLogin = ref(false)
 const loading = ref(false)
 
+const {
+  lockDialogVisible,
+  lockReleased,
+  attemptWarning,
+  loginErrorMessage,
+  formDisabled,
+  countdownText,
+  handleLoginError,
+  clearLoginError,
+  retryAfterLockout,
+} = useAccountLockout()
+
 const sceneContainer = ref<HTMLElement | null>(null)
 const { webglSupported } = useLoginScene(sceneContainer)
 
 const greeting = '欢迎回来'
 
 async function handleLogin() {
+  if (formDisabled.value) return
   if (!username.value || !password.value) {
-    ElMessage.warning('请输入用户名和密码')
+    loginErrorMessage.value = '请输入用户名和密码'
     return
   }
+  clearLoginError()
   loading.value = true
   try {
     await userStore.login({
@@ -38,13 +55,19 @@ async function handleLogin() {
       password: password.value,
       remember: rememberMe.value,
     })
+    clearLocalFailCount(username.value)
     ElMessage.success('登录成功')
     router.push((route.query.redirect as string) || '/dashboard/overview')
-  } catch {
-    // 错误提示由 request 拦截器统一弹出
+  } catch (err) {
+    handleLoginError(err, username.value)
   } finally {
     loading.value = false
   }
+}
+
+function onLockRetry() {
+  retryAfterLockout()
+  password.value = ''
 }
 </script>
 
@@ -83,6 +106,8 @@ class="login-bg" :class="{ 'login-bg--fallback': !webglSupported }" />
               placeholder="请输入用户名"
               size="large"
               class="login-field__input"
+              :readonly="formDisabled"
+              @input="clearLoginError"
             />
           </div>
 
@@ -97,9 +122,19 @@ class="login-bg" :class="{ 'login-bg--fallback': !webglSupported }" />
               size="large"
               show-password
               class="login-field__input"
+              :readonly="formDisabled"
+              @input="clearLoginError"
               @keyup.enter="handleLogin"
             />
           </div>
+
+          <p v-if="loginErrorMessage" class="login-form__error" role="alert">
+            {{ loginErrorMessage }}
+          </p>
+
+          <p v-if="attemptWarning" class="login-form__attempt-warn" role="alert">
+            {{ attemptWarning }}
+          </p>
 
           <div class="login-form__options">
             <ElCheckbox v-model="rememberMe"
@@ -119,6 +154,7 @@ class="login-form__checkbox"
             size="large"
             class="login-form__btn"
             :loading="loading"
+            :disabled="formDisabled"
             @click="handleLogin"
           >
             登 录
@@ -126,6 +162,13 @@ class="login-form__checkbox"
         </div>
       </div>
     </div>
+
+    <AccountLockDialog
+      v-model:visible="lockDialogVisible"
+      :countdown-text="countdownText"
+      :released="lockReleased"
+      @retry="onLockRetry"
+    />
   </div>
 </template>
 
@@ -229,6 +272,28 @@ class="login-form__checkbox"
     display: flex;
     flex-direction: column;
     gap: 20px;
+  }
+
+  &__attempt-warn {
+    margin: -8px 0 0;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #faad14;
+    background: rgba(250, 173, 20, 0.12);
+    border: 1px solid rgba(250, 173, 20, 0.35);
+    border-radius: 8px;
+  }
+
+  &__error {
+    margin: -8px 0 0;
+    padding: 8px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #ff7875;
+    background: rgba(245, 34, 45, 0.15);
+    border: 1px solid rgba(245, 34, 45, 0.45);
+    border-radius: 8px;
   }
 
   &__options {

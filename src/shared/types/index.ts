@@ -238,6 +238,11 @@ export interface SystemUser {
   phone: string
   is_enabled: number
   created_at: string
+  /** 登录失败或管理员锁定到期时间（需后端在用户列表接口返回） */
+  lock_expire_time?: string | null
+  /** 锁定原因 */
+  lock_reason?: string | null
+  last_login_at?: string | null
 }
 
 /** 创建用户请求 */

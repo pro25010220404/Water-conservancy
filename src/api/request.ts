@@ -7,6 +7,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios'
 import { ElMessage } from 'element-plus'
+import { ApiBusinessError } from '@/utils/apiError'
 
 const http: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -37,10 +38,10 @@ http.interceptors.response.use(
         if (import.meta.env.DEV) {
           console.warn('[API] 业务认证错误 (code=' + data.code + '): ' + data.msg)
         }
-        return Promise.reject(new Error(data.msg || '认证失败'))
+        return Promise.reject(new ApiBusinessError(data.code, data.msg || '认证失败', data.data))
       }
       // 业务错误不弹 toast，由调用方决定是否提示
-      return Promise.reject(new Error(data.msg || '请求失败'))
+      return Promise.reject(new ApiBusinessError(data.code, data.msg || '请求失败', data.data))
     }
     return response
   },
@@ -58,6 +59,16 @@ http.interceptors.response.use(
       }
     } else {
       const status = error.response.status
+      const body = error.response.data
+      if (body && typeof body === 'object' && body.code !== undefined) {
+        return Promise.reject(
+          new ApiBusinessError(
+            Number(body.code),
+            body.msg || body.message || '请求失败',
+            body.data ?? null,
+          ),
+        )
+      }
       // 401/404 静默处理，页面自动 Mock 降级
       // 真正的认证失效由 success 拦截器处理（业务 code>=20001）
       if (status === 401 || status === 404) {

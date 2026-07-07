@@ -53,6 +53,12 @@ import {
   deleteModel,
 } from '@/api/settings'
 import type { ThresholdRule, WeightConfig, ModelInfo, SystemUser } from '@/shared/types'
+import {
+  getUserStatusMeta,
+  isUserLoginLocked,
+  normalizeSystemUser,
+  userNeedsUnlock,
+} from '@/utils/userStatus'
 
 const { record: recordLog } = useOperationLog()
 const route = useRoute()
@@ -364,69 +370,6 @@ const MOCK_MODELS: ModelInfo[] = [
     health_grade: 'C',
   },
 ]
-const MOCK_USERS: SystemUser[] = [
-  {
-    id: 1,
-    account: 'admin',
-    realname: '系统管理员',
-    role_id: 4,
-    role_name: '系统管理员',
-    phone: '13800001000',
-    is_enabled: 1,
-    created_at: '2026-06-01 08:00:00',
-  },
-  {
-    id: 2,
-    account: 'zhangsan',
-    realname: '张三',
-    role_id: 1,
-    role_name: '值班运维人员',
-    phone: '13800001001',
-    is_enabled: 1,
-    created_at: '2026-06-15 09:30:00',
-  },
-  {
-    id: 3,
-    account: 'lisi',
-    realname: '李四',
-    role_id: 2,
-    role_name: '调度决策工程师',
-    phone: '13800001002',
-    is_enabled: 1,
-    created_at: '2026-06-20 10:00:00',
-  },
-  {
-    id: 4,
-    account: 'wangwu',
-    realname: '王五',
-    role_id: 3,
-    role_name: '站长/管理人员',
-    phone: '13800001003',
-    is_enabled: 1,
-    created_at: '2026-06-22 14:00:00',
-  },
-  {
-    id: 5,
-    account: 'zhaoliu',
-    realname: '赵六',
-    role_id: 5,
-    role_name: '算法工程师',
-    phone: '13800001004',
-    is_enabled: 0,
-    created_at: '2026-06-25 11:00:00',
-  },
-  {
-    id: 6,
-    account: 'sunqi',
-    realname: '孙七',
-    role_id: 1,
-    role_name: '值班运维人员',
-    phone: '13800001005',
-    is_enabled: 1,
-    created_at: '2026-07-02 08:30:00',
-  },
-]
-
 // Tab3: 模型
 const models = ref<ModelInfo[]>([])
 const modelsTotal = ref(0)
@@ -663,26 +606,30 @@ async function handleDeleteModel(id: number) {
 async function fetchUsers() {
   usersLoading.value = true
   try {
-    const res = await getUsers({ page: usersPage.value, keyword: userKeyword.value || undefined })
-    if (res.data.code === 0 && res.data.data.list.length) {
-      users.value = res.data.data.list
-      usersTotal.value = res.data.data.total
-      usersLoading.value = false
+    const res = await getUsers({
+      page: usersPage.value,
+      page_size: 10,
+      keyword: userKeyword.value || undefined,
+    })
+    if (res.data.code === 0 && res.data.data) {
+      const list = res.data.data.list ?? []
+      users.value = list.map((item) =>
+        normalizeSystemUser(item as unknown as Record<string, unknown>),
+      )
+      usersTotal.value = res.data.data.total ?? list.length
       return
     }
-  } catch {
-    /* fallback */
+    users.value = []
+    usersTotal.value = 0
+    ElMessage.warning(res.data.msg || '用户列表加载失败')
+  } catch (err: unknown) {
+    users.value = []
+    usersTotal.value = 0
+    const msg = err instanceof Error ? err.message : '用户列表加载失败'
+    ElMessage.error(msg.includes('登录') || msg.includes('Token') ? '登录已失效，请重新登录' : msg)
+  } finally {
+    usersLoading.value = false
   }
-  let filtered = [...MOCK_USERS]
-  if (userKeyword.value) {
-    const kw = userKeyword.value.toLowerCase()
-    filtered = filtered.filter(
-      (u) => u.account.toLowerCase().includes(kw) || u.realname.includes(kw),
-    )
-  }
-  usersTotal.value = filtered.length
-  users.value = filtered.slice((usersPage.value - 1) * 10, usersPage.value * 10)
-  usersLoading.value = false
 }
 
 function openUserDialog(mode: 'create' | 'edit', row?: SystemUser) {
@@ -735,24 +682,30 @@ async function handleLock(row: SystemUser) {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
     })
-    row.is_enabled = 0
-    lockUser(row.id, { reason: reason.value || '管理员锁定' }).catch(() => {})
+    await lockUser(row.id, { reason: reason.value || '管理员锁定' })
     recordLog('系统设置', '锁定账号', `锁定了用户「${row.realname}」`, 1)
     ElMessage.success('账号已锁定')
+    await fetchUsers()
   } catch {
-    /* 取消 */
+    /* 取消或失败 */
   }
 }
 
 async function handleUnlock(row: SystemUser) {
+  const lockedByLogin = isUserLoginLocked(row)
   try {
-    await ElMessageBox.confirm(`确定解锁用户「${row.realname}」？`, '解锁确认')
-    row.is_enabled = 1
-    unlockUser(row.id).catch(() => {})
+    await ElMessageBox.confirm(
+      lockedByLogin
+        ? `用户「${row.realname}」因密码错误被临时锁定，确定提前解锁？`
+        : `确定解锁用户「${row.realname}」？`,
+      '解锁确认',
+    )
+    await unlockUser(row.id)
     recordLog('系统设置', '解锁账号', `解锁了用户「${row.realname}」`, 1)
     ElMessage.success('账号已解锁')
+    await fetchUsers()
   } catch {
-    /* 取消 */
+    /* 取消或失败 */
   }
 }
 
@@ -1235,14 +1188,22 @@ onMounted(() => {
             </ElTag>
           </template>
         </ElTableColumn>
-        <ElTableColumn label="状态" width="80" align="center">
+        <ElTableColumn label="状态" width="100" align="center">
           <template #default="scope">
             <ElTag
-              :type="(scope.row as SystemUser).is_enabled === 1 ? 'success' : 'danger'"
+              :type="getUserStatusMeta(scope.row as SystemUser).type"
               effect="plain"
             >
-              {{ (scope.row as SystemUser).is_enabled === 1 ? '启用' : '禁用' }}
+              {{ getUserStatusMeta(scope.row as SystemUser).label }}
             </ElTag>
+          </template>
+        </ElTableColumn>
+        <ElTableColumn label="锁定/到期" min-width="150">
+          <template #default="scope">
+            <span v-if="isUserLoginLocked(scope.row as SystemUser)" class="users-lock-expire">
+              {{ (scope.row as SystemUser).lock_expire_time?.slice(0, 16) ?? '—' }}
+            </span>
+            <span v-else class="users-lock-expire users-lock-expire--muted">—</span>
           </template>
         </ElTableColumn>
         <ElTableColumn prop="phone" label="手机号" min-width="120" />
@@ -1258,14 +1219,19 @@ onMounted(() => {
             </ElButton>
             <ElButton link @click="handleResetPwd(scope.row as SystemUser)"> 重置 </ElButton>
             <ElButton
-              v-if="(scope.row as SystemUser).is_enabled === 1"
+              v-if="!userNeedsUnlock(scope.row as SystemUser)"
               type="warning"
               link
               @click="handleLock(scope.row as SystemUser)"
             >
               锁定
             </ElButton>
-            <ElButton v-else type="success" link @click="handleUnlock(scope.row as SystemUser)">
+            <ElButton
+              v-else
+              type="success"
+              link
+              @click="handleUnlock(scope.row as SystemUser)"
+            >
               解锁
             </ElButton>
             <ElButton type="danger" link @click="handleDelete(scope.row as SystemUser)">
@@ -1390,6 +1356,15 @@ onMounted(() => {
       width: 20px;
       height: 20px;
     }
+  }
+}
+
+.users-lock-expire {
+  font-size: var(--font-size-sm);
+  color: #d48806;
+
+  &--muted {
+    color: var(--color-text-secondary, #c0c4cc);
   }
 }
 
