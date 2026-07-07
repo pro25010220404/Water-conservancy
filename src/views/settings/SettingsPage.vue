@@ -810,7 +810,14 @@ function loadActiveTabData() {
   if (fetcher) fetcher()
 }
 
-watch(() => route.path, syncTabFromRoute)
+watch(() => route.path, () => {
+  const prevTab = activeTab.value
+  syncTabFromRoute()
+  // Tab 没变时 watcher 不触发，手动刷新数据；Tab 变了 watcher 处理
+  if (activeTab.value === prevTab) {
+    loadActiveTabData()
+  }
+})
 
 // 切 Tab 时按需加载
 watch(activeTab, (tab) => {
