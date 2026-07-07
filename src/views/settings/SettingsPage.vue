@@ -1219,8 +1219,9 @@ onMounted(() => {
           <template #default="scope">
             <ElTag type="info">
               {{
-                roleLabel[(scope.row as SystemUser).role_id] ??
-                (scope.row as SystemUser).role_name
+                (scope.row as SystemUser).role_name ||
+                roleLabel[(scope.row as SystemUser).role_id] ||
+                '未知'
               }}
             </ElTag>
           </template>

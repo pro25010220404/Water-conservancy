@@ -8,6 +8,7 @@ import type { FormInstance } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useProfileStore } from '@/stores/profile'
 import { useOperationLog } from '@/composables/useOperationLog'
+import { updateProfile } from '@/api/profile'
 import AvatarUpload from './AvatarUpload.vue'
 
 // ── Props & Emits ──
@@ -74,35 +75,51 @@ async function submit() {
   if (!valid) return
 
   submitting.value = true
-  // 更新 profileStore
-  if (profileStore.userInfo) {
-    profileStore.setUserInfo({
-      ...profileStore.userInfo,
-      realname: form.realname,
-      phone: form.phone,
-      avatar: form.avatar || profileStore.userInfo.avatar,
-    })
-  }
-  // 同步更新 userStore + localStorage（ProfilePage 从这里读 phone）
-  if (userStore.userInfo) {
-    userStore.userInfo.nickname = form.realname
-    if (form.avatar) userStore.userInfo.avatar = form.avatar
-    const updated = { ...userStore.userInfo, phone: form.phone }
-    userStore.userInfo = updated
-    localStorage.setItem('userInfo', JSON.stringify(updated))
-  }
-  // 同步更新 profile localStorage
   try {
-    const raw = localStorage.getItem('profile')
-    const profile = raw ? JSON.parse(raw) : {}
-    profile.phone = form.phone
-    localStorage.setItem('profile', JSON.stringify(profile))
-  } catch { /* ignore */ }
-  recordLog('个人中心', '修改', '更新了个人资料', 1)
-  ElMessage.success('资料已更新')
-  emit('saved')
-  emit('update:visible', false)
-  submitting.value = false
+    // 先调后端持久化
+    const userId = userStore.userInfo?.id
+    if (userId) {
+      await updateProfile(userId, {
+        realname: form.realname || undefined,
+        phone: form.phone || undefined,
+      })
+    }
+    // 更新 profileStore
+    if (profileStore.userInfo) {
+      profileStore.setUserInfo({
+        ...profileStore.userInfo,
+        realname: form.realname,
+        phone: form.phone,
+        avatar: form.avatar || profileStore.userInfo.avatar,
+      })
+    }
+    // 同步更新 userStore + localStorage（ProfilePage 从这里读 phone）
+    if (userStore.userInfo) {
+      userStore.userInfo.nickname = form.realname
+      if (form.avatar) userStore.userInfo.avatar = form.avatar
+      const updated = { ...userStore.userInfo, phone: form.phone }
+      userStore.userInfo = updated
+      localStorage.setItem('userInfo', JSON.stringify(updated))
+    }
+    // 同步更新 profile localStorage
+    try {
+      const raw = localStorage.getItem('profile')
+      const profile = raw ? JSON.parse(raw) : {}
+      profile.phone = form.phone
+      localStorage.setItem('profile', JSON.stringify(profile))
+    } catch { /* ignore */ }
+    recordLog('个人中心', '修改', '更新了个人资料', 1)
+    ElMessage.success('资料已更新')
+    emit('saved')
+    emit('update:visible', false)
+  } catch (err: unknown) {
+    const msg = err && typeof err === 'object' && 'message' in err
+      ? (err as { message: string }).message
+      : '保存失败，请稍后重试'
+    ElMessage.error(msg)
+  } finally {
+    submitting.value = false
+  }
 }
 
 function onAvatarUpdate(url: string) {

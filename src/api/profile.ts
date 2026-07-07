@@ -39,7 +39,7 @@ export async function getOperationLogs(params?: {
   page_size?: number
   start_time?: string
   end_time?: string
-}): Promise<{ data: ApiResponse<PageResult<OperationLog>> }> {
+}, signal?: AbortSignal): Promise<{ data: ApiResponse<PageResult<OperationLog>> }> {
   const res = await http.get<ApiResponse<PageResult<{
     id: number
     user_realname: string
@@ -47,7 +47,7 @@ export async function getOperationLogs(params?: {
     login_status: number
     fail_reason: string
     created_at: string
-  }>>>('/login-logs', { params })
+  }>>>('/login-logs', { params, signal })
 
   // 登录日志 → 操作日志 字段映射
   const body = res.data

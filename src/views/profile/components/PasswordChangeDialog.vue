@@ -118,20 +118,31 @@ async function submitPassword() {
   }
 
   submitting.value = true
-  // 后端接口未就绪，本地校验通过即视为成功
-  changePassword({
-    old_password: pwdForm.old_password,
-    new_password: pwdForm.new_password,
-    confirm_password: pwdForm.confirm_password,
-  }).catch(() => {})
-  recordLog('个人中心', '修改密码', '修改了登录密码', 1)
-  ElMessage.success('密码修改成功，请重新登录')
-  emit('update:visible', false)
-  setTimeout(() => {
-    userStore.logout()
-    router.push('/login')
-  }, 3000)
-  submitting.value = false
+  try {
+    const res = await changePassword({
+      old_password: pwdForm.old_password,
+      new_password: pwdForm.new_password,
+      confirm_password: pwdForm.confirm_password,
+    })
+    if (res.data?.code === 0) {
+      recordLog('个人中心', '修改密码', '修改了登录密码', 1)
+      ElMessage.success('密码修改成功，请重新登录')
+      emit('update:visible', false)
+      setTimeout(() => {
+        userStore.logout()
+        router.push('/login')
+      }, 3000)
+    } else {
+      ElMessage.error(res.data?.msg || '密码修改失败')
+    }
+  } catch (err: unknown) {
+    const msg = err && typeof err === 'object' && 'message' in err
+      ? (err as { message: string }).message
+      : '密码修改失败，请稍后重试'
+    ElMessage.error(msg)
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 

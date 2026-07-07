@@ -51,24 +51,37 @@ function beforeUpload(file: UploadRawFile) {
   return true
 }
 
-/** 本地预览（选取文件后立刻展示） */
+/** 本地预览（选取文件后立刻展示，被 beforeUpload 拦截的文件跳过） */
 function onFileChange(file: UploadFile) {
-  if (file.raw) {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      previewUrl.value = (e.target?.result as string) || ''
-    }
-    reader.readAsDataURL(file.raw)
+  // beforeUpload 返回 false 时文件状态为 fail，不创建预览
+  if (file.status === 'fail' || !file.raw) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    previewUrl.value = (e.target?.result as string) || ''
   }
+  reader.readAsDataURL(file.raw)
 }
 
 /** 自定义上传 — API 做上传，本地 blob URL 做显示 */
 async function customUpload(options: UploadRequestOptions) {
-  uploading.value = true
-  uploadProgress.value = 0
-
   // Element Plus http-request 中 options.file 可能是 UploadFile 包装对象或原生 File
   const file = ((options.file as UploadFile).raw ?? options.file) as File
+
+  // 冗余校验：防御 beforeUpload 被绕过的情况
+  if (file.size > AVATAR_MAX_SIZE) {
+    ElMessage.warning(`头像大小不能超过 ${AVATAR_MAX_SIZE / 1024 / 1024}MB`)
+    options.onError(new Error('文件过大'))
+    return
+  }
+  const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
+  if (!validTypes.includes(file.type)) {
+    ElMessage.warning('仅支持 JPG、JPEG、PNG 格式')
+    options.onError(new Error('格式不支持'))
+    return
+  }
+
+  uploading.value = true
+  uploadProgress.value = 0
 
   // 先生成本地预览（上传同时立刻能看到）
   const localUrl = URL.createObjectURL(file)
