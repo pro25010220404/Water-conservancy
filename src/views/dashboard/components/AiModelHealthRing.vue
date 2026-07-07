@@ -236,7 +236,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- D-85: SVG 环形仪表盘 -->
-    <div class="ai-health-ring__gauge" @click="drillDown" title="点击查看模型健康度仪表盘">
+    <div class="ai-health-ring__gauge">
       <svg :viewBox="`0 0 ${SVG_SIZE} ${SVG_SIZE}`" class="ai-health-ring__svg">
         <!-- 底色环 -->
         <path

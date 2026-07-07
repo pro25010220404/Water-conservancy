@@ -42,16 +42,59 @@ const { webglSupported } = useLoginScene(sceneContainer)
 
 const greeting = '欢迎回来'
 
+// ── 记住密码 / 自动登录 ──
+const REMEMBER_KEY = 'remembered_credentials'
+const AUTO_LOGIN_KEY = 'auto_login_flag'
+
+function saveCredentials(user: string, pwd: string) {
+  try {
+    localStorage.setItem(REMEMBER_KEY, JSON.stringify({ u: user, p: btoa(pwd) }))
+  } catch { /* quota exceeded */ }
+}
+
+function loadCredentials(): { u: string; p: string } | null {
+  try {
+    const raw = localStorage.getItem(REMEMBER_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    if (data?.u && data?.p) return { u: data.u, p: atob(data.p) }
+  } catch { /* corrupted */ }
+  return null
+}
+
+function clearSavedCredentials() {
+  localStorage.removeItem(REMEMBER_KEY)
+  localStorage.removeItem(AUTO_LOGIN_KEY)
+}
+
 // ── 强制改密 ──
 const showForcePwdDialog = ref(false)
 
 onMounted(() => {
-  // 如果已登录但标记还在（比如中途刷新），直接弹窗
+  // 已登录但强制改密标记还在 → 弹窗
   if (
     userStore.isLoggedIn &&
     sessionStorage.getItem(FORCE_PWD_CHANGE_KEY) === 'true'
   ) {
     showForcePwdDialog.value = true
+    return
+  }
+
+  // 已登录 → 无需回填
+  if (userStore.isLoggedIn) return
+
+  // 加载已保存的凭证
+  const saved = loadCredentials()
+  if (saved) {
+    username.value = saved.u
+    password.value = saved.p
+    rememberMe.value = true
+  }
+
+  // 自动登录
+  if (localStorage.getItem(AUTO_LOGIN_KEY) === 'true' && saved) {
+    autoLogin.value = true
+    handleLogin()
   }
 })
 
@@ -62,6 +105,11 @@ function onForcePwdSuccess() {
 
 async function handleLogin() {
   if (formDisabled.value) return
+  // 无网络立即提示
+  if (!navigator.onLine) {
+    loginErrorMessage.value = '网络连接失败，请检查网络后重试'
+    return
+  }
   if (!username.value || !password.value) {
     loginErrorMessage.value = '请输入用户名和密码'
     return
@@ -76,6 +124,18 @@ async function handleLogin() {
     })
     clearLocalFailCount(username.value)
     ElMessage.success('登录成功')
+
+    // 记住密码：保存凭证
+    if (rememberMe.value) {
+      saveCredentials(username.value, password.value)
+      if (autoLogin.value) {
+        localStorage.setItem(AUTO_LOGIN_KEY, 'true')
+      } else {
+        localStorage.removeItem(AUTO_LOGIN_KEY)
+      }
+    } else {
+      clearSavedCredentials()
+    }
 
     // 默认密码 → 强制改密
     if (password.value === DEFAULT_PASSWORD) {
@@ -101,7 +161,7 @@ function onLockRetry() {
 <template>
   <div class="login-page">
     <div ref="sceneContainer"
-class="login-bg" :class="{ 'login-bg--fallback': !webglSupported }" />
+class="login-bg" :class="{ 'login-bg--fallback': !webglSupported }" tabindex="-1" aria-hidden="true" />
 
     <div class="login-form">
       <div class="login-form__card">
@@ -134,6 +194,7 @@ class="login-bg" :class="{ 'login-bg--fallback': !webglSupported }" />
               size="large"
               class="login-field__input"
               :readonly="formDisabled"
+              tabindex="1"
               @input="clearLoginError"
             />
           </div>
@@ -150,6 +211,7 @@ class="login-bg" :class="{ 'login-bg--fallback': !webglSupported }" />
               show-password
               class="login-field__input"
               :readonly="formDisabled"
+              tabindex="2"
               @input="clearLoginError"
               @keyup.enter="handleLogin"
             />

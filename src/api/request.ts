@@ -16,9 +16,13 @@ const http: AxiosInstance = axios.create({
 
 // ── 请求拦截：附加 Token + Content-Type ──
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem('token')
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`
+  // 登录接口不携带旧 token，避免后端误判为 token 过期
+  const isLoginRequest = config.url?.includes('/auth/login')
+  if (!isLoginRequest) {
+    const token = localStorage.getItem('token')
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
   }
   // 非 FormData 请求设 JSON 头；FormData 由浏览器自动生成 multipart/form-data
   if (!(config.data instanceof FormData)) {
