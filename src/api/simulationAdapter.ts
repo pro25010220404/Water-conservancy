@@ -24,6 +24,7 @@ export interface BackendScenarioItem {
   created_by?: number
   created_at?: string
   updated_at?: string
+  usage_count?: number
 }
 
 export function mapBackendScenario(raw: BackendScenarioItem): SimulationScenarioItem {
@@ -39,6 +40,7 @@ export function mapBackendScenario(raw: BackendScenarioItem): SimulationScenario
     scenario_config: raw.scenario_config ?? null,
     created_at: raw.created_at,
     updated_at: raw.updated_at,
+    usage_count: raw.usage_count,
   }
 }
 

@@ -31,7 +31,7 @@ import {
 } from './simulationAdapter'
 
 const V1_PREFIX = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
-// 场景CRUD用 v1（接口总表 #56-59）
+// 场景列表 GET 无 v1；创建/更新/删除用 v1（Apifox §9.1 vs §9.2-9.4）
 const SIM_V1_BASE = `${V1_PREFIX}/simulation`
 // start/result/report/incidents 不用 v1（接口总表 #60/62-65）
 const SIM_BASE = '/simulation'
@@ -106,22 +106,31 @@ function toStartBody(payload: SimulationStartPayload) {
   }
 }
 
-/** 9.1 仿真场景列表 */
+/** 9.1 仿真场景列表 — GET /api/simulation/scenarios（无 v1） */
 export async function getSimulationScenarios(params?: {
   page?: number
   page_size?: number
   keyword?: string
 }): Promise<ApiResponse<PageResult<SimulationScenarioItem>>> {
+  const queryParams = { page: 1, page_size: 50, ...params }
+
+  async function fetchList(path: string) {
+    const res = await http.get<ApiResponse<PageResult<BackendScenarioItem>>>(path, {
+      params: queryParams,
+    })
+    const body = unwrap(res)
+    if (!body?.data) throw new Error('scenarios failed')
+    const list = (body.data.list ?? []).map(mapBackendScenario)
+    return { ...body, data: { list, total: body.data.total ?? list.length } }
+  }
+
   return withMockFallback(
     async () => {
-      const res = await http.get<ApiResponse<PageResult<BackendScenarioItem>>>(
-        `${SIM_V1_BASE}/scenarios`,
-        { params: { page: 1, page_size: 50, ...params } },
-      )
-      const body = unwrap(res)
-      if (!body?.data) throw new Error('scenarios failed')
-      const list = (body.data.list ?? []).map(mapBackendScenario)
-      return { ...body, data: { list, total: body.data.total ?? list.length } }
+      try {
+        return await fetchList(`${SIM_BASE}/scenarios`)
+      } catch {
+        return await fetchList(`${SIM_V1_BASE}/scenarios`)
+      }
     },
     async () => ({
       code: 0,
@@ -144,39 +153,17 @@ export async function getSimulationScenarios(params?: {
   )
 }
 
-/** 创建仿真场景 */
+/** 创建仿真场景（不走 Mock 假成功） */
 export async function createSimulationScenario(
   payload: SimulationScenarioPayload,
 ): Promise<ApiResponse<SimulationScenarioItem>> {
-  return withMockFallback(
-    async () => {
-      const res = await http.post<ApiResponse<BackendScenarioItem>>(
-        `${SIM_V1_BASE}/scenarios`,
-        payload,
-      )
-      const body = unwrap(res)
-      if (!body?.data) throw new Error('create scenario failed')
-      return { ...body, data: mapBackendScenario(body.data) }
-    },
-    async () => ({
-      code: 0,
-      msg: 'ok',
-      success: true,
-      trace_id: 'mock-create-scenario',
-      data: {
-        id: Date.now(),
-        name: payload.name,
-        type: payload.type,
-        description: payload.description ?? null,
-        status: payload.status ?? 'draft',
-        model_id: payload.model_id ?? null,
-        duration: payload.duration,
-        speed: payload.speed ?? 1,
-        scenario_config: payload.scenario_config ?? null,
-        created_at: new Date().toISOString(),
-      },
-    }),
+  const res = await http.post<ApiResponse<BackendScenarioItem>>(
+    `${SIM_V1_BASE}/scenarios`,
+    payload,
   )
+  const body = unwrap(res)
+  if (!body?.data) throw new Error('创建场景失败')
+  return { ...body, data: mapBackendScenario(body.data) }
 }
 
 /** 更新仿真场景 */
@@ -210,23 +197,12 @@ export async function updateSimulationScenario(
   )
 }
 
-/** 删除仿真场景 */
+/** 删除仿真场景（不走 Mock 降级，避免假成功） */
 export async function deleteSimulationScenario(id: number): Promise<ApiResponse<null>> {
-  return withMockFallback(
-    async () => {
-      const res = await http.delete<ApiResponse<null>>(`${SIM_V1_BASE}/scenarios/${id}`)
-      const body = unwrap(res)
-      if (!body) throw new Error('delete scenario failed')
-      return body
-    },
-    async () => ({
-      code: 0,
-      msg: 'ok',
-      success: true,
-      trace_id: 'mock-delete-scenario',
-      data: null,
-    }),
-  )
+  const res = await http.delete<ApiResponse<null>>(`${SIM_V1_BASE}/scenarios/${id}`)
+  const body = unwrap(res)
+  if (!body) throw new Error('删除场景失败')
+  return body
 }
 
 /** 9.2 启动仿真 */

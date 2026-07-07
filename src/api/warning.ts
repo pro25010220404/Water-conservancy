@@ -182,16 +182,9 @@ async function getAlarmStatsFromApi(): Promise<ApiResponse<AlarmStatsResult>> {
   }
 }
 
-/** 轮询告警推送（WebSocket 未就绪时轮询；后端未实现则回退 mock） */
+/** 轮询告警推送（WebSocket 未就绪时的兜底；后端 Apifox 无 poll 路径，避免反复 404） */
 export async function pollAlarmPush(): Promise<ApiResponse<AlarmPushMessage | null>> {
-  try {
-    const res = await http.get<ApiResponse<AlarmPushMessage | null>>(`${V1_PREFIX}/alarms/poll`)
-    const body = unwrap(res)
-    if (body) return body
-    throw new Error('poll not ready')
-  } catch {
-    return mockApi.pollAlarmPush()
-  }
+  return mockApi.pollAlarmPush()
 }
 
 export async function getPhysicsGuardSummary(): Promise<ApiResponse<PhysicsGuardSummary>> {
