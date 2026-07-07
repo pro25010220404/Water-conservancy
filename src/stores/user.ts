@@ -55,7 +55,7 @@ function mapRoleCode(roleCode: string, roleName?: string): UserRole {
 
 function loadUserInfo(): UserInfo | null {
   try {
-    const raw = localStorage.getItem('userInfo')
+    const raw = sessionStorage.getItem('userInfo') || localStorage.getItem('userInfo')
     return raw ? (JSON.parse(raw) as UserInfo) : null
   } catch {
     return null
@@ -64,7 +64,7 @@ function loadUserInfo(): UserInfo | null {
 
 export const useUserStore = defineStore('user', () => {
   const userInfo = ref<UserInfo | null>(loadUserInfo())
-  const token = ref<string>(localStorage.getItem('token') || '')
+  const token = ref<string>(sessionStorage.getItem('token') || localStorage.getItem('token') || '')
 
   const isLoggedIn = computed(() => !!token.value && !!userInfo.value)
   const hasPermission = computed(
@@ -125,7 +125,10 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('token')
     localStorage.removeItem('userInfo')
     localStorage.removeItem('tokenExpireTime')
+    localStorage.removeItem('remembered_credentials')
     localStorage.removeItem('auto_login_flag')
+    sessionStorage.removeItem('token')
+    sessionStorage.removeItem('userInfo')
     sessionStorage.removeItem('force_pwd_change_needed')
     window.dispatchEvent(new StorageEvent('storage', { key: 'token', newValue: null, oldValue: 'logged-out' }))
   }
