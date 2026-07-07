@@ -407,6 +407,17 @@ const userForm = ref({ account: '', password: '', realname: '', role_id: 4, phon
 const editingUserId = ref<number | null>(null)
 const userSubmitting = ref(false)
 
+// 新增用户的表单校验规则（密码无限制，不校验）
+const userFormRules = computed(() => {
+  if (userDialogMode.value === 'create') {
+    return {
+      account: FORM_RULES.account,
+      realname: FORM_RULES.realname,
+    }
+  }
+  return { realname: FORM_RULES.realname }
+})
+
 // ── 7. 方法 ──
 
 // -- Tab1 --
@@ -645,7 +656,7 @@ function openUserDialog(mode: 'create' | 'edit', row?: SystemUser) {
     }
   } else {
     editingUserId.value = null
-    userForm.value = { account: '', password: '123456', realname: '', role_id: 4, phone: '' }
+    userForm.value = { account: '', password: '12345678', realname: '', role_id: 4, phone: '' }
   }
   userDialogVisible.value = true
 }
@@ -654,10 +665,6 @@ async function submitUser() {
   userSubmitting.value = true
   try {
     if (userDialogMode.value === 'create') {
-      if (!userForm.value.password || userForm.value.password.length < 6) {
-        ElMessage.warning('密码至少6位')
-        return
-      }
       await createUser(userForm.value)
       recordLog('系统设置', '创建用户', `创建了新用户「${userForm.value.realname}」`, 1)
       ElMessage.success('用户创建成功')
@@ -1259,24 +1266,16 @@ onMounted(() => {
         <ElForm
           :model="userForm"
           label-width="80px"
-          :rules="
-            userDialogMode === 'create'
-              ? {
-                  account: FORM_RULES.account,
-                  password: FORM_RULES.password,
-                  realname: FORM_RULES.realname,
-                }
-              : { realname: FORM_RULES.realname }
-          "
+          :rules="userFormRules"
         >
           <ElFormItem v-if="userDialogMode === 'create'" label="用户名" prop="account">
             <ElInput v-model="userForm.account" placeholder="≥3位字母数字下划线" />
           </ElFormItem>
-          <ElFormItem v-if="userDialogMode === 'create'" label="密码" prop="password">
+          <ElFormItem v-if="userDialogMode === 'create'" label="密码">
             <ElInput
               v-model="userForm.password"
               type="password"
-              placeholder="≥8位含字母数字"
+              placeholder="请输入密码（选填）"
               show-password
             />
           </ElFormItem>

@@ -2,15 +2,16 @@
 // ============================================================
 // 登录页
 // ============================================================
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElInput, ElButton, ElCheckbox, ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
-import { APP_TITLE } from '@/constants'
+import { APP_TITLE, DEFAULT_PASSWORD, FORCE_PWD_CHANGE_KEY } from '@/constants'
 import { useUserStore } from '@/stores/user'
 import { useLoginScene } from '@/composables/useLoginScene'
 import { useAccountLockout } from '@/composables/useAccountLockout'
 import AccountLockDialog from '@/components/login/AccountLockDialog.vue'
+import ForcePasswordChangeDialog from '@/components/login/ForcePasswordChangeDialog.vue'
 import { clearLocalFailCount } from '@/utils/loginError'
 import logoUrl from '@/assets/images/logo.png'
 
@@ -41,6 +42,24 @@ const { webglSupported } = useLoginScene(sceneContainer)
 
 const greeting = '欢迎回来'
 
+// ── 强制改密 ──
+const showForcePwdDialog = ref(false)
+
+onMounted(() => {
+  // 如果已登录但标记还在（比如中途刷新），直接弹窗
+  if (
+    userStore.isLoggedIn &&
+    sessionStorage.getItem(FORCE_PWD_CHANGE_KEY) === 'true'
+  ) {
+    showForcePwdDialog.value = true
+  }
+})
+
+function onForcePwdSuccess() {
+  showForcePwdDialog.value = false
+  router.push((route.query.redirect as string) || '/dashboard/overview')
+}
+
 async function handleLogin() {
   if (formDisabled.value) return
   if (!username.value || !password.value) {
@@ -57,6 +76,14 @@ async function handleLogin() {
     })
     clearLocalFailCount(username.value)
     ElMessage.success('登录成功')
+
+    // 默认密码 → 强制改密
+    if (password.value === DEFAULT_PASSWORD) {
+      sessionStorage.setItem(FORCE_PWD_CHANGE_KEY, 'true')
+      showForcePwdDialog.value = true
+      return
+    }
+
     router.push((route.query.redirect as string) || '/dashboard/overview')
   } catch (err) {
     handleLoginError(err, username.value)
@@ -168,6 +195,12 @@ class="login-form__checkbox"
       :countdown-text="countdownText"
       :released="lockReleased"
       @retry="onLockRetry"
+    />
+
+    <ForcePasswordChangeDialog
+      v-model:visible="showForcePwdDialog"
+      :released="false"
+      @success="onForcePwdSuccess"
     />
   </div>
 </template>
