@@ -408,7 +408,7 @@ function onUserKeywordInput() {
 }
 const userDialogVisible = ref(false)
 const userDialogMode = ref<'create' | 'edit'>('create')
-const userForm = ref({ account: '', password: '', realname: '', role_id: 4, phone: '' })
+const userForm = ref({ account: '', password: '', realname: '', role_id: 4 })
 const editingUserId = ref<number | null>(null)
 const userSubmitting = ref(false)
 
@@ -667,11 +667,10 @@ function openUserDialog(mode: 'create' | 'edit', row?: SystemUser) {
       password: '',
       realname: row.realname,
       role_id: row.role_id,
-      phone: row.phone || '',
     }
   } else {
     editingUserId.value = null
-    userForm.value = { account: '', password: '12345678', realname: '', role_id: 4, phone: '' }
+    userForm.value = { account: '', password: '12345678', realname: '', role_id: 4 }
   }
   userDialogVisible.value = true
 }
@@ -1322,9 +1321,6 @@ onMounted(() => {
                 :value="r.value"
               />
             </ElSelect>
-          </ElFormItem>
-          <ElFormItem label="手机号">
-            <ElInput v-model="userForm.phone" placeholder="11位手机号" maxlength="11" />
           </ElFormItem>
         </ElForm>
         <template #footer>
