@@ -582,35 +582,49 @@ async function handleRollbackModel(id: number) {
   }
 }
 
+const deployingId = ref<number | null>(null)
+
 async function handleDeployModel(id: number) {
+  // 弹窗输入节点 ID
+  let ids: { value: string }
   try {
-    const ids = await ElMessageBox.prompt(
+    ids = await ElMessageBox.prompt(
       '请输入目标边缘节点 ID（逗号分隔，可用节点：1~8）',
       '下发模型',
       { confirmButtonText: '下发' },
     )
-    const nodeIds = ids.value
-      .split(',')
-      .map((s: string) => Number(s.trim()))
-      .filter(Boolean)
-    if (nodeIds.length === 0) {
-      ElMessage.warning('请至少输入一个节点 ID')
-      return
-    }
-    // 校验节点 ID 范围 1~8
-    const invalidIds = nodeIds.filter((n) => n < 1 || n > 8)
-    if (invalidIds.length > 0) {
-      ElMessage.warning(
-        `边缘节点 ID ${invalidIds.join('、')} 不存在，当前可用节点ID：1~8`,
-      )
-      return
-    }
+  } catch {
+    return // 用户取消
+  }
+
+  const nodeIds = ids.value
+    .split(',')
+    .map((s: string) => Number(s.trim()))
+    .filter(Boolean)
+  if (nodeIds.length === 0) {
+    ElMessage.warning('请至少输入一个节点 ID')
+    return
+  }
+  const invalidIds = nodeIds.filter((n) => n < 1 || n > 8)
+  if (invalidIds.length > 0) {
+    ElMessage.warning(`边缘节点 ID ${invalidIds.join('、')} 不存在，当前可用节点ID：1~8`)
+    return
+  }
+
+  // 调用 API
+  deployingId.value = id
+  try {
     await deployModel(id, { edge_node_ids: nodeIds })
     recordLog('系统设置', '下发模型', `下发模型 ID:${id} 至 ${nodeIds.length} 个边缘节点`, 1)
-    ElMessage.success('模型已开始下发')
+    ElMessage.success(`模型已成功下发至 ${nodeIds.length} 个边缘节点`)
     fetchModels()
-  } catch {
-    /* 取消 */
+  } catch (err: unknown) {
+    const msg = err && typeof err === 'object' && 'message' in err
+      ? (err as { message: string }).message
+      : '下发失败，请稍后重试'
+    ElMessage.error(msg)
+  } finally {
+    deployingId.value = null
   }
 }
 
@@ -1137,7 +1151,12 @@ onMounted(() => {
             >
               回滚
             </ElButton>
-            <ElButton type="primary" link @click="handleDeployModel((scope.row as ModelInfo).id)">
+            <ElButton
+              type="primary"
+              link
+              :loading="deployingId === (scope.row as ModelInfo).id"
+              @click="handleDeployModel((scope.row as ModelInfo).id)"
+            >
               下发
             </ElButton>
             <ElButton

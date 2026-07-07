@@ -40,7 +40,8 @@ watch(
 /** 上传前校验 */
 function beforeUpload(file: UploadRawFile) {
   if (file.size > AVATAR_MAX_SIZE) {
-    ElMessage.warning(`头像大小不能超过 ${AVATAR_MAX_SIZE / 1024 / 1024}MB`)
+    const sizeMB = (file.size / 1024 / 1024).toFixed(1)
+    ElMessage.warning(`文件大小 ${sizeMB}MB 超出限制，头像不能超过 2MB`)
     return false
   }
   const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
@@ -69,7 +70,8 @@ async function customUpload(options: UploadRequestOptions) {
 
   // 冗余校验：防御 beforeUpload 被绕过的情况
   if (file.size > AVATAR_MAX_SIZE) {
-    ElMessage.warning(`头像大小不能超过 ${AVATAR_MAX_SIZE / 1024 / 1024}MB`)
+    const sizeMB = (file.size / 1024 / 1024).toFixed(1)
+    ElMessage.warning(`文件大小 ${sizeMB}MB 超出限制，头像不能超过 2MB`)
     options.onError(new Error('文件过大'))
     return
   }
