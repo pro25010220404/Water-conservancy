@@ -1,4 +1,8 @@
-// GateAI 调度模块 — AI 健康度走真实 API，物理防护/闸门互锁纯 Mock
+// GateAI 调度模块 — 真实 API + Mock 降级（VITE_GATEAI_MOCK_FALLBACK 控制）
+// 开发环境默认开启：后端 401/404 时自动用本地 Mock，避免设置页白屏
+export const GATEAI_MOCK_FALLBACK =
+  import.meta.env.VITE_GATEAI_MOCK_FALLBACK === 'true' ||
+  (import.meta.env.VITE_GATEAI_MOCK_FALLBACK !== 'false' && import.meta.env.DEV)
 
 import type {
   ModelMetricLatest,
@@ -6,27 +10,44 @@ import type {
   ModelMetricDetailRow,
   PhysicsGuardConfig,
   GateInterlockRule,
+  GateInterlockLog,
+  GateInterlockLogApiItem,
   ModelHealthOverviewItem,
   ModelVersionOption,
   AIHealthOverviewResponse,
 } from '@/types/gateai'
 
 import { RESERVOIR_OPTIONS } from '@/constants/settings'
+
 import { gateaiSharedStore } from './gateaiSharedStore'
 
-// AI 健康度 + 物理防护保存 + 互锁日志 — 真实 API
+// ── 真实 API 导入 ──
 import {
+  getPhysicsGuard,
+  updatePhysicsGuard,
+  getPhysicsGuardHistory,
+  rollbackPhysicsGuard as rollbackPhysicsGuardApi,
+  clonePhysicsGuard as clonePhysicsGuardApi,
   getAIMetrics,
   getAIMetricsHistory,
   getAIMetricsDetail,
   getAIHealthOverview,
   getAIVersionCompare,
-  updatePhysicsGuard,
+  getInterlockRules,
+  updateInterlockRule as updateInterlockRuleApi,
+  toggleInterlockRule as toggleInterlockRuleApi,
   getInterlockLogs,
+  getInterlockStats,
   type AIMetricsHistoryItem,
 } from './settings'
-import { toGateInterlockLog, type ApiInterlockLog } from './interlockAdapter'
-import type { GateInterlockLog } from '@/types/gateai'
+import http from './request'
+import {
+  normalizeInterlockRules,
+  normalizeInterlockStats,
+  interlockStatsCountMap,
+  toGateInterlockRule,
+  toInterlockUpdatePayload,
+} from './interlockAdapter'
 
 const METRICS: Record<number, ModelMetricLatest> = {
   1: {
@@ -174,14 +195,6 @@ function delay<T>(data: T, ms = 150): Promise<T> {
   return new Promise((r) => setTimeout(() => r(data), ms))
 }
 
-export function fetchReservoirOptions(): Promise<{ id: number; name: string }[]> {
-  return fetchModelHealthOverview().then((list) =>
-    list.length > 0
-      ? list.map((r) => ({ id: r.reservoir_id, name: r.reservoir_name }))
-      : gateaiSharedStore.getReservoirs(),
-  )
-}
-
 type AIMetricsLatestRaw = {
   overall_score?: number
   health_grade?: string
@@ -193,14 +206,6 @@ type AIMetricsLatestRaw = {
   compliance_score?: number
   metric_time?: string
   decision_level_dist?: Partial<Record<'L1' | 'L2' | 'L3' | 'OVERRIDE', number>>
-}
-
-function reservoirNameById(id: number): string {
-  return (
-    RESERVOIR_OPTIONS.find((r) => r.value === id)?.label
-    ?? gateaiSharedStore.getReservoirs().find((r) => r.id === id)?.name
-    ?? `水库 #${id}`
-  )
 }
 
 function normalizeModelMetricsLatest(raw: AIMetricsLatestRaw): ModelMetricLatest {
@@ -218,17 +223,107 @@ function normalizeModelMetricsLatest(raw: AIMetricsLatestRaw): ModelMetricLatest
   }
 }
 
-function normalizeHistoryPoint(raw: AIMetricsHistoryItem | ModelMetricHistoryPoint): ModelMetricHistoryPoint {
-  const item = raw as AIMetricsHistoryItem & ModelMetricHistoryPoint
+function normalizeDetailRow(raw: Record<string, unknown>): ModelMetricDetailRow {
   return {
-    time: item.metric_time ?? item.time ?? '',
-    prediction_score: item.prediction_score,
-    decision_score: item.decision_score,
-    compliance_score: item.compliance_score,
-    overall_score: item.overall_score,
-    health_grade: (item.health_grade as ModelMetricHistoryPoint['health_grade']) ?? undefined,
-    grade_event: item.grade_event,
+    metric_time: String(raw.metric_time ?? raw.time ?? ''),
+    water_level_mae_24h: Number(raw.water_level_mae_24h ?? raw.water_level_mae ?? 0),
+    safety_override_rate: Number(raw.safety_override_rate ?? 0),
+    physics_correction_rate: Number(raw.physics_correction_rate ?? 0),
+    gate_limit_touch_rate: Number(raw.gate_limit_touch_rate ?? 0),
+    overall_score: Number(raw.overall_score ?? 0),
+    health_grade: String(raw.health_grade ?? 'C') as ModelMetricDetailRow['health_grade'],
   }
+}
+
+function extractDetailList(data: unknown): ModelMetricDetailRow[] {
+  if (Array.isArray(data)) return data.map((item) => normalizeDetailRow(item as Record<string, unknown>))
+  if (data && typeof data === 'object') {
+    const obj = data as Record<string, unknown>
+    for (const key of ['list', 'items', 'records']) {
+      if (Array.isArray(obj[key])) {
+        return (obj[key] as Record<string, unknown>[]).map((item) => normalizeDetailRow(item))
+      }
+    }
+  }
+  return []
+}
+
+/** 后端未部署 /settings/ai/* 时跳过重复 404 请求 */
+const aiApiAvailability = {
+  metrics: null as boolean | null,
+  history: null as boolean | null,
+  health: null as boolean | null,
+  detail: null as boolean | null,
+}
+
+function markAiApiUnavailable(key: keyof typeof aiApiAvailability, e: unknown) {
+  if (getHttpStatus(e) === 404) {
+    aiApiAvailability[key] = false
+    if (import.meta.env.DEV) {
+      console.info(`[API] /settings/ai/${key} 尚未部署(404)，已改用 Mock/降级数据`)
+    }
+  }
+}
+
+function isAiApiDisabled(key: keyof typeof aiApiAvailability): boolean {
+  return aiApiAvailability[key] === false
+}
+
+/** @deprecated 使用 aiApiAvailability.detail */
+let metricsDetailApiAvailable: boolean | null = null
+
+function getHttpStatus(e: unknown): number | undefined {
+  if (e && typeof e === 'object' && 'response' in e) {
+    return (e as { response?: { status?: number } }).response?.status
+  }
+  return undefined
+}
+
+async function fetchDetailFromHistory(reservoirId: number, limit: number): Promise<ModelMetricDetailRow[]> {
+  if (isAiApiDisabled('history')) return []
+  try {
+    const res = await getAIMetricsHistory({ reservoir_id: reservoirId, days: 7 })
+    if (res.data?.code === 0) {
+      const list = extractHistoryList(res.data.data)
+      return list
+        .slice(-limit)
+        .reverse()
+        .map((item) => normalizeDetailRow(item as unknown as Record<string, unknown>))
+    }
+  } catch {
+    /* ignore */
+  }
+  return []
+}
+
+export async function fetchReservoirOptions(): Promise<{ id: number; name: string }[]> {
+  try {
+    const overview = await fetchModelHealthOverview()
+    if (overview.length > 0) {
+      return overview.map((r) => ({ id: r.reservoir_id, name: r.reservoir_name }))
+    }
+  } catch (e) {
+    if (!GATEAI_MOCK_FALLBACK) throw e
+  }
+  return delay(gateaiSharedStore.getReservoirs())
+}
+
+// ═══ AI 模型健康度 ═══
+export async function fetchModelMetricsLatest(reservoirId: number): Promise<ModelMetricLatest> {
+  if (isAiApiDisabled('metrics')) {
+    return delay(METRICS[reservoirId] ?? METRICS[1])
+  }
+  try {
+    const res = await getAIMetrics({ reservoir_id: reservoirId })
+    if (res.data?.code === 0 && res.data.data) {
+      aiApiAvailability.metrics = true
+      return normalizeModelMetricsLatest(res.data.data as AIMetricsLatestRaw)
+    }
+  } catch (e) {
+    markAiApiUnavailable('metrics', e)
+    if (!GATEAI_MOCK_FALLBACK) throw e
+  }
+  return delay(METRICS[reservoirId] ?? METRICS[1])
 }
 
 function extractHistoryList(data: unknown): AIMetricsHistoryItem[] {
@@ -242,16 +337,91 @@ function extractHistoryList(data: unknown): AIMetricsHistoryItem[] {
   return []
 }
 
-function normalizeDetailRow(raw: Record<string, unknown>): ModelMetricDetailRow {
+function normalizeHistoryPoint(raw: AIMetricsHistoryItem | ModelMetricHistoryPoint): ModelMetricHistoryPoint {
+  const item = raw as AIMetricsHistoryItem & ModelMetricHistoryPoint
+  const time = item.metric_time ?? item.time ?? ''
   return {
-    metric_time: String(raw.metric_time ?? raw.time ?? ''),
-    water_level_mae_24h: Number(raw.water_level_mae_24h ?? raw.water_level_mae ?? 0),
-    safety_override_rate: Number(raw.safety_override_rate ?? 0),
-    physics_correction_rate: Number(raw.physics_correction_rate ?? 0),
-    gate_limit_touch_rate: Number(raw.gate_limit_touch_rate ?? 0),
-    overall_score: Number(raw.overall_score ?? 0),
-    health_grade: String(raw.health_grade ?? 'C') as ModelMetricDetailRow['health_grade'],
+    time,
+    prediction_score: item.prediction_score,
+    decision_score: item.decision_score,
+    compliance_score: item.compliance_score,
+    overall_score: item.overall_score,
+    health_grade: (item.health_grade as ModelMetricHistoryPoint['health_grade']) ?? undefined,
+    grade_event: item.grade_event,
   }
+}
+
+export async function fetchModelMetricsHistory(
+  reservoirId: number,
+  days = 7,
+): Promise<ModelMetricHistoryPoint[]> {
+  if (isAiApiDisabled('history')) {
+    return delay(historyFor(reservoirId))
+  }
+  try {
+    const res = await getAIMetricsHistory({ reservoir_id: reservoirId, days })
+    if (res.data?.code === 0) {
+      const list = extractHistoryList(res.data.data)
+      aiApiAvailability.history = true
+      return list.map((item) => normalizeHistoryPoint(item))
+    }
+  } catch (e) {
+    markAiApiUnavailable('history', e)
+    if (!GATEAI_MOCK_FALLBACK) throw e
+  }
+  return delay(historyFor(reservoirId))
+}
+
+export async function fetchModelMetricsDetail(
+  reservoirId: number,
+  params?: { hours?: number; page?: number; page_size?: number },
+): Promise<ModelMetricDetailRow[]> {
+  const limit = params?.page_size ?? params?.hours ?? 24
+
+  if (isAiApiDisabled('detail') || metricsDetailApiAvailable === false) {
+    return fetchDetailFromHistory(reservoirId, limit)
+  }
+
+  try {
+    const res = await getAIMetricsDetail({
+      reservoir_id: reservoirId,
+      page: params?.page,
+      page_size: limit,
+    })
+    if (res.data?.code === 0 && res.data.data) {
+      const list = extractDetailList(res.data.data)
+      if (list.length > 0) {
+        aiApiAvailability.detail = true
+        metricsDetailApiAvailable = true
+        return list
+      }
+    }
+  } catch (e) {
+    if (getHttpStatus(e) === 404) {
+      aiApiAvailability.detail = false
+      metricsDetailApiAvailable = false
+      if (import.meta.env.DEV) {
+        console.info('[API] 指标明细接口尚未部署(404)，已改用历史趋势数据填充明细表')
+      }
+      return fetchDetailFromHistory(reservoirId, limit)
+    }
+    markAiApiUnavailable('detail', e)
+    if (!GATEAI_MOCK_FALLBACK) throw e
+  }
+
+  const fromHistory = await fetchDetailFromHistory(reservoirId, limit)
+  if (fromHistory.length > 0) return fromHistory
+
+  if (GATEAI_MOCK_FALLBACK) return delay(detailRows(reservoirId, limit))
+  return []
+}
+
+function reservoirNameById(id: number): string {
+  return (
+    RESERVOIR_OPTIONS.find((r) => r.value === id)?.label
+    ?? gateaiSharedStore.getReservoirs().find((r) => r.id === id)?.name
+    ?? `水库 #${id}`
+  )
 }
 
 function normalizeHealthOverview(data: unknown): ModelHealthOverviewItem[] {
@@ -276,106 +446,33 @@ function normalizeHealthOverview(data: unknown): ModelHealthOverviewItem[] {
   return []
 }
 
-/** 明细接口未部署时跳过重复 404，改用历史趋势数据 */
-let metricsDetailApiAvailable: boolean | null = false
-
-function getHttpStatus(e: unknown): number | undefined {
-  if (e && typeof e === 'object' && 'response' in e) {
-    return (e as { response?: { status?: number } }).response?.status
-  }
-  return undefined
-}
-
-async function detailFromHistory(reservoirId: number, limit: number): Promise<ModelMetricDetailRow[]> {
-  try {
-    const res = await getAIMetricsHistory({ reservoir_id: reservoirId, days: 7 })
-    if (res.data?.code === 0) {
-      return extractHistoryList(res.data.data)
-        .slice(-limit)
-        .reverse()
-        .map((item) => normalizeDetailRow(item as unknown as Record<string, unknown>))
-    }
-  } catch {
-    /* ignore */
-  }
-  return []
-}
-
-// ═══ AI 模型健康度 ═══
-export async function fetchModelMetricsLatest(reservoirId: number): Promise<ModelMetricLatest> {
-  try {
-    const res = await getAIMetrics({ reservoir_id: reservoirId })
-    if (res.data?.code === 0 && res.data.data) {
-      return normalizeModelMetricsLatest(res.data.data as AIMetricsLatestRaw)
-    }
-  } catch { /* 降级 Mock */ }
-  return delay(METRICS[reservoirId] ?? METRICS[1])
-}
-
-export async function fetchModelMetricsHistory(
-  reservoirId: number,
-  days = 7,
-): Promise<ModelMetricHistoryPoint[]> {
-  try {
-    const res = await getAIMetricsHistory({ reservoir_id: reservoirId, days })
-    if (res.data?.code === 0) {
-      const list = extractHistoryList(res.data.data)
-      if (list.length > 0) return list.map((item) => normalizeHistoryPoint(item))
-    }
-  } catch { /* 降级 Mock */ }
-  return delay(historyFor(reservoirId))
-}
-
-export async function fetchModelMetricsDetail(
-  reservoirId: number,
-  params?: { hours?: number; page?: number; page_size?: number },
-): Promise<ModelMetricDetailRow[]> {
-  const limit = params?.page_size ?? params?.hours ?? 24
-
-  if (metricsDetailApiAvailable === false) {
-    return detailFromHistory(reservoirId, limit)
-  }
-
-  try {
-    const res = await getAIMetricsDetail({
-      reservoir_id: reservoirId,
-      page: params?.page,
-      page_size: limit,
-    })
-    if (res.data?.code === 0 && res.data.data) {
-      const raw = res.data.data
-      const list = Array.isArray(raw)
-        ? raw.map((item) => normalizeDetailRow(item as unknown as Record<string, unknown>))
-        : Array.isArray((raw as { list?: unknown[] }).list)
-          ? ((raw as { list: unknown[] }).list).map((item) =>
-              normalizeDetailRow(item as Record<string, unknown>),
-            )
-          : []
-      if (list.length > 0) {
-        metricsDetailApiAvailable = true
-        return list
-      }
-    }
-  } catch (e) {
-    if (getHttpStatus(e) === 404) {
-      metricsDetailApiAvailable = false
-      return detailFromHistory(reservoirId, limit)
-    }
-  }
-
-  const fromHistory = await detailFromHistory(reservoirId, limit)
-  if (fromHistory.length > 0) return fromHistory
-  return delay(detailRows(reservoirId, limit))
-}
-
 export async function fetchModelHealthOverview(): Promise<ModelHealthOverviewItem[]> {
+  if (isAiApiDisabled('health')) {
+    const list: ModelHealthOverviewItem[] = gateaiSharedStore.getReservoirs().map((r) => {
+      const m = METRICS[r.id] ?? METRICS[1]
+      return {
+        reservoir_id: r.id,
+        reservoir_name: r.name,
+        overall_score: m.overall_score,
+        health_grade: m.health_grade,
+        metric_time: m.metric_time,
+      }
+    })
+    return delay(list)
+  }
   try {
     const res = await getAIHealthOverview()
     if (res.data?.code === 0 && res.data.data) {
       const list = normalizeHealthOverview(res.data.data)
-      if (list.length > 0) return list
+      if (list.length > 0) {
+        aiApiAvailability.health = true
+        return list
+      }
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) {
+    markAiApiUnavailable('health', e)
+    if (!GATEAI_MOCK_FALLBACK) throw e
+  }
   const list: ModelHealthOverviewItem[] = gateaiSharedStore.getReservoirs().map((r) => {
     const m = METRICS[r.id] ?? METRICS[1]
     return {
@@ -408,7 +505,7 @@ export async function fetchModelCompare(
       const res = await getAIVersionCompare({ reservoir_id: reservoirId, version1: currentVer, version2: previousVer })
       if (res.data?.code === 0 && res.data.data) return res.data.data as unknown as { current: { version: string; source: string; scores: Record<string, number> }; previous: { version: string; source: string; scores: Record<string, number> } }
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   const opts = VERSION_CATALOG[reservoirId] ?? VERSION_CATALOG[1]
   const cur = currentVer ?? opts[0].version
   const prev = previousVer ?? opts[1]?.version ?? opts[0].version
@@ -420,8 +517,14 @@ export async function fetchModelCompare(
   })
 }
 
-// ═══ 物理防护配置（后端不会部署，纯 Mock）═══
+// ═══ 物理防护配置 ═══
 export async function fetchPhysicsGuardConfig(reservoirId: number): Promise<PhysicsGuardConfig> {
+  try {
+    const res = await getPhysicsGuard({ reservoir_id: reservoirId })
+    if (res.data?.code === 0 && res.data.data) {
+      return res.data.data as unknown as PhysicsGuardConfig
+    }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.getPhysicsConfig(reservoirId))
 }
 
@@ -435,42 +538,88 @@ export async function savePhysicsGuardConfig(
       const res = await updatePhysicsGuard(id, config as unknown as Record<string, unknown>)
       if (res.data?.code === 0) return null
     }
-  } catch { /* 降级 Mock */ }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   gateaiSharedStore.savePhysicsConfig(config, meta)
   return delay(null)
 }
 
 export async function fetchPhysicsGuardHistory(reservoirId: number) {
+  try {
+    const res = await getPhysicsGuardHistory({ reservoir_id: reservoirId })
+    if (res.data?.code === 0 && Array.isArray(res.data.data)) {
+      // 后端 ConfigHistoryItem → gateai PhysicsGuardHistoryItem，字段有差异用类型断言
+      return res.data.data as unknown as ReturnType<typeof gateaiSharedStore.getPhysicsHistory> extends Promise<infer T> ? T : never
+    }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.getPhysicsHistory(reservoirId))
 }
 
 export async function fetchPhysicsGuardHistoryVersions(reservoirId: number) {
+  // 后端未提供独立的版本列表接口，复用 history 接口
   return fetchPhysicsGuardHistory(reservoirId)
 }
 
 export async function rollbackPhysicsGuard(reservoirId: number, historyId: number) {
+  try {
+    const res = await rollbackPhysicsGuardApi(historyId)
+    if (res.data?.code === 0) return { new_version: (res.data.data as Record<string, unknown>)?.new_version ?? '' }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.rollbackPhysics(reservoirId, historyId))
 }
 
 export async function clonePhysicsGuardConfig(fromId: number, toId: number, _version?: string) {
+  try {
+    const res = await clonePhysicsGuardApi({ source_reservoir_id: fromId, target_reservoir_id: toId })
+    if (res.data?.code === 0 && res.data.data) {
+      return res.data.data as unknown as PhysicsGuardConfig
+    }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.clonePhysics(fromId, toId))
 }
 
-// ═══ 闸门互锁（后端不会部署，纯 Mock）═══
+// ═══ 闸门互锁 ═══
 export async function fetchInterlockRules(reservoirId: number): Promise<GateInterlockRule[]> {
+  try {
+    const [rulesRes, statsRes] = await Promise.all([
+      getInterlockRules({ reservoir_id: reservoirId }),
+      getInterlockStats({ reservoir_id: reservoirId, days: 7 }),
+    ])
+    if (rulesRes.data?.code === 0 && rulesRes.data.data) {
+      const statsMap = statsRes.data?.code === 0 && statsRes.data.data
+        ? interlockStatsCountMap(normalizeInterlockStats(statsRes.data.data))
+        : new Map<number, number>()
+      return normalizeInterlockRules(rulesRes.data.data).map((raw) => {
+        const rule = toGateInterlockRule(raw)
+        rule.trigger_count_7d = statsMap.get(rule.id) ?? 0
+        return rule
+      })
+    }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.getInterlockRules(reservoirId))
 }
 
-export async function toggleInterlockRule(ruleId: number, enabled: boolean): Promise<null> {
+export async function toggleInterlockRule(ruleId: number, enabled: boolean): Promise<boolean> {
+  try {
+    const res = await toggleInterlockRuleApi(ruleId, enabled)
+    if (res.data?.code === 0) {
+      return res.data.data?.enabled ?? enabled
+    }
+    throw new Error('toggle failed')
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   gateaiSharedStore.toggleInterlockRule(ruleId, enabled)
-  return delay(null)
+  return delay(enabled)
 }
 
 export async function updateInterlockRule(ruleId: number, patch: Partial<GateInterlockRule>) {
+  try {
+    const res = await updateInterlockRuleApi(ruleId, toInterlockUpdatePayload(patch))
+    if (res.data?.code === 0) return res.data
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.updateInterlockRule(ruleId, patch))
 }
 
 export function createInterlockRule(data: Omit<GateInterlockRule, 'id' | 'trigger_count_7d'>) {
+  // 后端暂无独立的创建接口，使用 POST /v1/settings/gate-interlock/rules（如存在）
   return delay(gateaiSharedStore.createInterlockRule(data))
 }
 
@@ -479,32 +628,82 @@ export function reorderInterlockRules(orderedIds: number[]) {
   return delay(null)
 }
 
+function parseOpening(value: string | number | undefined): number {
+  const n = Number(value)
+  if (Number.isNaN(n)) return 0
+  return n <= 1 ? +(n * 100).toFixed(1) : +n.toFixed(1)
+}
+
+function parseLevel(value: string | number | undefined): number {
+  const n = Number(value)
+  return Number.isNaN(n) ? 0 : +n.toFixed(2)
+}
+
+function toDateParam(value: string): string {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : value.slice(0, 10)
+}
+
+function normalizeInterlockLog(raw: GateInterlockLogApiItem): GateInterlockLog {
+  const openingsBefore = [
+    parseOpening(raw.gate1_opening_before),
+    parseOpening(raw.gate2_opening_before),
+    parseOpening(raw.gate3_opening_before),
+  ]
+  const openingsAfter = [
+    parseOpening(raw.gate1_opening_after),
+    parseOpening(raw.gate2_opening_after),
+    parseOpening(raw.gate3_opening_after),
+  ]
+  const changedGates = openingsBefore
+    .map((before, index) => (before !== openingsAfter[index] ? index : -1))
+    .filter((index) => index >= 0)
+
+  const ruleName = raw.rule?.rule_name ?? raw.action_detail?.triggered_rule ?? '互锁规则'
+  const ruleCode = raw.rule?.rule_code ?? raw.action_detail?.triggered_rule
+
+  return {
+    id: raw.id,
+    trigger_time: raw.trigger_time,
+    reservoir_id: raw.reservoir_id,
+    reservoir_name: reservoirNameById(raw.reservoir_id),
+    rule_name: ruleName,
+    rule_code: ruleCode,
+    decision_id: raw.decision_id,
+    upstream_level: parseLevel(raw.upstream_level),
+    downstream_level: parseLevel(raw.downstream_level),
+    inflow_rate: parseLevel(raw.inflow_rate),
+    openings_before: openingsBefore,
+    openings_after: openingsAfter,
+    changed_gates: changedGates,
+    reason: raw.action_detail?.reason ?? ruleName,
+  }
+}
+
 export async function fetchInterlockLogs(params?: {
   reservoirId?: number
   ruleCodes?: string[]
   startTime?: string
   endTime?: string
+  page?: number
   pageSize?: number
 }): Promise<GateInterlockLog[]> {
   try {
     const res = await getInterlockLogs({
       reservoir_id: params?.reservoirId ?? 1,
-      page: 1,
-      page_size: params?.pageSize ?? 100,
-      start_time: params?.startTime,
-      end_time: params?.endTime,
+      page: params?.page ?? 1,
+      page_size: params?.pageSize ?? 50,
+      start_time: params?.startTime ? toDateParam(params.startTime) : undefined,
+      end_time: params?.endTime ? toDateParam(params.endTime) : undefined,
     })
     if (res.data?.code === 0 && res.data.data) {
-      const raw = res.data.data
-      const list: ApiInterlockLog[] = Array.isArray(raw)
-        ? (raw as ApiInterlockLog[])
-        : Array.isArray((raw as { list?: unknown[] }).list)
-          ? ((raw as { list: ApiInterlockLog[] }).list)
-          : []
-      return list.map(toGateInterlockLog)
+      let list = (res.data.data.list ?? []).map(normalizeInterlockLog)
+      if (params?.ruleCodes?.length) {
+        list = list.filter((item) => params.ruleCodes!.includes(item.rule_code ?? ''))
+      }
+      return list
     }
-  } catch {
-    /* 降级 Mock */
+  } catch (e) {
+    if (!GATEAI_MOCK_FALLBACK) throw e
   }
   return delay(gateaiSharedStore.getInterlockLogs(params))
 }
@@ -512,6 +711,27 @@ export async function fetchInterlockLogs(params?: {
 export async function fetchInterlockStats(
   reservoirId: number,
 ): Promise<{ enabled_count: number; trigger_24h: number; trigger_7d: number }> {
+  try {
+    const [statsRes, rulesRes] = await Promise.all([
+      getInterlockStats({ reservoir_id: reservoirId, days: 7 }),
+      getInterlockRules({ reservoir_id: reservoirId }),
+    ])
+    if (statsRes.data?.code === 0 && Array.isArray(statsRes.data.data)) {
+      const stats = normalizeInterlockStats(statsRes.data.data)
+      const rules = rulesRes.data?.code === 0 && rulesRes.data.data
+        ? normalizeInterlockRules(rulesRes.data.data)
+        : []
+      return {
+        enabled_count: rules.filter((r) => r.enabled).length,
+        trigger_24h: stats.filter((s) => {
+          if (!s.last_triggered) return false
+          const t = new Date(s.last_triggered).getTime()
+          return !isNaN(t) && Date.now() - t < 86400000
+        }).reduce((sum, s) => sum + s.trigger_count, 0),
+        trigger_7d: stats.reduce((sum, s) => sum + (s.trigger_count || 0), 0),
+      }
+    }
+  } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.getInterlockStats(reservoirId))
 }
 
@@ -520,13 +740,57 @@ export async function fetchInterlockDashboardSummary(reservoirId: number): Promi
   trigger_24h: number
   recent_rule: { name: string; time: string } | null
 }> {
+  try {
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19)
+    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().replace('T', ' ').slice(0, 19)
+    const [statsRes, logsRes] = await Promise.allSettled([
+      getInterlockStats({ reservoir_id: reservoirId, days: 7 }),
+      getInterlockLogs({
+        reservoir_id: reservoirId,
+        page: 1,
+        page_size: 1,
+        start_time: weekAgo.slice(0, 10),
+        end_time: now.slice(0, 10),
+      }),
+    ])
+
+    let trigger_24h = 0
+    if (statsRes.status === 'fulfilled' && statsRes.value.data?.code === 0 && Array.isArray(statsRes.value.data.data)) {
+      const stats = normalizeInterlockStats(statsRes.value.data.data)
+      trigger_24h = stats.filter((s) => {
+        if (!s.last_triggered) return false
+        const t = new Date(s.last_triggered).getTime()
+        return !isNaN(t) && Date.now() - t < 86400000
+      }).reduce((sum, s) => sum + s.trigger_count, 0)
+    }
+
+    let recent_rule: { name: string; time: string } | null = null
+    if (logsRes.status === 'fulfilled' && logsRes.value.data?.code === 0 && logsRes.value.data.data) {
+      const list = (logsRes.value.data.data.list ?? []).map(normalizeInterlockLog)
+      if (list.length > 0) {
+        recent_rule = {
+          name: list[0].rule_name,
+          time: list[0].trigger_time,
+        }
+      }
+    }
+
+    return { trigger_24h, recent_rule }
+  } catch (e) {
+    if (!GATEAI_MOCK_FALLBACK) throw e
+  }
+
   const stats = gateaiSharedStore.getInterlockStats(reservoirId)
   const logs = gateaiSharedStore.getInterlockLogs({ reservoirId })
   return {
     trigger_24h: stats.trigger_24h ?? 0,
-    recent_rule: logs?.length > 0
-      ? { name: logs[0].rule_name ?? '—', time: logs[0].trigger_time ?? new Date().toISOString() }
-      : null,
+    recent_rule:
+      logs && logs.length > 0
+        ? {
+            name: logs[0].rule_name ?? '—',
+            time: logs[0].trigger_time ?? new Date().toISOString(),
+          }
+        : null,
   }
 }
 

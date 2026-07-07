@@ -1071,9 +1071,14 @@ onUnmounted(() => {
     </ElDialog>
 
     <!-- 物理防护配置变更历史（当前水库快捷查看） -->
-    <ElDialog v-model="historyVisible" title="物理防护配置变更历史" width="860px">
+    <ElDialog
+      v-model="historyVisible"
+      title="物理防护配置变更历史"
+      width="900px"
+      class="dispatch-history-dialog"
+    >
       <p class="history-dialog-hint">当前水库的配置版本记录，可在此查看详情或回滚。</p>
-      <ElTable :data="physicsHistory" border stripe size="small">
+      <ElTable :data="physicsHistory" border stripe>
         <ElTableColumn prop="config_version" label="版本号" width="96" />
         <ElTableColumn prop="changed_at" label="变更时间" width="168">
           <template #default="{ row }">{{ formatTime(row.changed_at) }}</template>
@@ -1082,7 +1087,7 @@ onUnmounted(() => {
         <ElTableColumn prop="description" label="变更说明" min-width="200" show-overflow-tooltip />
         <ElTableColumn label="状态" width="88" align="center">
           <template #default="{ row }">
-            <ElTag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '生效中' : '历史' }}</ElTag>
+            <ElTag :type="row.is_active ? 'success' : 'info'">{{ row.is_active ? '生效中' : '历史' }}</ElTag>
           </template>
         </ElTableColumn>
         <ElTableColumn label="操作" width="140" align="center" fixed="right">
@@ -1100,15 +1105,20 @@ onUnmounted(() => {
       </template>
     </ElDialog>
 
-    <ElDialog v-model="historyDetailVisible" title="配置变更详情" width="520px">
+    <ElDialog
+      v-model="historyDetailVisible"
+      title="配置变更详情"
+      width="600px"
+      class="dispatch-history-dialog"
+    >
       <template v-if="historyDetailRow">
         <p class="history-detail-meta">
           <strong>v{{ historyDetailRow.config_version }}</strong>
           · {{ historyDetailRow.changed_by_name }}
           · {{ formatTime(historyDetailRow.changed_at) }}
         </p>
-        <p>{{ historyDetailRow.description }}</p>
-        <ElTable :data="historyDetailRow.changes" border size="small" style="margin-top:12px">
+        <p class="history-detail-desc">{{ historyDetailRow.description }}</p>
+        <ElTable :data="historyDetailRow.changes" border style="margin-top: 12px">
           <ElTableColumn prop="label" label="字段" width="120" />
           <ElTableColumn prop="before" label="变更前" width="100" />
           <ElTableColumn prop="after" label="变更后" width="100" />
@@ -1261,11 +1271,12 @@ onUnmounted(() => {
   @media (max-width: 900px) { .physics-sync { margin-left: 0; width: 100%; } }
 }
 .panel-physics-guard { flex-shrink: 0; }
-.history-detail-meta { margin: 0 0 8px; font-size: 15px; color: #334155; }
-.history-dialog-hint { margin: 0 0 12px; font-size: 13px; color: #64748b; }
+.history-detail-meta { margin: 0 0 10px; font-size: 16px; color: #334155; }
+.history-detail-desc { margin: 0; font-size: 15px; line-height: 1.6; color: #475569; }
+.history-dialog-hint { margin: 0 0 14px; font-size: 15px; color: #64748b; line-height: 1.5; }
 .history-dialog-footer {
   display: flex; align-items: center; justify-content: flex-end; gap: 8px; width: 100%;
-  .history-dialog-footer-hint { font-size: 13px; color: #94a3b8; }
+  .history-dialog-footer-hint { font-size: 14px; color: #94a3b8; }
 }
 .record-head {
   color: $cockpit-accent; font-weight: 600; font-size: 15px;
@@ -1350,6 +1361,18 @@ onUnmounted(() => {
   }
   :deep(.detail-table td.el-table__cell) { padding: 14px 0; font-size: 16px; color: #1e293b; }
   :deep(.el-progress__text) { font-size: 16px !important; font-weight: 600; }
+}
+
+.dispatch-history-dialog {
+  :deep(.el-dialog__title) { font-size: 18px; font-weight: 600; }
+  :deep(.el-dialog__body) { font-size: 16px; line-height: 1.6; }
+  :deep(.el-table) { font-size: 15px; }
+  :deep(.el-table th.el-table__cell) {
+    font-size: 15px; font-weight: 600; padding: 14px 0; background: #f8fafc;
+  }
+  :deep(.el-table td.el-table__cell) { padding: 12px 0; font-size: 15px; }
+  :deep(.el-button.is-link) { font-size: 15px; }
+  :deep(.el-tag) { font-size: 14px; }
 }
 
 :deep(.row-rec) { background: #f0fdf4 !important; }

@@ -5,6 +5,10 @@ import vue from '@vitejs/plugin-vue'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const apiProxyTarget =
+    env.VITE_DEV_PROXY_TARGET ||
+    env.VITE_DEV_API_PROXY ||
+    'http://v85b4755.natappfree.cc'
 
   return {
     plugins: [vue()],
@@ -16,8 +20,16 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api': {
-          target: env.VITE_DEV_API_PROXY || env.VITE_DEV_PROXY_TARGET || 'http://v85b4755.natappfree.cc',
+          target: apiProxyTarget,
           changeOrigin: true,
+          secure: false,
+          ws: true,
+        },
+        '/ws': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+          secure: false,
+          ws: true,
         },
       },
     },

@@ -98,7 +98,8 @@ export function deleteModel(id: number) {
 }
 
 export function deployModel(id: number, data: ModelDeployParams) {
-  return http.post<ApiResponse<null>>(`${V1}/settings/models/${id}/deploy`, data)
+  // Apifox: POST /api/settings/models/{id}/deploy（无 v1 前缀）
+  return http.post<ApiResponse<null>>(`/settings/models/${id}/deploy`, data)
 }
 
 export function getModelDetail(id: number) {
@@ -156,26 +157,28 @@ export function getAIVersionCompare(params: {
 }
 
 // ════════════════════════════════════════════════════════════
-// Tab5: 物理防护配置 §12 物理配置接口
+// Tab5: 物理防护配置（Apifox §12.5–12.9 → /api/v1/admin/physics-guard）
 // ════════════════════════════════════════════════════════════
 
+const ADMIN_PHYSICS_GUARD = '/v1/admin/physics-guard'
+
 export function getPhysicsGuard(params: { reservoir_id: number }) {
-  return http.get<ApiResponse<PhysicsGuardConfig>>(`${V1}/settings/physics-guard`, { params })
+  return http.get<ApiResponse<PhysicsGuardConfig>>(ADMIN_PHYSICS_GUARD, { params })
 }
 
 export function updatePhysicsGuard(id: number, data: Partial<PhysicsGuardConfig>) {
-  return http.put<ApiResponse<{ new_version: string }>>(`${V1}/settings/physics-guard/${id}`, data)
+  return http.put<ApiResponse<{ new_version: string }>>(`${ADMIN_PHYSICS_GUARD}/${id}`, data)
 }
 
 export function getPhysicsGuardHistory(params: { reservoir_id: number }) {
-  return http.get<ApiResponse<ConfigHistoryItem[]>>(`${V1}/settings/physics-guard/history`, {
+  return http.get<ApiResponse<ConfigHistoryItem[]>>(`${ADMIN_PHYSICS_GUARD}/history`, {
     params,
   })
 }
 
 export function rollbackPhysicsGuard(id: number) {
   return http.post<ApiResponse<{ new_version: string }>>(
-    `${V1}/settings/physics-guard/${id}/rollback`,
+    `${ADMIN_PHYSICS_GUARD}/${id}/rollback`,
   )
 }
 
@@ -183,7 +186,10 @@ export function clonePhysicsGuard(data: {
   source_reservoir_id: number
   target_reservoir_id: number
 }) {
-  return http.post<ApiResponse<PhysicsGuardConfig>>(`${V1}/settings/physics-guard/clone`, data)
+  return http.post<ApiResponse<PhysicsGuardConfig>>(`${ADMIN_PHYSICS_GUARD}/clone`, {
+    from_reservoir_id: data.source_reservoir_id,
+    to_reservoir_id: data.target_reservoir_id,
+  })
 }
 
 // ════════════════════════════════════════════════════════════

@@ -6,7 +6,7 @@ import {
   ElDialog, ElForm, ElFormItem, ElMessage, ElMessageBox, ElDescriptions, ElDescriptionsItem,
   ElDatePicker, ElTooltip,
 } from 'element-plus'
-import { Search, Refresh, VideoPlay, VideoPause } from '@element-plus/icons-vue'
+import { Search, Refresh } from '@element-plus/icons-vue'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import { DEBOUNCE_DELAY, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '@/constants'
 import { buildSettingsPath } from '@/constants/settings'
@@ -22,7 +22,7 @@ import { getAlarmList, getAlarmDetail, confirmAlarm, handleAlarm, getAlarmExceed
 import { useAlarmNotify, pendingAlarmCount } from '@/composables/useAlarmNotify'
 import { useWebSocket } from '@/composables/useWebSocket'
 
-const { soundEnabled, toggleSound, handlePushMessage } = useAlarmNotify()
+const { handlePushMessage } = useAlarmNotify()
 const router = useRouter()
 
 const filter = reactive<AlarmFilterParams>({
@@ -215,7 +215,6 @@ onUnmounted(() => {
         <div class="filter-actions">
           <ElButton type="primary" :icon="Search" @click="handleFilterChange">查询</ElButton>
           <ElButton :icon="Refresh" @click="handleReset">重置</ElButton>
-          <ElButton :icon="soundEnabled ? VideoPlay : VideoPause" circle title="告警声音提示" @click="toggleSound" />
           <span class="pending-badge">待处理 <strong>{{ pendingAlarmCount }}</strong></span>
         </div>
       </div>
