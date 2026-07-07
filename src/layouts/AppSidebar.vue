@@ -124,6 +124,24 @@ v-else :index="item.path"
     border-left: none;
     box-shadow: inset 0 0 24px rgba(110, 179, 255, 0.12);
   }
+
+  // ── 折叠态：图标统一居中 ──
+  &.is-collapsed {
+    :deep(.el-menu-item),
+    :deep(.el-sub-menu__title) {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 !important;
+    }
+
+    :deep(.el-menu-item .el-icon),
+    :deep(.el-sub-menu__title .el-icon) {
+      margin-right: 0 !important;
+      font-size: 20px;
+      text-align: center;
+    }
+  }
 }
 </style>
 
