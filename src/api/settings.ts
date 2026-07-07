@@ -136,14 +136,16 @@ export function getAIHealthOverview() {
   return http.get<ApiResponse<AIHealthOverviewResponse>>(`${AI}/health`)
 }
 
-/** 模型指标明细（Apifox: GET 模型指标明细；后端若未部署则 404，前端用 history 降级） */
+/** 模型指标明细列表（Apifox: GET /settings/ai/metrics/list） */
 export function getAIMetricsDetail(params: {
   reservoir_id: number
   page?: number
   page_size?: number
+  model_a_id?: number
+  model_b_id?: number
 }) {
   return http.get<ApiResponse<PageResult<MetricsDetailItem> | MetricsDetailItem[]>>(
-    `${AI}/metrics/detail`,
+    `${AI}/metrics/list`,
     { params },
   )
 }

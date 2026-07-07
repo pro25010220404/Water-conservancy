@@ -2,7 +2,8 @@
 import { ref, onMounted, watch } from 'vue'
 import { ElTable, ElTableColumn, ElPagination, ElDatePicker, ElTag } from 'element-plus'
 import { HEALTH_GRADE } from '@/constants/aiHealth'
-import { getAIMetricsDetail } from '@/api/settings'
+import { fetchModelMetricsDetail } from '@/api/gateaiSettings'
+import type { ModelMetricDetailRow } from '@/types/gateai'
 import type { MetricsDetailItem } from '@/stores/aiHealth'
 
 const props = defineProps<{
@@ -31,22 +32,34 @@ function getGradeColor(grade: string): string {
   return HEALTH_GRADE[grade]?.color ?? '#909399'
 }
 
+function mapDetailRow(row: ModelMetricDetailRow): MetricsDetailItem {
+  return {
+    hour: row.metric_time,
+    prediction_score: row.overall_score,
+    decision_score: row.overall_score,
+    compliance_score: row.overall_score,
+    overall_score: row.overall_score,
+    health_grade: row.health_grade,
+    water_level_mae: row.water_level_mae_24h,
+    safety_coverage_rate: Math.max(0, 1 - row.safety_override_rate),
+    decision_auto_rate: 0,
+  }
+}
+
 async function fetchData() {
   loading.value = true
   try {
-    const res = await getAIMetricsDetail({
-      reservoir_id: props.reservoirId,
+    const rows = await fetchModelMetricsDetail(props.reservoirId, {
       page: page.value,
       page_size: pageSize.value,
     })
-    if (res.data?.code === 0 && res.data.data) {
-      const result = res.data.data as unknown as { list: MetricsDetailItem[]; total: number }
-      data.value = result.list ?? []
-      total.value = result.total ?? 0
+    if (rows.length > 0) {
+      data.value = rows.map(mapDetailRow)
+      total.value = rows.length
       return
     }
   } catch {
-    // fallback to mock
+    /* fallback to mock below */
   }
   // Mock data
   const mockList: MetricsDetailItem[] = []

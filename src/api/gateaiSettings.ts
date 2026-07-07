@@ -17,6 +17,7 @@ import type {
   AIHealthOverviewResponse,
 } from '@/types/gateai'
 
+import { isApiNotFoundError } from '@/utils/apiError'
 import { RESERVOIR_OPTIONS } from '@/constants/settings'
 
 import { gateaiSharedStore } from './gateaiSharedStore'
@@ -248,19 +249,20 @@ function extractDetailList(data: unknown): ModelMetricDetailRow[] {
   return []
 }
 
-/** 后端未部署 /settings/ai/* 时跳过重复 404 请求 */
+/** 后端未部署 /settings/ai/* 时跳过重复 404 / 30001 请求 */
 const aiApiAvailability = {
   metrics: null as boolean | null,
   history: null as boolean | null,
   health: null as boolean | null,
+  /** GET /settings/ai/metrics/list */
   detail: null as boolean | null,
 }
 
 function markAiApiUnavailable(key: keyof typeof aiApiAvailability, e: unknown) {
-  if (getHttpStatus(e) === 404) {
+  if (isApiNotFoundError(e)) {
     aiApiAvailability[key] = false
     if (import.meta.env.DEV) {
-      console.info(`[API] /settings/ai/${key} 尚未部署(404)，已改用 Mock/降级数据`)
+      console.info(`[API] /settings/ai/${key} 尚未部署，已改用降级数据`)
     }
   }
 }
@@ -269,7 +271,7 @@ function isAiApiDisabled(key: keyof typeof aiApiAvailability): boolean {
   return aiApiAvailability[key] === false
 }
 
-/** @deprecated 使用 aiApiAvailability.detail */
+/** @deprecated 与 aiApiAvailability.detail 同步 */
 let metricsDetailApiAvailable: boolean | null = null
 
 function getHttpStatus(e: unknown): number | undefined {
@@ -397,12 +399,9 @@ export async function fetchModelMetricsDetail(
       }
     }
   } catch (e) {
-    if (getHttpStatus(e) === 404) {
+    if (isApiNotFoundError(e)) {
       aiApiAvailability.detail = false
       metricsDetailApiAvailable = false
-      if (import.meta.env.DEV) {
-        console.info('[API] 指标明细接口尚未部署(404)，已改用历史趋势数据填充明细表')
-      }
       return fetchDetailFromHistory(reservoirId, limit)
     }
     markAiApiUnavailable('detail', e)
