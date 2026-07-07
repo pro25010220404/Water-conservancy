@@ -118,11 +118,16 @@ async function submitPassword() {
       new_password: pwdForm.new_password,
       confirm_password: pwdForm.confirm_password,
     })
-    // 同步更新手机号
+    // 同步更新手机号到 store + localStorage，个人中心直接读取
     const userId = userStore.userInfo?.id
     if (userId) {
       try {
         await updateProfile(userId, { phone: pwdForm.phone })
+        if (userStore.userInfo) {
+          const updated = { ...userStore.userInfo, phone: pwdForm.phone }
+          userStore.userInfo = updated
+          localStorage.setItem('userInfo', JSON.stringify(updated))
+        }
       } catch { /* 手机号更新失败不阻塞改密流程 */ }
     }
     sessionStorage.removeItem(FORCE_PWD_CHANGE_KEY)
