@@ -54,11 +54,14 @@ function initProfile() {
       id: userStore.userInfo?.id ?? 1,
       account: userStore.userInfo?.username ?? 'admin',
       realname: userStore.userInfo?.nickname ?? '管理员',
-      avatar: '',
+      avatar: userStore.userInfo?.avatar ?? '',
       role_name: (userStore.userInfo?.roles ?? ['admin'])[0],
-      phone: '未填写',
+      phone: userStore.userInfo?.phone || '未填写',
       created_at: new Date().toISOString().slice(0, 10),
     })
+  } else {
+    // 已初始化则同步 phone（首次改密后写入 userStore 的值）
+    profileStore.userInfo.phone = userStore.userInfo?.phone || profileStore.userInfo.phone
   }
   loading.value = false
 }
