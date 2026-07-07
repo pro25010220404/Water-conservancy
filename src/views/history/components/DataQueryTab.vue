@@ -26,6 +26,8 @@ onMounted(() => {
 
 // ═══ 筛选 ═══
 const dateRange = ref({ start: '', end: '' })
+const nowISO = computed(() => new Date().toISOString().slice(0, 16))
+const endMin = computed(() => dateRange.value.start || undefined)
 const selectedMetrics = ref<string[]>(['upstreamLevel', 'inflowRate'])
 const granularity = ref<'raw' | '5min' | 'hour' | 'day'>('5min')
 const metricOptions = [
@@ -300,9 +302,9 @@ const reportVisible = ref(false)
             >{{ d.label }}</span
           >
         </div>
-        <input type="datetime-local" v-model="dateRange.start" class="inp" />
+        <input type="datetime-local" v-model="dateRange.start" class="inp" :max="nowISO" />
         <span class="filter__sep">—</span>
-        <input type="datetime-local" v-model="dateRange.end" class="inp" />
+        <input type="datetime-local" v-model="dateRange.end" class="inp" :max="nowISO" :min="endMin" />
       </div>
       <div class="filter__row">
         <label>数据项</label>

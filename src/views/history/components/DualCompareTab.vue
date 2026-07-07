@@ -24,9 +24,11 @@ use([
 // 时段 A / B
 const rangeA = ref({ start: '', end: '' })
 const rangeB = ref({ start: '', end: '' })
+const nowISO = computed(() => new Date().toISOString().slice(0, 16))
+const endAMin = computed(() => rangeA.value.start || undefined)
+const endBMin = computed(() => rangeB.value.start || undefined)
 const compareMode = ref(false)
 const queried = ref(false)
-const timeError = ref('')
 
 // 生成模拟数据
 async function loadRange(startIso: string, endIso: string) {
@@ -53,34 +55,19 @@ const dataA = ref<any[]>([])
 const dataB = ref<any[]>([])
 
 async function doQuery() {
-  timeError.value = ''
-
-  // 前端时间范围校验
-  for (const [label, range] of [['时段 A', rangeA] as const, ['时段 B', rangeB] as const]) {
-    const s = range.value.start
-    const e = range.value.end
-    if (s && e && new Date(e) < new Date(s)) {
-      timeError.value = `${label}：结束时间不能早于开始时间，请重新选择`
-      return
-    }
-  }
-
   const nowIso = new Date().toISOString().slice(0, 16)
   const defStartA = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 16)
   const defStartB = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 16)
 
-  try {
-    const [a, b] = await Promise.all([
-      loadRange(rangeA.value.start || defStartA, rangeA.value.end || nowIso),
-      loadRange(rangeB.value.start || defStartB, rangeB.value.end || nowIso),
-    ])
-    dataA.value = a
-    dataB.value = b
-    compareMode.value = true
-    queried.value = true
-  } catch {
-    timeError.value = '数据查询失败，请检查时间范围是否有效'
-  }
+  const [a, b] = await Promise.all([
+    loadRange(rangeA.value.start || defStartA, rangeA.value.end || nowIso),
+    loadRange(rangeB.value.start || defStartB, rangeB.value.end || nowIso),
+  ])
+  dataA.value = a
+  dataB.value = b
+  compareMode.value = true
+  queried.value = true
+}
 
 // 差异统计
 const diffStats = computed(() => {
@@ -182,19 +169,18 @@ function doExport() {
     <div class="dc__filters">
       <div class="dc__period">
         <span class="dc__badge dc__badge--a">时段 A</span>
-        <input type="datetime-local" v-model="rangeA.start" />
+        <input type="datetime-local" v-model="rangeA.start" :max="nowISO" />
         <span>—</span>
-        <input type="datetime-local" v-model="rangeA.end" />
+        <input type="datetime-local" v-model="rangeA.end" :max="nowISO" :min="endAMin" />
       </div>
       <div class="dc__period">
         <span class="dc__badge dc__badge--b">时段 B</span>
-        <input type="datetime-local" v-model="rangeB.start" />
+        <input type="datetime-local" v-model="rangeB.start" :max="nowISO" />
         <span>—</span>
-        <input type="datetime-local" v-model="rangeB.end" />
+        <input type="datetime-local" v-model="rangeB.end" :max="nowISO" :min="endBMin" />
       </div>
       <button class="dc__btn dc__btn--q" @click="doQuery">对比查询</button>
       <button class="dc__btn" @click="doExport" :disabled="!queried">导出 CSV</button>
-      <p v-if="timeError" class="dc__error">{{ timeError }}</p>
     </div>
 
     <div v-if="diffStats" class="dc__stats">

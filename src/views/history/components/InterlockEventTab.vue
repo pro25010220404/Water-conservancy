@@ -39,6 +39,8 @@ function defaultDateRange() {
 }
 
 const dateRange = ref(defaultDateRange())
+const todayISO = computed(() => new Date().toISOString().slice(0, 10))
+const endMin = computed(() => dateRange.value.start || undefined)
 
 function mapLogToEvent(log: GateInterlockLog): InterlockEvent {
   const before = log.openings_before ?? []
@@ -139,9 +141,9 @@ function barWidth(value: number) {
           {{ r.label }}
         </option>
       </select>
-      <input v-model="dateRange.start" type="date" class="ie__date" @change="loadEvents" />
+      <input v-model="dateRange.start" type="date" class="ie__date" :max="todayISO" @change="loadEvents" />
       <span class="ie__sep">—</span>
-      <input v-model="dateRange.end" type="date" class="ie__date" @change="loadEvents" />
+      <input v-model="dateRange.end" type="date" class="ie__date" :max="todayISO" :min="endMin" @change="loadEvents" />
       <select v-model="filterRule" class="ie__sel">
         <option value="">全部规则</option>
         <option v-for="r in ruleOptions" :key="r" :value="r">{{ r }}</option>
