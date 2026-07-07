@@ -161,21 +161,26 @@ const weightSum = computed(
 const weightValid = computed(() => Math.abs(weightSum.value - 1.0) < 0.001)
 
 // ── 联动滑块 ──
+let sliderRaf: number | null = null
 function onSliderChange(changed: string) {
-  const keys = ['power_weight', 'safety_weight', 'ecology_weight'] as const
-  const changedKey = changed as (typeof keys)[number]
-  const rest = 1.0 - weightForm.value[changedKey]
-  const others = keys.filter((k) => k !== changedKey)
-  const sumOthers = others.reduce((s, k) => s + weightForm.value[k], 0)
-  if (sumOthers === 0) {
-    others.forEach((k) => {
-      weightForm.value[k] = +(rest / others.length).toFixed(2)
-    })
-  } else {
-    others.forEach((k) => {
-      weightForm.value[k] = +((rest * weightForm.value[k]) / sumOthers).toFixed(2)
-    })
-  }
+  if (sliderRaf !== null) return
+  sliderRaf = requestAnimationFrame(() => {
+    sliderRaf = null
+    const keys = ['power_weight', 'safety_weight', 'ecology_weight'] as const
+    const changedKey = changed as (typeof keys)[number]
+    const rest = 1.0 - weightForm.value[changedKey]
+    const others = keys.filter((k) => k !== changedKey)
+    const sumOthers = others.reduce((s, k) => s + weightForm.value[k], 0)
+    if (sumOthers === 0) {
+      others.forEach((k) => {
+        weightForm.value[k] = +(rest / others.length).toFixed(2)
+      })
+    } else {
+      others.forEach((k) => {
+        weightForm.value[k] = +((rest * weightForm.value[k]) / sumOthers).toFixed(2)
+      })
+    }
+  })
 }
 
 // ── 模型上传 ──

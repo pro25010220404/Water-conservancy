@@ -23,6 +23,8 @@ export const DEVICE_TYPE_OPTIONS = Object.values(DEVICE_TYPE).map((d) => ({
 
 // ---------- 设备状态 ----------
 export const DEVICE_STATUS: DictMap = {
+  active: { label: '在线', value: 'active', color: '#67C23A', icon: 'CircleCheckFilled' },
+  inactive: { label: '离线', value: 'inactive', color: '#909399', icon: 'RemoveFilled' },
   online: { label: '在线', value: 'online', color: '#67C23A', icon: 'CircleCheckFilled' },
   offline: { label: '离线', value: 'offline', color: '#909399', icon: 'RemoveFilled' },
   fault: { label: '故障', value: 'fault', color: '#F56C6C', icon: 'CircleCloseFilled' },
