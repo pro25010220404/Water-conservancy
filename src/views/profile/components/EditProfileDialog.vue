@@ -74,12 +74,16 @@ async function submit() {
   if (!valid) return
 
   submitting.value = true
-  // 后端接口未就绪，本地保存
+  // 更新 profileStore
   if (profileStore.userInfo) {
-    profileStore.userInfo.realname = form.realname
-    profileStore.userInfo.phone = form.phone
-    profileStore.userInfo.avatar = form.avatar
+    profileStore.setUserInfo({
+      ...profileStore.userInfo,
+      realname: form.realname,
+      phone: form.phone,
+      avatar: form.avatar || profileStore.userInfo.avatar,
+    })
   }
+  // 同步更新 userStore
   if (userStore.userInfo) {
     userStore.userInfo.nickname = form.realname
     if (form.avatar) userStore.userInfo.avatar = form.avatar

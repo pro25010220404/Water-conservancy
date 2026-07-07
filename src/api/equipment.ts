@@ -65,12 +65,12 @@ export function normalizeEquipmentItem(
   }
 }
 
-// ── 全部设备列表（监控大屏复用 §2.1） ──
+// 全部设备列表（监控大屏复用 §2.1）
 export function getEquipmentAllList(params: { reservoir_id: number }) {
   return http.get<ApiResponse<EquipmentAllListItem[]>>(`${V1}/equipment/all-list`, { params })
 }
 
-// ── 设备列表（分页）§7.1 GET /api/equipment ──
+// 设备列表（分页）§7.1
 export function getEquipmentList(params: {
   page?: number
   page_size?: number
@@ -79,28 +79,25 @@ export function getEquipmentList(params: {
   status?: string
   keyword?: string
 }) {
-  return http.get<ApiResponse<PageResult<Equipment>>>('/equipment', { params })
+  return http.get<ApiResponse<PageResult<Equipment>>>(`${V1}/equipment`, { params })
 }
 
-// ── 设备详情 §7.2 GET /api/equipment/{id} ──
+// 设备详情 §7.2
 export function getEquipmentDetail(id: number) {
   return http.get<ApiResponse<EquipmentDetail>>(`${V1}/equipment/${id}`)
 }
 
-// ── 远程重启 §7.3 POST /api/equipment/{id}/restart ──
+// 远程重启 §7.3
 export function restartEquipment(id: number, data: EquipmentRestartParams) {
-  return http.post<ApiResponse<{ command_id: string; status: string }>>(
-    `${V1}/equipment/${id}/restart`,
-    data,
-  )
+  return http.post<ApiResponse<{ command_id: string; status: string }>>(`${V1}/equipment/${id}/restart`, data)
 }
 
-// ── 更新设备状态 §7.4 PUT /api/equipment/{id}/status ──
+// 更新设备状态 §7.4
 export function updateEquipmentStatus(id: number, data: EquipmentStatusParams) {
   return http.put<ApiResponse<StatusChangeResult>>(`${V1}/equipment/${id}/status`, data)
 }
 
-// ── 导出设备台账 §7.5 GET /api/equipment/export ──
+// 导出设备台账 §7.5
 export function exportEquipment(params: {
   reservoir_id?: number
   type?: string
@@ -114,51 +111,36 @@ export function exportEquipment(params: {
 // 以下为前端扩展接口（后端文档暂未定义，待后端补充）
 // ════════════════════════════════════════════════════════════
 
-// ── 修改设备参数（前端扩展） ──
 export function updateEquipment(id: number, data: Record<string, unknown>) {
   return http.put<ApiResponse<null>>(`${V1}/equipment/${id}`, data)
 }
 
-// ── 标记设备故障（前端扩展） ──
 export function markEquipmentFault(id: number, data: { description: string; fault_type?: string }) {
   return http.post<ApiResponse<null>>(`${V1}/equipment/${id}/mark-fault`, data)
 }
 
-// ── 标记设备恢复正常（前端扩展） ──
 export function markEquipmentNormal(id: number) {
   return http.post<ApiResponse<null>>(`${V1}/equipment/${id}/mark-normal`)
 }
 
-// ── 设备故障记录（前端扩展） ──
 export function getEquipmentFaults(id: number, params?: { page?: number; page_size?: number }) {
-  return http.get<ApiResponse<PageResult<Record<string, unknown>>>>(`${V1}/equipment/${id}/faults`, {
-    params,
-  })
+  return http.get<ApiResponse<PageResult<Record<string, unknown>>>>(`${V1}/equipment/${id}/faults`, { params })
 }
 
-// ── 设备维护日志（前端扩展） ──
-export function getEquipmentLogs(
-  id: number,
-  params?: { page?: number; page_size?: number; type?: string },
-) {
-  return http.get<ApiResponse<PageResult<Record<string, unknown>>>>(`${V1}/equipment/${id}/logs`, {
-    params,
-  })
+export function getEquipmentLogs(id: number, params?: { page?: number; page_size?: number; type?: string }) {
+  return http.get<ApiResponse<PageResult<Record<string, unknown>>>>(`${V1}/equipment/${id}/logs`, { params })
 }
 
-// ── 获取设备分组列表（前端扩展） ──
 export function getEquipmentGroups() {
   return http.get<ApiResponse<string[]>>(`${V1}/equipment/groups`)
 }
 
-// ── 查看边缘节点配置同步状态 §12.1 ──
+// 查看边缘节点配置同步状态 §12.1
 export function getEdgeSyncStatus(edgeNodeId: string) {
-  return http.get<
-    ApiResponse<{
-      last_sync_time: string
-      config_version: string
-      sync_status: 'synced' | 'pending' | 'failed'
-      config_hash: string
-    }>
-  >(`${V1}/edge/physics-config/${edgeNodeId}`)
+  return http.get<ApiResponse<{
+    last_sync_time: string
+    config_version: string
+    sync_status: 'synced' | 'pending' | 'failed'
+    config_hash: string
+  }>>(`${V1}/edge/physics-config/${edgeNodeId}`)
 }

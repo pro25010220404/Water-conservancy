@@ -12,17 +12,18 @@ import { ApiBusinessError } from '@/utils/apiError'
 const http: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 30000,
+  headers: { 'Content-Type': 'application/json' },
 })
 
-// ── 请求拦截：附加 Token + Content-Type ──
+// ── 请求拦截：附加 Token，FormData 上传时去掉 JSON Content-Type ──
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem('token')
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`
   }
-  // 非 FormData 请求设 JSON 头；FormData 由浏览器自动生成 multipart/form-data
-  if (!(config.data instanceof FormData)) {
-    config.headers['Content-Type'] = 'application/json'
+  if (config.data instanceof FormData) {
+    // 删掉默认的 application/json，让浏览器设 multipart/form-data
+    ;(config.headers as any)['Content-Type'] = undefined
   }
   return config
 })
