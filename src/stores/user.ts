@@ -124,7 +124,6 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('token')
     localStorage.removeItem('userInfo')
     localStorage.removeItem('tokenExpireTime')
-    localStorage.removeItem('remembered_credentials')
     localStorage.removeItem('auto_login_flag')
     sessionStorage.removeItem('force_pwd_change_needed')
     window.dispatchEvent(new StorageEvent('storage', { key: 'token', newValue: null, oldValue: 'logged-out' }))

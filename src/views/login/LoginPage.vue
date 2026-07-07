@@ -156,6 +156,38 @@ function onLockRetry() {
   retryAfterLockout()
   password.value = ''
 }
+
+// ── Focus Trap：Tab 键只在登录表单内循环，不跳到浏览器 ──
+const FOCUSABLE_SELECTOR = 'input:not([type="hidden"]):not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+let trapContainer = ref<HTMLElement | null>(null)
+
+function getFocusableElements(): HTMLElement[] {
+  if (!trapContainer.value) return []
+  return Array.from(trapContainer.value.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+}
+
+function onTrapKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Tab') return
+  const els = getFocusableElements()
+  if (els.length === 0) return
+  const first = els[0]
+  const last = els[els.length - 1]
+  const active = document.activeElement
+
+  if (e.shiftKey) {
+    // Shift+Tab: 如果焦点在第一个元素，跳到最后一个
+    if (active === first || !trapContainer.value?.contains(active as Node)) {
+      e.preventDefault()
+      last.focus()
+    }
+  } else {
+    // Tab: 如果焦点在最后一个元素，跳到第一个
+    if (active === last || !trapContainer.value?.contains(active as Node)) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+}
 </script>
 
 <template>
@@ -164,7 +196,7 @@ function onLockRetry() {
 class="login-bg" :class="{ 'login-bg--fallback': !webglSupported }" tabindex="-1" aria-hidden="true" />
 
     <div class="login-form">
-      <div class="login-form__card">
+      <div ref="trapContainer" class="login-form__card" @keydown="onTrapKeydown">
         <div class="login-form__header">
           <div class="login-form__logo-wrap">
             <img
@@ -194,7 +226,6 @@ class="login-bg" :class="{ 'login-bg--fallback': !webglSupported }" tabindex="-1
               size="large"
               class="login-field__input"
               :readonly="formDisabled"
-              tabindex="1"
               @input="clearLoginError"
             />
           </div>
@@ -211,7 +242,6 @@ class="login-bg" :class="{ 'login-bg--fallback': !webglSupported }" tabindex="-1
               show-password
               class="login-field__input"
               :readonly="formDisabled"
-              tabindex="2"
               @input="clearLoginError"
               @keyup.enter="handleLogin"
             />
