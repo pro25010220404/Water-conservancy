@@ -26,7 +26,7 @@ import {
 } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { checkPasswordStrength, FORM_RULES } from '@/constants/validation'
-import { changePassword } from '@/api/profile'
+import { changePassword, updateProfile } from '@/api/profile'
 import type { OperationLog } from '@/shared/types'
 
 const router = useRouter()
@@ -138,18 +138,28 @@ function openInfoDialog() {
   infoVisible.value = true
 }
 
-function submitInfo() {
+async function submitInfo() {
   infoSubmitting.value = true
   try {
+    const userId = userStore.userInfo?.id
+    if (userId) {
+      // 调用真实 API §8.4.3 PUT /api/settings/users/{id}
+      await updateProfile(userId, {
+        realname: infoForm.value.realname || undefined,
+        phone: infoForm.value.phone || undefined,
+      })
+    }
+    // 同步更新本地缓存 + store
     saveExtProfile(infoForm.value)
     extProfile.value = loadExtProfile()
-    // 同步更新 store 昵称
     if (userStore.userInfo) {
       userStore.userInfo.nickname = infoForm.value.realname || userStore.userInfo.nickname
     }
     recordLog('个人中心', '编辑', '修改了个人资料', 1)
     ElMessage.success('资料更新成功')
     infoVisible.value = false
+  } catch (err: any) {
+    ElMessage.error(err?.message || '保存失败，请稍后重试')
   } finally {
     infoSubmitting.value = false
   }

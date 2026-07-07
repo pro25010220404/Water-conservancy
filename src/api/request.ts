@@ -11,14 +11,17 @@ import { ElMessage } from 'element-plus'
 const http: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 30000,
-  headers: { 'Content-Type': 'application/json' },
 })
 
-// ── 请求拦截：附加 Token ──
+// ── 请求拦截：附加 Token + Content-Type ──
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem('token')
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  // 非 FormData 请求设 JSON 头；FormData 由浏览器自动生成 multipart/form-data
+  if (!(config.data instanceof FormData)) {
+    config.headers['Content-Type'] = 'application/json'
   }
   return config
 })

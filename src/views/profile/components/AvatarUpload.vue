@@ -62,16 +62,13 @@ function onFileChange(file: UploadFile) {
   }
 }
 
-/** 自定义上传 */
+/** 自定义上传 — POST /api/v1/me/avatar */
 async function customUpload(options: UploadRequestOptions) {
   uploading.value = true
   uploadProgress.value = 0
 
   try {
-    const formData = new FormData()
-    formData.append('file', options.file)
-
-    const res = await uploadAvatar(formData)
+    const res = await uploadAvatar(options.file)
 
     if (res.data?.code === 0 && res.data.data?.avatar_url) {
       const newUrl = res.data.data.avatar_url
@@ -80,7 +77,7 @@ async function customUpload(options: UploadRequestOptions) {
       options.onSuccess(res.data)
       ElMessage.success('头像上传成功')
     } else {
-      // 模拟成功（API 可能未实现）
+      // API 返回异常，降级本地预览
       const mockUrl = URL.createObjectURL(options.file)
       emit('update:avatar', mockUrl)
       previewUrl.value = mockUrl
@@ -88,7 +85,7 @@ async function customUpload(options: UploadRequestOptions) {
       ElMessage.success('头像已更新（本地预览）')
     }
   } catch {
-    // 降级为本地预览
+    // 网络不可达，降级为本地预览
     const mockUrl = URL.createObjectURL(options.file)
     emit('update:avatar', mockUrl)
     previewUrl.value = mockUrl

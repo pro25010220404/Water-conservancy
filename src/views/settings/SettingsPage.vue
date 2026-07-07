@@ -521,10 +521,25 @@ async function saveThreshold(id: number) {
   }
 }
 
-// -- Tab2 --
-function fetchWeights() {
+// -- Tab2 §8.2 多目标权重 --
+async function fetchWeights() {
   weightLoading.value = true
-  // 后端接口 /v1/settings/weights 异常，使用 Mock 数据
+  try {
+    const res = await getWeights()
+    if (res.data?.code === 0 && res.data.data) {
+      const d = res.data.data
+      weights.value = d
+      weightForm.value = {
+        power_weight: d.power_weight,
+        safety_weight: d.safety_weight,
+        ecology_weight: d.ecology_weight,
+      }
+      weightLoading.value = false
+      return
+    }
+  } catch {
+    /* API 不可用，降级 Mock */
+  }
   weights.value = MOCK_WEIGHTS
   weightForm.value = {
     power_weight: MOCK_WEIGHTS.power_weight,
@@ -683,7 +698,7 @@ function openUserDialog(mode: 'create' | 'edit', row?: SystemUser) {
     }
   } else {
     editingUserId.value = null
-    userForm.value = { account: '', password: '', realname: '', role_id: 4, phone: '' }
+    userForm.value = { account: '', password: '123456', realname: '', role_id: 4, phone: '' }
   }
   userDialogVisible.value = true
 }
@@ -692,8 +707,8 @@ async function submitUser() {
   userSubmitting.value = true
   try {
     if (userDialogMode.value === 'create') {
-      if (!userForm.value.password || userForm.value.password.length < 8) {
-        ElMessage.warning('密码至少8位')
+      if (!userForm.value.password || userForm.value.password.length < 6) {
+        ElMessage.warning('密码至少6位')
         return
       }
       await createUser(userForm.value)

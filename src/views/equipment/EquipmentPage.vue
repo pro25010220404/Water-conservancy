@@ -300,14 +300,34 @@ const MOCK_EQUIPMENT: Equipment[] = [
   },
 ]
 
-/** 获取设备列表 */
+/** 获取设备列表：优先服务端分页 §7.1，不可用时降级 Mock */
 async function fetchList() {
   loading.value = true
   try {
-    const reservoirName =
-      reservoirs.value.find((r) => r.id === reservoirFilter.value)?.name ?? ''
-
+    // ── 1. 服务端分页接口 §7.1 GET /api/equipment ──
     try {
+      const res = await getEquipmentList({
+        page: page.value,
+        page_size: pageSize.value,
+        reservoir_id: reservoirFilter.value || undefined,
+        type: typeFilter.value || undefined,
+        status: statusFilter.value || undefined,
+        keyword: keyword.value || undefined,
+      })
+      const body = res.data
+      if (body.code === 0 && body.data) {
+        list.value = body.data.list ?? []
+        total.value = body.data.total ?? 0
+        return
+      }
+    } catch {
+      /* 降级到 all-list 或 mock */
+    }
+
+    // ── 2. 全量接口降级 §2.1（监控大屏复用，客户端分页） ──
+    try {
+      const reservoirName =
+        reservoirs.value.find((r) => r.id === reservoirFilter.value)?.name ?? ''
       const res = await getEquipmentAllList({ reservoir_id: reservoirFilter.value })
       const body = res.data
       if (body.code === 0 && Array.isArray(body.data)) {
@@ -328,29 +348,10 @@ async function fetchList() {
         return
       }
     } catch {
-      /* 降级到分页接口或 mock */
+      /* 最终降级 mock */
     }
 
-    try {
-      const res = await getEquipmentList({
-        page: page.value,
-        page_size: pageSize.value,
-        reservoir_id: reservoirFilter.value || undefined,
-        type: typeFilter.value || undefined,
-        status: statusFilter.value || undefined,
-        keyword: keyword.value || undefined,
-      })
-      const body = res.data
-      if (body.code === 0 && body.data) {
-        list.value = body.data.list ?? []
-        total.value = body.data.total ?? 0
-        return
-      }
-    } catch {
-      /* API 不可用时使用 mock */
-    }
-
-    // ── Mock 降级 ──
+    // ── 3. Mock 降级（后端不可用时） ──
     let filtered = [...MOCK_EQUIPMENT]
     if (reservoirFilter.value)
       filtered = filtered.filter((e) => e.reservoir_id === reservoirFilter.value)
@@ -386,22 +387,29 @@ function onFilterChange() {
   fetchList()
 }
 
-/** 选中设备行 */
+/** 选中设备行 → 调用 §7.2 获取详情 */
 async function onRowClick(row: Equipment) {
   selectedId.value = row.id
   detailLoading.value = true
+  edgeSync.value = null
+
   try {
     const res = await getEquipmentDetail(row.id)
     const body = res.data
     if (body.code === 0 && body.data) {
       detail.value = body.data
       detailLoading.value = false
+      // 网关设备额外拉取边缘同步状态
+      if (row.type === 'gateway') {
+        try { edgeSync.value = await fetchEdgeSyncStatus(row.id) } catch { /* 静默 */ }
+      }
       return
     }
   } catch {
-    /* fallback */
+    /* API 不可用，降级为列表数据构造简要详情 */
   }
-  // ── Mock 详情 ──
+
+  // ── Mock 降级：用列表数据 + 随机状态构造详情 ──
   detail.value = {
     ...row,
     install_location: '坝体右侧观测井',
@@ -410,49 +418,18 @@ async function onRowClick(row: Equipment) {
     memory_usage: row.status === 'online' ? Math.floor(Math.random() * 50) + 20 : undefined,
     current_alarms:
       row.status === 'fault'
-        ? [
-            {
-              id: 1,
-              alarm_no: 'ALM-20260703-000' + row.id,
-              level: 'urgent',
-              type: 'equipment',
-              message: row.name + ' 心跳超时，设备无响应',
-              created_at: '2026-07-03 08:45:00',
-            },
-          ]
+        ? [{ id: 1, alarm_no: 'ALM-20260703-000' + row.id, level: 'urgent', type: 'equipment', message: row.name + ' 心跳超时，设备无响应', created_at: '2026-07-03 08:45:00' }]
         : row.status === 'offline'
-          ? [
-              {
-                id: 2,
-                alarm_no: 'ALM-20260702-000' + row.id,
-                level: 'important',
-                type: 'comm_loss',
-                message: row.name + ' 通信中断超过 30 分钟',
-                created_at: '2026-07-02 23:45:00',
-              },
-            ]
+          ? [{ id: 2, alarm_no: 'ALM-20260702-000' + row.id, level: 'important', type: 'comm_loss', message: row.name + ' 通信中断超过 30 分钟', created_at: '2026-07-02 23:45:00' }]
           : undefined,
     latest_monitoring:
       row.type === 'sensor'
-        ? {
-            upstream_level: 92.5,
-            downstream_level: 85.3,
-            inflow_rate: 350.0,
-            outflow_rate: 320.0,
-            gate_opening: 35.0,
-            power_output: 150.3,
-            timestamp: '2026-07-03 10:05:00',
-          }
+        ? { upstream_level: 92.5, downstream_level: 85.3, inflow_rate: 350.0, outflow_rate: 320.0, gate_opening: 35.0, power_output: 150.3, timestamp: '2026-07-03 10:05:00' }
         : undefined,
   } as EquipmentDetail
   detailLoading.value = false
-  edgeSync.value = null
   if (row.type === 'gateway') {
-    try {
-      edgeSync.value = await fetchEdgeSyncStatus(row.id)
-    } catch {
-      edgeSync.value = null
-    }
+    try { edgeSync.value = await fetchEdgeSyncStatus(row.id) } catch { edgeSync.value = null }
   }
 }
 
