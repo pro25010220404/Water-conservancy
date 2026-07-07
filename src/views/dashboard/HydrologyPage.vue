@@ -368,7 +368,7 @@ function refresh() {
       u = su(s.cat)
     m.bindPopup(
       `<div style="text-align:center;min-width:100px;font-size:13px">${s.name}<br><span style="font-size:22px;font-weight:700;color:${SC[st]}">${fmt(v, s.cat === '流量' ? 0 : 2)}</span><small style="color:#9ca3af;font-size:11px"> ${u}</small></div>`,
-      { offset: [0, -6], className: 'mpop' },
+      { offset: [0, -6], className: 'mpop', closeButton: false },
     )
     stationLayer!.addLayer(m)
   })
