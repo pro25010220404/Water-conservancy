@@ -277,7 +277,7 @@ function normalizeHealthOverview(data: unknown): ModelHealthOverviewItem[] {
 }
 
 /** 明细接口未部署时跳过重复 404，改用历史趋势数据 */
-let metricsDetailApiAvailable: boolean | null = null
+let metricsDetailApiAvailable: boolean | null = false
 
 function getHttpStatus(e: unknown): number | undefined {
   if (e && typeof e === 'object' && 'response' in e) {

@@ -36,6 +36,9 @@ import type { ApiInterlockRule, ApiInterlockStat } from './interlockAdapter'
 /** v1 路径前缀，由 .env 中 VITE_API_V1_PREFIX 控制 */
 const V1 = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
 
+/** 模型研判（Apifox「模型研判」）在 /api/settings/ai/*，不走 /v1 前缀 */
+const AI = '/settings/ai'
+
 // ════════════════════════════════════════════════════════════
 // Tab1: 告警阈值 §8.1
 // ════════════════════════════════════════════════════════════
@@ -107,11 +110,11 @@ export function getModelDetail(id: number) {
 // ════════════════════════════════════════════════════════════
 
 export function getAIMetrics(params: { reservoir_id: number }) {
-  return http.get<ApiResponse<HealthOverview>>(`${V1}/settings/ai/metrics`, { params })
+  return http.get<ApiResponse<HealthOverview>>(`${AI}/metrics`, { params })
 }
 
 export function getAIMetricsHistory(params: { reservoir_id: number; days?: number }) {
-  return http.get<ApiResponse<AIMetricsHistoryItem[]>>(`${V1}/settings/ai/metrics/history`, { params })
+  return http.get<ApiResponse<AIMetricsHistoryItem[]>>(`${AI}/metrics/history`, { params })
 }
 
 /** 历史趋势单条记录（与后端字段一致） */
@@ -129,17 +132,17 @@ export interface AIMetricsHistoryItem {
 }
 
 export function getAIHealthOverview() {
-  return http.get<ApiResponse<AIHealthOverviewResponse>>(`${V1}/settings/ai/health`)
+  return http.get<ApiResponse<AIHealthOverviewResponse>>(`${AI}/health`)
 }
 
-/** 模型指标明细（Apifox: GET 模型指标明细；若后端未部署则 404） */
+/** 模型指标明细（Apifox: GET 模型指标明细；后端若未部署则 404，前端用 history 降级） */
 export function getAIMetricsDetail(params: {
   reservoir_id: number
   page?: number
   page_size?: number
 }) {
   return http.get<ApiResponse<PageResult<MetricsDetailItem> | MetricsDetailItem[]>>(
-    `${V1}/settings/ai/metrics/detail`,
+    `${AI}/metrics/detail`,
     { params },
   )
 }
@@ -149,7 +152,7 @@ export function getAIVersionCompare(params: {
   version1: string
   version2: string
 }) {
-  return http.get<ApiResponse<CompareResult>>(`${V1}/settings/ai/compare`, { params })
+  return http.get<ApiResponse<CompareResult>>(`${AI}/compare`, { params })
 }
 
 // ════════════════════════════════════════════════════════════
