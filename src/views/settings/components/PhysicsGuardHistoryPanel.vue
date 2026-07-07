@@ -121,7 +121,7 @@ onMounted(async () => {
       </ElTableColumn>
     </ElTable>
 
-    <ElDialog v-model="detailVisible" title="配置变更详情" width="600px">
+    <ElDialog v-model="detailVisible" title="配置变更详情" width="640px" class="physics-history-detail-dialog">
       <template v-if="detailRow">
         <ElDescriptions :column="1" border>
           <ElDescriptionsItem label="版本">v{{ detailRow.config_version }}</ElDescriptionsItem>
@@ -142,3 +142,37 @@ onMounted(async () => {
     </ElDialog>
   </div>
 </template>
+
+<style lang="scss">
+.physics-history-detail-dialog {
+  .el-dialog__title {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .el-dialog__body {
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  .el-descriptions__label,
+  .el-descriptions__content {
+    font-size: 15px;
+  }
+
+  .el-table {
+    font-size: 15px;
+  }
+
+  .el-table th.el-table__cell {
+    font-size: 15px;
+    font-weight: 600;
+    padding: 14px 0;
+  }
+
+  .el-table td.el-table__cell {
+    padding: 12px 0;
+    font-size: 15px;
+  }
+}
+</style>
