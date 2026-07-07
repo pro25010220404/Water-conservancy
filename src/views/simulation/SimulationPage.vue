@@ -30,7 +30,7 @@ import {
   startSimulation, pauseSimulation, resumeSimulation, resetSimulation, getSimulationStatus,
   setSimulationGateOpening,
   getModelList, activateModel, uploadModel, startTraining, generateReport, getReportList,
-  getFaultReviewList, getFaultReviewDetail, importToSimulation, getPhysicsGuardSummary,
+  getFaultReviewList, getFaultReviewDetail, submitFaultConclusion, importToSimulation, getPhysicsGuardSummary,
   getSimulationScenarios, createSimulationScenario, updateSimulationScenario, deleteSimulationScenario,
   resolveScenarioId, getSimulationResult, applyResultToRealtime,
 } from '@/api/simulation'
@@ -40,10 +40,29 @@ const userStore = useUserStore()
 const { connected: wsConnected, connect: connectSimStream, disconnect: disconnectSimStream } =
   useSimulationStream()
 
+const DELETED_SCENARIOS_KEY = 'simulation_deleted_scenario_ids'
+
+function loadDeletedScenarioIds(): Set<number> {
+  try {
+    const raw = sessionStorage.getItem(DELETED_SCENARIOS_KEY)
+    if (!raw) return new Set()
+    const ids = JSON.parse(raw) as number[]
+    return new Set(Array.isArray(ids) ? ids : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function persistDeletedScenarioIds(ids: Set<number>) {
+  sessionStorage.setItem(DELETED_SCENARIOS_KEY, JSON.stringify([...ids]))
+}
+
 // ── 5. 响应式数据 ──
 const activeTab = ref<SimulationTab>('control')
 const scenarios = ref<SimulationScenarioItem[]>([])
 const scenarioLoading = ref(false)
+/** 已成功删除的场景 ID（含 sessionStorage，防止刷新后又出现） */
+const deletedScenarioIds = loadDeletedScenarioIds()
 const scenarioDialogVisible = ref(false)
 const scenarioEditingId = ref<number | null>(null)
 const scenarioForm = reactive<SimulationScenarioPayload>({
@@ -104,6 +123,7 @@ const physicsGuard = ref<PhysicsGuardSummary | null>(null)
 
 const reviewDetailVisible = ref(false)
 const reviewDetail = ref<FaultReview | null>(null)
+const reviewSaving = ref(false)
 const reviewConclusion = reactive<FaultConclusion>({
   rootCause: '', improvements: '', responsibleDept: '', reviewedBy: '', reviewedAt: '',
 })
@@ -183,7 +203,17 @@ async function fetchScenarios() {
   scenarioLoading.value = true
   try {
     const res = await getSimulationScenarios()
-    scenarios.value = res.data.list ?? []
+    const seen = new Set<number>()
+    const list = (res.data.list ?? []).filter((s) => {
+      if (deletedScenarioIds.has(s.id) || seen.has(s.id)) return false
+      seen.add(s.id)
+      return true
+    })
+    scenarios.value = [...list].sort((a, b) => {
+      const ta = a.created_at ? Date.parse(a.created_at) : 0
+      const tb = b.created_at ? Date.parse(b.created_at) : 0
+      return tb - ta
+    })
   } catch {
     scenarios.value = []
   } finally {
@@ -232,22 +262,38 @@ async function submitScenarioForm() {
       ElMessage.success('场景已更新')
     } else {
       const res = await createSimulationScenario(scenarioForm)
-      ElMessage.success(`场景已创建 · ID ${res.data.id}`)
+      const created = res.data
+      scenarios.value = [created, ...scenarios.value.filter((s) => s.id !== created.id)]
+      ElMessage.success(`场景已创建 · ${created.name}`)
     }
     scenarioDialogVisible.value = false
     await fetchScenarios()
-  } catch {
-    ElMessage.error('保存失败')
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '保存失败'
+    ElMessage.error(msg || '保存失败')
   }
 }
 
 async function handleDeleteScenario(item: SimulationScenarioItem) {
   try {
     await ElMessageBox.confirm(`确认删除场景「${item.name}」？`, '删除场景', { type: 'warning' })
+  } catch {
+    return
+  }
+  try {
     await deleteSimulationScenario(item.id)
-    ElMessage.success('已删除')
-    await fetchScenarios()
-  } catch { /* cancel */ }
+    deletedScenarioIds.add(item.id)
+    persistDeletedScenarioIds(deletedScenarioIds)
+    scenarios.value = scenarios.value.filter((s) => s.id !== item.id)
+    ElMessage.success(`已删除「${item.name}」(#${item.id})`)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '删除失败'
+    if (msg.includes('仿真记录') || msg.includes('不可删除')) {
+      ElMessage.warning('该场景已有仿真记录，不可删除')
+    } else {
+      ElMessage.error(msg || '删除失败，请稍后重试')
+    }
+  }
 }
 
 function onSimProgress(payload: SimulationProgressPayload) {
@@ -438,11 +484,49 @@ async function handleGenerateReport() {
     fetchReports()
   } catch { ElMessage.error('生成失败') }
 }
+function resetReviewConclusion(detail?: FaultReview | null) {
+  const c = detail?.conclusion
+  reviewConclusion.rootCause = c?.rootCause ?? ''
+  reviewConclusion.improvements = c?.improvements ?? ''
+  reviewConclusion.responsibleDept = c?.responsibleDept ?? ''
+  reviewConclusion.reviewedBy = c?.reviewedBy ?? userStore.userInfo?.nickname ?? ''
+  reviewConclusion.reviewedAt = c?.reviewedAt ?? ''
+}
+
 async function openReviewDetail(id: number) {
   try {
     reviewDetail.value = (await getFaultReviewDetail(id)).data
+    resetReviewConclusion(reviewDetail.value)
     reviewDetailVisible.value = true
-  } catch { /* */ }
+  } catch {
+    ElMessage.error('加载复盘详情失败')
+  }
+}
+
+async function handleSaveReviewConclusion() {
+  if (!reviewDetail.value) return
+  if (!reviewConclusion.rootCause.trim()) {
+    ElMessage.warning('请填写根因分析')
+    return
+  }
+  reviewSaving.value = true
+  try {
+    const payload: FaultConclusion = {
+      rootCause: reviewConclusion.rootCause.trim(),
+      improvements: reviewConclusion.improvements.trim(),
+      responsibleDept: reviewConclusion.responsibleDept.trim(),
+      reviewedBy: userStore.userInfo?.nickname ?? reviewConclusion.reviewedBy,
+      reviewedAt: new Date().toISOString(),
+    }
+    await submitFaultConclusion(reviewDetail.value.id, payload)
+    ElMessage.success('复盘结论已保存')
+    reviewDetailVisible.value = false
+    await fetchReviews()
+  } catch {
+    ElMessage.error('保存失败，请稍后重试')
+  } finally {
+    reviewSaving.value = false
+  }
 }
 async function handleImportToSim(id: number) {
   try {
@@ -798,6 +882,12 @@ onUnmounted(() => {
             <ElInput v-model="reviewConclusion.improvements" type="textarea" :rows="2" placeholder="填写改进措施" />
           </ElFormItem>
         </ElForm>
+        <template #footer>
+          <ElButton @click="reviewDetailVisible = false">取消</ElButton>
+          <ElButton type="primary" :loading="reviewSaving" @click="handleSaveReviewConclusion">
+            保存复盘结论
+          </ElButton>
+        </template>
       </ElDialog>
     </div>
 </template>
@@ -873,10 +963,16 @@ onUnmounted(() => {
 
       .twin-scenario-panel {
         min-height: 0;
+        height: 100%;
         overflow: hidden;
+        align-self: stretch;
 
         :deep(.glass-panel__body) {
           padding: 8px 12px 10px;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
         }
 
         :deep(.scenario-panel__toolbar .el-button) {

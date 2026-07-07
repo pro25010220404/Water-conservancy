@@ -60,6 +60,8 @@ export interface SimulationScenarioItem {
   scenario_config?: Record<string, unknown> | null
   created_at?: string
   updated_at?: string
+  /** 已被仿真使用的次数，>0 时后端通常不允许删除 */
+  usage_count?: number
 }
 
 /** 创建/更新仿真场景请求体 */

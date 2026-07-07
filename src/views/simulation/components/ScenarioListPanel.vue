@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ElButton, ElTag, ElEmpty } from 'element-plus'
+import { ElButton, ElEmpty, ElTooltip } from 'element-plus'
 import type { SimulationScenarioItem } from '@/types/simulation'
 
 defineProps<{
@@ -14,16 +14,14 @@ const emit = defineEmits<{
   delete: [item: SimulationScenarioItem]
 }>()
 
-const STATUS_MAP: Record<string, { label: string; type: 'success' | 'info' | 'warning' }> = {
-  active: { label: '启用', type: 'success' },
-  draft: { label: '草稿', type: 'info' },
-  inactive: { label: '停用', type: 'warning' },
-}
-
 const TYPE_MAP: Record<string, string> = {
   production: '生产',
   energy: '能源',
   fault: '故障',
+}
+
+function canDelete(item: SimulationScenarioItem) {
+  return (item.usage_count ?? 0) <= 0
 }
 
 function formatDuration(sec?: number) {
@@ -46,18 +44,24 @@ function formatDuration(sec?: number) {
       <li v-for="item in scenarios" :key="item.id" class="scenario-panel__item">
         <div class="scenario-panel__head">
           <strong>{{ item.name }}</strong>
-          <ElTag size="small" effect="plain">
-            {{ STATUS_MAP[item.status]?.label ?? item.status }}
-          </ElTag>
         </div>
         <div class="scenario-panel__meta">
-          {{ TYPE_MAP[item.type] ?? item.type }}
+          #{{ item.id }}
+          · {{ TYPE_MAP[item.type] ?? item.type }}
           · {{ formatDuration(item.duration) }}
           <template v-if="item.speed"> · {{ item.speed }}x</template>
+          <template v-if="(item.usage_count ?? 0) > 0"> · 已仿真{{ item.usage_count }}次</template>
         </div>
         <div class="scenario-panel__actions">
-          <ElButton link type="primary" @click="emit('edit', item)">编辑</ElButton>
-          <ElButton link type="danger" @click="emit('delete', item)">删除</ElButton>
+          <ElButton link type="primary" @click.stop="emit('edit', item)">编辑</ElButton>
+          <ElTooltip
+            v-if="!canDelete(item)"
+            content="该场景已有仿真记录，不可删除"
+            placement="top"
+          >
+            <ElButton link type="danger" disabled>删除</ElButton>
+          </ElTooltip>
+          <ElButton v-else link type="danger" @click.stop="emit('delete', item)">删除</ElButton>
         </div>
       </li>
     </ul>
@@ -68,12 +72,18 @@ function formatDuration(sec?: number) {
 @use '@/assets/styles/cockpit.scss' as *;
 
 .scenario-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
   font-size: $cockpit-font-base;
 
   &__toolbar {
     display: flex;
     gap: 8px;
     margin-bottom: 8px;
+    flex-shrink: 0;
 
     :deep(.el-button) {
       padding: 6px 12px;
@@ -89,6 +99,22 @@ function formatDuration(sec?: number) {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(24, 144, 255, 0.35) transparent;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(24, 144, 255, 0.35);
+      border-radius: 3px;
+    }
   }
 
   &__item {
