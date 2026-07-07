@@ -24,6 +24,9 @@ use([
 // 时段 A / B
 const rangeA = ref({ start: '', end: '' })
 const rangeB = ref({ start: '', end: '' })
+const nowISO = computed(() => new Date().toISOString().slice(0, 16))
+const endAMin = computed(() => rangeA.value.start || undefined)
+const endBMin = computed(() => rangeB.value.start || undefined)
 const compareMode = ref(false)
 const queried = ref(false)
 const timeError = ref('')
@@ -55,7 +58,6 @@ const dataB = ref<any[]>([])
 async function doQuery() {
   timeError.value = ''
 
-  // 前端时间范围校验
   for (const [label, range] of [['时段 A', rangeA] as const, ['时段 B', rangeB] as const]) {
     const s = range.value.start
     const e = range.value.end
@@ -183,15 +185,15 @@ function doExport() {
     <div class="dc__filters">
       <div class="dc__period">
         <span class="dc__badge dc__badge--a">时段 A</span>
-        <input type="datetime-local" v-model="rangeA.start" />
+        <input type="datetime-local" v-model="rangeA.start" :max="nowISO" />
         <span>—</span>
-        <input type="datetime-local" v-model="rangeA.end" />
+        <input type="datetime-local" v-model="rangeA.end" :max="nowISO" :min="endAMin" />
       </div>
       <div class="dc__period">
         <span class="dc__badge dc__badge--b">时段 B</span>
-        <input type="datetime-local" v-model="rangeB.start" />
+        <input type="datetime-local" v-model="rangeB.start" :max="nowISO" />
         <span>—</span>
-        <input type="datetime-local" v-model="rangeB.end" />
+        <input type="datetime-local" v-model="rangeB.end" :max="nowISO" :min="endBMin" />
       </div>
       <button class="dc__btn dc__btn--q" @click="doQuery">对比查询</button>
       <button class="dc__btn" @click="doExport" :disabled="!queried">导出 CSV</button>
@@ -277,6 +279,12 @@ function doExport() {
         background: #2563eb;
       }
     }
+  }
+  &__error {
+    width: 100%;
+    margin: 0;
+    font-size: 14px;
+    color: #dc2626;
   }
   &__stats {
     display: flex;

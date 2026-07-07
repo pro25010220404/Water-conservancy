@@ -161,21 +161,26 @@ const weightSum = computed(
 const weightValid = computed(() => Math.abs(weightSum.value - 1.0) < 0.001)
 
 // ── 联动滑块 ──
+let sliderRaf: number | null = null
 function onSliderChange(changed: string) {
-  const keys = ['power_weight', 'safety_weight', 'ecology_weight'] as const
-  const changedKey = changed as (typeof keys)[number]
-  const rest = 1.0 - weightForm.value[changedKey]
-  const others = keys.filter((k) => k !== changedKey)
-  const sumOthers = others.reduce((s, k) => s + weightForm.value[k], 0)
-  if (sumOthers === 0) {
-    others.forEach((k) => {
-      weightForm.value[k] = +(rest / others.length).toFixed(2)
-    })
-  } else {
-    others.forEach((k) => {
-      weightForm.value[k] = +((rest * weightForm.value[k]) / sumOthers).toFixed(2)
-    })
-  }
+  if (sliderRaf !== null) return
+  sliderRaf = requestAnimationFrame(() => {
+    sliderRaf = null
+    const keys = ['power_weight', 'safety_weight', 'ecology_weight'] as const
+    const changedKey = changed as (typeof keys)[number]
+    const rest = 1.0 - weightForm.value[changedKey]
+    const others = keys.filter((k) => k !== changedKey)
+    const sumOthers = others.reduce((s, k) => s + weightForm.value[k], 0)
+    if (sumOthers === 0) {
+      others.forEach((k) => {
+        weightForm.value[k] = +(rest / others.length).toFixed(2)
+      })
+    } else {
+      others.forEach((k) => {
+        weightForm.value[k] = +((rest * weightForm.value[k]) / sumOthers).toFixed(2)
+      })
+    }
+  })
 }
 
 // ── 模型上传 ──
@@ -403,7 +408,7 @@ function onUserKeywordInput() {
 }
 const userDialogVisible = ref(false)
 const userDialogMode = ref<'create' | 'edit'>('create')
-const userForm = ref({ account: '', password: '', realname: '', role_id: 4, phone: '' })
+const userForm = ref({ account: '', password: '', realname: '', role_id: 4 })
 const editingUserId = ref<number | null>(null)
 const userSubmitting = ref(false)
 
@@ -484,9 +489,9 @@ async function fetchWeights() {
       const d = res.data.data
       weights.value = d
       weightForm.value = {
-        power_weight: d.power_weight,
-        safety_weight: d.safety_weight,
-        ecology_weight: d.ecology_weight,
+        power_weight: Number(d.power_weight),
+        safety_weight: Number(d.safety_weight),
+        ecology_weight: Number(d.ecology_weight),
       }
       weightLoading.value = false
       return
@@ -579,15 +584,25 @@ async function handleRollbackModel(id: number) {
 
 async function handleDeployModel(id: number) {
   try {
-    const ids = await ElMessageBox.prompt('请输入目标边缘节点 ID（逗号分隔）', '下发模型', {
-      confirmButtonText: '下发',
-    })
+    const ids = await ElMessageBox.prompt(
+      '请输入目标边缘节点 ID（逗号分隔，可用节点：1~8）',
+      '下发模型',
+      { confirmButtonText: '下发' },
+    )
     const nodeIds = ids.value
       .split(',')
       .map((s: string) => Number(s.trim()))
       .filter(Boolean)
     if (nodeIds.length === 0) {
       ElMessage.warning('请至少输入一个节点 ID')
+      return
+    }
+    // 校验节点 ID 范围 1~8
+    const invalidIds = nodeIds.filter((n) => n < 1 || n > 8)
+    if (invalidIds.length > 0) {
+      ElMessage.warning(
+        `边缘节点 ID ${invalidIds.join('、')} 不存在，当前可用节点ID：1~8`,
+      )
       return
     }
     await deployModel(id, { edge_node_ids: nodeIds })
@@ -652,11 +667,10 @@ function openUserDialog(mode: 'create' | 'edit', row?: SystemUser) {
       password: '',
       realname: row.realname,
       role_id: row.role_id,
-      phone: row.phone || '',
     }
   } else {
     editingUserId.value = null
-    userForm.value = { account: '', password: '12345678', realname: '', role_id: 4, phone: '' }
+    userForm.value = { account: '', password: '12345678', realname: '', role_id: 4 }
   }
   userDialogVisible.value = true
 }
@@ -783,15 +797,31 @@ function syncTabFromRoute() {
   }
 }
 
+// ── 按需懒加载：每个 Tab 只加载自己的数据 ──
+const TAB_FETCHERS: Record<string, () => void> = {
+  thresholds: fetchThresholds,
+  weights: fetchWeights,
+  models: fetchModels,
+  users: fetchUsers,
+}
+
+function loadActiveTabData() {
+  const fetcher = TAB_FETCHERS[activeTab.value]
+  if (fetcher) fetcher()
+}
+
 watch(() => route.path, syncTabFromRoute)
+
+// 切 Tab 时按需加载
+watch(activeTab, (tab) => {
+  const fetcher = TAB_FETCHERS[tab]
+  if (fetcher) fetcher()
+})
 
 // ── 生命周期 ──
 onMounted(() => {
   syncTabFromRoute()
-  fetchThresholds()
-  fetchWeights()
-  fetchModels()
-  fetchUsers()
+  loadActiveTabData()
 })
 </script>
 
@@ -1291,9 +1321,6 @@ onMounted(() => {
                 :value="r.value"
               />
             </ElSelect>
-          </ElFormItem>
-          <ElFormItem label="手机号">
-            <ElInput v-model="userForm.phone" placeholder="11位手机号" maxlength="11" />
           </ElFormItem>
         </ElForm>
         <template #footer>

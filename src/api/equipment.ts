@@ -33,15 +33,6 @@ export interface EquipmentAllListItem {
   group?: string
 }
 
-const API_STATUS_MAP: Record<string, Equipment['status']> = {
-  active: 'online',
-  inactive: 'offline',
-  online: 'online',
-  offline: 'offline',
-  fault: 'fault',
-  maintenance: 'maintenance',
-}
-
 /** 将 all-list 接口字段规范化为前端 Equipment 结构 */
 export function normalizeEquipmentItem(
   raw: EquipmentAllListItem,
@@ -55,7 +46,7 @@ export function normalizeEquipmentItem(
     type: raw.type,
     reservoir_id: raw.reservoir_id ?? fallbackReservoirId,
     reservoir_name: raw.reservoir_name ?? fallbackReservoirName,
-    status: API_STATUS_MAP[raw.status] ?? raw.status,
+    status: raw.status,
     manufacturer: raw.manufacturer ?? '—',
     model: raw.model ?? '—',
     health_score: raw.health_score ?? 0,
@@ -79,7 +70,7 @@ export function getEquipmentList(params: {
   status?: string
   keyword?: string
 }) {
-  return http.get<ApiResponse<PageResult<Equipment>>>(`${V1}/equipment`, { params })
+  return http.get<ApiResponse<PageResult<Equipment>>>('/equipment/list', { params })
 }
 
 // 设备详情 §7.2

@@ -127,21 +127,27 @@ onUnmounted(() => {
 // ═══ 图表 ═══
 const chartOpt = computed(() => {
   const data = allData.value
-  const series: Array<Record<string, unknown>> = metrics.map((m) => ({
-    name: m.label,
-    type: 'line',
-    data: data.map((d) => [d.label, d[m.key as keyof typeof d]]),
-    smooth: true,
-    symbol: 'none',
-    lineStyle: { color: m.color, width: 1.5 },
-    markLine: {
-      silent: true,
+  const series: Array<Record<string, unknown>> = metrics.map((m) => {
+    const s: Record<string, unknown> = {
+      name: m.label,
+      type: 'line',
+      data: data.map((d) => [d.label, d[m.key as keyof typeof d]]),
+      smooth: true,
       symbol: 'none',
-      lineStyle: { color: '#f59e0b', width: 2, type: 'dashed' },
-      data: [{ xAxis: replaySnapshot.value?.label }],
-      label: { show: false },
-    },
-  }))
+      lineStyle: { color: m.color, width: 1.5 },
+    }
+    // 只有回放游标存在时才加 markLine，避免 xAxis 为 undefined 导致 ECharts 报错
+    if (replaySnapshot.value) {
+      s.markLine = {
+        silent: true,
+        symbol: 'none',
+        lineStyle: { color: '#f59e0b', width: 2, type: 'dashed' },
+        data: [{ xAxis: replaySnapshot.value.label }],
+        label: { show: false },
+      }
+    }
+    return s
+  })
 
   const events = data.filter((d) => d.event)
   if (events.length) {

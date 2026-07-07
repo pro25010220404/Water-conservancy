@@ -41,13 +41,28 @@ function loadExtProfile(): {
   email: string
   registerTime: string
 } {
+  let fromProfile: { realname?: string; phone?: string; email?: string; registerTime?: string } = {}
   try {
     const raw = localStorage.getItem('profile')
-    if (raw) return JSON.parse(raw)
+    if (raw) fromProfile = JSON.parse(raw)
   } catch {
     /* ignore */
   }
-  return { realname: '', phone: '', email: '', registerTime: new Date().toISOString().slice(0, 10) }
+  // phone 优先从 userInfo 读取（首次改密时写入），其次从 profile
+  let phone = fromProfile.phone || ''
+  try {
+    const raw = localStorage.getItem('userInfo')
+    if (raw) {
+      const ui = JSON.parse(raw)
+      if (ui.phone) phone = ui.phone
+    }
+  } catch { /* ignore */ }
+  return {
+    realname: fromProfile.realname || '',
+    phone,
+    email: fromProfile.email || '',
+    registerTime: fromProfile.registerTime || new Date().toISOString().slice(0, 10),
+  }
 }
 
 function saveExtProfile(data: Record<string, string>) {
@@ -154,6 +169,11 @@ async function submitInfo() {
     extProfile.value = loadExtProfile()
     if (userStore.userInfo) {
       userStore.userInfo.nickname = infoForm.value.realname || userStore.userInfo.nickname
+      if (infoForm.value.phone) {
+        const updated = { ...userStore.userInfo, phone: infoForm.value.phone }
+        userStore.userInfo = updated
+        localStorage.setItem('userInfo', JSON.stringify(updated))
+      }
     }
     recordLog('个人中心', '编辑', '修改了个人资料', 1)
     ElMessage.success('资料更新成功')

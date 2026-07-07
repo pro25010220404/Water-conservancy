@@ -7,8 +7,12 @@ import { ElDialog, ElForm, ElFormItem, ElInput, ElButton, ElProgress, ElMessage 
 import { WarningFilled } from '@element-plus/icons-vue'
 import type { FormInstance } from 'element-plus'
 import { changePassword } from '@/api/profile'
+import { updateProfile } from '@/api/profile'
+import { useUserStore } from '@/stores/user'
 import { checkPasswordStrength, PASSWORD_RULE } from '@/constants/validation'
 import { DEFAULT_PASSWORD, FORCE_PWD_CHANGE_KEY } from '@/constants/auth'
+
+const userStore = useUserStore()
 
 // ── Props & Emits ──
 const props = defineProps<{
@@ -34,11 +38,13 @@ const submitting = ref(false)
 interface ForcePwdForm {
   new_password: string
   confirm_password: string
+  phone: string
 }
 
 const pwdForm = reactive<ForcePwdForm>({
   new_password: '',
   confirm_password: '',
+  phone: '',
 })
 
 // ── 弹窗打开时重置 ──
@@ -48,6 +54,7 @@ watch(
     if (val) {
       pwdForm.new_password = ''
       pwdForm.confirm_password = ''
+      pwdForm.phone = ''
       formRef.value?.resetFields()
     }
   },
@@ -65,6 +72,7 @@ const strengthColor = computed(() => {
 const strengthPercentage = computed(() => (strength.value.score / 3) * 100)
 
 // ── 表单校验规则 ──
+const PHONE_RULE = /^1[3-9]\d{9}$/
 const rules = {
   new_password: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
@@ -72,6 +80,10 @@ const rules = {
   ],
   confirm_password: [
     { required: true, message: '请确认新密码', trigger: 'blur' },
+  ],
+  phone: [
+    { required: true, message: '请输入手机号码', trigger: 'blur' },
+    { pattern: PHONE_RULE, message: '请输入正确的11位手机号码', trigger: 'blur' },
   ],
 }
 
@@ -94,6 +106,11 @@ async function submitPassword() {
     return
   }
 
+  if (!PHONE_RULE.test(pwdForm.phone)) {
+    ElMessage.warning('请输入正确的11位手机号码')
+    return
+  }
+
   submitting.value = true
   try {
     await changePassword({
@@ -101,6 +118,18 @@ async function submitPassword() {
       new_password: pwdForm.new_password,
       confirm_password: pwdForm.confirm_password,
     })
+    // 同步更新手机号到 store + localStorage，个人中心直接读取
+    const userId = userStore.userInfo?.id
+    if (userId) {
+      try {
+        await updateProfile(userId, { phone: pwdForm.phone })
+        if (userStore.userInfo) {
+          const updated = { ...userStore.userInfo, phone: pwdForm.phone }
+          userStore.userInfo = updated
+          localStorage.setItem('userInfo', JSON.stringify(updated))
+        }
+      } catch { /* 手机号更新失败不阻塞改密流程 */ }
+    }
     sessionStorage.removeItem(FORCE_PWD_CHANGE_KEY)
     ElMessage.success('密码修改成功，正在进入系统...')
     emit('success')
@@ -187,6 +216,14 @@ async function submitPassword() {
             'is-error':
               pwdForm.confirm_password && pwdForm.new_password !== pwdForm.confirm_password,
           }"
+        />
+      </ElFormItem>
+
+      <ElFormItem label="手机号码" prop="phone" required>
+        <ElInput
+          v-model="pwdForm.phone"
+          placeholder="请输入手机号码"
+          maxlength="11"
         />
       </ElFormItem>
     </ElForm>

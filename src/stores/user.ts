@@ -11,6 +11,7 @@ export interface UserInfo {
   username: string
   nickname: string
   avatar?: string
+  phone?: string
   roles: UserRole[]
   permissions: string[]
 }
