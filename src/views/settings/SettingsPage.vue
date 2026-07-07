@@ -579,15 +579,25 @@ async function handleRollbackModel(id: number) {
 
 async function handleDeployModel(id: number) {
   try {
-    const ids = await ElMessageBox.prompt('请输入目标边缘节点 ID（逗号分隔）', '下发模型', {
-      confirmButtonText: '下发',
-    })
+    const ids = await ElMessageBox.prompt(
+      '请输入目标边缘节点 ID（逗号分隔，可用节点：1~8）',
+      '下发模型',
+      { confirmButtonText: '下发' },
+    )
     const nodeIds = ids.value
       .split(',')
       .map((s: string) => Number(s.trim()))
       .filter(Boolean)
     if (nodeIds.length === 0) {
       ElMessage.warning('请至少输入一个节点 ID')
+      return
+    }
+    // 校验节点 ID 范围 1~8
+    const invalidIds = nodeIds.filter((n) => n < 1 || n > 8)
+    if (invalidIds.length > 0) {
+      ElMessage.warning(
+        `边缘节点 ID ${invalidIds.join('、')} 不存在，当前可用节点ID：1~8`,
+      )
       return
     }
     await deployModel(id, { edge_node_ids: nodeIds })

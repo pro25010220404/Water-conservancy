@@ -67,24 +67,23 @@ async function customUpload(options: UploadRequestOptions) {
   uploading.value = true
   uploadProgress.value = 0
 
-  try {
-    const file = (options.file as any).raw ?? options.file
-    // 先生成本地预览（上传同时立刻能看到）
-    const localUrl = URL.createObjectURL(file)
-    previewUrl.value = localUrl
+  // Element Plus http-request 中 options.file 可能是 UploadFile 包装对象或原生 File
+  const file = ((options.file as UploadFile).raw ?? options.file) as File
 
-    // 调 API 上传到 OSS
-    uploadAvatar(file as File).catch(() => {})
-    // 用本地 URL 显示，OSS 链接不可靠（CDN 缓存/ACL 等问题）
-    emit('update:avatar', localUrl)
-    options.onSuccess({ avatar_url: localUrl })
-    ElMessage.success('头像已更新')
-  } catch {
-    ElMessage.success('头像已更新（本地预览）')
-  } finally {
-    uploading.value = false
-    uploadProgress.value = 100
-  }
+  // 先生成本地预览（上传同时立刻能看到）
+  const localUrl = URL.createObjectURL(file)
+  previewUrl.value = localUrl
+
+  // 调 API 上传到 OSS（发后不管，不用等返回值）
+  uploadAvatar(file).catch(() => {})
+
+  // 用本地 URL 显示，OSS 链接不可靠（CDN 缓存/ACL 等问题）
+  emit('update:avatar', localUrl)
+  options.onSuccess({ avatar: localUrl })
+  ElMessage.success('头像已更新')
+
+  uploading.value = false
+  uploadProgress.value = 100
 }
 </script>
 
