@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { ElSelect, ElOption, ElInputNumber, ElButton } from 'element-plus'
 import { Delete } from '@element-plus/icons-vue'
 import { CONDITION_FIELDS, CONDITION_OPERATORS, CONSTRAINT_TYPES } from '@/constants/gateInterlock'
@@ -28,9 +29,13 @@ function updateOperator(val: string) {
     InterlockConstraint)
 }
 
-function updateThreshold(val: number | undefined) {
-  emit('update:condition', { ...props.condition, threshold: val ?? 0 })
-}
+// 标准 computed get/set，解决 :model-value 单向绑定无法实时输入的问题
+const threshold = computed({
+  get: () => props.condition.threshold,
+  set: (val: number | undefined) => {
+    emit('update:condition', { ...props.condition, threshold: val ?? 0 })
+  },
+})
 
 // For constraint mode, operator is actually the type
 function updateConstraintType(val: string) {
@@ -89,12 +94,11 @@ function updateConstraintType(val: string) {
 
     <!-- Threshold -->
     <ElInputNumber
-      :model-value="condition.threshold"
+      v-model="threshold"
       :step="1"
       :precision="1"
       placeholder="阈值"
       style="width: 130px"
-      @change="updateThreshold"
     />
 
     <!-- Remove button -->

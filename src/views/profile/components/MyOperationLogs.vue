@@ -2,7 +2,7 @@
 // ============================================================
 // 我的操作日志 — 对接登录日志接口 §1.3，日期筛选
 // ============================================================
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import {
   ElTable, ElTableColumn, ElPagination,
   ElDatePicker, ElTag, ElMessage,
@@ -21,15 +21,16 @@ const profileStore = useProfileStore()
 const loading = ref(false)
 const logs = ref<OperationLog[]>([])
 const total = ref(0)
+/** 当前页码，v-model 即时同步避免 ElPagination 内部状态错乱 */
 const currentPage = ref(1)
 const pageSize = 15
 
 /** 取消上一次未完成的请求，避免快速翻页时并发请求打爆后端（502） */
 let abortController: AbortController | null = null
-/** 上次成功加载的页码，请求失败时回退到此页 */
-let lastValidPage = 1
-/** 请求序列号：双重保险，丢弃过时响应 */
+/** 请求序列号：丢弃过时响应 */
 let fetchSeq = 0
+/** 上次成功加载的页码，失败时回退到此 */
+let lastValidPage = 1
 
 // 筛选（仅日期范围，登录日志无模块维度）
 const filterDateRange = ref<[string, string] | null>(null)
@@ -46,8 +47,8 @@ const SEED_LOGS: OperationLog[] = [
 
 // ── 方法 ──
 
-async function fetchLogs() {
-  // 取消上一次未完成的请求，避免并发打爆后端
+async function fetchLogs(targetPage: number) {
+  // 取消上一次未完成的请求
   if (abortController) {
     abortController.abort()
   }
@@ -55,43 +56,40 @@ async function fetchLogs() {
   const signal = abortController.signal
 
   const seq = ++fetchSeq
-  const page = currentPage.value
   loading.value = true
 
   try {
     const res = await getOperationLogs({
-      page,
+      page: targetPage,
       page_size: pageSize,
       start_time: filterDateRange.value?.[0] || undefined,
       end_time: filterDateRange.value?.[1] || undefined,
     }, signal)
 
-    // 忽略过时响应
     if (seq !== fetchSeq) return
 
     if (res.data?.code === 0 && res.data.data) {
+      const scrollY = window.scrollY
       logs.value = res.data.data.list
       total.value = res.data.data.total
-      lastValidPage = page
+      lastValidPage = targetPage
       profileStore.setOperationLogs(res.data.data.list, res.data.data.total)
+      nextTick(() => window.scrollTo(0, scrollY))
       return
     }
-    // API 返回非 0 → 回退页码
+    // API 返回非 0 → 回退页码（直接改 ref，ElPagination :current-page 响应式更新）
     if (seq === fetchSeq) {
       currentPage.value = lastValidPage
       ElMessage.warning(res.data?.msg || '登录日志加载失败')
     }
   } catch (err: unknown) {
-    // 请求被主动取消（AbortController）→ 静默，新请求已发出
     if (err instanceof DOMException && err.name === 'AbortError') return
     if (seq !== fetchSeq) return
 
     if (logs.value.length > 0) {
-      // 已有真实数据 → 回退页码，保持当前数据
       currentPage.value = lastValidPage
       ElMessage.warning('网络异常，无法刷新登录日志')
     } else {
-      // 首次加载且网络不通 → 种子数据兜底
       logs.value = [...SEED_LOGS]
       total.value = SEED_LOGS.length
       lastValidPage = 1
@@ -105,21 +103,19 @@ async function fetchLogs() {
   }
 }
 
-function onFilterChange() {
-  if (currentPage.value === 1) {
-    fetchLogs()
-  } else {
-    currentPage.value = 1
-  }
+/** 翻页：立刻同步 currentPage 避免 ElPagination 内外部不一致 → 重置到第1页 */
+function onPageChange(page: number) {
+  currentPage.value = page
+  fetchLogs(page)
 }
 
-// 单一数据源：watch currentPage 驱动数据拉取
-watch(currentPage, () => {
-  fetchLogs()
-})
+function onFilterChange() {
+  currentPage.value = 1
+  fetchLogs(1)
+}
 
 onMounted(() => {
-  fetchLogs()
+  fetchLogs(currentPage.value)
 })
 
 onBeforeUnmount(() => {
@@ -168,13 +164,14 @@ onBeforeUnmount(() => {
     </ElTable>
 
     <ElPagination
-      v-model:current-page="currentPage"
+      :current-page="currentPage"
       :page-size="pageSize"
       :total="total"
-      layout="total, prev, pager, next"
+      layout="total, pager"
       background
       class="operation-logs__pagination"
       style="margin-top: 16px; justify-content: flex-end"
+      @current-change="onPageChange"
     />
   </div>
 </template>
