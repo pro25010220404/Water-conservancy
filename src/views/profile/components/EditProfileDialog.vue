@@ -108,6 +108,12 @@ async function submit() {
       userStore.userInfo = updated
       localStorage.setItem('userInfo', JSON.stringify(updated))
     }
+    // 头像：写入 store + localStorage + dispatch 事件强制刷新
+    if (form.avatar) {
+      profileStore.avatarUrl = form.avatar
+      localStorage.setItem('profile_avatar', form.avatar)
+      window.dispatchEvent(new CustomEvent('avatar-updated', { detail: form.avatar }))
+    }
     recordLog('个人中心', '修改', '更新了个人资料', 1)
     ElMessage.success('资料已更新')
     emit('saved')

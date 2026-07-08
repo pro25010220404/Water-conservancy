@@ -30,12 +30,16 @@ const loading = ref(false)
 
 function initData() {
   loading.value = true
+  // 从 localStorage 恢复头像到 store
+  if (!profileStore.avatarUrl) {
+    profileStore.avatarUrl = localStorage.getItem('profile_avatar') || ''
+  }
   if (!profileStore.userInfo) {
     profileStore.setUserInfo({
       id: userStore.userInfo?.id ?? 1,
       account: userStore.userInfo?.username ?? 'admin',
       realname: userStore.userInfo?.nickname ?? '管理员',
-      avatar: userStore.userInfo?.avatar || '',
+      avatar: localStorage.getItem('profile_avatar') || userStore.userInfo?.avatar || '',
       role_name: (userStore.userInfo?.roles ?? ['admin'])[0] ?? 'admin',
       phone: userStore.userInfo?.phone || '未填写',
       created_at: new Date().toISOString().slice(0, 10),

@@ -24,13 +24,20 @@ const previewUrl = ref<string>(props.currentAvatar || '')
 const uploading = ref(false)
 const uploadProgress = ref(0)
 
+// ── 辅助 ──
+
+function fixAvatarUrl(url: string) {
+  if (!url || url.startsWith('data:') || url.startsWith('http')) return url
+  return 'https://' + url
+}
+
 // ── 外部同步 ──
 
 watch(
   () => props.currentAvatar,
   (val) => {
     if (!uploading.value) {
-      previewUrl.value = val || ''
+      previewUrl.value = fixAvatarUrl(val || '')
     }
   },
 )
