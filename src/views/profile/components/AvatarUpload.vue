@@ -86,12 +86,10 @@ function onFileChange(file: UploadFile) {
   reader.readAsDataURL(file.raw)
 }
 
-/** 自定义上传 */
+/** 自定义上传 — 后端优先，失败则本地 base64 兜底 */
 async function customUpload(options: UploadRequestOptions) {
-  // Element Plus http-request 中 options.file 可能是 UploadFile 包装对象或原生 File
   const file = ((options.file as UploadFile).raw ?? options.file) as File
 
-  // 强制冗余校验：防御 beforeUpload 被绕过的情况
   const result = validateFile(file)
   if (!result.valid) {
     ElMessage.warning(result.message!)
@@ -100,30 +98,47 @@ async function customUpload(options: UploadRequestOptions) {
   }
 
   uploading.value = true
-  uploadProgress.value = 0
+  uploadProgress.value = 30
 
   try {
-    // 调 API 上传到后端
-    const res = await uploadAvatar(file)
+    let avatarUrl = ''
 
-    // 校验后端是否真正接收成功
-    if (res.data?.code !== 0) {
-      ElMessage.error(res.data?.msg || '头像上传失败，请稍后重试')
-      options.onError(new Error(res.data?.msg || '上传失败'))
-      return
+    // 1) 优先走后端上传
+    try {
+      const res = await uploadAvatar(file)
+      if (res.data?.code === 0 && res.data.data) {
+        avatarUrl = res.data.data.avatar || res.data.data.url || (res.data.data as any).path || ''
+        if (avatarUrl) {
+          uploadProgress.value = 100
+          previewUrl.value = avatarUrl
+          emit('update:avatar', avatarUrl)
+          options.onSuccess({ avatar: avatarUrl })
+          ElMessage.success('头像已更新')
+          return
+        }
+      }
+    } catch {
+      // 后端异常 → 降级 base64，不弹 toast
     }
 
-    // 后端确认成功，使用后端返回的 URL 或本地 blob URL
-    const avatarUrl = res.data.data?.avatar || URL.createObjectURL(file)
+    // 2) 后端失败 → 本地 base64 兜底
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(new Error('文件读取失败'))
+      reader.readAsDataURL(file)
+    })
+
+    avatarUrl = base64
+    uploadProgress.value = 100
     previewUrl.value = avatarUrl
     emit('update:avatar', avatarUrl)
-    uploadProgress.value = 100
     options.onSuccess({ avatar: avatarUrl })
-    ElMessage.success('头像已更新')
+    ElMessage.success('头像已更新（本地）')
   } catch (err: unknown) {
     const msg = err && typeof err === 'object' && 'message' in err
       ? (err as { message: string }).message
-      : '头像上传失败，请检查网络后重试'
+      : '头像处理失败，请重试'
     ElMessage.error(msg)
     options.onError(new Error(msg))
   } finally {

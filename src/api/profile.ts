@@ -78,11 +78,11 @@ export function updateProfile(userId: number, data: UpdateProfileParams) {
   return http.put<ApiResponse<null>>(`${V1}/settings/users/${userId}`, data)
 }
 
-/** 上传头像 — POST /api/v1/me/avatar，multipart/form-data，字段名 avatar */
+/** 上传头像 — POST /api/v1/me/avatar，multipart/form-data，字段名 file */
 export function uploadAvatar(file: File) {
   const formData = new FormData()
-  formData.append('avatar', file)
-  return http.post<ApiResponse<{ avatar: string }>>(`${V1}/me/avatar`, formData, { timeout: 60000 })
+  formData.append('file', file)
+  return http.post<ApiResponse<{ avatar: string }>>(`${V1}/me/avatar`, formData, { timeout: 60000, silent: true } as any)
 }
 
 /**

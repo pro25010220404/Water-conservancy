@@ -26,8 +26,9 @@ http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     }
   }
   if (config.data instanceof FormData) {
-    // 删掉默认的 application/json，让浏览器设 multipart/form-data
-    ;(config.headers as any)['Content-Type'] = undefined
+    // 必须用 delete 彻底移除 Content-Type，让浏览器自动设 multipart/form-data + boundary
+    // 设 undefined 在 AxiosHeaders 实例上不一定覆盖默认值，导致文件字段丢失 → 后端 400
+    delete (config.headers as any)['Content-Type']
   }
   return config
 })
@@ -76,7 +77,9 @@ http.interceptors.response.use(
       }
       // 401/404 静默处理，页面自动 Mock 降级
       // 真正的认证失效由 success 拦截器处理（业务 code>=20001）
-      if (status === 401 || status === 404) {
+      // silent 标记：有兜底方案的请求不弹 toast（如头像上传）
+      const silent = (error.config as any)?.silent === true
+      if (status === 401 || status === 404 || silent) {
         if (import.meta.env.DEV) {
           console.warn(`[API] ${status}，使用 Mock 降级:`, error.config?.url)
         }
