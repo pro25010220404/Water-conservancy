@@ -56,14 +56,17 @@ async function initProfile() {
     // 1) 优先从后端拉取最新数据
     if (userId && navigator.onLine) {
       try {
-        const res = await getMyProfile(userId)
+        const account = userStore.userInfo?.username || ''
+        const res = await getMyProfile(userId, account)
         if (res.data?.code === 0 && res.data.data) {
           const d = res.data.data
+          // 后端返回 avatar OSS URL，优先用后端的
+          const backendAvatar = (d as any).avatar || ''
           profileStore.setUserInfo({
             id: d.id,
             account: d.account,
             realname: d.realname || userStore.userInfo?.nickname || '',
-            avatar: userStore.userInfo?.avatar || '',
+            avatar: backendAvatar || userStore.userInfo?.avatar || '',
             role_name: d.role_name || (userStore.userInfo?.roles ?? ['admin'])[0],
             phone: d.phone || '未填写',
             email: d.email || '',
@@ -71,8 +74,10 @@ async function initProfile() {
           })
           if (userStore.userInfo) {
             userStore.userInfo.nickname = d.realname || userStore.userInfo.nickname
-            if (d.phone) {
-              userStore.userInfo.phone = d.phone
+            const avatarUrl = (d as any).avatar || ''
+            if (d.phone || avatarUrl) {
+              if (avatarUrl) userStore.userInfo.avatar = avatarUrl
+              if (d.phone) userStore.userInfo.phone = d.phone
               localStorage.setItem('userInfo', JSON.stringify(userStore.userInfo))
             }
           }
