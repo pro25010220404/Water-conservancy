@@ -7,7 +7,7 @@
   },
   "servers": [
     { "url": "http://47.108.169.152:4088", "description": "生产环境" },
-    { "url": "http://h63d7bc8.natappfree.cc", "description": "开发环境(natapp隧道)" },
+    { "url": "http://m42aa5c9.natappfree.cc", "description": "开发环境(natapp隧道)" },
     { "url": "http://localhost:8000", "description": "本机后端" }
   ],
   "security": [{ "BearerAuth": [] }],

@@ -4,7 +4,7 @@
 // ============================================================
 import { defineStore } from 'pinia'
 import { ref, reactive } from 'vue'
-import { getThresholds, getWeights, getWeightHistory, getModels, getUsers } from '@/api/settings'
+import { fetchThresholdList, getWeights, getWeightHistory, getModels, getUsers } from '@/api/settings'
 import type { ThresholdRule, WeightConfig, ModelInfo, SystemUser } from '@/shared/types'
 
 export interface WeightHistoryItem {
@@ -39,17 +39,15 @@ export const useSettingsStore = defineStore('settings', () => {
 
   // ── Actions ──
 
-  async function fetchThresholds() {
+  async function fetchThresholds(reservoirId = 1) {
     thresholdsLoading.value = true
     try {
-      const res = await getThresholds()
-      if (res.data.code === 0 && res.data.data?.length) {
-        thresholds.value = res.data.data
-      }
+      thresholds.value = await fetchThresholdList(reservoirId)
     } catch {
-      /* fallback handled by page */
+      thresholds.value = []
+    } finally {
+      thresholdsLoading.value = false
     }
-    thresholdsLoading.value = false
   }
 
   async function fetchWeights() {
