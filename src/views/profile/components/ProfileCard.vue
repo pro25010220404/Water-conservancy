@@ -48,8 +48,13 @@ const registerTime = computed(() => profileStore.userInfo?.created_at || '-')
 const currentAvatarUrl = ref('')
 
 function loadAvatar() {
-  const raw = profileStore.avatarUrl || localStorage.getItem('profile_avatar') || ''
-  currentAvatarUrl.value = (raw && !raw.startsWith('data:') && !raw.startsWith('http')) ? 'https://' + raw : raw
+  let raw = profileStore.avatarUrl || localStorage.getItem('profile_avatar') || ''
+  // 修复后端返回的不完整 OSS URL：缺 https:// 和 bucket 名
+  if (raw && !raw.startsWith('data:') && !raw.startsWith('http')) {
+    if (raw.startsWith('oss-')) raw = 'https://fmy-base.' + raw
+    else raw = 'https://' + raw
+  }
+  currentAvatarUrl.value = raw
 }
 
 // 初始化
@@ -57,7 +62,12 @@ loadAvatar()
 
 // 监听 EditProfileDialog 保存事件
 window.addEventListener('avatar-updated', ((e: CustomEvent) => {
-  currentAvatarUrl.value = e.detail || ''
+  let raw = e.detail || ''
+  if (raw && !raw.startsWith('data:') && !raw.startsWith('http')) {
+    if (raw.startsWith('oss-')) raw = 'https://fmy-base.' + raw
+    else raw = 'https://' + raw
+  }
+  currentAvatarUrl.value = raw
 }) as EventListener)
 
 /** 初始化资料 — 后端优先，失败则用 userStore + profileStore 本地数据 */
