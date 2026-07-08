@@ -25,7 +25,7 @@ import {
   ElMessage,
 } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { checkPasswordStrength, FORM_RULES } from '@/constants/validation'
+import { checkPasswordStrength, FORM_RULES, PASSWORD_RULE } from '@/constants/validation'
 import { changePassword, updateProfile } from '@/api/profile'
 import type { OperationLog } from '@/shared/types'
 
@@ -157,14 +157,21 @@ async function submitInfo() {
   infoSubmitting.value = true
   try {
     const userId = userStore.userInfo?.id
-    if (userId) {
-      // 调用真实 API §8.4.3 PUT /api/settings/users/{id}
-      await updateProfile(userId, {
-        realname: infoForm.value.realname || undefined,
-        phone: infoForm.value.phone || undefined,
-      })
+    if (!userId) {
+      ElMessage.error('用户信息异常，请重新登录后重试')
+      return
     }
-    // 同步更新本地缓存 + store
+    // 调用真实 API §8.4.3 PUT /api/settings/users/{id}
+    const res = await updateProfile(userId, {
+      realname: infoForm.value.realname || undefined,
+      phone: infoForm.value.phone || undefined,
+    })
+    // 校验后端是否真正写入成功
+    if (res.data?.code !== 0) {
+      ElMessage.error(res.data?.msg || '保存失败，请稍后重试')
+      return
+    }
+    // 同步更新本地缓存 + store（仅后端确认成功后）
     saveExtProfile(infoForm.value)
     extProfile.value = loadExtProfile()
     if (userStore.userInfo) {
@@ -191,18 +198,35 @@ function openPwdDialog() {
 }
 
 async function submitPassword() {
+  if (!pwdForm.value.old_password) {
+    ElMessage.warning('请输入当前密码')
+    return
+  }
+  if (!pwdForm.value.new_password) {
+    ElMessage.warning('请输入新密码')
+    return
+  }
+  if (pwdForm.value.new_password === pwdForm.value.old_password) {
+    ElMessage.warning('新密码不能与当前密码相同')
+    return
+  }
   if (pwdForm.value.new_password !== pwdForm.value.confirm_password) {
     ElMessage.warning('两次输入的新密码不一致')
     return
   }
-  if (strength.value.level === 'weak') {
-    ElMessage.warning('新密码强度太弱，请按规则设置')
+  // 强制要求全部 5 项密码规则通过
+  if (!PASSWORD_RULE.pattern.test(pwdForm.value.new_password)) {
+    ElMessage.warning(PASSWORD_RULE.message)
+    return
+  }
+  if (strength.value.level !== 'strong') {
+    ElMessage.warning('新密码未满足全部规则，请按提示完成设置')
     return
   }
   pwdSubmitting.value = true
   try {
     const res = await changePassword(pwdForm.value)
-    if (res.data.code === 0) {
+    if (res.data?.code === 0) {
       recordLog('个人中心', '修改密码', '修改了登录密码', 1)
       ElMessage.success('密码修改成功，3 秒后跳转登录')
       pwdVisible.value = false
@@ -210,6 +234,9 @@ async function submitPassword() {
         userStore.logout()
         router.push('/login')
       }, 3000)
+    } else {
+      ElMessage.error(res.data?.msg || '密码修改失败')
+      recordLog('个人中心', '修改密码', '修改密码失败', 0)
     }
   } catch {
     recordLog('个人中心', '修改密码', '修改密码失败', 0)

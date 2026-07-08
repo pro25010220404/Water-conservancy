@@ -7,6 +7,7 @@ import { useRouter } from 'vue-router'
 import { ElCard, ElAvatar, ElTag, ElButton, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useProfileStore } from '@/stores/profile'
+import { getMyProfile } from '@/api/profile'
 import EditProfileDialog from './EditProfileDialog.vue'
 
 const router = useRouter()
@@ -47,23 +48,58 @@ const currentAvatarUrl = computed(
   () => profileStore.userInfo?.avatar || userStore.userInfo?.avatar || '',
 )
 
-function initProfile() {
+/** 初始化资料（优先从后端拉取最新数据，网络不可用时回退本地缓存） */
+async function initProfile() {
   loading.value = true
-  if (!profileStore.userInfo) {
-    profileStore.setUserInfo({
-      id: userStore.userInfo?.id ?? 1,
-      account: userStore.userInfo?.username ?? 'admin',
-      realname: userStore.userInfo?.nickname ?? '管理员',
-      avatar: userStore.userInfo?.avatar ?? '',
-      role_name: (userStore.userInfo?.roles ?? ['admin'])[0],
-      phone: userStore.userInfo?.phone || '未填写',
-      created_at: new Date().toISOString().slice(0, 10),
-    })
-  } else {
-    // 已初始化则同步 phone（首次改密后写入 userStore 的值）
-    profileStore.userInfo.phone = userStore.userInfo?.phone || profileStore.userInfo.phone
+  try {
+    const userId = userStore.userInfo?.id
+    if (userId && navigator.onLine) {
+      try {
+        const res = await getMyProfile(userId)
+        if (res.data?.code === 0 && res.data.data) {
+          const d = res.data.data
+          profileStore.setUserInfo({
+            id: d.id,
+            account: d.account,
+            realname: d.realname || userStore.userInfo?.nickname || '',
+            avatar: userStore.userInfo?.avatar || '',
+            role_name: d.role_name || (userStore.userInfo?.roles ?? ['admin'])[0],
+            phone: d.phone || '未填写',
+            email: d.email || '',
+            created_at: d.created_at || '',
+          })
+          // 同步回 userStore + localStorage
+          if (userStore.userInfo) {
+            userStore.userInfo.nickname = d.realname || userStore.userInfo.nickname
+            if (d.phone) {
+              userStore.userInfo.phone = d.phone
+              localStorage.setItem('userInfo', JSON.stringify(userStore.userInfo))
+            }
+          }
+          return
+        }
+      } catch {
+        // 后端不可达 → 回退本地缓存
+      }
+    }
+    // 回退：从本地缓存初始化
+    if (!profileStore.userInfo) {
+      profileStore.setUserInfo({
+        id: userStore.userInfo?.id ?? 1,
+        account: userStore.userInfo?.username ?? 'admin',
+        realname: userStore.userInfo?.nickname ?? '管理员',
+        avatar: userStore.userInfo?.avatar ?? '',
+        role_name: (userStore.userInfo?.roles ?? ['admin'])[0],
+        phone: userStore.userInfo?.phone || '未填写',
+        email: '',
+        created_at: new Date().toISOString().slice(0, 10),
+      })
+    } else {
+      profileStore.userInfo.phone = userStore.userInfo?.phone || profileStore.userInfo.phone
+    }
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 function openEditDialog() {

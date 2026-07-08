@@ -35,27 +35,50 @@ watch(
   },
 )
 
-// ── 方法 ──
+// ── 文件校验（集中校验，多处复用） ──
 
-/** 上传前校验 */
-function beforeUpload(file: UploadRawFile) {
+const VALID_TYPES = ['image/jpeg', 'image/png', 'image/jpg']
+
+interface ValidationResult {
+  valid: boolean
+  message?: string
+}
+
+function validateFile(file: File): ValidationResult {
   if (file.size > AVATAR_MAX_SIZE) {
     const sizeMB = (file.size / 1024 / 1024).toFixed(1)
-    ElMessage.warning(`文件大小 ${sizeMB}MB 超出限制，头像不能超过 2MB`)
-    return false
+    return { valid: false, message: `文件大小 ${sizeMB}MB 超出限制，头像不能超过 2MB` }
   }
-  const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
-  if (!validTypes.includes(file.type)) {
-    ElMessage.warning('仅支持 JPG、JPEG、PNG 格式')
+  if (!VALID_TYPES.includes(file.type)) {
+    return { valid: false, message: '仅支持 JPG、JPEG、PNG 格式' }
+  }
+  return { valid: true }
+}
+
+// ── 方法 ──
+
+/** 上传前校验（Element Plus before-upload 钩子） */
+function beforeUpload(file: UploadRawFile) {
+  const result = validateFile(file)
+  if (!result.valid) {
+    ElMessage.warning(result.message)
     return false
   }
   return true
 }
 
-/** 本地预览（选取文件后立刻展示，被 beforeUpload 拦截的文件跳过） */
+/** 选取文件后创建本地预览（仅校验通过的文件） */
 function onFileChange(file: UploadFile) {
   // beforeUpload 返回 false 时文件状态为 fail，不创建预览
   if (file.status === 'fail' || !file.raw) return
+
+  // 冗余校验：防御 beforeUpload 在某些 Element Plus 版本中被绕过
+  const result = validateFile(file.raw)
+  if (!result.valid) {
+    ElMessage.warning(result.message!)
+    return
+  }
+
   const reader = new FileReader()
   reader.onload = (e) => {
     previewUrl.value = (e.target?.result as string) || ''
@@ -63,42 +86,49 @@ function onFileChange(file: UploadFile) {
   reader.readAsDataURL(file.raw)
 }
 
-/** 自定义上传 — API 做上传，本地 blob URL 做显示 */
+/** 自定义上传 */
 async function customUpload(options: UploadRequestOptions) {
   // Element Plus http-request 中 options.file 可能是 UploadFile 包装对象或原生 File
   const file = ((options.file as UploadFile).raw ?? options.file) as File
 
-  // 冗余校验：防御 beforeUpload 被绕过的情况
-  if (file.size > AVATAR_MAX_SIZE) {
-    const sizeMB = (file.size / 1024 / 1024).toFixed(1)
-    ElMessage.warning(`文件大小 ${sizeMB}MB 超出限制，头像不能超过 2MB`)
-    options.onError(new Error('文件过大'))
-    return
-  }
-  const validTypes = ['image/jpeg', 'image/png', 'image/jpg']
-  if (!validTypes.includes(file.type)) {
-    ElMessage.warning('仅支持 JPG、JPEG、PNG 格式')
-    options.onError(new Error('格式不支持'))
+  // 强制冗余校验：防御 beforeUpload 被绕过的情况
+  const result = validateFile(file)
+  if (!result.valid) {
+    ElMessage.warning(result.message!)
+    options.onError(new Error(result.message!))
     return
   }
 
   uploading.value = true
   uploadProgress.value = 0
 
-  // 先生成本地预览（上传同时立刻能看到）
-  const localUrl = URL.createObjectURL(file)
-  previewUrl.value = localUrl
+  try {
+    // 调 API 上传到后端
+    const res = await uploadAvatar(file)
 
-  // 调 API 上传到 OSS（发后不管，不用等返回值）
-  uploadAvatar(file).catch(() => {})
+    // 校验后端是否真正接收成功
+    if (res.data?.code !== 0) {
+      ElMessage.error(res.data?.msg || '头像上传失败，请稍后重试')
+      options.onError(new Error(res.data?.msg || '上传失败'))
+      return
+    }
 
-  // 用本地 URL 显示，OSS 链接不可靠（CDN 缓存/ACL 等问题）
-  emit('update:avatar', localUrl)
-  options.onSuccess({ avatar: localUrl })
-  ElMessage.success('头像已更新')
-
-  uploading.value = false
-  uploadProgress.value = 100
+    // 后端确认成功，使用后端返回的 URL 或本地 blob URL
+    const avatarUrl = res.data.data?.avatar || URL.createObjectURL(file)
+    previewUrl.value = avatarUrl
+    emit('update:avatar', avatarUrl)
+    uploadProgress.value = 100
+    options.onSuccess({ avatar: avatarUrl })
+    ElMessage.success('头像已更新')
+  } catch (err: unknown) {
+    const msg = err && typeof err === 'object' && 'message' in err
+      ? (err as { message: string }).message
+      : '头像上传失败，请检查网络后重试'
+    ElMessage.error(msg)
+    options.onError(new Error(msg))
+  } finally {
+    uploading.value = false
+  }
 }
 </script>
 
