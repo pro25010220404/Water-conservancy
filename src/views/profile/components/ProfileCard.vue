@@ -44,9 +44,21 @@ const roleLabel = computed(() => {
 
 const phone = computed(() => profileStore.userInfo?.phone || '未填写')
 const registerTime = computed(() => profileStore.userInfo?.created_at || '-')
-const currentAvatarUrl = computed(
-  () => profileStore.userInfo?.avatar || userStore.userInfo?.avatar || '',
-)
+/** 头像 URL — ref 手动控制，监听自定义事件 */
+const currentAvatarUrl = ref('')
+
+function loadAvatar() {
+  const raw = profileStore.avatarUrl || localStorage.getItem('profile_avatar') || ''
+  currentAvatarUrl.value = (raw && !raw.startsWith('data:') && !raw.startsWith('http')) ? 'https://' + raw : raw
+}
+
+// 初始化
+loadAvatar()
+
+// 监听 EditProfileDialog 保存事件
+window.addEventListener('avatar-updated', ((e: CustomEvent) => {
+  currentAvatarUrl.value = e.detail || ''
+}) as EventListener)
 
 /** 初始化资料 — 后端优先，失败则用 userStore + profileStore 本地数据 */
 async function initProfile() {
@@ -61,7 +73,6 @@ async function initProfile() {
         if (res.data?.code === 0 && res.data.data) {
           const d = res.data.data
           // 后端返回 avatar OSS URL，优先用后端的
-          const backendAvatar = (d as any).avatar || ''
           profileStore.setUserInfo({
             id: d.id,
             account: d.account,
