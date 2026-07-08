@@ -179,6 +179,7 @@ export interface WeightUpdateParams {
   ecology_weight: number
   preset_name?: string
   description?: string
+  version?: string
 }
 
 /** AI 模型 */
