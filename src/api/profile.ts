@@ -67,35 +67,11 @@ export function updateProfile(userId: number, data: UpdateProfileParams) {
   return http.put<ApiResponse<null>>(`${V1}/settings/users/${userId}`, data, { silent: true } as any)
 }
 
-/** 上传头像 — XHR 原生上传，绕过 axios Content-Type 合并问题 */
-export function uploadAvatar(file: File): Promise<{ data: ApiResponse<{ avatar: string }> }> {
+/** 上传头像 — POST /api/v1/me/avatar，multipart/form-data，字段名 avatar */
+export function uploadAvatar(file: File) {
   const formData = new FormData()
   formData.append('avatar', file)
-
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open('POST', `/api${V1}/me/avatar`)
-    xhr.timeout = 60000
-
-    const token = localStorage.getItem('token')
-    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-
-    xhr.onload = () => {
-      try {
-        const body = JSON.parse(xhr.responseText || '{}')
-        if (typeof body === 'object' && body !== null) {
-          resolve({ data: body } as any)
-        } else {
-          reject(new Error('响应格式异常'))
-        }
-      } catch {
-        reject(new Error('响应解析失败'))
-      }
-    }
-    xhr.onerror = () => reject(new Error('网络错误'))
-    xhr.ontimeout = () => reject(new Error('上传超时'))
-    xhr.send(formData)
-  })
+  return http.post<ApiResponse<{ avatar: string }>>(`${V1}/me/avatar`, formData, { timeout: 60000, silent: true } as any)
 }
 
 /**
