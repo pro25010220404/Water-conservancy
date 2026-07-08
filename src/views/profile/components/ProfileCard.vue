@@ -2,7 +2,7 @@
 // ============================================================
 // 个人信息卡片 — 展示用户基本资料，触发编辑弹窗
 // ============================================================
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElCard, ElAvatar, ElTag, ElButton, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
@@ -44,9 +44,19 @@ const roleLabel = computed(() => {
 
 const phone = computed(() => profileStore.userInfo?.phone || '未填写')
 const registerTime = computed(() => profileStore.userInfo?.created_at || '-')
-const currentAvatarUrl = computed(
-  () => profileStore.userInfo?.avatar || userStore.userInfo?.avatar || '',
-)
+/** 头像 — 从 localStorage 读取并补全 https */
+function getAvatar(): string {
+  const raw = localStorage.getItem('profile_avatar') || profileStore.userInfo?.avatar || userStore.userInfo?.avatar || ''
+  if (raw && !raw.startsWith('data:') && !raw.startsWith('http')) return 'https://' + raw
+  return raw
+}
+const currentAvatarUrl = ref(getAvatar())
+
+function refreshAvatar() {
+  currentAvatarUrl.value = getAvatar()
+}
+
+watch(() => profileStore.userInfo?.avatar, refreshAvatar)
 
 /** 初始化资料 — 后端优先，失败则用 userStore + profileStore 本地数据 */
 async function initProfile() {
@@ -61,7 +71,6 @@ async function initProfile() {
         if (res.data?.code === 0 && res.data.data) {
           const d = res.data.data
           // 后端返回 avatar OSS URL，优先用后端的
-          const backendAvatar = (d as any).avatar || ''
           profileStore.setUserInfo({
             id: d.id,
             account: d.account,
