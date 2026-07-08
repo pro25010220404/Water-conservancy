@@ -75,15 +75,24 @@ http.interceptors.response.use(
           ),
         )
       }
-      // 401/404 静默处理，页面自动 Mock 降级
-      // 真正的认证失效由 success 拦截器处理（业务 code>=20001）
-      // silent 标记：有兜底方案的请求不弹 toast
-      const silent = (error.config as any)?.silent === true
-      // 个人中心相关接口后端不稳定，即使 silent 未传也静默
-      const isProfileUrl = /\/users\/\d+$|\/me\/avatar|\/login-logs/.test(error.config?.url || '')
-      if (status === 401 || status === 404 || silent || isProfileUrl) {
+      // 401 → token 无效/过期，清除并跳转登录
+      if (status === 401) {
+        const isLoginUrl = error.config?.url?.includes('/auth/login')
+        if (!isLoginUrl) {
+          localStorage.removeItem('token')
+          localStorage.removeItem('userInfo')
+          localStorage.removeItem('tokenExpireTime')
+          sessionStorage.removeItem('token')
+          sessionStorage.removeItem('userInfo')
+          const loginPath = '/login'
+          if (window.location.pathname !== loginPath) {
+            window.location.href = loginPath + '?redirect=' + encodeURIComponent(window.location.pathname)
+          }
+        }
+      } else if ((error.config as any)?.silent === true) {
+        // silent 标记：明确声明了兜底方案的请求，不弹 toast
         if (import.meta.env.DEV) {
-          console.warn(`[API] ${status}，使用 Mock 降级:`, error.config?.url)
+          console.warn(`[API] ${status}（silent）:`, error.config?.url)
         }
       } else {
         const msgMap: Record<number, string> = {
