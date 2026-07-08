@@ -114,49 +114,17 @@ export async function uploadAvatar(file: File): Promise<{ data: ApiResponse<{ av
 }
 
 /**
- * 获取当前用户资料 — 用列表接口 keyword 查（后端 GET users/{id} 有 bug 暂不可用）
+ * 获取当前用户资料 — GET /api/v1/settings/users/{id}
  * 用于页面刷新后回显后端最新数据
  */
-export async function getMyProfile(userId: number, account?: string) {
-  // 用列表接口 + keyword 过滤，后端 users/{id} 会崩 500
-  const keyword = account || String(userId)
-  const res = await http.get<ApiResponse<PageResult<{
+export function getMyProfile(userId: number) {
+  return http.get<ApiResponse<{
     id: number
     account: string
     realname: string
     role_name: string
-    role_code: string
     phone: string
     email?: string
-    avatar?: string
     created_at: string
-  }>>>(`${V1}/settings/users`, { params: { keyword, page: 1, page_size: 10 }, silent: true } as any)
-
-  // 从列表中精确匹配当前用户
-  const body = res.data
-  if (body.code === 0 && body.data?.list) {
-    const user = body.data.list.find((u) => u.id === userId) || body.data.list[0] || null
-    if (user) {
-      return {
-        data: {
-          code: 0,
-          msg: 'ok',
-          data: {
-            id: user.id,
-            account: user.account,
-            realname: user.realname,
-            role_name: user.role_name || user.role_code || '',
-            phone: user.phone || '',
-            email: user.email || '',
-            avatar: user.avatar || '',
-            created_at: user.created_at || '',
-          },
-          success: true,
-        } as any,
-      }
-    }
-  }
-
-  // 列表也查不到 → 返回错误让调用方走兜底
-  throw new Error('用户未找到')
+  }>>(`${V1}/settings/users/${userId}`, { silent: true } as any)
 }
