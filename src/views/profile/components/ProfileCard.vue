@@ -55,14 +55,15 @@ async function initProfile() {
     const userId = userStore.userInfo?.id
     if (userId && navigator.onLine) {
       try {
-        const res = await getMyProfile(userId)
+        const account = userStore.userInfo?.username || ''
+        const res = await getMyProfile(userId, account)
         if (res.data?.code === 0 && res.data.data) {
           const d = res.data.data
           profileStore.setUserInfo({
             id: d.id,
             account: d.account,
             realname: d.realname || userStore.userInfo?.nickname || '',
-            avatar: userStore.userInfo?.avatar || '',
+            avatar: (d as any).avatar || userStore.userInfo?.avatar || '',
             role_name: d.role_name || (userStore.userInfo?.roles ?? ['admin'])[0],
             phone: d.phone || '未填写',
             email: d.email || '',
