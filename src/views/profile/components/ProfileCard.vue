@@ -100,6 +100,9 @@ async function initProfile() {
               if (avatarUrl) userStore.userInfo.avatar = avatarUrl
               if (d.phone) userStore.userInfo.phone = d.phone
               localStorage.setItem('userInfo', JSON.stringify(userStore.userInfo))
+              if (sessionStorage.getItem('userInfo')) {
+                sessionStorage.setItem('userInfo', JSON.stringify(userStore.userInfo))
+              }
             }
           }
           return

@@ -21,6 +21,10 @@ import { isApiNotFoundError } from '@/utils/apiError'
 import { RESERVOIR_OPTIONS } from '@/constants/settings'
 
 import { gateaiSharedStore } from './gateaiSharedStore'
+import type { ApiResponse } from '@/shared/types'
+
+/** v1 路径前缀，与 settings.ts 保持一致 */
+const V1 = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
 
 // ── 真实 API 导入 ──
 import {
@@ -617,8 +621,30 @@ export async function updateInterlockRule(ruleId: number, patch: Partial<GateInt
   return delay(gateaiSharedStore.updateInterlockRule(ruleId, patch))
 }
 
-export function createInterlockRule(data: Omit<GateInterlockRule, 'id' | 'trigger_count_7d'>) {
-  // 后端暂无独立的创建接口，使用 POST /v1/settings/gate-interlock/rules（如存在）
+export async function createInterlockRule(
+  data: Omit<GateInterlockRule, 'id' | 'trigger_count_7d'>,
+): Promise<GateInterlockRule> {
+  // 构造与 PUT 完全一致的请求体格式（trigger_conditions / constraint_action 对象）
+  const payload: Record<string, unknown> = {
+    ...toInterlockUpdatePayload(data),
+    rule_code: data.rule_code,
+    reservoir_id: data.reservoir_id,
+    // 确保 trigger_conditions / constraint_action 字段存在（后端可能要求必填）
+    trigger_conditions: data.trigger_conditions || {},
+    constraint_action: data.constraint_action || {},
+  }
+  try {
+    const res = await http.post<ApiResponse<GateInterlockRule>>(
+      `${V1}/settings/gate-interlock/rules`,
+      payload,
+      { silent: true } as any,
+    )
+    if (res.data?.code === 0 && res.data.data) {
+      return res.data.data
+    }
+  } catch (e) {
+    if (!GATEAI_MOCK_FALLBACK) throw e
+  }
   return delay(gateaiSharedStore.createInterlockRule(data))
 }
 

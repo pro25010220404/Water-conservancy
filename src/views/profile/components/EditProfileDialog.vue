@@ -100,13 +100,18 @@ async function submit() {
         avatar: form.avatar || profileStore.userInfo.avatar,
       })
     }
-    // 同步更新 userStore + localStorage
+    // 同步更新 userStore + localStorage + sessionStorage
+    // sessionStorage 必须也更新：未勾"自动登录"时登录把 userInfo 存入了 sessionStorage，
+    // loadUserInfo 优先读 sessionStorage，只写 localStorage 会导致刷新后丢失
     if (userStore.userInfo) {
       userStore.userInfo.nickname = form.realname
       if (form.avatar) userStore.userInfo.avatar = form.avatar
       const updated = { ...userStore.userInfo, phone: form.phone }
       userStore.userInfo = updated
       localStorage.setItem('userInfo', JSON.stringify(updated))
+      if (sessionStorage.getItem('userInfo')) {
+        sessionStorage.setItem('userInfo', JSON.stringify(updated))
+      }
     }
     // 头像：写入 store + localStorage + dispatch 事件强制刷新
     if (form.avatar) {

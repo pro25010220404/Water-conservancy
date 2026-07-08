@@ -180,6 +180,10 @@ async function submitInfo() {
         const updated = { ...userStore.userInfo, phone: infoForm.value.phone }
         userStore.userInfo = updated
         localStorage.setItem('userInfo', JSON.stringify(updated))
+        // sessionStorage 必须同步更新：未勾"自动登录"时 loadUserInfo 优先读 sessionStorage
+        if (sessionStorage.getItem('userInfo')) {
+          sessionStorage.setItem('userInfo', JSON.stringify(updated))
+        }
       }
     }
     recordLog('个人中心', '编辑', '修改了个人资料', 1)

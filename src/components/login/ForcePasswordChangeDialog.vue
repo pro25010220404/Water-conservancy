@@ -127,6 +127,9 @@ async function submitPassword() {
           const updated = { ...userStore.userInfo, phone: pwdForm.phone }
           userStore.userInfo = updated
           localStorage.setItem('userInfo', JSON.stringify(updated))
+          if (sessionStorage.getItem('userInfo')) {
+            sessionStorage.setItem('userInfo', JSON.stringify(updated))
+          }
         }
       } catch { /* 手机号更新失败不阻塞改密流程 */ }
     }
