@@ -525,7 +525,14 @@ async function saveWeights() {
   saveLoadingTab2.value = true
   try {
     await ElMessageBox.confirm('确定保存新的权重配置？保存后将实时推送至边缘端', '确认保存')
-    await updateWeights({ ...weightForm.value })
+  } catch {
+    saveLoadingTab2.value = false
+    return
+  }
+  try {
+    const body = { ...weightForm.value }
+    console.log('[权重保存] 请求体:', JSON.stringify(body))
+    await updateWeights(body)
     recordLog(
       '系统设置',
       '修改权重',
@@ -533,8 +540,12 @@ async function saveWeights() {
       1,
     )
     ElMessage.success('权重已保存并推送至边缘端')
-  } catch {
-    /* 取消 */
+  } catch (err: any) {
+    const msg = err?.message || err?.msg || ''
+    if (msg) {
+      ElMessage.error(`保存失败：${msg}`)
+    }
+    console.error('[权重保存] 错误详情:', err)
   } finally {
     saveLoadingTab2.value = false
   }
