@@ -47,7 +47,7 @@ export async function getOperationLogs(params?: {
     login_status: number
     fail_reason: string
     created_at: string
-  }>>>('/login-logs', { params, signal })
+  }>>>('/login-logs', { params, signal, silent: true } as any)
 
   // 登录日志 → 操作日志 字段映射
   const body = res.data
@@ -98,5 +98,5 @@ export function getMyProfile(userId: number) {
     phone: string
     email?: string
     created_at: string
-  }>>(`${V1}/settings/users/${userId}`)
+  }>>(`${V1}/settings/users/${userId}`, { silent: true } as any)
 }
