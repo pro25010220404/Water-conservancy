@@ -103,15 +103,31 @@ function openEdit(rule: GateInterlockRule) {
 }
 
 async function submitEdit() {
+  if (!editForm.value.rule_name?.trim()) {
+    ElMessage.warning('请输入规则名称')
+    return
+  }
+  if (!editForm.value.trigger_label?.trim()) {
+    ElMessage.warning('请输入触发条件')
+    return
+  }
+  if (!editForm.value.action_label?.trim()) {
+    ElMessage.warning('请输入约束动作')
+    return
+  }
   if (editMode.value === 'create') {
-    await createInterlockRule(editForm.value as Omit<GateInterlockRule, 'id' | 'trigger_count_7d'>)
+    const created = await createInterlockRule(
+      editForm.value as Omit<GateInterlockRule, 'id' | 'trigger_count_7d'>,
+    )
+    // 直接添加到本地列表并按优先级排序，避免 load() 从后端覆盖
+    rules.value = [...rules.value, created].sort((a, b) => a.priority - b.priority)
     ElMessage.success('规则已创建')
   } else if (editingId.value) {
     await updateInterlockRule(editingId.value, editForm.value)
     ElMessage.success('规则已更新')
+    await load()
   }
   editVisible.value = false
-  await load()
 }
 
 function onDragStart(rule: GateInterlockRule) { dragId.value = rule.id }
@@ -320,8 +336,8 @@ onMounted(async () => {
             <ElOption v-for="r in reservoirs" :key="r.id" :label="`${r.name}专属`" :value="r.id" />
           </ElSelect>
         </ElFormItem>
-        <ElFormItem label="触发条件"><ElInput v-model="editForm.trigger_label" readonly /></ElFormItem>
-        <ElFormItem label="约束动作"><ElInput v-model="editForm.action_label" readonly /></ElFormItem>
+        <ElFormItem label="触发条件"><ElInput v-model="editForm.trigger_label" placeholder="例如：溢洪道 > 80%" /></ElFormItem>
+        <ElFormItem label="约束动作"><ElInput v-model="editForm.action_label" placeholder="例如：发电闸 ≤ 50%" /></ElFormItem>
         <ElFormItem label="优先级"><ElInputNumber v-model="editForm.priority" :min="1" :max="99" /></ElFormItem>
       </ElForm>
       <template #footer>

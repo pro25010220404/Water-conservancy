@@ -125,7 +125,7 @@ export const useUserStore = defineStore('user', () => {
     localStorage.removeItem('token')
     localStorage.removeItem('userInfo')
     localStorage.removeItem('tokenExpireTime')
-    localStorage.removeItem('remembered_credentials')
+    // 保留 remembered_credentials，退出后密码仍可回填
     localStorage.removeItem('auto_login_flag')
     sessionStorage.removeItem('token')
     sessionStorage.removeItem('userInfo')
