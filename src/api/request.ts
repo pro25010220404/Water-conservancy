@@ -77,9 +77,11 @@ http.interceptors.response.use(
       }
       // 401/404 静默处理，页面自动 Mock 降级
       // 真正的认证失效由 success 拦截器处理（业务 code>=20001）
-      // silent 标记：有兜底方案的请求不弹 toast（如头像上传、获取资料）
+      // silent 标记：有兜底方案的请求不弹 toast
       const silent = (error.config as any)?.silent === true
-      if (status === 401 || status === 404 || silent) {
+      // 个人中心相关接口后端不稳定，即使 silent 未传也静默
+      const isProfileUrl = /\/users\/\d+$|\/me\/avatar|\/login-logs/.test(error.config?.url || '')
+      if (status === 401 || status === 404 || silent || isProfileUrl) {
         if (import.meta.env.DEV) {
           console.warn(`[API] ${status}，使用 Mock 降级:`, error.config?.url)
         }
