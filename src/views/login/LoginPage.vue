@@ -125,6 +125,14 @@ async function handleLogin() {
     clearLocalFailCount(username.value)
     ElMessage.success('登录成功')
 
+    // 不勾自动登录 → token 移到 sessionStorage，关标签页自动失效
+    if (!autoLogin.value) {
+      sessionStorage.setItem('token', userStore.token)
+      sessionStorage.setItem('userInfo', JSON.stringify(userStore.userInfo))
+      localStorage.removeItem('token')
+      localStorage.removeItem('userInfo')
+    }
+
     // 记住密码：保存凭证
     if (rememberMe.value) {
       saveCredentials(username.value, password.value)
