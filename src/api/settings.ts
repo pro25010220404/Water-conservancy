@@ -43,6 +43,61 @@ const AI = '/settings/ai'
 // Tab1: 告警阈值 §8.1
 // ════════════════════════════════════════════════════════════
 
+const DEFAULT_THRESHOLD_RESERVOIR_ID = 1
+
+function normalizeThresholdRule(raw: Record<string, unknown>): ThresholdRule {
+  return {
+    id: Number(raw.id),
+    reservoir_id: raw.reservoir_id == null ? null : Number(raw.reservoir_id),
+    metric: String(raw.metric ?? ''),
+    warning_upper: Number(raw.warning_upper),
+    warning_lower: Number(raw.warning_lower),
+    critical_upper: Number(raw.critical_upper),
+    critical_lower: Number(raw.critical_lower),
+    debounce_seconds: Number(raw.debounce_seconds),
+    enabled: Number(raw.enabled),
+  }
+}
+
+/** 后端可能返回字符串数值；同 metric 多条时优先当前水库 */
+export function normalizeThresholdList(
+  list: unknown[],
+  reservoirId = DEFAULT_THRESHOLD_RESERVOIR_ID,
+): ThresholdRule[] {
+  const normalized = list.map((item) =>
+    normalizeThresholdRule(item as Record<string, unknown>),
+  )
+  const preferred = normalized.filter((r) => r.reservoir_id === reservoirId)
+  const source = preferred.length ? preferred : normalized
+  const map = new Map<string, ThresholdRule>()
+  for (const item of source) {
+    const existing = map.get(item.metric)
+    if (!existing || (item.reservoir_id != null && existing.reservoir_id == null)) {
+      map.set(item.metric, item)
+    }
+  }
+  return [...map.values()].sort((a, b) => a.id - b.id)
+}
+
+export function toThresholdUpdatePayload(edit: ThresholdRule): ThresholdUpdateParams {
+  return {
+    warning_upper: Number(edit.warning_upper),
+    warning_lower: Number(edit.warning_lower),
+    critical_upper: Number(edit.critical_upper),
+    critical_lower: Number(edit.critical_lower),
+    debounce_seconds: Number(edit.debounce_seconds),
+    enabled: Number(edit.enabled),
+  }
+}
+
+export async function fetchThresholdList(reservoirId = DEFAULT_THRESHOLD_RESERVOIR_ID) {
+  const res = await getThresholds({ reservoir_id: reservoirId })
+  if (res.data?.code !== 0 || !Array.isArray(res.data.data)) {
+    throw new Error(res.data?.msg || '获取阈值失败')
+  }
+  return normalizeThresholdList(res.data.data, reservoirId)
+}
+
 export function getThresholds(params?: { reservoir_id?: number; metric?: string }) {
   return http.get<ApiResponse<ThresholdRule[]>>(`${V1}/settings/thresholds`, { params })
 }

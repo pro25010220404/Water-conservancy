@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ElSelect,
   ElOption,
   ElCollapse,
   ElCollapseItem,
+  ElForm,
   ElFormItem,
   ElInputNumber,
   ElInput,
@@ -16,6 +17,7 @@ import {
   ElTable,
   ElTableColumn,
 } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 import type { PhysicsGuardConfig } from '@/types/gateai'
 import {
   fetchReservoirOptions,
@@ -51,6 +53,21 @@ const saving = ref(false)
 const editing = ref(false)
 const saveDialogVisible = ref(false)
 const saveDescription = ref('')
+const saveFormRef = ref<FormInstance>()
+const saveFormRules: FormRules = {
+  saveDescription: [
+    {
+      validator: (_rule, value, callback) => {
+        if (!value || !String(value).trim()) {
+          callback(new Error('请填写变更说明'))
+        } else {
+          callback()
+        }
+      },
+      trigger: ['blur', 'change'],
+    },
+  ],
+}
 const cloneDialogVisible = ref(false)
 const cloneSourceId = ref(1)
 const cloneVersion = ref('')
@@ -130,13 +147,20 @@ function openSaveDialog() {
   if (!form.value || !isDirty.value) return
   saveDescription.value = ''
   saveDialogVisible.value = true
+  nextTick(() => saveFormRef.value?.clearValidate())
 }
 
 async function confirmSave() {
-  if (!form.value) return
+  if (!form.value || !saveFormRef.value) return
+  try {
+    await saveFormRef.value.validate()
+  } catch {
+    return
+  }
+  const description = saveDescription.value.trim()
   saving.value = true
   try {
-    await savePhysicsGuardConfig(form.value, { description: saveDescription.value || undefined })
+    await savePhysicsGuardConfig(form.value, { description })
     ElMessage.success('配置已保存，边缘端下一同步周期生效')
     saveDialogVisible.value = false
     editing.value = false
@@ -412,14 +436,26 @@ onMounted(async () => {
           ><template #default="{ row }">{{ row.after }}</template></ElTableColumn
         >
       </ElTable>
-      <ElFormItem label="变更说明">
-        <ElInput
-          v-model="saveDescription"
-          type="textarea"
-          :rows="2"
-          placeholder="简要说明本次修改原因（可选）"
-        />
-      </ElFormItem>
+      <ElForm
+        ref="saveFormRef"
+        :model="{ saveDescription }"
+        :rules="saveFormRules"
+        label-position="top"
+        class="save-form"
+        @submit.prevent
+      >
+        <ElFormItem label="变更说明" prop="saveDescription" required>
+          <ElInput
+            v-model="saveDescription"
+            type="textarea"
+            :rows="2"
+            maxlength="200"
+            show-word-limit
+            placeholder="请简要说明本次修改原因（必填）"
+          />
+          <p class="save-desc-tip">保存前须填写变更说明，便于后续在变更历史中追溯。</p>
+        </ElFormItem>
+      </ElForm>
       <template #footer>
         <ElButton @click="saveDialogVisible = false">取消</ElButton>
         <ElButton type="primary" :loading="saving" @click="confirmSave">确认保存</ElButton>
@@ -543,5 +579,20 @@ onMounted(async () => {
   margin: 0 0 14px;
   font-size: 14px;
   color: #334155;
+}
+.save-form {
+  :deep(.el-form-item__label) {
+    font-size: 14px;
+    font-weight: 600;
+  }
+}
+.save-desc-tip {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #64748b;
+}
+.save-form :deep(.el-form-item.is-error .save-desc-tip) {
+  color: #f56c6c;
 }
 </style>
