@@ -47,7 +47,7 @@ export async function getOperationLogs(params?: {
     login_status: number
     fail_reason: string
     created_at: string
-  }>>>('/login-logs', { params, signal })
+  }>>>('/login-logs', { params, signal, silent: true } as any)
 
   // 登录日志 → 操作日志 字段映射
   const body = res.data
@@ -75,14 +75,14 @@ export async function getOperationLogs(params?: {
  * 用户 ID 来自登录响应 user_info.id
  */
 export function updateProfile(userId: number, data: UpdateProfileParams) {
-  return http.put<ApiResponse<null>>(`${V1}/settings/users/${userId}`, data)
+  return http.put<ApiResponse<null>>(`${V1}/settings/users/${userId}`, data, { silent: true } as any)
 }
 
-/** 上传头像 — POST /api/v1/me/avatar，multipart/form-data，字段名 avatar */
+/** 上传头像 — POST /api/v1/me/avatar，multipart/form-data，字段名 file */
 export function uploadAvatar(file: File) {
   const formData = new FormData()
-  formData.append('avatar', file)
-  return http.post<ApiResponse<{ avatar: string }>>(`${V1}/me/avatar`, formData, { timeout: 60000 })
+  formData.append('file', file)
+  return http.post<ApiResponse<{ avatar: string }>>(`${V1}/me/avatar`, formData, { timeout: 60000, silent: true } as any)
 }
 
 /**
@@ -98,5 +98,5 @@ export function getMyProfile(userId: number) {
     phone: string
     email?: string
     created_at: string
-  }>>(`${V1}/settings/users/${userId}`)
+  }>>(`${V1}/settings/users/${userId}`, { silent: true } as any)
 }

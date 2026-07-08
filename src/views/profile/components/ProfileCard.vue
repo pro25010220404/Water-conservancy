@@ -48,11 +48,12 @@ const currentAvatarUrl = computed(
   () => profileStore.userInfo?.avatar || userStore.userInfo?.avatar || '',
 )
 
-/** 初始化资料（优先从后端拉取最新数据，网络不可用时回退本地缓存） */
+/** 初始化资料 — 后端优先，失败则用 userStore + profileStore 本地数据 */
 async function initProfile() {
   loading.value = true
   try {
     const userId = userStore.userInfo?.id
+    // 1) 优先从后端拉取最新数据
     if (userId && navigator.onLine) {
       try {
         const res = await getMyProfile(userId)
@@ -68,7 +69,6 @@ async function initProfile() {
             email: d.email || '',
             created_at: d.created_at || '',
           })
-          // 同步回 userStore + localStorage
           if (userStore.userInfo) {
             userStore.userInfo.nickname = d.realname || userStore.userInfo.nickname
             if (d.phone) {
@@ -79,10 +79,11 @@ async function initProfile() {
           return
         }
       } catch {
-        // 后端不可达 → 回退本地缓存
+        // 后端异常 → 兜底本地数据，不弹 toast
       }
     }
-    // 回退：从本地缓存初始化
+
+    // 2) 兜底：本地数据
     if (!profileStore.userInfo) {
       profileStore.setUserInfo({
         id: userStore.userInfo?.id ?? 1,
@@ -94,8 +95,8 @@ async function initProfile() {
         email: '',
         created_at: new Date().toISOString().slice(0, 10),
       })
-    } else {
-      profileStore.userInfo.phone = userStore.userInfo?.phone || profileStore.userInfo.phone
+    } else if (userStore.userInfo?.phone) {
+      profileStore.userInfo.phone = userStore.userInfo.phone
     }
   } finally {
     loading.value = false
