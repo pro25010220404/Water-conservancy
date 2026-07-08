@@ -98,8 +98,7 @@ export function deleteModel(id: number) {
 }
 
 export function deployModel(id: number, data: ModelDeployParams) {
-  // Apifox: POST /api/settings/models/{id}/deploy（无 v1 前缀）
-  return http.post<ApiResponse<null>>(`/settings/models/${id}/deploy`, data)
+  return http.post<ApiResponse<null>>(`${V1}/settings/models/${id}/deploy`, data)
 }
 
 export function getModelDetail(id: number) {
