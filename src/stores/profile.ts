@@ -10,6 +10,8 @@ export const useProfileStore = defineStore('profile', () => {
   // ── 用户资料 ──
   const userInfo = ref<ProfileInfo | null>(null)
   const profileLoading = ref(false)
+  /** 头像 URL — 独立 ref 确保保存后立即反应到 ProfileCard */
+  const avatarUrl = ref('')
 
   // ── 操作日志 ──
   const operationLogs = ref<OperationLog[]>([])
@@ -48,6 +50,7 @@ export const useProfileStore = defineStore('profile', () => {
 
   return {
     userInfo,
+    avatarUrl,
     profileLoading,
     operationLogs,
     operationLogPagination,

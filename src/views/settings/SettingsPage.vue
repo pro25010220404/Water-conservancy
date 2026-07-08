@@ -526,7 +526,6 @@ async function saveWeights() {
   try {
     await ElMessageBox.confirm('确定保存新的权重配置？保存后将实时推送至边缘端', '确认保存')
   } catch {
-    // 用户取消弹窗
     saveLoadingTab2.value = false
     return
   }

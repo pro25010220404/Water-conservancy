@@ -24,13 +24,21 @@ const previewUrl = ref<string>(props.currentAvatar || '')
 const uploading = ref(false)
 const uploadProgress = ref(0)
 
+// ── 辅助 ──
+
+function fixAvatarUrl(url: string) {
+  if (!url || url.startsWith('data:') || url.startsWith('http')) return url
+  if (url.startsWith('oss-')) return 'https://fmy-base.' + url
+  return 'https://' + url
+}
+
 // ── 外部同步 ──
 
 watch(
   () => props.currentAvatar,
   (val) => {
     if (!uploading.value) {
-      previewUrl.value = val || ''
+      previewUrl.value = fixAvatarUrl(val || '')
     }
   },
 )
@@ -109,6 +117,7 @@ async function customUpload(options: UploadRequestOptions) {
       if (res.data?.code === 0 && res.data.data) {
         avatarUrl = res.data.data.avatar || res.data.data.url || (res.data.data as any).path || ''
         if (avatarUrl) {
+          avatarUrl = fixAvatarUrl(avatarUrl)
           uploadProgress.value = 100
           previewUrl.value = avatarUrl
           emit('update:avatar', avatarUrl)
