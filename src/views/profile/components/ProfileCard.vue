@@ -83,6 +83,7 @@ async function initProfile() {
         if (res.data?.code === 0 && res.data.data) {
           const d = res.data.data
           // 后端返回 avatar OSS URL，优先用后端的
+          const backendAvatar = (d as any).avatar || ''
           profileStore.setUserInfo({
             id: d.id,
             account: d.account,
@@ -95,9 +96,8 @@ async function initProfile() {
           })
           if (userStore.userInfo) {
             userStore.userInfo.nickname = d.realname || userStore.userInfo.nickname
-            const avatarUrl = (d as any).avatar || ''
-            if (d.phone || avatarUrl) {
-              if (avatarUrl) userStore.userInfo.avatar = avatarUrl
+            if (d.phone || backendAvatar) {
+              if (backendAvatar) userStore.userInfo.avatar = backendAvatar
               if (d.phone) userStore.userInfo.phone = d.phone
               localStorage.setItem('userInfo', JSON.stringify(userStore.userInfo))
               if (sessionStorage.getItem('userInfo')) {
