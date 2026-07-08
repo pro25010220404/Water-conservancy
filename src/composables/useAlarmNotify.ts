@@ -13,29 +13,7 @@ export const pendingAlarmCount = ref(0)
 /** 是否有声音提示（本地设置） */
 const soundEnabled = ref(localStorage.getItem('alarmSound') !== 'off')
 
-// ---------- 音频上下文（惰性初始化） ----------
-let audioCtx: AudioContext | null = null
-
-function playBeep() {
-  if (!soundEnabled.value) return
-  try {
-    if (!audioCtx) {
-      audioCtx = new AudioContext()
-    }
-    const osc = audioCtx.createOscillator()
-    const gain = audioCtx.createGain()
-    osc.connect(gain)
-    gain.connect(audioCtx.destination)
-    osc.frequency.value = 880
-    osc.type = 'sine'
-    gain.gain.value = 0.15
-    osc.start()
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3)
-    osc.stop(audioCtx.currentTime + 0.3)
-  } catch {
-    // 忽略自动播放策略限制
-  }
-}
+import { playAlarmSound } from '@/utils/alarmSound'
 
 // ---------- 弹窗通知 ----------
 function showAlarmNotification(alarm: AlarmRecord) {
@@ -47,7 +25,7 @@ function showAlarmNotification(alarm: AlarmRecord) {
     type: alarm.level === 'URGENT' ? 'error' : alarm.level === 'IMPORTANT' ? 'warning' : 'info',
     duration: alarm.level === 'URGENT' ? 0 : 6000,
     position: 'top-right',
-    customClass: 'alarm-notify',
+    customClass: 'alarm-notify alarm-notify--center',
   })
 }
 
@@ -62,7 +40,7 @@ export function useAlarmNotify() {
     if (msg.type === 'alarm_new') {
       pendingAlarmCount.value = msg.pendingCount
       showAlarmNotification(msg.data)
-      playBeep()
+      if (soundEnabled.value) playAlarmSound()
     }
   }
 
