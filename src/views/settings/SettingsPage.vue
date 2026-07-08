@@ -34,7 +34,8 @@ import GateInterlockPanel from './components/GateInterlockPanel.vue'
 import { FORM_RULES } from '@/constants/validation'
 import { useOperationLog } from '@/composables/useOperationLog'
 import {
-  getThresholds,
+  fetchThresholdList,
+  toThresholdUpdatePayload,
   updateThreshold,
   getWeights,
   updateWeights,
@@ -429,21 +430,25 @@ const userFormRules = computed(() => {
 async function fetchThresholds() {
   thresholdsLoading.value = true
   try {
-    const res = await getThresholds()
-    if (res.data.code === 0 && res.data.data?.length) {
-      thresholds.value = res.data.data
-      thresholdsLoading.value = false
-      return
-    }
+    thresholds.value = await fetchThresholdList(1)
   } catch {
-    /* fallback */
+    ElMessage.warning('阈值接口暂不可用，已显示本地示例数据')
+    thresholds.value = [...MOCK_THRESHOLDS]
+  } finally {
+    thresholdsLoading.value = false
   }
-  thresholds.value = [...MOCK_THRESHOLDS]
-  thresholdsLoading.value = false
 }
 
 function startEditThreshold(row: ThresholdRule) {
-  thresholdsEditing.value[row.id] = { ...row }
+  thresholdsEditing.value[row.id] = {
+    ...row,
+    warning_upper: Number(row.warning_upper),
+    warning_lower: Number(row.warning_lower),
+    critical_upper: Number(row.critical_upper),
+    critical_lower: Number(row.critical_lower),
+    debounce_seconds: Number(row.debounce_seconds),
+    enabled: Number(row.enabled),
+  }
 }
 
 function cancelEditThreshold(id: number) {
@@ -463,7 +468,7 @@ async function saveThreshold(id: number) {
   }
   saveLoadingTab1.value = true
   try {
-    const res = await updateThreshold(id, edit)
+    const res = await updateThreshold(id, toThresholdUpdatePayload(edit))
     if (res.data.code === 0) {
       recordLog(
         '系统设置',
@@ -473,8 +478,12 @@ async function saveThreshold(id: number) {
       )
       ElMessage.success('保存成功')
       delete thresholdsEditing.value[id]
-      fetchThresholds()
+      await fetchThresholds()
+    } else {
+      ElMessage.error(res.data.msg || '保存失败')
     }
+  } catch {
+    ElMessage.error('保存失败，请确认已登录且有管理员权限')
   } finally {
     saveLoadingTab1.value = false
   }
