@@ -75,7 +75,7 @@ export async function getOperationLogs(params?: {
  * 用户 ID 来自登录响应 user_info.id
  */
 export function updateProfile(userId: number, data: UpdateProfileParams) {
-  return http.put<ApiResponse<null>>(`${V1}/settings/users/${userId}`, data)
+  return http.put<ApiResponse<null>>(`${V1}/settings/users/${userId}`, data, { silent: true } as any)
 }
 
 /** 上传头像 — POST /api/v1/me/avatar，multipart/form-data，字段名 file */
