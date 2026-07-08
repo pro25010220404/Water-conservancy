@@ -624,10 +624,20 @@ export async function updateInterlockRule(ruleId: number, patch: Partial<GateInt
 export async function createInterlockRule(
   data: Omit<GateInterlockRule, 'id' | 'trigger_count_7d'>,
 ): Promise<GateInterlockRule> {
+  // 构造与 PUT 完全一致的请求体格式（trigger_conditions / constraint_action 对象）
+  const payload: Record<string, unknown> = {
+    ...toInterlockUpdatePayload(data),
+    rule_code: data.rule_code,
+    reservoir_id: data.reservoir_id,
+    // 确保 trigger_conditions / constraint_action 字段存在（后端可能要求必填）
+    trigger_conditions: data.trigger_conditions || {},
+    constraint_action: data.constraint_action || {},
+  }
   try {
     const res = await http.post<ApiResponse<GateInterlockRule>>(
       `${V1}/settings/gate-interlock/rules`,
-      data,
+      payload,
+      { silent: true } as any,
     )
     if (res.data?.code === 0 && res.data.data) {
       return res.data.data
@@ -635,7 +645,6 @@ export async function createInterlockRule(
   } catch (e) {
     if (!GATEAI_MOCK_FALLBACK) throw e
   }
-  // 后端创建接口不可用时，降级到本地 mock
   return delay(gateaiSharedStore.createInterlockRule(data))
 }
 
