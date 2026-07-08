@@ -20,7 +20,7 @@ http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   // 登录接口不携带旧 token，避免后端误判为 token 过期
   const isLoginRequest = config.url?.includes('/auth/login')
   if (!isLoginRequest) {
-    const token = sessionStorage.getItem('token') || localStorage.getItem('token')
+    const token = localStorage.getItem('token')
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -77,7 +77,7 @@ http.interceptors.response.use(
       }
       // 401/404 静默处理，页面自动 Mock 降级
       // 真正的认证失效由 success 拦截器处理（业务 code>=20001）
-      // silent 标记：有兜底方案的请求不弹 toast（如头像上传）
+      // silent 标记：有兜底方案的请求不弹 toast（如头像上传、获取资料）
       const silent = (error.config as any)?.silent === true
       if (status === 401 || status === 404 || silent) {
         if (import.meta.env.DEV) {
