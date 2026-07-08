@@ -4,6 +4,7 @@
 // ============================================================
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ElNotification } from 'element-plus'
+import { playAlarmSound } from '@/utils/alarmSound'
 import { pendingAlarmCount } from '@/composables/useAlarmNotify'
 import { fetchSecurityCameras, fetchSecurityDoors, fetchSecurityPatrols, fetchSecurityAlarmList } from '@/api/monitoring'
 
@@ -216,27 +217,6 @@ const SIMULATED_SCENARIOS = [
   { location: '下游', type: '非法闯入', level: 'warning' as const },
 ]
 
-function playAlarmSound() {
-  try {
-    const ctx = new AudioContext()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.type = 'square'
-    osc.frequency.value = 800
-    gain.gain.value = 0.15
-    // 嘟嘟嘟 三声
-    const now = ctx.currentTime
-    for (let i = 0; i < 3; i++) {
-      gain.gain.setValueAtTime(0.15, now + i * 0.4)
-      gain.gain.setValueAtTime(0, now + i * 0.4 + 0.2)
-    }
-    osc.start(now)
-    osc.stop(now + 1.4)
-  } catch { /* 浏览器不支持 */ }
-}
-
 function simulateAlarm() {
   playAlarmSound()
   const scenario = SIMULATED_SCENARIOS[alarmScenarioIdx % SIMULATED_SCENARIOS.length]
@@ -259,8 +239,9 @@ function simulateAlarm() {
     title: `【${scenario.level === 'critical' ? '严重' : '警告'}】${scenario.type}`,
     message: `${scenario.location} 触发告警，已自动切换摄像头`,
     type: scenario.level === 'critical' ? 'error' : 'warning',
-    duration: 5000,
+    duration: scenario.level === 'critical' ? 0 : 8000,
     position: 'top-right',
+    customClass: 'alarm-notify alarm-notify--center',
   })
 
   const cameraId = ALARM_ZONE_TO_CAMERA[scenario.location]
@@ -282,7 +263,7 @@ function triggerAlarmSwitch(cameraId: string) {
   alarmFlashTimer = setInterval(() => {
     alarmFlashActive.value = !alarmFlashActive.value
     flashes++
-    if (flashes >= 6) {
+    if (flashes >= 12) {
       clearInterval(alarmFlashTimer!)
       alarmFlashTimer = null
       alarmFlashActive.value = false

@@ -107,14 +107,83 @@ v-else :index="item.path"
     border-right: none;
     background: transparent;
     padding: 8px 0;
+    --el-menu-base-level-padding: 14px;
+    --el-menu-icon-width: 18px;
     @include hide-scrollbar;
   }
 
-  :deep(.el-menu-item) {
+  // 一级菜单：可展开标题 与 普通项 左对齐
+  :deep(.el-menu > .el-menu-item),
+  :deep(.el-menu > .el-sub-menu > .el-sub-menu__title) {
+    display: flex;
+    align-items: center;
+    height: 44px;
+    line-height: 44px;
     margin: 4px 8px;
+    padding-left: 14px !important;
     border-radius: var(--border-radius-sm);
+    font-size: 16px;
     color: var(--color-layout-blue-text-secondary);
     transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  :deep(.el-menu > .el-menu-item) {
+    padding-right: 14px !important;
+  }
+
+  :deep(.el-menu > .el-sub-menu > .el-sub-menu__title) {
+    position: relative;
+    padding-right: 36px !important;
+  }
+
+  :deep(.el-sub-menu .el-menu) {
+    margin: 2px 8px 4px 26px;
+    padding: 2px 0 4px;
+    background: transparent;
+    border-left: 1px solid rgba(255, 255, 255, 0.18);
+  }
+
+  // 二级菜单：缩进 + 引导线区分层级，颜色与一级保持一致
+  :deep(.el-sub-menu .el-menu-item) {
+    height: 44px;
+    line-height: 44px;
+    margin: 2px 0 2px 12px;
+    padding-left: 16px !important;
+    padding-right: 12px !important;
+    border-radius: var(--border-radius-sm);
+    font-size: 16px;
+    color: var(--color-layout-blue-text-secondary);
+    transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.08) !important;
+      color: var(--color-layout-blue-text);
+    }
+
+    &.is-active {
+      background: var(--color-layout-blue-active) !important;
+      color: var(--color-layout-blue-brand) !important;
+      font-weight: 600;
+      box-shadow: inset 0 0 24px rgba(110, 179, 255, 0.12);
+    }
+  }
+
+  :deep(.el-menu > .el-sub-menu.is-opened > .el-sub-menu__title) {
+    color: var(--color-layout-blue-text);
+  }
+
+  :deep(.el-menu > .el-menu-item .el-icon),
+  :deep(.el-menu > .el-sub-menu > .el-sub-menu__title .el-icon) {
+    margin-right: 10px !important;
+    width: 18px;
+    min-width: 18px;
+    font-size: 18px;
+    flex-shrink: 0;
+    justify-content: center;
+  }
+
+  :deep(.el-menu > .el-sub-menu > .el-sub-menu__title .el-sub-menu__icon-arrow) {
+    right: 14px;
   }
 
   :deep(.el-menu-item.is-active) {
@@ -156,9 +225,10 @@ v-else :index="item.path"
 
   .el-menu-item {
     margin: 2px 6px;
+    padding-left: 20px !important;
     border-radius: 6px;
     color: rgba(200, 215, 235, 0.85) !important;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 500;
     background: transparent !important;
 
