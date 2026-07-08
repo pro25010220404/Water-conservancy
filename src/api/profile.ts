@@ -78,11 +78,39 @@ export function updateProfile(userId: number, data: UpdateProfileParams) {
   return http.put<ApiResponse<null>>(`${V1}/settings/users/${userId}`, data, { silent: true } as any)
 }
 
-/** 上传头像 — POST /api/v1/me/avatar，multipart/form-data，字段名 file */
-export function uploadAvatar(file: File) {
+/** 上传头像 — POST /api/v1/me/avatar，multipart/form-data */
+export async function uploadAvatar(file: File): Promise<{ data: ApiResponse<{ avatar: string }> }> {
   const formData = new FormData()
-  formData.append('file', file)
-  return http.post<ApiResponse<{ avatar: string }>>(`${V1}/me/avatar`, formData, { timeout: 60000, silent: true } as any)
+  formData.append('avatar', file)
+
+  // 原生 XHR：绕过 axios 拦截器，确保 multipart/form-data 原样发送
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `/api${V1}/me/avatar`)
+    xhr.timeout = 60000
+
+    const token = localStorage.getItem('token')
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    // 不设 Content-Type，让浏览器自动带 multipart/form-data + boundary
+
+    xhr.onload = () => {
+      try {
+        const body = JSON.parse(xhr.responseText || '{}')
+        // HTTP 错误也正常 resolve（由调用方根据 body.code 判断），
+        // 非 JSON 响应才 reject
+        if (typeof body === 'object' && body !== null) {
+          resolve({ data: body } as any)
+        } else {
+          reject(new Error('响应格式异常'))
+        }
+      } catch {
+        reject(new Error('响应解析失败'))
+      }
+    }
+    xhr.onerror = () => reject(new Error('网络错误'))
+    xhr.ontimeout = () => reject(new Error('上传超时'))
+    xhr.send(formData)
+  })
 }
 
 /**
