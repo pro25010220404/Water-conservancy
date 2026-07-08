@@ -20,7 +20,7 @@ http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   // 登录接口不携带旧 token，避免后端误判为 token 过期
   const isLoginRequest = config.url?.includes('/auth/login')
   if (!isLoginRequest) {
-    const token = localStorage.getItem('token')
+    const token = sessionStorage.getItem('token') || localStorage.getItem('token')
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
