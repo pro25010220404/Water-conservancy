@@ -48,7 +48,7 @@ const AUTO_LOGIN_KEY = 'auto_login_flag'
 
 function saveCredentials(user: string, pwd: string) {
   try {
-    localStorage.setItem(REMEMBER_KEY, JSON.stringify({ u: user, p: btoa(pwd) }))
+    localStorage.setItem(REMEMBER_KEY, JSON.stringify({ u: user, p: encodeURIComponent(pwd), v: 2 }))
   } catch { /* quota exceeded */ }
 }
 
@@ -57,7 +57,11 @@ function loadCredentials(): { u: string; p: string } | null {
     const raw = localStorage.getItem(REMEMBER_KEY)
     if (!raw) return null
     const data = JSON.parse(raw)
-    if (data?.u && data?.p) return { u: data.u, p: atob(data.p) }
+    if (!data?.u || !data?.p) return null
+    // v2: encodeURIComponent 编码
+    if (data.v === 2) return { u: data.u, p: decodeURIComponent(data.p) }
+    // v1（无版本标记）: 旧 btoa 编码
+    return { u: data.u, p: atob(data.p) }
   } catch { /* corrupted */ }
   return null
 }
