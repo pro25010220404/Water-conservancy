@@ -1421,6 +1421,69 @@ onUnmounted(() => {
       }
     }
   }
+
+  /* 小屏 / 低分辨率 / Windows 125%–150% 缩放：避免三栏被裁切 */
+  @media (max-width: 1440px) {
+    padding: 10px 12px 12px;
+
+    .sim-page__grid {
+      grid-template-columns: minmax(220px, 1fr) minmax(0, 1.5fr) minmax(240px, 1fr);
+      gap: 10px;
+    }
+  }
+
+  @media (max-width: 1280px) {
+    height: auto;
+    min-height: calc(100vh - var(--header-height));
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    .sim-page__grid {
+      grid-template-columns: 1fr;
+      grid-auto-rows: auto;
+      gap: 12px;
+      overflow: visible;
+      height: auto;
+    }
+
+    .sim-page__col {
+      height: auto;
+      overflow: visible;
+    }
+
+    .sim-page__col--left {
+      grid-template-rows: auto auto auto;
+    }
+
+    .sim-page__col--center {
+      min-height: 380px;
+    }
+
+    .sim-func-panel {
+      min-height: 320px;
+      max-height: none;
+    }
+  }
+
+  @media (max-height: 860px) and (min-width: 1281px) {
+    height: auto;
+    min-height: calc(100vh - var(--header-height));
+    overflow-x: hidden;
+    overflow-y: auto;
+
+    .sim-page__grid {
+      overflow: visible;
+    }
+
+    .sim-page__col--left {
+      overflow-y: auto;
+      @include hide-scrollbar;
+    }
+
+    .sim-func-panel__scroll {
+      max-height: min(42vh, 420px);
+    }
+  }
 }
 
 @keyframes holo-scan {
@@ -1582,6 +1645,10 @@ onUnmounted(() => {
   margin: 0 0 6px;
   padding: 0;
   list-style: none;
+
+  @media (max-width: 960px) {
+    grid-template-columns: repeat(3, 1fr);
+  }
 
   li {
     display: flex;

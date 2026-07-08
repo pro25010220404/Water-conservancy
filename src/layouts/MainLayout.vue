@@ -123,7 +123,8 @@ const isWhitePage = computed(() =>
 
     &--flush {
       padding: 0;
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
       background: #ffffff;
     }
 
