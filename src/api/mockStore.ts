@@ -8,7 +8,8 @@ import type {
   AlarmStatsResult,
   AlarmPushMessage,
 } from '@/types/alarm'
-import { ALARM_LEVEL_MAP, ALARM_STATUS_MAP, ALARM_TYPE_MAP } from '@/constants/alarm'
+import { ALARM_TYPE_MAP } from '@/constants/alarm'
+import { filterAlarmsByKeyword } from './alarmAdapter'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import { createAlarmSeed, createExceedLogSeed } from './mock/alarmSeed'
 import { gateaiSharedStore } from './gateaiSharedStore'
@@ -909,19 +910,7 @@ function filterAlarms(params: AlarmFilterParams) {
     list = list.filter((a) => new Date(a.createdAt).getTime() <= end)
   }
   if (params.keyword) {
-    list = list.filter((a) =>
-      fuzzyMatch(
-        params.keyword!,
-        a.content,
-        a.pointName,
-        a.alarmNo,
-        a.reservoirName,
-        String(a.id),
-        ALARM_TYPE_MAP[a.type]?.label,
-        ALARM_LEVEL_MAP[a.level]?.label,
-        ALARM_STATUS_MAP[a.status]?.label,
-      ),
-    )
+    list = filterAlarmsByKeyword(list, params.keyword)
   }
   return list
 }

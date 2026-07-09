@@ -11,8 +11,7 @@ import type {
   AlarmType,
   AlarmDeviceType,
 } from '@/types/alarm'
-import { ALARM_LEVEL_MAP, ALARM_STATUS_MAP, ALARM_TYPE_MAP } from '@/constants/alarm'
-import { fuzzyMatch } from '@/utils/fuzzyMatch'
+import { ALARM_TYPE_MAP } from '@/constants/alarm'
 
 /** 后端列表项（GET /v1/alarms） */
 export interface BackendAlarmItem {
@@ -215,19 +214,50 @@ export function mapBackendExceedLog(item: BackendExceedLogItem): AlarmExceedLog 
 export function filterAlarmsByKeyword(list: AlarmRecord[], keyword?: string): AlarmRecord[] {
   const kw = keyword?.trim()
   if (!kw) return list
-  return list.filter((a) =>
-    fuzzyMatch(
-      kw,
-      a.content,
-      a.pointName,
-      a.alarmNo,
-      a.reservoirName,
-      String(a.id),
-      ALARM_TYPE_MAP[a.type]?.label,
-      ALARM_LEVEL_MAP[a.level]?.label,
-      ALARM_STATUS_MAP[a.status]?.label,
-    ),
-  )
+  const lower = kw.toLowerCase()
+  return list.filter((a) => matchAlarmKeyword(a, lower))
+}
+
+/** 仅匹配用户可见字段，避免 id 等内部字段误命中 */
+function matchAlarmKeyword(alarm: AlarmRecord, kw: string): boolean {
+  const fields = [
+    alarm.content,
+    alarm.pointName,
+    alarm.alarmNo,
+    alarm.reservoirName,
+    ALARM_TYPE_MAP[alarm.type]?.label,
+    String(alarm.currentValue),
+    String(alarm.threshold),
+  ]
+    .filter((v) => v != null && v !== '')
+    .map((v) => String(v).toLowerCase())
+
+  const haystack = fields.join(' ')
+  const tokens = kw.split(/\s+/).filter(Boolean)
+
+  if (tokens.length > 1) {
+    return tokens.every((t) => tokenMatches(haystack, t))
+  }
+  return tokenMatches(haystack, kw)
+}
+
+function tokenMatches(haystack: string, token: string): boolean {
+  if (haystack.includes(token)) return true
+  // 中文等 2 字及以上才启用字符顺序模糊匹配（如「高水」→「高水位」）
+  if (token.length >= 2 && !/^\d+$/.test(token)) {
+    return subsequenceMatch(haystack, token)
+  }
+  return false
+}
+
+function subsequenceMatch(text: string, pattern: string): boolean {
+  let idx = 0
+  for (const ch of pattern) {
+    idx = text.indexOf(ch, idx)
+    if (idx === -1) return false
+    idx += 1
+  }
+  return true
 }
 
 /** 前端筛选参数 → 后端 Query */
