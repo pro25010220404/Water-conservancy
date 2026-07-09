@@ -595,7 +595,10 @@ async function handleRollbackModel(id: number) {
     await ElMessageBox.confirm('确定回滚到上一个版本？', '确认回滚')
     await rollbackModel(id)
     recordLog('系统设置', '回滚模型', `回滚了模型 ID:${id}`, 1)
-    ElMessage.success('模型已回滚')
+    await ElMessageBox.alert('模型已成功回滚到上一个版本', '回滚成功', {
+      confirmButtonText: '确定',
+      type: 'success',
+    })
     fetchModels()
   } catch {
     /* 取消 */
@@ -609,7 +612,7 @@ async function handleDeployModel(id: number) {
   let ids: { value: string }
   try {
     ids = await ElMessageBox.prompt(
-      '请输入目标边缘节点 ID（逗号分隔，可用节点：1~8）',
+      '请输入目标边缘节点 ID（逗号分隔，可用节点：3~5）',
       '下发模型',
       { confirmButtonText: '下发' },
     )
@@ -625,9 +628,9 @@ async function handleDeployModel(id: number) {
     ElMessage.warning('请至少输入一个节点 ID')
     return
   }
-  const invalidIds = nodeIds.filter((n) => n < 1 || n > 8)
+  const invalidIds = nodeIds.filter((n) => n < 3 || n > 5)
   if (invalidIds.length > 0) {
-    ElMessage.warning(`边缘节点 ID ${invalidIds.join('、')} 不存在，当前可用节点ID：1~8`)
+    ElMessage.warning(`边缘节点 ID ${invalidIds.join('、')} 不存在，当前可用节点ID：3~5`)
     return
   }
 
