@@ -23,7 +23,6 @@ import {
 
 const V1_PREFIX = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
 const ALARMS_BASE = `${V1_PREFIX}/alarms`
-const DEFAULT_RESERVOIR_ID = 1
 
 function unwrap<T>(res: { data: ApiResponse<T> }): ApiResponse<T> | null {
   if (res.data?.code === 0) return res.data
@@ -34,11 +33,11 @@ export async function getAlarmList(
   params: AlarmFilterParams,
 ): Promise<ApiResponse<PageResult<AlarmRecord> & { pendingCount: number }>> {
   try {
-    const query = toBackendAlarmQuery({ ...params, reservoir_id: DEFAULT_RESERVOIR_ID })
+    const query = toBackendAlarmQuery(params)
     const [listRes, pendingRes] = await Promise.all([
       http.get<ApiResponse<BackendAlarmListData>>(ALARMS_BASE, { params: query }),
       http.get<ApiResponse<BackendAlarmListData>>(ALARMS_BASE, {
-        params: { page: 1, page_size: 1, status: 'unhandled', reservoir_id: DEFAULT_RESERVOIR_ID },
+        params: { page: 1, page_size: 1, status: 'unhandled' },
       }),
     ])
     const body = unwrap(listRes)
@@ -107,7 +106,6 @@ export async function getAlarmExceedLogs(
         params: {
           page: 1,
           page_size: 20,
-          reservoir_id: DEFAULT_RESERVOIR_ID,
           start_time: params.startTime,
           end_time: params.endTime,
         },
@@ -130,7 +128,7 @@ export async function getAlarmExceedLogs(
 export async function getPendingAlarmCount(): Promise<ApiResponse<{ count: number }>> {
   try {
     const res = await http.get<ApiResponse<BackendAlarmListData>>(ALARMS_BASE, {
-      params: { page: 1, page_size: 1, status: 'unhandled', reservoir_id: DEFAULT_RESERVOIR_ID },
+      params: { page: 1, page_size: 1, status: 'unhandled' },
     })
     const body = unwrap(res)
     if (body?.data) {
@@ -159,12 +157,12 @@ export async function getAlarmStats(): Promise<ApiResponse<AlarmStatsResult>> {
 
 async function getAlarmStatsFromApi(): Promise<ApiResponse<AlarmStatsResult>> {
   const res = await http.get<ApiResponse<BackendAlarmListData>>(ALARMS_BASE, {
-    params: { page: 1, page_size: 1, reservoir_id: DEFAULT_RESERVOIR_ID },
+    params: { page: 1, page_size: 1 },
   })
   const body = unwrap(res)
   if (!body?.data) throw new Error('stats failed')
   const pendingRes = await http.get<ApiResponse<BackendAlarmListData>>(ALARMS_BASE, {
-    params: { page: 1, page_size: 1, status: 'unhandled', reservoir_id: DEFAULT_RESERVOIR_ID },
+    params: { page: 1, page_size: 1, status: 'unhandled' },
   })
   const pending = unwrap(pendingRes)?.data?.total ?? 0
   return {
@@ -191,7 +189,7 @@ export async function getPhysicsGuardSummary(): Promise<ApiResponse<PhysicsGuard
   try {
     const res = await http.get<ApiResponse<PhysicsGuardSummary>>(
       `${V1_PREFIX}/admin/physics-guard`,
-      { params: { reservoir_id: DEFAULT_RESERVOIR_ID } },
+      { params: { reservoir_id: 1 } },
     )
     const body = unwrap(res)
     if (body?.data) return body

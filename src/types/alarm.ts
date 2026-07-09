@@ -14,6 +14,7 @@ export type AlarmType =
   | 'HIGH_WATER'
   | 'LOW_WATER'
   | 'FLOW_SPIKE'
+  | 'POWER'
   | 'DEVICE_OFFLINE'
   | 'EXEC_TIMEOUT'
   | 'EXEC_FAIL'

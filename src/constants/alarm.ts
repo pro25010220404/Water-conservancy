@@ -18,6 +18,7 @@ export const ALARM_TYPE_MAP: Record<string, DictOption> = {
   HIGH_WATER: { label: '高水位', value: 'HIGH_WATER', color: '#ef4444' },
   LOW_WATER: { label: '低水位', value: 'LOW_WATER', color: '#3b82f6' },
   FLOW_SPIKE: { label: '流量突变', value: 'FLOW_SPIKE', color: '#f59e0b' },
+  POWER: { label: '功率异常', value: 'POWER', color: '#6366f1' },
   DEVICE_OFFLINE: { label: '设备离线', value: 'DEVICE_OFFLINE', color: '#8b5cf6' },
   EXEC_TIMEOUT: { label: '执行超时', value: 'EXEC_TIMEOUT', color: '#f97316' },
   EXEC_FAIL: { label: '执行失败', value: 'EXEC_FAIL', color: '#dc2626' },

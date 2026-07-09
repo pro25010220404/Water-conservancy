@@ -16,23 +16,33 @@ import type {
 export interface BackendAlarmItem {
   id: number
   alarm_no?: string
-  equipment_id?: number
-  equipment_name?: string
+  reservoir_id?: number
+  equipment_id?: number | null
+  equipment_name?: string | null
+  equipment?: { name?: string } | null
   type: string
   level: string
   message: string
-  metric_value?: number
-  threshold_value?: number
+  metric_value?: number | string | null
+  threshold_value?: number | string | null
+  duration?: number | string | null
+  duration_sec?: number | string | null
   status: string
   created_at: string
+  exceed_start?: string | null
+  acknowledged_at?: string | null
+  acknowledged_by?: number | null
+  acknowledged_by_name?: string | null
+  disposed_at?: string | null
+  disposed_by?: number | null
+  disposed_by_name?: string | null
+  dispose_note?: string | null
   confirmed_at?: string | null
   confirmed_by?: number | null
   confirmed_by_name?: string | null
   handled_at?: string | null
   handled_by?: number | null
   handled_by_name?: string | null
-  dispose_note?: string | null
-  duration_sec?: number
   snapshot?: {
     upstream_level?: number
     downstream_level?: number
@@ -57,9 +67,10 @@ export interface BackendExceedLogItem {
   point?: string
   metric?: string
   type?: string
-  value?: number
-  threshold_value?: number
-  duration_sec?: number
+  value?: number | string
+  threshold_value?: number | string
+  duration?: number | string
+  duration_sec?: number | string
   created_at: string
 }
 
@@ -79,6 +90,7 @@ const TYPE_TO_BACKEND: Partial<Record<AlarmType, string>> = {
   HIGH_WATER: 'water_level',
   LOW_WATER: 'water_level',
   FLOW_SPIKE: 'flow',
+  POWER: 'power',
   DEVICE_OFFLINE: 'equipment',
   EXEC_TIMEOUT: 'gate',
   EXEC_FAIL: 'gate',
@@ -107,17 +119,24 @@ const TYPE_FROM_BACKEND: Record<string, AlarmType> = {
   water_level: 'HIGH_WATER',
   flow: 'FLOW_SPIKE',
   gate: 'EXEC_FAIL',
-  power: 'DEVICE_OFFLINE',
+  power: 'POWER',
   equipment: 'DEVICE_OFFLINE',
   physics_violation: 'MODEL_HEALTH_DEGRADED',
   comm_loss: 'DEVICE_OFFLINE',
   HIGH_WATER: 'HIGH_WATER',
   LOW_WATER: 'LOW_WATER',
   FLOW_SPIKE: 'FLOW_SPIKE',
+  POWER: 'POWER',
   DEVICE_OFFLINE: 'DEVICE_OFFLINE',
   EXEC_TIMEOUT: 'EXEC_TIMEOUT',
   EXEC_FAIL: 'EXEC_FAIL',
   MODEL_HEALTH_DEGRADED: 'MODEL_HEALTH_DEGRADED',
+}
+
+function parseNum(val: unknown, fallback = 0): number {
+  if (val == null || val === '') return fallback
+  const n = Number(val)
+  return Number.isFinite(n) ? n : fallback
 }
 
 function inferDeviceType(type: string, equipmentName?: string): AlarmDeviceType {
@@ -131,31 +150,33 @@ function inferDeviceType(type: string, equipmentName?: string): AlarmDeviceType 
 
 export function mapBackendAlarm(item: BackendAlarmItem): AlarmRecord {
   const snap = item.snapshot
+  const equipmentName =
+    item.equipment_name ?? item.equipment?.name ?? undefined
   return {
     id: item.id,
     level: LEVEL_FROM_BACKEND[item.level] ?? 'NORMAL',
     type: TYPE_FROM_BACKEND[item.type] ?? 'DEVICE_OFFLINE',
     content: item.message,
-    threshold: item.threshold_value ?? 0,
-    currentValue: item.metric_value ?? 0,
-    durationSec: item.duration_sec ?? 0,
+    threshold: parseNum(item.threshold_value),
+    currentValue: parseNum(item.metric_value),
+    durationSec: parseNum(item.duration_sec ?? item.duration),
     status: STATUS_FROM_BACKEND[item.status] ?? 'pending',
-    confirmedAt: item.confirmed_at ?? null,
-    confirmedBy: item.confirmed_by ?? null,
-    confirmedByName: item.confirmed_by_name ?? null,
-    handledAt: item.handled_at ?? null,
-    handledBy: item.handled_by ?? null,
-    handledByName: item.handled_by_name ?? null,
+    confirmedAt: item.confirmed_at ?? item.acknowledged_at ?? null,
+    confirmedBy: item.confirmed_by ?? item.acknowledged_by ?? null,
+    confirmedByName: item.confirmed_by_name ?? item.acknowledged_by_name ?? null,
+    handledAt: item.handled_at ?? item.disposed_at ?? null,
+    handledBy: item.handled_by ?? item.disposed_by ?? null,
+    handledByName: item.handled_by_name ?? item.disposed_by_name ?? null,
     remark: item.dispose_note ?? null,
     createdAt: item.created_at,
-    pointName: item.equipment_name || item.alarm_no || `设备#${item.equipment_id ?? item.id}`,
-    deviceType: inferDeviceType(item.type, item.equipment_name),
+    pointName: equipmentName || item.alarm_no || `设备#${item.equipment_id ?? item.id}`,
+    deviceType: inferDeviceType(item.type, equipmentName),
     snapshot: snap
       ? {
-          upstreamLevel: snap.upstream_level ?? 0,
-          downstreamLevel: snap.downstream_level ?? 0,
-          flowRate: snap.flow_rate ?? 0,
-          gateOpening: snap.gate_opening ?? 0,
+          upstreamLevel: parseNum(snap.upstream_level),
+          downstreamLevel: parseNum(snap.downstream_level),
+          flowRate: parseNum(snap.flow_rate),
+          gateOpening: parseNum(snap.gate_opening),
           recordedAt: snap.recorded_at ?? item.created_at,
         }
       : null,
@@ -167,9 +188,9 @@ export function mapBackendExceedLog(item: BackendExceedLogItem): AlarmExceedLog 
     id: item.id,
     point: item.point || item.equipment_name || '监测点',
     type: TYPE_FROM_BACKEND[item.type ?? item.metric ?? ''] ?? 'HIGH_WATER',
-    value: item.value ?? 0,
-    threshold: item.threshold_value ?? 0,
-    durationSec: item.duration_sec ?? 0,
+    value: parseNum(item.value),
+    threshold: parseNum(item.threshold_value),
+    durationSec: parseNum(item.duration_sec ?? item.duration),
     createdAt: item.created_at,
   }
 }
