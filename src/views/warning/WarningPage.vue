@@ -8,7 +8,7 @@ import {
 } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
-import { DEBOUNCE_DELAY, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '@/constants'
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '@/constants'
 import { buildSettingsPath } from '@/constants/settings'
 import {
   ALARM_LEVEL_MAP, ALARM_TYPE_MAP, ALARM_STATUS_MAP,
@@ -49,7 +49,6 @@ const exceedLogs = ref<AlarmExceedLog[]>([])
 const exceedLoading = ref(false)
 const exceedDialogVisible = ref(false)
 
-let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let pushTimer: ReturnType<typeof setInterval> | null = null
 
 const { connect: connectAlarmWs, disconnect: disconnectAlarmWs } = useWebSocket(WS_ALARM_CHANNEL, {
@@ -98,10 +97,6 @@ async function openExceedDialog() {
 }
 
 function handleFilterChange() { filter.pageNum = 1; fetchList() }
-function handleKeywordInput() {
-  if (debounceTimer) clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(handleFilterChange, DEBOUNCE_DELAY)
-}
 function formatTime(iso: string) {
   return iso.replace('T', ' ').substring(0, 19)
 }
@@ -192,7 +187,6 @@ onMounted(() => {
   pushTimer = setInterval(pollAlarmUpdates, 45000)
 })
 onUnmounted(() => {
-  if (debounceTimer) clearTimeout(debounceTimer)
   if (pushTimer) clearInterval(pushTimer)
   disconnectAlarmWs()
 })
@@ -211,7 +205,7 @@ onUnmounted(() => {
           <label>自定义时段</label>
           <ElDatePicker v-model="customRange" type="datetimerange" range-separator="至" start-placeholder="开始" end-placeholder="结束" @change="handleCustomRange" />
         </div>
-        <div class="filter-item filter-item--wide"><label>关键词</label><ElInput v-model="filter.keyword" placeholder="搜索告警内容或监测点位" clearable :prefix-icon="Search" @input="handleKeywordInput" @clear="handleFilterChange" /></div>
+        <div class="filter-item filter-item--wide"><label>关键词</label><ElInput v-model="filter.keyword" placeholder="搜索告警内容或监测点位" clearable :prefix-icon="Search" @keyup.enter="handleFilterChange" @clear="handleFilterChange" /></div>
         <div class="filter-actions">
           <ElButton type="primary" :icon="Search" @click="handleFilterChange">查询</ElButton>
           <ElButton :icon="Refresh" @click="handleReset">重置</ElButton>
@@ -325,17 +319,24 @@ onUnmounted(() => {
     <!-- 已处置详情 -->
     <ElDialog v-model="detailVisible" title="告警详情" width="640px">
       <ElDescriptions v-if="detailRow" :column="1" border class="alarm-desc">
+        <ElDescriptionsItem v-if="detailRow.alarmNo" label="告警编号">{{ detailRow.alarmNo }}</ElDescriptionsItem>
         <ElDescriptionsItem label="级别"><span class="level-badge" :class="levelClass(detailRow.level)">{{ ALARM_LEVEL_MAP[detailRow.level]?.label }}</span></ElDescriptionsItem>
         <ElDescriptionsItem label="类型">{{ ALARM_TYPE_MAP[detailRow.type]?.label }}</ElDescriptionsItem>
+        <ElDescriptionsItem v-if="detailRow.reservoirName" label="所属水库">{{ detailRow.reservoirName }}</ElDescriptionsItem>
         <ElDescriptionsItem label="监测点位">{{ detailRow.pointName }}</ElDescriptionsItem>
         <ElDescriptionsItem label="内容">{{ detailRow.content }}</ElDescriptionsItem>
         <ElDescriptionsItem label="当前值/阈值">{{ detailRow.currentValue }} / {{ detailRow.threshold }}</ElDescriptionsItem>
         <ElDescriptionsItem label="持续时长">{{ detailRow.durationSec }}s</ElDescriptionsItem>
         <ElDescriptionsItem label="状态"><span class="status-dot" :class="statusClass(detailRow.status)" />{{ ALARM_STATUS_MAP[detailRow.status]?.label }}</ElDescriptionsItem>
+        <ElDescriptionsItem v-if="detailRow.exceedStart" label="超限开始">{{ formatTime(detailRow.exceedStart) }}</ElDescriptionsItem>
         <ElDescriptionsItem label="触发时间">{{ formatTime(detailRow.createdAt) }}</ElDescriptionsItem>
-        <ElDescriptionsItem v-if="detailRow.confirmedByName" label="确认人">{{ detailRow.confirmedByName }} · {{ detailRow.confirmedAt ? formatTime(detailRow.confirmedAt) : '' }}</ElDescriptionsItem>
-        <ElDescriptionsItem v-if="detailRow.handledByName" label="处置人">{{ detailRow.handledByName }} · {{ detailRow.handledAt ? formatTime(detailRow.handledAt) : '' }}</ElDescriptionsItem>
+        <ElDescriptionsItem v-if="detailRow.updatedAt" label="更新时间">{{ formatTime(detailRow.updatedAt) }}</ElDescriptionsItem>
+        <ElDescriptionsItem v-if="detailRow.confirmedAt" label="确认时间">{{ formatTime(detailRow.confirmedAt) }}</ElDescriptionsItem>
+        <ElDescriptionsItem v-if="detailRow.confirmedByName || detailRow.confirmedBy" label="确认人">{{ detailRow.confirmedByName || `用户#${detailRow.confirmedBy}` }}</ElDescriptionsItem>
+        <ElDescriptionsItem v-if="detailRow.handledAt" label="处置时间">{{ formatTime(detailRow.handledAt) }}</ElDescriptionsItem>
+        <ElDescriptionsItem v-if="detailRow.handledByName || detailRow.handledBy" label="处置人">{{ detailRow.handledByName || `用户#${detailRow.handledBy}` }}</ElDescriptionsItem>
         <ElDescriptionsItem v-if="detailRow.remark" label="处置备注">{{ detailRow.remark }}</ElDescriptionsItem>
+        <ElDescriptionsItem v-if="detailRow.traceId" label="Trace ID"><span class="mono">{{ detailRow.traceId }}</span></ElDescriptionsItem>
         <template v-if="detailRow.type === 'MODEL_HEALTH_DEGRADED' && physicsGuardCtx">
           <ElDescriptionsItem label="关联配置版本">v{{ physicsGuardCtx.config_version }}（{{ physicsGuardCtx.sync_status === 'synced' ? '边缘已同步' : '待同步' }}）</ElDescriptionsItem>
           <ElDescriptionsItem label="L3 熔断阈值">置信度 ≥ {{ physicsGuardCtx.fusion_l3_confidence }} · 风险概率 &lt; {{ physicsGuardCtx.fusion_l3_risk }}</ElDescriptionsItem>

@@ -15,6 +15,7 @@ import { mockApi } from './mockStore'
 import {
   mapBackendAlarm,
   mapBackendExceedLog,
+  filterAlarmsByKeyword,
   toBackendAlarmQuery,
   type BackendAlarmItem,
   type BackendAlarmListData,
@@ -33,7 +34,11 @@ export async function getAlarmList(
   params: AlarmFilterParams,
 ): Promise<ApiResponse<PageResult<AlarmRecord> & { pendingCount: number }>> {
   try {
-    const query = toBackendAlarmQuery(params)
+    const hasKeyword = Boolean(params.keyword?.trim())
+    const fetchParams = hasKeyword
+      ? { ...params, pageNum: 1, pageSize: 100 }
+      : params
+    const query = toBackendAlarmQuery(fetchParams)
     const [listRes, pendingRes] = await Promise.all([
       http.get<ApiResponse<BackendAlarmListData>>(ALARMS_BASE, { params: query }),
       http.get<ApiResponse<BackendAlarmListData>>(ALARMS_BASE, {
@@ -44,11 +49,19 @@ export async function getAlarmList(
     if (!body?.data) throw new Error('alarm list failed')
     const raw = body.data
     const pendingBody = unwrap(pendingRes)
+    let list = (raw.list ?? []).map(mapBackendAlarm)
+    let total = raw.total ?? list.length
+    if (hasKeyword) {
+      list = filterAlarmsByKeyword(list, params.keyword)
+      total = list.length
+      const start = (params.pageNum - 1) * params.pageSize
+      list = list.slice(start, start + params.pageSize)
+    }
     return {
       ...body,
       data: {
-        list: (raw.list ?? []).map(mapBackendAlarm),
-        total: raw.total ?? 0,
+        list,
+        total,
         pendingCount:
           raw.pending_count ?? raw.unhandled_count ?? pendingBody?.data?.total ?? 0,
       },

@@ -28,6 +28,8 @@ export type AlarmStatus = 'pending' | 'confirmed' | 'handled'
 // ---------- 正式告警记录 ----------
 export interface AlarmRecord {
   id: number
+  /** 告警编号 */
+  alarmNo?: string
   level: AlarmLevel
   type: AlarmType
   content: string
@@ -43,6 +45,15 @@ export interface AlarmRecord {
   handledByName: string | null
   remark: string | null
   createdAt: string
+  /** 超限开始时间 */
+  exceedStart?: string | null
+  /** 最近更新时间 */
+  updatedAt?: string | null
+  /** 链路追踪 ID */
+  traceId?: string | null
+  /** 所属水库 */
+  reservoirId?: number | null
+  reservoirName?: string | null
   /** 监测点位名称 */
   pointName: string
   /** 设备类型 */

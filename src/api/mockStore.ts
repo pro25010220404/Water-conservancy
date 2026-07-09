@@ -8,7 +8,7 @@ import type {
   AlarmStatsResult,
   AlarmPushMessage,
 } from '@/types/alarm'
-import { ALARM_TYPE_MAP } from '@/constants/alarm'
+import { ALARM_LEVEL_MAP, ALARM_STATUS_MAP, ALARM_TYPE_MAP } from '@/constants/alarm'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import { createAlarmSeed, createExceedLogSeed } from './mock/alarmSeed'
 import { gateaiSharedStore } from './gateaiSharedStore'
@@ -914,8 +914,12 @@ function filterAlarms(params: AlarmFilterParams) {
         params.keyword!,
         a.content,
         a.pointName,
+        a.alarmNo,
+        a.reservoirName,
         String(a.id),
         ALARM_TYPE_MAP[a.type]?.label,
+        ALARM_LEVEL_MAP[a.level]?.label,
+        ALARM_STATUS_MAP[a.status]?.label,
       ),
     )
   }

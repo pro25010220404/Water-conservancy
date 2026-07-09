@@ -11,6 +11,8 @@ import type {
   AlarmType,
   AlarmDeviceType,
 } from '@/types/alarm'
+import { ALARM_LEVEL_MAP, ALARM_STATUS_MAP, ALARM_TYPE_MAP } from '@/constants/alarm'
+import { fuzzyMatch } from '@/utils/fuzzyMatch'
 
 /** 后端列表项（GET /v1/alarms） */
 export interface BackendAlarmItem {
@@ -20,6 +22,10 @@ export interface BackendAlarmItem {
   equipment_id?: number | null
   equipment_name?: string | null
   equipment?: { name?: string } | null
+  reservoir?: { id?: number; name?: string } | null
+  edge_node?: { name?: string } | null
+  trace_id?: string | null
+  updated_at?: string | null
   type: string
   level: string
   message: string
@@ -152,8 +158,10 @@ export function mapBackendAlarm(item: BackendAlarmItem): AlarmRecord {
   const snap = item.snapshot
   const equipmentName =
     item.equipment_name ?? item.equipment?.name ?? undefined
+  const reservoirName = item.reservoir?.name ?? null
   return {
     id: item.id,
+    alarmNo: item.alarm_no,
     level: LEVEL_FROM_BACKEND[item.level] ?? 'NORMAL',
     type: TYPE_FROM_BACKEND[item.type] ?? 'DEVICE_OFFLINE',
     content: item.message,
@@ -169,7 +177,16 @@ export function mapBackendAlarm(item: BackendAlarmItem): AlarmRecord {
     handledByName: item.handled_by_name ?? item.disposed_by_name ?? null,
     remark: item.dispose_note ?? null,
     createdAt: item.created_at,
-    pointName: equipmentName || item.alarm_no || `设备#${item.equipment_id ?? item.id}`,
+    exceedStart: item.exceed_start ?? null,
+    updatedAt: item.updated_at ?? null,
+    traceId: item.trace_id ?? null,
+    reservoirId: item.reservoir_id ?? item.reservoir?.id ?? null,
+    reservoirName,
+    pointName:
+      equipmentName ||
+      reservoirName ||
+      item.alarm_no ||
+      `设备#${item.equipment_id ?? item.id}`,
     deviceType: inferDeviceType(item.type, equipmentName),
     snapshot: snap
       ? {
@@ -195,6 +212,24 @@ export function mapBackendExceedLog(item: BackendExceedLogItem): AlarmExceedLog 
   }
 }
 
+export function filterAlarmsByKeyword(list: AlarmRecord[], keyword?: string): AlarmRecord[] {
+  const kw = keyword?.trim()
+  if (!kw) return list
+  return list.filter((a) =>
+    fuzzyMatch(
+      kw,
+      a.content,
+      a.pointName,
+      a.alarmNo,
+      a.reservoirName,
+      String(a.id),
+      ALARM_TYPE_MAP[a.type]?.label,
+      ALARM_LEVEL_MAP[a.level]?.label,
+      ALARM_STATUS_MAP[a.status]?.label,
+    ),
+  )
+}
+
 /** 前端筛选参数 → 后端 Query */
 export function toBackendAlarmQuery(params: AlarmFilterParams & { reservoir_id?: number }) {
   const query: Record<string, string | number> = {
@@ -207,5 +242,6 @@ export function toBackendAlarmQuery(params: AlarmFilterParams & { reservoir_id?:
   if (params.type && TYPE_TO_BACKEND[params.type]) query.type = TYPE_TO_BACKEND[params.type]!
   if (params.startTime) query.start_time = params.startTime
   if (params.endTime) query.end_time = params.endTime
+  if (params.keyword?.trim()) query.keyword = params.keyword.trim()
   return query
 }
