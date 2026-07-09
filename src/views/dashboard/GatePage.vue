@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { fetchGates, fetchGateActionLogs, fetchRealtimeKpi } from '@/api/monitoring'
+import { formatActionSource, formatGateControlMode } from '@/constants/dispatch'
 
-const gates = ref<{ name: string; v: number }[]>([])
-const logs = ref<{ time: string; gate: string; action: string; dur: string; by: string }[]>([])
+const gates = ref<{ id: number; name: string; v: number; mode: string }[]>([])
+const logs = ref<{ time: string; gate: string; action: string; actual: string; type: string; dur: string; by: string }[]>([])
 const upstreamLevel = ref(378.5)
 const downstreamLevel = ref(269.2)
 
@@ -16,13 +17,21 @@ async function loadData() {
   } catch { /* 水位接口暂不可用 */ }
   try {
     const [gatesData, actionsData] = await Promise.all([fetchGates(1), fetchGateActionLogs()])
-    gates.value = gatesData.map((g) => ({ name: g.code ?? g.name, v: g.opening }))
+    gates.value = gatesData.map((g) => ({
+      id: g.id,
+      name: g.code ?? g.name,
+      v: g.opening,
+      mode: formatGateControlMode(g.mode),
+    }))
+    const gateMap = new Map(gates.value.map((g) => [g.id, g.name]))
     logs.value = actionsData.map((a) => ({
       time: a.acted_at?.slice(-5) ?? '--:--',
-      gate: `#${a.equipment_id}`,
+      gate: gateMap.get(a.equipment_id) ?? `#${a.equipment_id}`,
       action: `${a.previous_opening}%→${a.target_opening}%`,
+      actual: `${a.actual_opening}%`,
+      type: a.action_type === 'open' ? '开启' : '关闭',
       dur: `${(a.duration_ms / 1000).toFixed(0)}s`,
-      by: a.action_source,
+      by: formatActionSource(a.action_source),
     }))
   } catch { /* 闸门/操作日志接口暂不可用 */ }
 }
@@ -109,6 +118,7 @@ onUnmounted(() => clearInterval(t))
               <th>编号</th>
               <th>开度</th>
               <th>状态</th>
+              <th>控制模式</th>
               <th>进度</th>
             </tr>
           </thead>
@@ -121,6 +131,7 @@ onUnmounted(() => clearInterval(t))
                   g.v > 0 ? '运行中' : '关闭'
                 }}</span>
               </td>
+              <td><span class="td-mode">{{ g.mode }}</span></td>
               <td>
                 <div class="td-bar"><div :style="{ width: g.v + '%' }" /></div>
               </td>
@@ -133,8 +144,10 @@ onUnmounted(() => clearInterval(t))
           <div v-for="l in logs" :key="l.time" class="log__row">
             <span class="log__t">{{ l.time }}</span
             ><b>{{ l.gate }}</b
-            ><span>{{ l.action }}</span
-            ><span class="log__d">{{ l.dur }}</span
+            ><span class="log__type" :class="{ close: l.type === '关闭' }">{{ l.type }}</span
+            ><span class="log__action">{{ l.action }}</span
+            ><span class="log__d">{{ l.actual }}</span
+            ><span class="log__d log__dur">{{ l.dur }}</span
             ><span class="log__by">{{ l.by }}</span>
           </div>
         </div>
@@ -404,9 +417,9 @@ onUnmounted(() => clearInterval(t))
 
 // 右侧面板
 .panel {
-  width: 400px;
+  width: 540px;
   flex-shrink: 0;
-  padding: 18px;
+  padding: 14px 16px;
   overflow-y: auto;
   background: #fff;
   border: 1px solid #e5e7eb;
@@ -474,6 +487,15 @@ onUnmounted(() => clearInterval(t))
   }
 }
 
+.td-mode {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6366f1;
+  background: #eef2ff;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
 .td-bar {
   width: 72px;
   height: 6px;
@@ -492,42 +514,71 @@ onUnmounted(() => clearInterval(t))
 .log {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .log__row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 38px 68px 40px minmax(108px, 1fr) 58px 28px 72px;
+  column-gap: 6px;
   align-items: center;
-  gap: 12px;
-  padding: 10px 0;
-  font-size: 15px;
-  line-height: 1.5;
+  padding: 8px 0;
+  font-size: 14px;
+  line-height: 1.4;
   color: #475569;
   border-bottom: 1px solid #f1f5f9;
 
   b {
-    min-width: 58px;
     font-weight: 600;
     color: #1e293b;
   }
 }
 
 .log__t {
-  min-width: 44px;
-  font-size: 14px;
+  font-size: 13px;
   font-family: 'SF Mono', monospace;
   color: #64748b;
 }
 
+.log__type {
+  justify-self: start;
+  font-size: 12px;
+  font-weight: 600;
+  color: #16a34a;
+  padding: 1px 5px;
+  background: #ecfdf5;
+  border-radius: 100px;
+  text-align: center;
+  white-space: nowrap;
+
+  &.close {
+    color: #dc2626;
+    background: #fef2f2;
+  }
+}
+
+.log__action {
+  font-size: 13px;
+  font-family: 'SF Mono', monospace;
+  white-space: nowrap;
+}
+
 .log__d {
-  min-width: 36px;
-  font-size: 14px;
+  font-size: 13px;
+  font-family: 'SF Mono', monospace;
   color: #64748b;
+  white-space: nowrap;
+}
+
+.log__dur {
+  text-align: right;
 }
 
 .log__by {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #2563eb;
+  white-space: nowrap;
 }
 </style>
 
