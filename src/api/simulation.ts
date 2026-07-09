@@ -346,23 +346,26 @@ export async function getSimulationResult(
   return getSimulationResultApi(simulationId)
 }
 
-export async function pauseSimulation(): Promise<ApiResponse<null>> {
+export async function pauseSimulation(simulationId: string): Promise<ApiResponse<null>> {
+  const id = encodeURIComponent(simulationId)
   return withMockFallback(
-    async () => postSimPaths<null>(simPaths('/pause')),
+    async () => postSimPaths<null>(simPaths(`/${id}/pause`)),
     () => mockApi.pauseSimulation(),
   )
 }
 
-export async function resumeSimulation(): Promise<ApiResponse<null>> {
+export async function resumeSimulation(simulationId: string): Promise<ApiResponse<null>> {
+  const id = encodeURIComponent(simulationId)
   return withMockFallback(
-    async () => postSimPaths<null>(simPaths('/resume')),
+    async () => postSimPaths<null>(simPaths(`/${id}/resume`)),
     () => mockApi.resumeSimulation(),
   )
 }
 
-export async function resetSimulation(): Promise<ApiResponse<null>> {
+export async function resetSimulation(simulationId: string): Promise<ApiResponse<null>> {
+  const id = encodeURIComponent(simulationId)
   return withMockFallback(
-    async () => postSimPaths<null>(simPaths('/reset')),
+    async () => postSimPaths<null>(simPaths(`/${id}/reset`)),
     () => mockApi.resetSimulation(),
   )
 }
@@ -376,10 +379,14 @@ export async function getSimulationStatus(): Promise<ApiResponse<SimulationRealt
   )
 }
 
-export async function setSimulationGateOpening(opening: number): Promise<ApiResponse<null>> {
+export async function setSimulationGateOpening(
+  simulationId: string,
+  opening: number,
+): Promise<ApiResponse<null>> {
+  const id = encodeURIComponent(simulationId)
   return withMockFallback(
     async () =>
-      putSimPaths<null>(simPaths('/gate'), { gate_opening: Math.round(opening) }),
+      putSimPaths<null>(simPaths(`/${id}/gate`), { gate_opening: Math.round(opening) }),
     () => mockApi.setGateOpening(opening),
   )
 }

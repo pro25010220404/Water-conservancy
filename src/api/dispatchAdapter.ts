@@ -60,6 +60,63 @@ export interface BackendDecisionItem {
   reservoir?: Record<string, unknown>
 }
 
+function parseJsonField<T>(val: unknown, fallback: T): T {
+  if (val == null || val === '') return fallback
+  if (typeof val === 'string') {
+    try {
+      return JSON.parse(val) as T
+    } catch {
+      return fallback
+    }
+  }
+  return val as T
+}
+
+function parseLstmPredictions(
+  val: unknown,
+): Record<string, { level: number | string; flow: number | string }> {
+  const parsed = parseJsonField<unknown>(val, null)
+  if (!parsed) return {}
+  if (Array.isArray(parsed)) {
+    const level = parsed[0] ?? 0
+    return { '1h': { level, flow: 0 } }
+  }
+  if (typeof parsed === 'object') {
+    return parsed as Record<string, { level: number | string; flow: number | string }>
+  }
+  return {}
+}
+
+function parseFactorList(val: unknown): DecisionFactor[] | undefined {
+  const parsed = parseJsonField<unknown>(val, null)
+  if (!Array.isArray(parsed) || !parsed.length) return undefined
+  if (typeof parsed[0] === 'string') {
+    return parsed.map((name) => ({
+      name: String(name),
+      value: '—',
+      direction: 'neutral' as const,
+      weight: 1 / parsed.length,
+    }))
+  }
+  if (typeof parsed[0] === 'object') return parsed as DecisionFactor[]
+  return undefined
+}
+
+function normalizeBackendDecision(raw: BackendDecisionItem): BackendDecisionItem {
+  const factors = parseFactorList(raw.factors)
+  const alternatives = parseJsonField<DispatchPlan[]>(raw.alternatives, [])
+  const weights = parseJsonField<BackendDecisionItem['weights_used']>(raw.weights_used, raw.weights_used)
+  const physics = parseJsonField<Partial<PhysicsValidation> | null>(raw.physics_validation, null)
+  return {
+    ...raw,
+    lstm_predictions: parseLstmPredictions(raw.lstm_predictions),
+    factors: factors ?? raw.factors,
+    alternatives: Array.isArray(alternatives) ? alternatives : [],
+    weights_used: weights ?? undefined,
+    physics_validation: physics,
+  }
+}
+
 function parseBaseTime(s: string): Date {
   return new Date(s.includes('T') ? s : s.replace(' ', 'T'))
 }
@@ -141,7 +198,7 @@ function mapPhysicsValidation(
 }
 
 function buildDefaultFactors(raw: BackendDecisionItem): DecisionFactor[] {
-  if (raw.factors?.length) return raw.factors
+  if (Array.isArray(raw.factors) && raw.factors.length) return raw.factors
   const upstream = toNum(raw.upstream_level)
   const inflow = toNum(raw.inflow_rate)
   const opening = toNum(raw.current_opening)
@@ -162,7 +219,7 @@ function buildDefaultFactors(raw: BackendDecisionItem): DecisionFactor[] {
 }
 
 function buildDefaultAlternatives(raw: BackendDecisionItem): DispatchPlan[] {
-  if (raw.alternatives?.length) return raw.alternatives
+  if (Array.isArray(raw.alternatives) && raw.alternatives.length) return raw.alternatives
   const opening = toNum(raw.recommended_opening)
   const confidence = toNum(raw.confidence)
   return [
@@ -216,7 +273,8 @@ export function mapBackendPrediction(raw: BackendPredictionItem): PredictionData
 }
 
 export function mapBackendDecision(raw: BackendDecisionItem): DecisionDetail {
-  const lstm = raw.lstm_predictions ?? {}
+  const item = normalizeBackendDecision(raw)
+  const lstm = item.lstm_predictions ?? {}
   const lstmMapped = Object.fromEntries(
     Object.entries(lstm).map(([k, v]) => [
       k,
@@ -224,47 +282,56 @@ export function mapBackendDecision(raw: BackendDecisionItem): DecisionDetail {
     ]),
   )
   return {
-    id: raw.id,
-    trace_id: raw.trace_id,
-    reservoir_id: raw.reservoir_id,
-    decision_time: raw.decision_time,
-    decision_mode: parseDecisionMode(raw.decision_mode),
-    risk_rank: Math.min(3, Math.max(1, raw.risk_rank)) as 1 | 2 | 3,
-    upstream_level: toNum(raw.upstream_level),
-    downstream_level: toNum(raw.downstream_level),
-    inflow_rate: toNum(raw.inflow_rate),
-    current_opening: toNum(raw.current_opening),
+    id: item.id,
+    trace_id: item.trace_id,
+    reservoir_id: item.reservoir_id,
+    decision_time: item.decision_time,
+    decision_mode: parseDecisionMode(item.decision_mode),
+    risk_rank: Math.min(3, Math.max(1, item.risk_rank)) as 1 | 2 | 3,
+    upstream_level: toNum(item.upstream_level),
+    downstream_level: toNum(item.downstream_level),
+    inflow_rate: toNum(item.inflow_rate),
+    current_opening: toNum(item.current_opening),
     lstm_predictions: lstmMapped,
-    recommended_opening: toNum(raw.recommended_opening),
-    confidence: toNum(raw.confidence),
-    factors: buildDefaultFactors(raw),
-    alternatives: buildDefaultAlternatives(raw),
-    weights_used: parseWeights(raw.weights_used),
-    reward_score: toNum(raw.reward_score, 0),
-    physics_validation: mapPhysicsValidation(raw.physics_validation, raw.decision_mode),
-    execution_status: raw.execution_status,
-    executed_opening: toNullableNum(raw.executed_opening),
-    actual_level_after: toNullableNum(raw.actual_level_after),
-    actual_power_after: toNullableNum(raw.actual_power_after),
-    created_at: raw.created_at,
+    recommended_opening: toNum(item.recommended_opening),
+    confidence: toNum(item.confidence),
+    factors: buildDefaultFactors(item),
+    alternatives: buildDefaultAlternatives(item),
+    weights_used: parseWeights(item.weights_used),
+    reward_score: toNum(item.reward_score, 0),
+    physics_validation: mapPhysicsValidation(item.physics_validation, item.decision_mode),
+    execution_status: item.execution_status,
+    executed_opening: toNullableNum(item.executed_opening),
+    actual_level_after: toNullableNum(item.actual_level_after),
+    actual_power_after: toNullableNum(item.actual_power_after),
+    created_at: item.created_at,
   }
 }
 
 function deriveAction(raw: BackendDecisionItem): string {
-  if (raw.execution_status === 'executed') {
-    return raw.decision_mode.includes('MANUAL') ? '人工下发' : '自动执行'
+  const item = normalizeBackendDecision(raw)
+  if (item.execution_status === 'executed') {
+    return item.decision_mode.includes('MANUAL') ? '人工下发' : '自动执行'
   }
-  if (raw.execution_status === 'pending') return '待确认'
-  if (raw.execution_status === 'rejected') return '已驳回'
-  if (raw.execution_status === 'failed') return '执行失败'
-  return raw.decision_mode
+  if (item.execution_status === 'pending') return '待确认'
+  if (item.execution_status === 'rejected') return '已驳回'
+  if (item.execution_status === 'failed') return '执行失败'
+  return item.decision_mode
 }
 
 function deriveOperator(raw: BackendDecisionItem): string | undefined {
-  if (raw.confirmed_by) return `用户 #${raw.confirmed_by}`
-  if (raw.decision_mode.includes('AUTO')) return '系统'
-  if (raw.decision_mode.includes('MANUAL')) return '待人工'
-  return undefined
+  const item = normalizeBackendDecision(raw)
+  if (item.confirmed_by) return `用户 #${item.confirmed_by}`
+  if (item.decision_mode.includes('AUTO')) return '系统'
+  if (item.decision_mode.includes('MANUAL')) return '待人工'
+  return '—'
+}
+
+function formatDecisionModeLabel(mode: string): string {
+  if (mode.startsWith('L1') || mode.includes('MANUAL')) return 'L1'
+  if (mode.startsWith('L2') || mode.includes('SUGGEST')) return 'L2'
+  if (mode.startsWith('L3') || mode.includes('AUTO')) return 'L3'
+  return mode
 }
 
 /** 优先取待执行决策，否则取列表首条（假定按时间倒序） */
@@ -275,19 +342,20 @@ export function pickDecisionId(list: BackendDecisionItem[]): number | null {
 }
 
 export function mapBackendDispatchRecord(raw: BackendDecisionItem): DispatchRecord {
-  const mapped = mapBackendDecision(raw)
+  const item = normalizeBackendDecision(raw)
+  const mapped = mapBackendDecision(item)
   return {
     id: mapped.id,
     decision_time: mapped.decision_time,
     decision_mode: mapped.decision_mode,
-    decision_mode_label: raw.decision_mode,
+    decision_mode_label: formatDecisionModeLabel(item.decision_mode),
     recommended_opening: mapped.recommended_opening,
     confidence: mapped.confidence,
     risk_rank: mapped.risk_rank,
     execution_status: mapped.execution_status,
     physics_validation: mapped.physics_validation,
-    action: deriveAction(raw),
-    operator_name: deriveOperator(raw),
+    action: deriveAction(item),
+    operator_name: deriveOperator(item),
     snapshot: {
       factors: mapped.factors.slice(0, 5),
       confidence: mapped.confidence,

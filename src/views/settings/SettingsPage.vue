@@ -873,6 +873,11 @@ onMounted(() => {
   <div class="page settings-page">
     <!-- ═══ Tab1: 告警阈值 ═══ -->
     <template v-if="activeTab === 'thresholds'">
+      <div class="settings-page__toolbar">
+        <ElButton type="primary" :icon="Search" :loading="thresholdsLoading" @click="fetchThresholds">
+          查询
+        </ElButton>
+      </div>
       <ElTable v-loading="thresholdsLoading" :data="thresholds" style="width: 100%">
         <ElTableColumn prop="metric" label="监控指标" min-width="140">
           <template #default="scope">

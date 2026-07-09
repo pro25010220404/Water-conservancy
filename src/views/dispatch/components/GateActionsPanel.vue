@@ -13,11 +13,16 @@ const loading = ref(false)
 async function load() {
   loading.value = true
   try {
-    const res = await fetchGateActions(keyword.value || undefined)
+    const res = await fetchGateActions(keyword.value.trim() || undefined)
     list.value = res.data.list
   } finally {
     loading.value = false
   }
+}
+
+function reset() {
+  keyword.value = ''
+  load()
 }
 
 onMounted(load)
@@ -34,7 +39,8 @@ onMounted(load)
         style="width: 220px"
         @keyup.enter="load"
       />
-      <ElButton @click="load">查询</ElButton>
+      <ElButton type="primary" :loading="loading" @click="load">查询</ElButton>
+      <ElButton :loading="loading" @click="reset">重置</ElButton>
     </div>
     <ElTable v-loading="loading" :data="list" stripe border class="gate-actions-panel__table">
       <ElTableColumn prop="acted_at" label="动作时间" min-width="180" />

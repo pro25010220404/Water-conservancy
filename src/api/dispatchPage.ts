@@ -135,21 +135,31 @@ export function fetchDispatchLogs(keyword?: string) {
     async () => {
       const res = await http.get<ApiResponse<PageResult<BackendDecisionItem>>>(
         `${DISPATCH_BASE}/decisions`,
-        { params: { page: 1, page_size: 50, reservoir_id: DEFAULT_RESERVOIR_ID } },
+        {
+          params: {
+            page: 1,
+            page_size: 100,
+            reservoir_id: DEFAULT_RESERVOIR_ID,
+            ...(keyword?.trim() ? { keyword: keyword.trim() } : {}),
+          },
+        },
       )
       const body = unwrap(res)
       if (!body?.data) throw new Error('decisions failed')
       let list = (body.data.list ?? []).map(mapBackendDispatchRecord)
       const total = body.data.total ?? list.length
-      if (keyword) {
-        const kw = keyword.toLowerCase()
+      if (keyword?.trim()) {
+        const kw = keyword.trim().toLowerCase()
         list = list.filter(
           (r) =>
             r.decision_mode?.toLowerCase().includes(kw) ||
             r.decision_mode_label?.toLowerCase().includes(kw) ||
             r.action?.toLowerCase().includes(kw) ||
+            r.operator_name?.toLowerCase().includes(kw) ||
             String(r.recommended_opening).includes(kw) ||
             r.execution_status?.toLowerCase().includes(kw) ||
+            (r.execution_status === 'executed' && '成功'.includes(kw)) ||
+            (r.execution_status === 'pending' && '待'.includes(kw)) ||
             String(r.confidence).includes(kw),
         )
         return { ...body, data: { list, total: list.length } }

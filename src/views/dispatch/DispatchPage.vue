@@ -9,7 +9,7 @@ import {
   ElDialog, ElFormItem, ElTable, ElTableColumn, ElProgress, ElTag, ElPagination, ElCollapse, ElCollapseItem,
   ElTimeline, ElTimelineItem,
 } from 'element-plus'
-import { Refresh, CircleCheck, CircleClose, View } from '@element-plus/icons-vue'
+import { Refresh, CircleCheck, CircleClose, View, Search } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
@@ -62,6 +62,8 @@ const metricKey = ref<'water' | 'flow'>('water')
 const targetOpening = ref(45)
 const userModifiedTarget = ref(false)
 const recordKeyword = ref('')
+const appliedRecordKeyword = ref('')
+const recordsLoading = ref(false)
 const recordPageNum = ref(1)
 const RECORD_PAGE_SIZE = 10
 const expandedRecordId = ref<number | null>(null)
@@ -315,7 +317,7 @@ const confidenceValue = computed(() => decision.value?.confidence ?? 0)
 const confidenceColor = computed(() => getConfidenceColor(confidenceValue.value))
 
 const filteredRecords = computed(() => {
-  const kw = recordKeyword.value.trim()
+  const kw = appliedRecordKeyword.value.trim()
   if (!kw) return records.value
   return records.value.filter((r) => fuzzyMatch(
     kw,
@@ -428,6 +430,37 @@ function statusTagType(s: string) {
   return 'warning'
 }
 
+async function queryRecords() {
+  recordsLoading.value = true
+  recordPageNum.value = 1
+  expandedRecordId.value = null
+  appliedRecordKeyword.value = recordKeyword.value.trim()
+  try {
+    const logs = await fetchDispatchLogs(appliedRecordKeyword.value || undefined)
+    records.value = logs.data.list
+  } catch {
+    ElMessage.warning('调度记录查询失败，请稍后重试')
+  } finally {
+    recordsLoading.value = false
+  }
+}
+
+async function resetRecordSearch() {
+  recordKeyword.value = ''
+  appliedRecordKeyword.value = ''
+  recordPageNum.value = 1
+  expandedRecordId.value = null
+  recordsLoading.value = true
+  try {
+    const logs = await fetchDispatchLogs()
+    records.value = logs.data.list
+  } catch {
+    ElMessage.warning('调度记录加载失败')
+  } finally {
+    recordsLoading.value = false
+  }
+}
+
 async function refreshAll() {
   const [st, dec, pred, logs] = await Promise.all([
     fetchDispatchStatus(),
@@ -445,6 +478,7 @@ async function refreshAll() {
   decision.value = dec.data
   prediction.value = pred.data
   records.value = logs.data.list
+  appliedRecordKeyword.value = ''
   if (dec.data && !userModifiedTarget.value && !st.data.isExecuting) {
     targetOpening.value = dec.data.recommended_opening
   }
@@ -593,7 +627,6 @@ function toggleRecordExpand(id: number) {
 }
 
 watch(predictTerm, () => refreshAll())
-watch(recordKeyword, () => { recordPageNum.value = 1; expandedRecordId.value = null })
 watch(recordPageNum, () => { expandedRecordId.value = null })
 
 function applyRecordQuery() {
@@ -774,12 +807,19 @@ onUnmounted(() => {
 
     <!-- §3.8 调度记录 — 底部全宽 -->
     <GlassPanel3D title="调度记录" class="panel-records">
-      <ElInput
-        v-model="recordKeyword"
-        placeholder="搜索模式、动作、操作人、结果..."
-        clearable
-        class="record-search"
-      />
+      <div class="record-search-bar">
+        <ElInput
+          v-model="recordKeyword"
+          placeholder="搜索模式、动作、操作人、结果..."
+          clearable
+          class="record-search"
+          @keyup.enter="queryRecords"
+        />
+        <ElButton type="primary" :icon="Search" :loading="recordsLoading" @click="queryRecords">
+          查询
+        </ElButton>
+        <ElButton :loading="recordsLoading" @click="resetRecordSearch">重置</ElButton>
+      </div>
       <div class="record-table-wrap">
         <div class="record-head">
           <span>时间</span><span>模式</span><span>动作</span><span>目标开度</span><span>互锁</span><span>结果</span><span>操作人</span>
@@ -1260,7 +1300,18 @@ onUnmounted(() => {
 .panel-gate-actions { flex-shrink: 0; margin-top: 12px; }
 .panel-estop-logs { flex-shrink: 0; margin-top: 12px; }
 .panel-records { flex: 1; min-height: 320px; }
-.record-search { margin-bottom: 14px; max-width: 420px; }
+.record-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.record-search {
+  flex: 1;
+  min-width: 220px;
+  max-width: 420px;
+}
 .record-table-wrap { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
 .record-head, .record-row {
   display: grid;

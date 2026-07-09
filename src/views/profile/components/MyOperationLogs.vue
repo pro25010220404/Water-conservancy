@@ -5,8 +5,9 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import {
   ElTable, ElTableColumn, ElPagination,
-  ElDatePicker, ElTag, ElMessage,
+  ElDatePicker, ElTag, ElMessage, ElButton,
 } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { useProfileStore } from '@/stores/profile'
 import { getOperationLogs } from '@/api/profile'
 import { OPERATION_TYPES } from '@/constants/profile'
@@ -129,6 +130,13 @@ function onFilterChange() {
   fetchLogs(1)
 }
 
+function resetFilters() {
+  if (requestInFlight) return
+  filterDateRange.value = null
+  currentPage.value = 1
+  fetchLogs(1)
+}
+
 onMounted(() => {
   window.addEventListener('online', onOnline)
   window.addEventListener('offline', onOffline)
@@ -155,8 +163,11 @@ onBeforeUnmount(() => {
         end-placeholder="结束日期"
         size="default"
         value-format="YYYY-MM-DD"
-        @change="onFilterChange"
       />
+      <ElButton type="primary" :icon="Search" :loading="loading" @click="onFilterChange">
+        查询
+      </ElButton>
+      <ElButton @click="resetFilters">重置</ElButton>
     </div>
 
     <ElTable
@@ -201,6 +212,7 @@ onBeforeUnmount(() => {
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
+    align-items: center;
 
     :deep(.el-date-editor) {
       font-size: 15px;
