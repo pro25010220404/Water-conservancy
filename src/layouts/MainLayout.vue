@@ -9,13 +9,8 @@ import AppHeader from './AppHeader.vue'
 import AppSidebar from './AppSidebar.vue'
 import { APP_TITLE } from '@/constants'
 import logoUrl from '@/assets/images/logo.png'
-import { useSessionKeepAlive } from '@/composables/useSessionKeepAlive'
-
 const route = useRoute()
 const collapsed = ref(false)
-
-// 会话保活：每 4 分钟 ping 一次后端，防止空闲超时
-useSessionKeepAlive()
 
 /** 数字孪生等全幅驾驶舱页：内容区与顶栏无缝衔接，去掉双层边距 */
 const isFlushPage = computed(() => route.path.startsWith('/simulation'))

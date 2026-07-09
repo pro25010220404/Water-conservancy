@@ -12,6 +12,28 @@ export const ACTION_SOURCE_MAP: Record<string, string> = {
   physics_corrected: '物理修正',
 }
 
+// ---------- 闸门控制模式（监控大屏闸门检测） ----------
+export const GATE_CONTROL_MODE_MAP: Record<string, string> = {
+  auto: '自动',
+  manual: '手动',
+  emergency: '紧急',
+  'ai-dqn': 'AI 自动',
+  ai_dqn: 'AI 自动',
+  'AI-DQN': 'AI 自动',
+}
+
+/** 闸门控制模式 → 中文 */
+export function formatGateControlMode(mode?: string | null): string {
+  if (!mode) return '-'
+  return GATE_CONTROL_MODE_MAP[mode] ?? GATE_CONTROL_MODE_MAP[mode.toLowerCase()] ?? mode
+}
+
+/** 操作来源 → 中文 */
+export function formatActionSource(source?: string | null): string {
+  if (!source) return '-'
+  return ACTION_SOURCE_MAP[source] ?? source
+}
+
 // ---------- 运行模式 ----------
 export const DISPATCH_MODE_MAP: Record<string, DictOption> = {
   auto: { label: '自动', value: 'auto', color: '#22c55e' },
