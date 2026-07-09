@@ -3,7 +3,11 @@ import { ref, onMounted } from 'vue'
 import { ElSelect, ElOption, ElButton, ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { RESERVOIR_OPTIONS } from '@/constants/settings'
-import { getInterlockRules, updateInterlockRule, toggleInterlockRule } from '@/api/settings'
+import { getInterlockRules, toggleInterlockRule } from '@/api/settings'
+import {
+  createInterlockRule,
+  updateInterlockRule as updateInterlockRuleWrapped,
+} from '@/api/gateaiSettings'
 import { normalizeInterlockRules, toInterlockRule } from '@/api/interlockAdapter'
 import type { InterlockRule } from '@/stores/gateInterlock'
 import InterlockRuleTable from './components/InterlockRuleTable.vue'
@@ -86,6 +90,14 @@ async function fetchRules() {
   loading.value = true
   try {
     const res = await getInterlockRules({ reservoir_id: reservoirId.value })
+    if (import.meta.env.DEV) {
+      console.log(
+        `[GateInterlock] GET reservoir_id=${reservoirId.value} 返回:`,
+        `code=${res.data?.code}`,
+        `条数=${Array.isArray(res.data?.data) ? res.data.data.length : 'N/A'}`,
+        res.data?.data,
+      )
+    }
     if (res.data?.code === 0 && res.data.data) {
       rules.value = normalizeInterlockRules(res.data.data).map(toInterlockRule)
       return
@@ -148,23 +160,88 @@ function handleReorder(data: { ruleId: number; direction: 'up' | 'down' }) {
   }
 }
 
+/**
+ * 将阈值转为 0~1 小数。后端 trigger_conditions / constraint_action 的内部值
+ * 统一使用小数（如 0.8 表示 80%），前端输入是百分比（如 80）。
+ * 已加载的后端数据本身就是小数，不走此转换。
+ */
+function toDecimalThreshold(value: number): number {
+  // 如果值 > 1，说明是百分比格式（80 = 80%），需除以 100
+  return value > 1 ? +(value / 100).toFixed(3) : value
+}
+
+/** 将 InterlockRule（UI 格式，数组）转为后端 API 请求体（对象格式） */
+function toApiPayload(rule: InterlockRule): Record<string, unknown> {
+  // 触发条件：数组 → { field_operator: threshold }
+  const triggerObj: Record<string, number> = {}
+  for (const cond of rule.trigger_conditions) {
+    const key = `${cond.field}_${cond.operator}`
+    triggerObj[key] = toDecimalThreshold(cond.threshold)
+  }
+
+  // 约束动作：数组 → { action: type, field: threshold }
+  const actionObj: Record<string, unknown> = {
+    action: rule.constraint_actions[0]?.type ?? 'clamp',
+  }
+  for (const act of rule.constraint_actions) {
+    actionObj[act.field] = toDecimalThreshold(act.threshold)
+  }
+
+  // 自动生成 rule_code（后端必填，仅新建时需；编辑时沿用已有 code）
+  const code =
+    rule.code ||
+    rule.name
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '')
+
+  return {
+    rule_code: code,
+    rule_name: rule.name,
+    description: rule.description,
+    enabled: rule.is_enabled,
+    priority: rule.priority,
+    reservoir_id: rule.scope === 'reservoir' ? rule.reservoir_id : null,
+    trigger_conditions: triggerObj,
+    constraint_action: actionObj,
+  }
+}
+
 async function handleSave(rule: InterlockRule) {
   editDialogVisible.value = false
   const existingIdx = rules.value.findIndex((r) => r.id === rule.id)
-  if (existingIdx >= 0) {
-    rules.value[existingIdx] = rule
-    ElMessage.success('规则已更新')
-  } else {
-    rule.id = Math.max(...rules.value.map((r) => r.id), 0) + 1
-    rule.priority = rules.value.length + 1
-    rules.value.push(rule)
-    ElMessage.success('规则已创建')
-  }
-  // Optionally call API
+  const isNew = existingIdx < 0
+
   try {
-    await updateInterlockRule(rule.id, rule)
-  } catch {
-    /* mock */
+    const payload = toApiPayload(rule)
+
+    if (isNew) {
+      // 新建 → POST 创建，成功后重新拉取列表确保与后端一致
+      const created = await createInterlockRule(payload as any)
+      if (import.meta.env.DEV) {
+        console.log('[GateInterlock] POST 创建成功，后端返回:', created)
+      }
+      ElMessage.success('规则已创建')
+    } else {
+      // 编辑 → PUT 更新
+      await updateInterlockRuleWrapped(rule.id, payload as any)
+      ElMessage.success('规则已更新')
+    }
+    // 保存成功后从后端重新拉取，保证刷新/退出登录后数据不丢
+    await fetchRules()
+  } catch (e: any) {
+    // 降级：本地 Mock
+    if (isNew) {
+      rule.id = Math.max(...rules.value.map((r) => r.id), 0) + 1
+      rule.priority = rules.value.length + 1
+      rule.updated_at = new Date().toISOString()
+      rules.value.push(rule)
+      ElMessage.warning('规则已创建（离线模式，刷新后可能丢失）')
+    } else {
+      rules.value[existingIdx] = rule
+      ElMessage.warning('规则已更新（离线模式）')
+    }
+    console.warn('[GateInterlock] API 请求失败，使用本地降级:', e)
   }
 }
 

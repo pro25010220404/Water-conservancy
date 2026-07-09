@@ -4,7 +4,9 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ElSelect, ElOption, ElTable, ElTableColumn, ElSwitch, ElTag, ElMessage,
   ElButton, ElDialog, ElForm, ElFormItem, ElInput, ElInputNumber, ElDatePicker,
+  ElDivider, ElIcon,
 } from 'element-plus'
+import { Plus, Delete } from '@element-plus/icons-vue'
 import type { GateInterlockRule, GateInterlockLog } from '@/types/gateai'
 import {
   fetchReservoirOptions, fetchInterlockRules, toggleInterlockRule,
@@ -33,6 +35,135 @@ const dragId = ref<number | null>(null)
 
 const logRuleFilter = ref<string[]>([])
 const logTimeRange = ref<[Date, Date] | null>(null)
+
+// ═══ 结构化条件编辑器 ═══
+
+interface TriggerRow { field: string; operator: string; threshold: number }
+interface ActionRow { field: string; type: string; threshold: number }
+
+const TRIGGER_FIELDS = [
+  { label: '溢洪道开度', value: 'spillway_opening' },
+  { label: '泄洪洞开度', value: 'tunnel_opening' },
+  { label: '发电闸开度', value: 'intake_opening' },
+  { label: '总开度', value: 'total_opening' },
+  { label: '上游水位', value: 'upstream_level' },
+  { label: '下游水位', value: 'downstream_level' },
+  { label: '入库流量', value: 'inflow_rate' },
+]
+
+const TRIGGER_OPERATORS = [
+  { label: '大于 (>)', value: 'gt' },
+  { label: '小于 (<)', value: 'lt' },
+  { label: '大于等于 (≥)', value: 'gte' },
+  { label: '小于等于 (≤)', value: 'lte' },
+  { label: '等于 (=)', value: 'eq' },
+  { label: '变化率大于', value: 'rate_gt' },
+]
+
+const ACTION_TYPES = [
+  { label: '强制限制 ≤', value: 'clamp' },
+  { label: '强制限制 ≥', value: 'floor' },
+  { label: '禁止同向', value: 'block_same_direction' },
+  { label: '禁止反向', value: 'block_opposite_direction' },
+  { label: '强制对齐', value: 'align' },
+]
+
+const ACTION_FIELDS = [
+  { label: '发电闸上限', value: 'intake_max' },
+  { label: '发电闸开度', value: 'intake_opening' },
+  { label: '泄洪洞开度', value: 'tunnel_opening' },
+  { label: '溢洪道开度', value: 'spillway_opening' },
+  { label: '总开度', value: 'total_opening' },
+  { label: '最大开度差', value: 'max_diff' },
+  { label: '最小总开度', value: 'min_total' },
+]
+
+const triggerRows = ref<TriggerRow[]>([])
+const actionRows = ref<ActionRow[]>([])
+
+/** 数值是否在 0~1 小数范围（后端格式） */
+function isDecimalRange(v: number) { return v > 0 && v <= 1 }
+
+/** 后端小数 → UI 百分比 */
+function toUiPercent(v: number) {
+  return isDecimalRange(v) ? Math.round(v * 1000) / 10 : v
+}
+
+/** UI 百分比 → 后端小数 */
+function toApiDecimal(v: number) {
+  return v > 1 ? +(v / 100).toFixed(3) : v
+}
+
+/** 后端 trigger_conditions 对象 → UI 行数组 */
+function parseTriggerRows(obj: Record<string, unknown> | undefined): TriggerRow[] {
+  if (!obj || typeof obj !== 'object') {
+    return [{ field: 'spillway_opening', operator: 'gt', threshold: 80 }]
+  }
+  const rows = Object.entries(obj).map(([key, value]) => {
+    let field = key
+    let operator = 'gt'
+    for (const op of ['rate_gt', 'gte', 'lte', 'eq', 'gt', 'lt']) {
+      if (key.endsWith('_' + op)) {
+        field = key.slice(0, -(op.length + 1))
+        operator = op
+        break
+      }
+    }
+    const t = typeof value === 'number' ? value : Number(value) || 0
+    return { field, operator, threshold: toUiPercent(t) }
+  })
+  return rows.length > 0 ? rows : [{ field: 'spillway_opening', operator: 'gt', threshold: 80 }]
+}
+
+/** 后端 constraint_action 对象 → UI 行数组 */
+function parseActionRows(obj: Record<string, unknown> | undefined): ActionRow[] {
+  if (!obj || typeof obj !== 'object') {
+    return [{ field: 'intake_max', type: 'clamp', threshold: 50 }]
+  }
+  const actionType = (obj.action as string) || 'clamp'
+  const rows = Object.entries(obj)
+    .filter(([key]) => key !== 'action')
+    .map(([key, value]) => {
+      const t = typeof value === 'number' ? value : Number(value) || 0
+      return { field: key, type: actionType, threshold: toUiPercent(t) }
+    })
+  return rows.length > 0 ? rows : [{ field: 'intake_max', type: actionType, threshold: 50 }]
+}
+
+/** UI 行数组 → 后端 trigger_conditions 对象 */
+function serializeTriggerRows(): Record<string, number> {
+  const obj: Record<string, number> = {}
+  for (const row of triggerRows.value) {
+    obj[`${row.field}_${row.operator}`] = toApiDecimal(row.threshold)
+  }
+  return obj
+}
+
+/** UI 行数组 → 后端 constraint_action 对象 */
+function serializeActionRows(): Record<string, unknown> {
+  const obj: Record<string, unknown> = { action: actionRows.value[0]?.type || 'clamp' }
+  for (const row of actionRows.value) {
+    obj[row.field] = toApiDecimal(row.threshold)
+  }
+  return obj
+}
+
+function addTriggerRow() {
+  triggerRows.value.push({ field: 'spillway_opening', operator: 'gt', threshold: 80 })
+}
+function removeTriggerRow(index: number) {
+  if (triggerRows.value.length > 1) triggerRows.value.splice(index, 1)
+  else ElMessage.warning('至少保留一个触发条件')
+}
+function addActionRow() {
+  actionRows.value.push({ field: 'intake_max', type: 'clamp', threshold: 50 })
+}
+function removeActionRow(index: number) {
+  if (actionRows.value.length > 1) actionRows.value.splice(index, 1)
+  else ElMessage.warning('至少保留一个约束动作')
+}
+
+// ═══ 原有逻辑 ═══
 
 function last7DaysRange(): [Date, Date] {
   const end = new Date()
@@ -87,8 +218,10 @@ function openCreate() {
   editMode.value = 'create'
   editingId.value = null
   const maxP = rules.value.reduce((m, r) => Math.max(m, r.priority), 0)
+  triggerRows.value = [{ field: 'spillway_opening', operator: 'gt', threshold: 80 }]
+  actionRows.value = [{ field: 'intake_max', type: 'clamp', threshold: 50 }]
   editForm.value = {
-    rule_name: '', description: '', trigger_label: '', action_label: '',
+    rule_name: '', description: '',
     rule_code: `custom_${Date.now()}`, reservoir_id: reservoirId.value,
     enabled: true, priority: maxP + 1,
   }
@@ -99,6 +232,8 @@ function openEdit(rule: GateInterlockRule) {
   editMode.value = 'edit'
   editingId.value = rule.id
   editForm.value = { ...rule }
+  triggerRows.value = parseTriggerRows(rule.trigger_conditions)
+  actionRows.value = parseActionRows(rule.constraint_action)
   editVisible.value = true
 }
 
@@ -107,23 +242,29 @@ async function submitEdit() {
     ElMessage.warning('请输入规则名称')
     return
   }
-  if (!editForm.value.trigger_label?.trim()) {
-    ElMessage.warning('请输入触发条件')
+  if (triggerRows.value.length === 0) {
+    ElMessage.warning('请至少添加一个触发条件')
     return
   }
-  if (!editForm.value.action_label?.trim()) {
-    ElMessage.warning('请输入约束动作')
-    return
+
+  // 序列化结构化条件 → 后端对象
+  const triggerConditions = serializeTriggerRows()
+  const constraintAction = serializeActionRows()
+
+  const data = {
+    ...editForm.value,
+    trigger_conditions: triggerConditions,
+    constraint_action: constraintAction,
   }
+
   if (editMode.value === 'create') {
     const created = await createInterlockRule(
-      editForm.value as Omit<GateInterlockRule, 'id' | 'trigger_count_7d'>,
+      data as Omit<GateInterlockRule, 'id' | 'trigger_count_7d'>,
     )
-    // 直接添加到本地列表并按优先级排序，避免 load() 从后端覆盖
     rules.value = [...rules.value, created].sort((a, b) => a.priority - b.priority)
     ElMessage.success('规则已创建')
   } else if (editingId.value) {
-    await updateInterlockRule(editingId.value, editForm.value)
+    await updateInterlockRule(editingId.value, data)
     ElMessage.success('规则已更新')
     await load()
   }
@@ -164,7 +305,6 @@ function goDispatchDecision(decisionId: number) {
   router.push({ path: '/dispatch', query: { recordId: String(decisionId) } })
 }
 
-/** 近7天触发次数下钻：查看该规则近7天触发日志（文档 §3.6） */
 function openRuleLogs(rule: GateInterlockRule) {
   logRuleFilter.value = [rule.rule_code]
   logTimeRange.value = last7DaysRange()
@@ -327,22 +467,74 @@ onMounted(async () => {
       <ElTableColumn prop="reason" label="原因" min-width="220" show-overflow-tooltip />
     </ElTable>
 
-    <ElDialog v-model="editVisible" :title="editMode === 'create' ? '新建互锁规则' : '编辑互锁规则'" width="580px">
+    <!-- 编辑对话框：结构化条件编辑器 -->
+    <ElDialog v-model="editVisible" :title="editMode === 'create' ? '新建互锁规则' : '编辑互锁规则'" width="720px">
       <ElForm :model="editForm" label-width="100px">
-        <ElFormItem label="规则名称"><ElInput v-model="editForm.rule_name" /></ElFormItem>
-        <ElFormItem label="说明"><ElInput v-model="editForm.description" type="textarea" :rows="2" /></ElFormItem>
+        <ElFormItem label="规则名称" required>
+          <ElInput v-model="editForm.rule_name" placeholder="请输入规则名称" maxlength="50" />
+        </ElFormItem>
+        <ElFormItem label="说明">
+          <ElInput v-model="editForm.description" type="textarea" :rows="2" placeholder="规则说明" />
+        </ElFormItem>
         <ElFormItem label="作用范围">
           <ElSelect v-model="editForm.reservoir_id" style="width:100%" clearable placeholder="留空=全局默认">
             <ElOption v-for="r in reservoirs" :key="r.id" :label="`${r.name}专属`" :value="r.id" />
           </ElSelect>
         </ElFormItem>
-        <ElFormItem label="触发条件"><ElInput v-model="editForm.trigger_label" placeholder="例如：溢洪道 > 80%" /></ElFormItem>
-        <ElFormItem label="约束动作"><ElInput v-model="editForm.action_label" placeholder="例如：发电闸 ≤ 50%" /></ElFormItem>
-        <ElFormItem label="优先级"><ElInputNumber v-model="editForm.priority" :min="1" :max="99" /></ElFormItem>
+        <ElFormItem label="优先级">
+          <ElInputNumber v-model="editForm.priority" :min="1" :max="99" />
+        </ElFormItem>
+
+        <ElDivider />
+
+        <!-- 触发条件 -->
+        <div class="structured-section">
+          <div class="section-header">
+            <span class="section-title">触发条件</span>
+            <ElButton :icon="Plus" size="small" type="primary" @click="addTriggerRow">添加条件</ElButton>
+          </div>
+          <div v-for="(row, idx) in triggerRows" :key="idx" class="struct-row">
+            <span class="row-num">{{ idx + 1 }}</span>
+            <ElSelect v-model="row.field" style="width:140px">
+              <ElOption v-for="f in TRIGGER_FIELDS" :key="f.value" :label="f.label" :value="f.value" />
+            </ElSelect>
+            <ElSelect v-model="row.operator" style="width:130px">
+              <ElOption v-for="op in TRIGGER_OPERATORS" :key="op.value" :label="op.label" :value="op.value" />
+            </ElSelect>
+            <ElInputNumber v-model="row.threshold" :min="0" :max="100" :step="0.1" :precision="1" style="width:110px" />
+            <span class="unit-suffix">%</span>
+            <ElButton :icon="Delete" circle size="small" @click="removeTriggerRow(idx)" />
+          </div>
+        </div>
+
+        <ElDivider />
+
+        <!-- 约束动作 -->
+        <div class="structured-section">
+          <div class="section-header">
+            <span class="section-title">约束动作</span>
+            <ElButton :icon="Plus" size="small" type="primary" @click="addActionRow">添加动作</ElButton>
+          </div>
+          <div v-for="(row, idx) in actionRows" :key="idx" class="struct-row">
+            <span class="row-num">{{ idx + 1 }}</span>
+            <ElSelect v-model="row.type" style="width:140px">
+              <ElOption v-for="t in ACTION_TYPES" :key="t.value" :label="t.label" :value="t.value" />
+            </ElSelect>
+            <ElSelect v-model="row.field" style="width:140px">
+              <ElOption v-for="f in ACTION_FIELDS" :key="f.value" :label="f.label" :value="f.value" />
+            </ElSelect>
+            <ElInputNumber v-model="row.threshold" :min="0" :max="100" :step="0.1" :precision="1" style="width:110px" />
+            <span class="unit-suffix">%</span>
+            <ElButton :icon="Delete" circle size="small" @click="removeActionRow(idx)" />
+          </div>
+        </div>
       </ElForm>
+
       <template #footer>
         <ElButton @click="editVisible = false">取消</ElButton>
-        <ElButton type="primary" @click="submitEdit">保存</ElButton>
+        <ElButton type="primary" @click="submitEdit">
+          {{ editMode === 'create' ? '创建' : '保存' }}
+        </ElButton>
       </template>
     </ElDialog>
   </div>
@@ -393,4 +585,44 @@ onMounted(async () => {
   }
 }
 .opening-changed { color: #dc2626; font-weight: 600; }
+
+// ── 结构化条件编辑器样式 ──
+.structured-section {
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+  }
+}
+.struct-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+
+  .row-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #1677ff;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .unit-suffix {
+    font-size: 13px;
+    color: #64748b;
+    width: 18px;
+  }
+}
 </style>
