@@ -624,14 +624,19 @@ export async function updateInterlockRule(ruleId: number, patch: Partial<GateInt
 export async function createInterlockRule(
   data: Omit<GateInterlockRule, 'id' | 'trigger_count_7d'>,
 ): Promise<GateInterlockRule> {
-  // 构造与 PUT 完全一致的请求体格式（trigger_conditions / constraint_action 对象）
+  // POST 创建请求体：直接发所有字段，不用 toInterlockUpdatePayload（那是给 PUT 部分更新用的）
   const payload: Record<string, unknown> = {
-    ...toInterlockUpdatePayload(data),
     rule_code: data.rule_code,
-    reservoir_id: data.reservoir_id,
-    // 确保 trigger_conditions / constraint_action 字段存在（后端可能要求必填）
+    rule_name: data.rule_name,
+    description: data.description ?? '',
+    enabled: data.enabled ?? true,
+    priority: data.priority ?? 1,
+    reservoir_id: data.reservoir_id ?? null,
     trigger_conditions: data.trigger_conditions || {},
     constraint_action: data.constraint_action || {},
+  }
+  if (import.meta.env.DEV) {
+    console.log('[GateInterlock] POST 请求体:', JSON.stringify(payload, null, 2))
   }
   try {
     const res = await http.post<ApiResponse<GateInterlockRule>>(
@@ -642,6 +647,10 @@ export async function createInterlockRule(
     if (res.data?.code === 0 && res.data.data) {
       return res.data.data
     }
+    // 后端返回了 code !== 0 的业务错误
+    const msg = res.data?.msg || '未知错误'
+    console.warn('[GateInterlock] 创建失败:', msg, res.data)
+    throw new Error(msg)
   } catch (e) {
     if (!GATEAI_MOCK_FALLBACK) throw e
   }

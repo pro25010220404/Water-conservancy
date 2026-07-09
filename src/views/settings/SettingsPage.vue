@@ -581,12 +581,20 @@ async function fetchModels() {
 async function handleActivateModel(id: number) {
   try {
     await ElMessageBox.confirm('确定激活该模型？激活后旧版本将被标记为废弃', '确认激活')
-    await activateModel(id)
-    recordLog('系统设置', '激活模型', `激活了模型 ID:${id}`, 1)
-    ElMessage.success('模型已激活')
-    fetchModels()
   } catch {
-    /* 取消 */
+    return // 用户取消
+  }
+  try {
+    await activateModel(id, {})
+    recordLog('系统设置', '激活模型', `激活了模型 ID:${id}`, 1)
+    await ElMessageBox.alert('模型已成功激活，旧版本已标记为废弃', '激活成功', {
+      confirmButtonText: '确定',
+      type: 'success',
+    })
+    fetchModels()
+  } catch (e: any) {
+    const msg = e?.msg || e?.message || '激活失败，请稍后重试'
+    ElMessage.error(msg)
   }
 }
 

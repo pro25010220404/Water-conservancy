@@ -138,10 +138,12 @@ export function toInterlockUpdatePayload(
   patch: Partial<GateInterlockRule>,
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {}
+  if (patch.rule_code !== undefined) payload.rule_code = patch.rule_code
   if (patch.rule_name !== undefined) payload.rule_name = patch.rule_name
   if (patch.description !== undefined) payload.description = patch.description
   if (patch.enabled !== undefined) payload.enabled = patch.enabled
   if (patch.priority !== undefined) payload.priority = patch.priority
+  if (patch.reservoir_id !== undefined) payload.reservoir_id = patch.reservoir_id
   if (patch.trigger_conditions && Object.keys(patch.trigger_conditions).length) {
     payload.trigger_conditions = patch.trigger_conditions
   }

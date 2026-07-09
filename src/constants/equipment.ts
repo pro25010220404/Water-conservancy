@@ -23,19 +23,24 @@ export const DEVICE_TYPE_OPTIONS = Object.values(DEVICE_TYPE).map((d) => ({
 
 // ---------- 设备状态 ----------
 export const DEVICE_STATUS: DictMap = {
-  active: { label: '在线', value: 'active', color: '#67C23A', icon: 'CircleCheckFilled' },
-  inactive: { label: '离线', value: 'inactive', color: '#909399', icon: 'RemoveFilled' },
   online: { label: '在线', value: 'online', color: '#67C23A', icon: 'CircleCheckFilled' },
   offline: { label: '离线', value: 'offline', color: '#909399', icon: 'RemoveFilled' },
+  active: { label: '在线', value: 'active', color: '#67C23A', icon: 'CircleCheckFilled' },
+  inactive: { label: '离线', value: 'inactive', color: '#909399', icon: 'RemoveFilled' },
   fault: { label: '故障', value: 'fault', color: '#F56C6C', icon: 'CircleCloseFilled' },
   maintenance: { label: '维护中', value: 'maintenance', color: '#E6A23C', icon: 'WarningFilled' },
 }
 
-/** 设备状态筛选下拉选项 */
-export const DEVICE_STATUS_OPTIONS = Object.values(DEVICE_STATUS).map((d) => ({
-  label: d.label,
-  value: d.value,
-}))
+/** 下拉选项中只显示后端实际使用的规范值 */
+const CANONICAL_STATUS_KEYS = new Set(['online', 'offline', 'fault', 'maintenance'])
+
+/** 设备状态筛选下拉选项（去重） */
+export const DEVICE_STATUS_OPTIONS = Object.values(DEVICE_STATUS)
+  .filter((d) => CANONICAL_STATUS_KEYS.has(d.value as string))
+  .map((d) => ({
+    label: d.label,
+    value: d.value,
+  }))
 
 // ---------- 设备分组 ----------
 export const DEVICE_GROUP: DictMap = {
