@@ -3,6 +3,7 @@ import { computed, onMounted, watch } from 'vue'
 import { ElButton, ElSlider, ElInputNumber, ElTag, ElMessage } from 'element-plus'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import WaterColumn2D from '@/components/cockpit/WaterColumn2D.vue'
+import FlowGauge2D from '@/components/cockpit/FlowGauge2D.vue'
 import DamSectionDiagram from '@/views/dispatch/components/DamSectionDiagram.vue'
 import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
 import { useDispatchStore } from '@/stores/dispatch'
@@ -130,12 +131,22 @@ onMounted(async () => {
             :max="160"
             size="lg"
           />
-          <WaterColumn2D
+          <FlowGauge2D
             label="入库流量"
             :value="derived.inflowRate"
             unit="m³/s"
             :min="0"
-            :max="4000"
+            :max="3500"
+            variant="inflow"
+            size="lg"
+          />
+          <FlowGauge2D
+            label="出库流量"
+            :value="derived.outflowRate"
+            unit="m³/s"
+            :min="0"
+            :max="3500"
+            variant="outflow"
             size="lg"
           />
         </div>
@@ -146,12 +157,12 @@ onMounted(async () => {
             <strong>{{ aggregateOpening }}%</strong>
           </div>
           <div class="vsim-metric">
-            <span>入库流量</span>
-            <strong>{{ derived.inflowRate }} <small>m³/s</small></strong>
+            <span>水头差</span>
+            <strong>{{ (derived.upstreamLevel - derived.downstreamLevel).toFixed(1) }} <small>m</small></strong>
           </div>
           <div class="vsim-metric">
-            <span>出库流量</span>
-            <strong>{{ derived.outflowRate }} <small>m³/s</small></strong>
+            <span>流量平衡</span>
+            <strong>{{ derived.inflowRate - derived.outflowRate > 0 ? '+' : '' }}{{ derived.inflowRate - derived.outflowRate }} <small>m³/s</small></strong>
           </div>
           <div class="vsim-metric">
             <span>水位趋势</span>
@@ -228,14 +239,18 @@ onMounted(async () => {
 
 .vsim-columns {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
   padding: 8px 12px 4px;
   background: linear-gradient(180deg, #f8fbff 0%, #fff 100%);
   border: 1px solid #eef2f6;
   border-radius: 14px;
 
-  @media (max-width: 900px) {
+  @media (max-width: 1100px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 600px) {
     grid-template-columns: 1fr;
     max-width: 280px;
     margin: 0 auto;
