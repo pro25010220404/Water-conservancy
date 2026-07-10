@@ -12,6 +12,8 @@ import DamPanoramaModal from '@/components/cockpit/DamPanoramaModal.vue'
 import { useSmoothNumber } from '@/composables/useSmoothNumber'
 import { useSimulationStream, mapProgressToRealtime } from '@/composables/useSimulationStream'
 import { useUserStore } from '@/stores/user'
+import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
+import { storeToRefs } from 'pinia'
 import SimulationTabPanel from './components/SimulationTabPanel.vue'
 import ScenarioListPanel from './components/ScenarioListPanel.vue'
 import type {
@@ -37,6 +39,8 @@ import {
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 
 const userStore = useUserStore()
+const virtualSimStore = useVirtualSimulationStore()
+const { active: virtualSimActive, derived: virtualSimDerived } = storeToRefs(virtualSimStore)
 const { connected: wsConnected, connect: connectSimStream, disconnect: disconnectSimStream } =
   useSimulationStream()
 
@@ -130,10 +134,25 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 const waterLevel = computed(() => simStatus.value.currentLevel)
 const downstreamLevel = computed(() => simStatus.value.currentDownstreamLevel)
 const flowRate = computed(() => simStatus.value.currentFlow)
-const smoothWaterLevel = useSmoothNumber(waterLevel, 1200)
-const smoothDownstreamLevel = useSmoothNumber(downstreamLevel, 1200)
-const levelStatus = computed(() => getLevelStatus(waterLevel.value))
-const gaugePct = computed(() => levelGaugePercent(waterLevel.value))
+
+/** 虚拟仿真生效时，3D/2D 孪生视图跟随全局仿真参数（静态展示 + 联动） */
+const displayWaterLevel = computed(() =>
+  virtualSimActive.value ? virtualSimDerived.value.upstreamLevel : waterLevel.value,
+)
+const displayDownstreamLevel = computed(() =>
+  virtualSimActive.value ? virtualSimDerived.value.downstreamLevel : downstreamLevel.value,
+)
+const displayFlowRate = computed(() =>
+  virtualSimActive.value ? virtualSimDerived.value.inflowRate : flowRate.value,
+)
+const displayGateOpening = computed(() =>
+  virtualSimActive.value ? virtualSimDerived.value.aggregateOpening : gateOpening.value,
+)
+
+const smoothWaterLevel = useSmoothNumber(displayWaterLevel, 800)
+const smoothDownstreamLevel = useSmoothNumber(displayDownstreamLevel, 800)
+const levelStatus = computed(() => getLevelStatus(displayWaterLevel.value))
+const gaugePct = computed(() => levelGaugePercent(displayWaterLevel.value))
 const levelHistoryBars = computed(() => {
   const hist = simStatus.value.historyLevels.slice(-12)
   if (hist.length === 0) {
@@ -535,6 +554,10 @@ onUnmounted(() => {
 
 <template>
   <div class="sim-page sim-page--twin sim-page--sky">
+      <div v-if="virtualSimActive" class="sim-vsim-banner">
+        <ElTag type="success">虚拟仿真联动</ElTag>
+        <span>水位 {{ displayWaterLevel.toFixed(1) }} m · 开度 {{ displayGateOpening.toFixed(1) }}% · 入库 {{ displayFlowRate }} m³/s</span>
+      </div>
       <div class="sim-page__grid">
         <!-- 左栏：水情 + 曲线 + 场景库 -->
         <aside class="sim-page__col sim-page__col--left">
@@ -542,21 +565,21 @@ onUnmounted(() => {
             <div class="twin-kpi-row">
               <div class="twin-kpi">
                 <div class="twin-kpi__ring" :style="{ '--pct': gaugePct + '%', '--c': levelStatus.color }">
-                  <b>{{ waterLevel.toFixed(2) }}</b>
+                  <b>{{ displayWaterLevel.toFixed(2) }}</b>
                   <small>m</small>
                 </div>
                 <span>上游水位</span>
               </div>
               <div class="twin-kpi">
                 <div class="twin-kpi__ring twin-kpi__ring--flow">
-                  <b>{{ flowRate }}</b>
+                  <b>{{ displayFlowRate }}</b>
                   <small>m³/s</small>
                 </div>
                 <span>入库流量</span>
               </div>
               <div class="twin-kpi">
                 <div class="twin-kpi__ring twin-kpi__ring--gate">
-                  <b>{{ gateOpening }}</b>
+                  <b>{{ displayGateOpening.toFixed(1) }}</b>
                   <small>%</small>
                 </div>
                 <span>闸门开度</span>
@@ -566,7 +589,7 @@ onUnmounted(() => {
               <li><span>正常蓄水</span><b>{{ XIANGJIABA_HYDRO.normalPoolLevel }} m</b></li>
               <li><span>汛限水位</span><b>{{ XIANGJIABA_HYDRO.floodLimitLevel }} m</b></li>
               <li><span>坝顶高程</span><b>{{ XIANGJIABA_HYDRO.crestElevation }} m</b></li>
-              <li><span>下游尾水</span><b>{{ downstreamLevel.toFixed(2) }} m</b></li>
+              <li><span>下游尾水</span><b>{{ displayDownstreamLevel.toFixed(2) }} m</b></li>
               <li v-if="physicsGuard"><span>防护配置</span><b>v{{ physicsGuard.config_version }}</b></li>
               <li v-if="physicsGuard"><span>紧急水位线</span><b>{{ physicsGuard.upstream_emergency }} m</b></li>
             </ul>
@@ -619,8 +642,8 @@ onUnmounted(() => {
               <span class="sim-viewport__hud-badge" :style="{ color: statusInfo?.color }">
                 {{ statusInfo?.label }} · {{ sceneLabel }}
               </span>
-              <span>水位 <b :style="{ color: levelStatus.color }">{{ waterLevel.toFixed(2) }} m</b></span>
-              <span>开度 <b>{{ gateOpening }}%</b></span>
+              <span>水位 <b :style="{ color: levelStatus.color }">{{ displayWaterLevel.toFixed(2) }} m</b></span>
+              <span>开度 <b>{{ displayGateOpening.toFixed(1) }}%</b></span>
               <span>仿真 <b>{{ elapsedLabel }}</b></span>
               <span>倍速 <b>{{ simSpeed }}x</b></span>
             </div>
@@ -628,8 +651,8 @@ onUnmounted(() => {
               v-if="viewMode === '2d'"
               :water-level="smoothWaterLevel"
               :downstream-level="smoothDownstreamLevel"
-              :gate-opening="gateOpening"
-              :flow-rate="flowRate"
+              :gate-opening="displayGateOpening"
+              :flow-rate="displayFlowRate"
             />
             <ThreeDamScene
               v-else
@@ -637,8 +660,8 @@ onUnmounted(() => {
               visual-mode="twin"
               :water-level="smoothWaterLevel"
               :downstream-level="smoothDownstreamLevel"
-              :gate-opening="gateOpening"
-              :flow-rate="flowRate"
+              :gate-opening="displayGateOpening"
+              :flow-rate="displayFlowRate"
               :sim-scene="simScene"
               :sim-running="simActive"
             />
@@ -847,6 +870,19 @@ onUnmounted(() => {
 <style scoped lang="scss">
 @use '@/assets/styles/text-mixins.scss' as *;
 @use '@/assets/styles/cockpit.scss' as *;
+
+.sim-vsim-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  font-size: $cockpit-font-sm;
+  color: #389e0d;
+}
 
 .sim-page--twin.sim-page--sky {
   @include cockpit-page-white;

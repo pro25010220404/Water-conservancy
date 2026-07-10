@@ -12,6 +12,7 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   '/dashboard/gate': ['operator', 'dispatcher', 'manager', 'admin'],
   '/dashboard/power': ['operator', 'dispatcher', 'manager', 'admin'],
   '/dashboard/security': ['operator', 'manager', 'admin'],
+  '/hydrology/virtual-sim': ['operator', 'dispatcher', 'manager', 'admin', 'algorithm_engineer'],
 
   // ═══ 历史查询 ═══
   '/history': ['dispatcher', 'manager', 'admin'],
@@ -24,6 +25,9 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   // ═══ 告警 / 调度 / 仿真 ═══
   '/warning': ['operator', 'dispatcher', 'manager', 'admin'],
   '/dispatch': ['dispatcher', 'manager', 'admin', 'algorithm_engineer'],
+  '/dispatch/analysis': ['dispatcher', 'manager', 'admin', 'algorithm_engineer'],
+  '/dispatch/control': ['dispatcher', 'manager', 'admin', 'algorithm_engineer'],
+  '/dispatch/gates': ['dispatcher', 'manager', 'admin', 'algorithm_engineer'],
   '/dispatch/gate-actions': ['dispatcher', 'manager', 'admin'],
   '/simulation': ['manager', 'admin', 'algorithm_engineer'],
 
@@ -90,6 +94,7 @@ export const MENU_ITEMS: MenuItem[] = [
   },
   { path: '/warning', title: '告警管理', icon: 'Warning' },
   { path: '/dispatch', title: '调度决策', icon: 'Operation' },
+  { path: '/hydrology/virtual-sim', title: '虚拟仿真', icon: 'MagicStick' },
   { path: '/simulation', title: '数字孪生', icon: 'Cpu' },
   { path: '/equipment', title: '设备管理', icon: 'SetUp' },
   {

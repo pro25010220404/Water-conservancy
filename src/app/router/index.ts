@@ -93,6 +93,12 @@ const routes: RouteRecordRaw[] = [
         ],
       },
       {
+        path: 'hydrology/virtual-sim',
+        name: 'HydrologyVirtualSim',
+        component: () => import('@/views/hydrology/VirtualSimulationPage.vue'),
+        meta: { title: '水情虚拟仿真' },
+      },
+      {
         path: 'warning',
         name: 'Warning',
         component: () => import('@/views/warning/WarningPage.vue'),
@@ -100,9 +106,29 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'dispatch',
-        name: 'Dispatch',
-        component: () => import('@/views/dispatch/DispatchPage.vue'),
+        component: () => import('@/views/dispatch/index.vue'),
         meta: { title: '调度决策' },
+        redirect: '/dispatch/gates',
+        children: [
+          {
+            path: 'analysis',
+            name: 'DispatchAnalysis',
+            component: () => import('@/views/dispatch/DispatchAnalysisPage.vue'),
+            meta: { title: '决策分析' },
+          },
+          {
+            path: 'control',
+            name: 'DispatchControl',
+            component: () => import('@/views/dispatch/DispatchControlPage.vue'),
+            meta: { title: '运行控制' },
+          },
+          {
+            path: 'gates',
+            name: 'DispatchGates',
+            component: () => import('@/views/dispatch/DispatchGatesPage.vue'),
+            meta: { title: '节点控制' },
+          },
+        ],
       },
       {
         path: 'simulation',

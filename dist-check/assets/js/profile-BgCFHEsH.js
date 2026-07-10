@@ -1,0 +1,1 @@
+Object.entries({equipment:`设备管理`,settings:`系统设置`,control:`闸门控制`,dispatch:`调度决策`,alarm:`告警处理`,profile:`个人中心`,auth:`登录认证`}).map(([e,t])=>({label:t,value:e}));var e={view:`查看`,create:`新增`,update:`修改`,delete:`删除`,restart:`重启`,emergency_stop:`急停`,export:`导出`,login:`登录`,status_change:`状态变更`,execute:`执行`,dispose:`处置`},t=2*1024*1024,n=`.jpg,.jpeg,.png`;export{t as n,e as r,n as t};

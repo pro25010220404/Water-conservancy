@@ -116,19 +116,32 @@ function mockKpi(): RealtimeKpi {
   }
 }
 export async function fetchRealtimeKpi(reservoirId: number): Promise<RealtimeKpi> {
+  let kpi: RealtimeKpi
   try {
     const res = await getMonitoringRealtime({ reservoir_id: String(reservoirId) })
     if (res.data?.code === 0 && res.data.data) {
       const d = res.data.data
-      return {
+      kpi = {
         upstreamLevel: parseFloat(d.upstream_level), downstreamLevel: parseFloat(d.downstream_level),
         inflowRate: parseFloat(d.inflow_rate), outflowRate: parseFloat(d.outflow_rate),
         gateOpening: parseFloat(d.gate_opening), powerOutput: parseFloat(d.power_output),
         capacity: 48.36, timestamp: d.timestamp,
       }
+    } else {
+      kpi = mockKpi()
     }
-  } catch (e) { if (!MOCK_FALLBACK) throw e }
-  return delay(mockKpi())
+  } catch (e) {
+    if (!MOCK_FALLBACK) throw e
+    kpi = mockKpi()
+  }
+  try {
+    const { useVirtualSimulationStore } = await import('@/stores/virtualSimulation')
+    const sim = useVirtualSimulationStore()
+    sim.initBaselineFromKpi(kpi)
+    return sim.overlayKpi(kpi)
+  } catch {
+    return kpi
+  }
 }
 
 // ── 告警 ──

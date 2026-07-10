@@ -1,0 +1,1 @@
+import{M as e,X as t,ft as n,j as r,w as i}from"./vendor-echarts-CDBckQCH.js";import{t as a}from"./ModelMetricsPanel-R7BAgJky.js";import{t as o}from"./GateAiPageShell-CkjjHNmy.js";var s=e({__name:`ModelComparePage`,setup(e){return(e,s)=>(t(),i(o,null,{default:n(()=>[r(a,{"fixed-mode":`compare`})]),_:1}))}});export{s as default};
