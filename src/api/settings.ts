@@ -168,7 +168,7 @@ export function getAIMetrics(params: { reservoir_id: number }) {
   return http.get<ApiResponse<HealthOverview>>(`${AI}/metrics`, { params })
 }
 
-export function getAIMetricsHistory(params: { reservoir_id: number; days?: number }) {
+export function getAIMetricsHistory(params: { reservoir_id: number; hours?: number }) {
   return http.get<ApiResponse<AIMetricsHistoryItem[]>>(`${AI}/metrics/history`, { params })
 }
 

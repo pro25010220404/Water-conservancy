@@ -12,6 +12,8 @@ export interface ModelMetricLatest {
   decision_score: number
   compliance_score: number
   metric_time: string
+  /** 各维度权重，key 对应 EVAL_DIMENSIONS 的 key */
+  dimension_weights: Record<string, number>
 }
 
 export interface ModelMetricHistoryPoint {

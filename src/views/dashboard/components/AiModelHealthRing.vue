@@ -95,31 +95,17 @@ const pointerTip = computed(() => polar(CX, CY, OUTER_R - 4, pointerAngle.value)
 const pointerBase1 = computed(() => polar(CX, CY, 20, pointerAngle.value + 0.3))
 const pointerBase2 = computed(() => polar(CX, CY, 20, pointerAngle.value - 0.3))
 
-// ── D-86 三维度 ──
+// ── D-86 五维度 ──
 const dimensionBars = computed(() => {
   if (!currentData.value) return []
+  const w = currentData.value.dimension_weights
+  const d = currentData.value
   return [
-    {
-      key: 'prediction',
-      label: EVAL_DIMENSIONS.prediction.label,
-      weight: EVAL_DIMENSIONS.prediction.weight,
-      score: currentData.value.prediction_score,
-      color: EVAL_DIMENSIONS.prediction.color,
-    },
-    {
-      key: 'decision',
-      label: EVAL_DIMENSIONS.decision.label,
-      weight: EVAL_DIMENSIONS.decision.weight,
-      score: currentData.value.decision_score,
-      color: EVAL_DIMENSIONS.decision.color,
-    },
-    {
-      key: 'compliance',
-      label: EVAL_DIMENSIONS.compliance.label,
-      weight: EVAL_DIMENSIONS.compliance.weight,
-      score: currentData.value.compliance_score,
-      color: EVAL_DIMENSIONS.compliance.color,
-    },
+    { key: 'prediction', label: EVAL_DIMENSIONS.prediction.label, weight: w.prediction ?? 0.4, score: d.prediction_score, color: EVAL_DIMENSIONS.prediction.color },
+    { key: 'decision', label: EVAL_DIMENSIONS.decision.label, weight: w.decision ?? 0.35, score: d.decision_score, color: EVAL_DIMENSIONS.decision.color },
+    { key: 'compliance', label: EVAL_DIMENSIONS.compliance.label, weight: w.compliance ?? 0.25, score: d.compliance_score, color: EVAL_DIMENSIONS.compliance.color },
+    { key: 'safety_coverage', label: EVAL_DIMENSIONS.safety_coverage.label, weight: w.safety_coverage ?? 0.15, score: d.safety_override_rate, color: EVAL_DIMENSIONS.safety_coverage.color },
+    { key: 'decision_auto_rate', label: EVAL_DIMENSIONS.decision_auto_rate.label, weight: w.decision_auto_rate ?? 0.15, score: d.l3_auto_rate ?? 0, color: EVAL_DIMENSIONS.decision_auto_rate.color },
   ]
 })
 
@@ -332,7 +318,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- D-86: 三维评分子环 -->
+    <!-- D-86: 五维评分环 -->
     <div class="ai-health-ring__dimensions">
       <div v-for="dim in dimensionBars" :key="dim.key" class="ai-health-ring__dim">
         <div class="ai-health-ring__dim-head">

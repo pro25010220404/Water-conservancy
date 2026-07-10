@@ -26,6 +26,8 @@ export const EVAL_DIMENSIONS: Record<string, { label: string; weight: number; co
   prediction: { label: '预测准确性', weight: 0.4, color: '#5470C6' },
   decision: { label: '决策可靠性', weight: 0.35, color: '#91CC75' },
   compliance: { label: '物理合规性', weight: 0.25, color: '#FAC858' },
+  safety_coverage: { label: '安全覆盖率', weight: 0.15, color: '#EE6666' },
+  decision_auto_rate: { label: '决策自主率', weight: 0.15, color: '#73C0DE' },
 } as const
 
 // ---------- 雷达图维度（版本对比用，5维）----------
