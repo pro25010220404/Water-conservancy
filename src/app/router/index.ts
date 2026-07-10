@@ -88,9 +88,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'hydrology/virtual-sim',
-        name: 'HydrologyVirtualSim',
-        component: () => import('@/views/hydrology/VirtualSimulationPage.vue'),
-        meta: { title: '水情虚拟仿真' },
+        redirect: '/virtual-simulation',
       },
       {
         path: 'warning',
@@ -127,7 +125,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'virtual-simulation',
         name: 'VirtualSimulation',
-        component: () => import('@/views/simulation/SimulationPage.vue'),
+        component: () => import('@/views/hydrology/VirtualSimulationPage.vue'),
         meta: { title: '虚拟仿真', shortTitle: '虚拟仿真' },
       },
       {

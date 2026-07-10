@@ -247,7 +247,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
           </div>
 
           <div class="gates-command__actions">
-            <ElButton @click="router.push('/hydrology/virtual-sim')">虚拟仿真</ElButton>
+            <ElButton @click="router.push('/virtual-simulation')">虚拟仿真</ElButton>
             <ElButton @click="router.push('/simulation')">数字孪生</ElButton>
             <ElButton @click="store.resetAllGateTargets()">全部复位</ElButton>
             <ElButton
