@@ -78,6 +78,7 @@ function generateMockLatest(days: number): ModelMetricLatest {
     decision_score: rand(0.72, 0.95, 4),
     compliance_score: rand(0.75, 0.96, 4),
     metric_time: last.metric_time,
+    dimension_weights: { prediction: 0.4, decision: 0.35, compliance: 0.25, safety_coverage: 0.15, decision_auto_rate: 0.15 },
   }
 }
 
@@ -123,7 +124,7 @@ const compare = ref<ModelMetricCompare | null>(null)
 const versionOptions = ref<{ id: number; version: string; source: string }[]>([])
 const currentModelId = ref<number | null>(null)
 const previousModelId = ref<number | null>(null)
-const detailHours = ref(24)
+const detailDays = ref(7)
 const loading = ref(false)
 const history = ref<Awaited<ReturnType<typeof fetchModelMetricsHistory>>>([])
 const historyEmpty = ref(false)
@@ -249,11 +250,23 @@ async function load() {
     const historyR = results[1]
     const healthR = props.fixedMode !== 'compare' ? results[2] : null
 
-    // 指标卡片 / 趋势图 / 明细表：都用 mock，时间对齐系统整点
-    latest.value = generateMockLatest(detailDays.value)
-    history.value = generateMockHistory()
-    historyEmpty.value = false
-    detail.value = generateDailyDetail(detailDays.value)
+    // 指标卡片 / 趋势图 / 明细表
+    if (latestR.status === 'fulfilled') {
+      latest.value = latestR.value as ModelMetricLatest
+    } else {
+      latest.value = generateMockLatest(detailDays.value)
+      ElMessage.warning('最新指标加载失败，使用模拟数据')
+    }
+
+    if (historyR.status === 'fulfilled') {
+      history.value = historyR.value as typeof history.value
+      historyEmpty.value = history.value.length === 0
+      detail.value = await fetchModelMetricsDetail(rid, { hours: detailDays.value * 24, page_size: 50 })
+    } else {
+      history.value = generateMockHistory()
+      historyEmpty.value = false
+      detail.value = generateDailyDetail(detailDays.value)
+    }
 
     if (healthR?.status === 'fulfilled') {
       healthOverview.value = healthR.value as ModelHealthOverviewItem[]
@@ -277,7 +290,7 @@ async function load() {
 }
 
 watch(reservoirId, () => { currentModelId.value = null; previousModelId.value = null; load() })
-watch(detailHours, load)
+watch(detailDays, load)
 watch([currentModelId, previousModelId], async () => {
   if (props.fixedMode === 'dashboard') return
   compare.value = await fetchModelCompare(reservoirId.value, currentModelId.value ?? undefined, previousModelId.value ?? undefined)

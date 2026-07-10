@@ -392,7 +392,7 @@ export async function fetchModelMetricsDetail(
   reservoirId: number,
   params?: { hours?: number; page?: number; page_size?: number },
 ): Promise<ModelMetricDetailRow[]> {
-  const limit = params?.page_size ?? params?.hours ?? 24
+  const limit = Math.min(params?.page_size ?? params?.hours ?? 24, 100)
 
   if (isAiApiDisabled('detail') || metricsDetailApiAvailable === false) {
     return fetchDetailFromHistory(reservoirId, limit)
