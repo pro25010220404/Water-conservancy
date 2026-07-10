@@ -145,6 +145,7 @@ export interface AIHealthOverviewResponse {
 }
 
 export interface ModelVersionOption {
+  id: number
   version: string
   source: string
   scores: Record<string, number>
