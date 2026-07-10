@@ -19,14 +19,17 @@ export function useSmoothNumber(source: Ref<number>, durationMs = 1400) {
   }
 
   function animate(next: number) {
+    if (!Number.isFinite(next)) return
     cancelAnimationFrame(rafId)
-    from = display.value
+    from = Number.isFinite(display.value) ? display.value : next
     to = next
     animStart = performance.now()
     rafId = requestAnimationFrame(tick)
   }
 
-  watch(source, (v) => animate(v), { immediate: true })
+  watch(source, (v) => {
+    if (Number.isFinite(v)) animate(v)
+  }, { immediate: true })
 
   onUnmounted(() => cancelAnimationFrame(rafId))
 

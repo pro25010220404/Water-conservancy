@@ -11,13 +11,26 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { createWaterMaterial } from '@/utils/waterShader'
 import { createCinematicSky } from '@/utils/cinematicSky'
 import { simulationSceneToWeather } from '@/utils/weatherSystem'
-import { createDischargeSheet } from '@/utils/dischargeShader'
+import {
+  PIER_MAT,
+  DAM_BODY_MAT,
+  GATE_FRAME_COLOR,
+  gateLeafVisualForOpening,
+} from '@/utils/gateVisualTheme'
+import {
+  createDischargeJetGroup,
+  computeDischargeMetrics,
+  layoutDischargeJet,
+  animateDischargeJet,
+  type DischargeJetParts,
+} from '@/utils/dischargeShader'
 import { buildValleyTerrain, buildRiverbed, buildDistantRidgeline, buildForestHillside, buildFoamZone } from '@/utils/terrainBuilder'
 import {
   loadDamModel, getDamHeroCamera, getTwinCinematicCamera, getPanoramaCamera,
   getSimulationFocusCamera, collectDamMeshes, applyTwinLightBackgroundMaterials, type DamModelInstance,
 } from '@/utils/damModelLoader'
 import { XIANGJIABA_HYDRO, upstreamLevelToSceneY, getLevelStatus, levelGaugePercent } from '@/constants/xiangjiaba'
+import { estimateSpillwayDischarge } from '@/utils/xiangjiabaTelemetry'
 import { getBimDisplayName, getBimDefaultDetail } from '@/utils/bimDisplayName'
 import type { SimulationScene } from '@/types/simulation'
 
@@ -25,6 +38,8 @@ const props = withDefaults(defineProps<{
   waterLevel?: number
   downstreamLevel?: number
   gateOpening?: number
+  /** 各表孔开度 0–100，长度 5；优先于 gateOpening */
+  gateOpenings?: number[]
   flowRate?: number
   autoRotate?: boolean
   simScene?: SimulationScene
@@ -32,6 +47,10 @@ const props = withDefaults(defineProps<{
   visualMode?: 'default' | 'twin' | 'panorama'
   /** 仿真运行中 — 触发镜头近景聚焦 */
   simRunning?: boolean
+  /** 当前选中的闸门索引 0-4，-1 表示未选中 */
+  selectedGateIndex?: number
+  /** 降雨量 mm/h — 影响水雾强度与入库流量联动 */
+  rainfall?: number
 }>(), {
   waterLevel: XIANGJIABA_HYDRO.normalPoolLevel,
   downstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
@@ -41,6 +60,8 @@ const props = withDefaults(defineProps<{
   simScene: 'normal',
   visualMode: 'twin',
   simRunning: false,
+  selectedGateIndex: -1,
+  rainfall: 0,
 })
 
 const levelStatus = computed(() => getLevelStatus(props.waterLevel))
@@ -49,7 +70,13 @@ const levelDelta = computed(() => props.waterLevel - XIANGJIABA_HYDRO.normalPool
 
 const emit = defineEmits<{
   'device-hover': [payload: { name: string; detail: string } | null]
+  'gate-select': [index: number]
 }>()
+
+function safeNum(v: unknown, fallback: number) {
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isFinite(n) ? n : fallback
+}
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const damModelLabel = ref('加载中…')
@@ -62,17 +89,37 @@ const DEFAULT_CAMERA = {
   target: new THREE.Vector3(4, 14, 0),
 }
 const TWIN_CAMERA = {
-  pos: new THREE.Vector3(48, 32, 58),
+  pos: new THREE.Vector3(58, 38, 72),
   target: new THREE.Vector3(4, 10, 0),
 }
 const PANORAMA_CAMERA = {
-  pos: new THREE.Vector3(72, 38, 78),
+  pos: new THREE.Vector3(88, 46, 96),
   target: new THREE.Vector3(2, 12, 0),
 }
 
 const pierScreenLabels = ref<Array<{ name: string; x: number; y: number; visible: boolean }>>([])
+const selectedGateScreenLabel = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  name: '',
+  opening: 0,
+  flow: 0,
+  alpha: 0,
+})
+const gateLabelSmooth = { x: 0, y: 0, opening: 0, flow: 0, alpha: 0 }
+const dischargeSmooth = {
+  topY: [0, 0, 0, 0, 0],
+  fallH: [0, 0, 0, 0, 0],
+  width: [0, 0, 0, 0, 0],
+  depth: [0, 0, 0, 0, 0],
+  opening: [0, 0, 0, 0, 0],
+  visible: [false, false, false, false, false],
+}
+const gateHighlight = new Map<number, number>()
 const waterLevelScreenLabel = ref({ x: 0, y: 0, visible: false, text: '', color: '#1890ff' })
 let pierObjects: THREE.Object3D[] = []
+let gateLeafObjects: THREE.Object3D[] = []
 let waterLevelGroup: THREE.Group | null = null
 let pipelineGroup: THREE.Group | null = null
 
@@ -108,6 +155,12 @@ let raycaster = new THREE.Raycaster()
 let mouse = new THREE.Vector2()
 let hoverables: THREE.Object3D[] = []
 let hoveredObject: THREE.Object3D | null = null
+let resizeObserver: ResizeObserver | null = null
+const dischargeJetParts: DischargeJetParts[] = []
+let gateEdgeLines = new Map<THREE.Mesh, THREE.LineSegments>()
+let pierBaseColors = new Map<THREE.Mesh, THREE.Color>()
+let gateLeafMeshes: THREE.Mesh[] = []
+let gateLeafBaseColors = new Map<THREE.Mesh, THREE.Color>()
 let cameraAnim: {
   fromPos: THREE.Vector3
   fromTarget: THREE.Vector3
@@ -121,8 +174,8 @@ function initScene() {
   const el = containerRef.value
   if (!el) return
 
-  const w = el.clientWidth
-  const h = el.clientHeight
+  const w = Math.max(1, el.clientWidth)
+  const h = Math.max(1, el.clientHeight)
   const isTwin = props.visualMode === 'twin'
   const isPanorama = props.visualMode === 'panorama'
   const isTwinStyle = isTwin || isPanorama
@@ -140,7 +193,7 @@ function initScene() {
   const camPreset = isTwin ? TWIN_CAMERA : isPanorama ? PANORAMA_CAMERA : DEFAULT_CAMERA
   if (isHolo) {
     const aspect = w / h
-    camera.fov = aspect > 1.6 ? 32 : aspect > 1.2 ? 36 : 40
+    camera.fov = aspect > 1.6 ? 38 : aspect > 1.2 ? 42 : 46
   }
   camera.position.copy(camPreset.pos)
 
@@ -237,18 +290,21 @@ function initScene() {
   }
 
   upstreamMat = createWaterMaterial({
-    color: isTwinStyle ? 0x1890ff : 0x1a5080,
-    deepColor: isTwinStyle ? 0x0d6eaa : 0x0a2540,
-    opacity: isTwinStyle ? 0.88 : 0.92,
+    color: isTwinStyle ? 0xb8d4e8 : 0x1a5080,
+    deepColor: isTwinStyle ? 0x6a9ec4 : 0x0a2540,
+    opacity: isTwinStyle ? 0.62 : 0.92,
     envMap: isTwinStyle ? null : cinematicSky.envMap,
-    waveScale: isTwinStyle ? 0.32 : 0.42,
-    specIntensity: isTwinStyle ? 0.48 : 1.0,
-    reflectivity: isTwinStyle ? 0.35 : 0.72,
-    gridStrength: isTwinStyle ? 0.08 : 0,
+    waveScale: isTwinStyle ? 0.22 : 0.42,
+    specIntensity: isTwinStyle ? 0.28 : 1.0,
+    reflectivity: isTwinStyle ? 0.22 : 0.72,
+    gridStrength: 0,
   })
-  upstreamWater = new THREE.Mesh(new THREE.PlaneGeometry(48, 38, 128, 96), upstreamMat)
+  upstreamWater = new THREE.Mesh(
+    new THREE.PlaneGeometry(isTwinStyle ? 36 : 48, 38, 128, 96),
+    upstreamMat,
+  )
   upstreamWater.rotation.x = -Math.PI / 2
-  upstreamWater.position.set(-16, 0, 0)
+  upstreamWater.position.set(isTwinStyle ? -32 : -16, 0, 0)
   upstreamWater.name = '上游水面'
   upstreamWater.userData.detail = '库区水位实时监测 · 物理流体动态'
   upstreamWater.receiveShadow = true
@@ -256,14 +312,14 @@ function initScene() {
   hoverables.push(upstreamWater)
 
   downstreamMat = createWaterMaterial({
-    color: isTwinStyle ? 0x22b8cf : 0x124870,
-    deepColor: isTwinStyle ? 0x0e7490 : 0x081830,
-    opacity: isTwinStyle ? 0.85 : 0.88,
+    color: isTwinStyle ? 0x7ec8b0 : 0x124870,
+    deepColor: isTwinStyle ? 0x5aad96 : 0x081830,
+    opacity: isTwinStyle ? 0.58 : 0.88,
     envMap: isTwinStyle ? null : cinematicSky.envMap,
-    waveScale: isTwinStyle ? 0.38 : 0.48,
-    specIntensity: isTwinStyle ? 0.55 : 1.0,
-    reflectivity: isTwinStyle ? 0.4 : 0.72,
-    gridStrength: isTwinStyle ? 0.24 : 0,
+    waveScale: isTwinStyle ? 0.28 : 0.48,
+    specIntensity: isTwinStyle ? 0.32 : 1.0,
+    reflectivity: isTwinStyle ? 0.28 : 0.72,
+    gridStrength: isTwinStyle ? 0.06 : 0,
   })
   downstreamWater = new THREE.Mesh(new THREE.PlaneGeometry(50, 30, 128, 64), downstreamMat)
   downstreamWater.rotation.x = -Math.PI / 2
@@ -276,9 +332,11 @@ function initScene() {
 
   if (isTwinStyle) buildWaterLevelMarkers()
 
-  const foamZone = buildFoamZone(cinematicSky.envMap)
-  scene.add(foamZone)
-  hoverables.push(foamZone)
+  if (!isTwinStyle) {
+    const foamZone = buildFoamZone(cinematicSky.envMap)
+    scene.add(foamZone)
+    hoverables.push(foamZone)
+  }
 
   void mountDamModel()
 
@@ -288,7 +346,7 @@ function initScene() {
 
   mistGroup = new THREE.Group()
   scene.add(mistGroup)
-  buildMist()
+  if (!isTwinStyle) buildMist()
 
   composer = new EffectComposer(renderer)
   composer.addPass(new RenderPass(scene, camera))
@@ -310,7 +368,12 @@ function initScene() {
   outlinePass.selectedObjects = []
   composer.addPass(outlinePass)
 
-  bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), isTwinStyle ? 0.04 : 0.16, 0.62, 0.92)
+  bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(w, h),
+    isTwin ? 0.04 : isPanorama ? 0.05 : 0.16,
+    0.62,
+    0.92,
+  )
   composer.addPass(bloomPass)
 
   if (!isTwinStyle) {
@@ -329,6 +392,7 @@ function initScene() {
 
   renderer.domElement.addEventListener('mousemove', onMouseMove)
   renderer.domElement.addEventListener('mouseleave', onMouseLeave)
+  renderer.domElement.addEventListener('click', onClick)
 }
 
 async function mountDamModel() {
@@ -345,15 +409,19 @@ async function mountDamModel() {
   damInstance.hoverables.forEach((obj) => {
     if (!hoverables.includes(obj)) hoverables.push(obj)
   })
+  const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
+  if (holo) {
+    applyTwinLightBackgroundMaterials(damInstance.root)
+    addTwinWireframeOverlay(damInstance.root)
+    addTwinPierGlow(damInstance.root)
+    if (props.visualMode === 'twin') addTwinInternalPipeline(damInstance.root)
+    collectPierObjects(damInstance.root)
+    collectGateLeafMeshes(damInstance.root)
+  }
   if (outlinePass) {
     damOutlineMeshes = collectDamMeshes(damInstance.root)
-    const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
     if (holo) {
-      const pierMeshes: THREE.Object3D[] = []
-      damInstance.root.traverse((obj) => {
-        if (obj.name.startsWith('pier_') && obj instanceof THREE.Mesh) pierMeshes.push(obj)
-      })
-      outlinePass.selectedObjects = pierMeshes.length > 0 ? pierMeshes : []
+      outlinePass.selectedObjects = []
     } else {
       outlinePass.selectedObjects = damOutlineMeshes
     }
@@ -363,17 +431,8 @@ async function mountDamModel() {
     damSpotTarget.position.y += 6
   }
   frameCameraOnDam()
-  const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
-  if (holo) {
-    applyTwinLightBackgroundMaterials(damInstance.root)
-    addTwinWireframeOverlay(damInstance.root)
-    addTwinPierGlow(damInstance.root)
-    addTwinInternalPipeline(damInstance.root)
-    collectPierObjects(damInstance.root)
-  }
   buildDataStreams()
   updateScene()
-  if (props.simRunning) focusSimulationView()
 }
 
 function animateCameraTo(
@@ -511,7 +570,10 @@ function buildDataStreams() {
         ;(c.material as THREE.Material).dispose()
       }
     })
+    dataStreamGroup = null
   }
+  // 数字孪生/全景仅保留泄流水幕，不绘制斜向装饰线
+  if (props.visualMode === 'twin' || props.visualMode === 'panorama') return
   dataStreamGroup = new THREE.Group()
   dataStreamGroup.name = 'dataStreams'
   const gateZs = [-14.25, -6.75, 0.75, 8.25, 16.0]
@@ -634,29 +696,188 @@ function addTwinInternalPipeline(root: THREE.Object3D) {
 
 function collectPierObjects(root: THREE.Object3D) {
   pierObjects = []
+  pierBaseColors.clear()
   for (let i = 1; i <= 5; i++) {
     const p = root.getObjectByName(`pier_${i}`)
-    if (p) pierObjects.push(p)
+    if (p) {
+      pierObjects.push(p)
+      p.traverse((obj) => {
+        if (obj instanceof THREE.Mesh && obj.material instanceof THREE.MeshStandardMaterial) {
+          obj.material.color.setHex(PIER_MAT.color)
+          obj.material.metalness = PIER_MAT.metalness
+          obj.material.roughness = PIER_MAT.roughness
+          obj.material.emissive.setHex(PIER_MAT.emissive)
+          obj.material.emissiveIntensity = PIER_MAT.emissiveIntensity
+          pierBaseColors.set(obj, obj.material.color.clone())
+        }
+      })
+    }
   }
 }
 
-function updatePierScreenLabels() {
+function collectGateLeafMeshes(root: THREE.Object3D) {
+  gateLeafObjects = []
+  gateLeafMeshes = []
+  gateLeafBaseColors.clear()
+  for (let i = 0; i < 5; i++) {
+    const leaf = root.getObjectByName(`gateLeaf_${i}`)
+    if (leaf) {
+      gateLeafObjects.push(leaf)
+      leaf.traverse((obj) => {
+        if (obj instanceof THREE.Mesh && obj.material instanceof THREE.MeshStandardMaterial) {
+          obj.userData.gateIndex = i
+          gateLeafMeshes.push(obj)
+          gateLeafBaseColors.set(obj, new THREE.Color(0x4a5568))
+
+          const existing = obj.getObjectByName('gateEdgeGlow')
+          if (existing) obj.remove(existing)
+          const edges = new THREE.EdgesGeometry(obj.geometry, 20)
+          const glow = new THREE.LineSegments(
+            edges,
+            new THREE.LineBasicMaterial({
+              color: 0x88cce8,
+              transparent: true,
+              opacity: 0.15,
+              depthWrite: false,
+            }),
+          )
+          glow.name = 'gateEdgeGlow'
+          obj.add(glow)
+          gateEdgeLines.set(obj, glow)
+        }
+      })
+    }
+  }
+}
+
+function getGateOpenRatios(): number[] {
+  if (props.gateOpenings?.length) {
+    return props.gateOpenings.map((v) => Math.min(1, Math.max(0, safeNum(v, 45) / 100)))
+  }
+  const r = Math.min(1, Math.max(0, safeNum(props.gateOpening, 45) / 100))
+  return Array.from({ length: 5 }, () => r)
+}
+
+function applyGateOpeningVisuals() {
+  const gateRatios = getGateOpenRatios()
+  const sel = props.selectedGateIndex ?? -1
+
+  gateLeafMeshes.forEach((mesh) => {
+    const gateIdx = (mesh.userData.gateIndex as number) ?? 0
+    const ratio = gateRatios[gateIdx] ?? gateRatios[0] ?? 0
+    const vis = gateLeafVisualForOpening(ratio)
+    const mat = mesh.material as THREE.MeshStandardMaterial
+    const highlight = gateHighlight.get(gateIdx) ?? 0
+
+    mat.color.setHex(vis.color)
+    if (highlight > 0.02 && sel === gateIdx) {
+      mat.emissive.setHex(0x1890ff)
+      mat.emissiveIntensity = vis.emissiveIntensity + highlight * 0.35
+      mat.color.lerp(new THREE.Color(0x3aa0ff), highlight * 0.25)
+    } else {
+      mat.emissive.setHex(vis.emissive)
+      mat.emissiveIntensity = vis.emissiveIntensity
+    }
+    mat.metalness = 0.48 + ratio * 0.22
+    mat.roughness = 0.42 - ratio * 0.12
+
+    const edge = gateEdgeLines.get(mesh)
+    if (edge) {
+      const edgeMat = edge.material as THREE.LineBasicMaterial
+      edgeMat.color.setHex(vis.edgeColor)
+      edgeMat.opacity = vis.edgeOpacity + (sel === gateIdx ? highlight * 0.2 : 0)
+    }
+  })
+}
+
+function applyGateSelectionVisuals() {
+  const sel = props.selectedGateIndex ?? -1
   const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
-  if (!holo || !camera || !containerRef.value || pierObjects.length === 0) return
+
+  pierObjects.forEach((pier) => {
+    pier.traverse((obj) => {
+      if (obj instanceof THREE.Mesh && obj.material instanceof THREE.MeshStandardMaterial) {
+        const base = pierBaseColors.get(obj)
+        obj.material.emissive.setHex(PIER_MAT.emissive)
+        obj.material.emissiveIntensity = PIER_MAT.emissiveIntensity
+        if (base) obj.material.color.copy(base)
+      }
+      if (obj.name === 'twinPierGlow') {
+        const mat = (obj as THREE.LineSegments).material as THREE.LineBasicMaterial
+        mat.opacity = 0.18
+        mat.color.setHex(0x5a6a78)
+      }
+    })
+  })
+
+  applyGateOpeningVisuals()
+
+  if (outlinePass && holo) {
+    outlinePass.selectedObjects =
+      sel >= 0 && gateLeafObjects[sel] ? [gateLeafObjects[sel]] : []
+  }
+}
+
+function getGateOpeningAt(index: number) {
+  const fromList = props.gateOpenings?.[index]
+  if (fromList != null && Number.isFinite(fromList)) return safeNum(fromList, 45)
+  return safeNum(props.gateOpening, 45)
+}
+
+function updateGateScreenLabels(dt = 0.016) {
+  const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
+  const sel = props.selectedGateIndex ?? -1
+  pierScreenLabels.value = []
+
+  if (!holo || !camera || !containerRef.value || sel < 0 || sel >= gateLeafObjects.length) {
+    gateLabelSmooth.alpha += (0 - gateLabelSmooth.alpha) * Math.min(1, dt * 14)
+    selectedGateScreenLabel.value.visible = gateLabelSmooth.alpha > 0.04
+    selectedGateScreenLabel.value.alpha = gateLabelSmooth.alpha
+    return
+  }
+
   const w = containerRef.value.clientWidth
   const h = containerRef.value.clientHeight
   const v = new THREE.Vector3()
-  pierScreenLabels.value = pierObjects.map((obj) => {
-    obj.getWorldPosition(v)
-    v.y += 9
-    v.project(camera!)
-    return {
-      name: getBimDisplayName(obj.name),
-      x: (v.x * 0.5 + 0.5) * w,
-      y: (-v.y * 0.5 + 0.5) * h,
-      visible: v.z < 1 && v.z > -1,
-    }
-  })
+  const obj = gateLeafObjects[sel]
+  const opening = getGateOpeningAt(sel)
+  const flow = Math.round(estimateSpillwayDischarge(safeNum(props.waterLevel, 380), opening))
+
+  obj.getWorldPosition(v)
+  v.y += 4.5
+  v.project(camera!)
+
+  const targetX = (v.x * 0.5 + 0.5) * w
+  const targetY = (-v.y * 0.5 + 0.5) * h
+  const onScreen = v.z < 1 && v.z > -1
+  const blend = Math.min(1, dt * 14)
+
+  gateLabelSmooth.x += (targetX - gateLabelSmooth.x) * blend
+  gateLabelSmooth.y += (targetY - gateLabelSmooth.y) * blend
+  gateLabelSmooth.opening += (opening - gateLabelSmooth.opening) * blend
+  gateLabelSmooth.flow += (flow - gateLabelSmooth.flow) * blend
+  gateLabelSmooth.alpha += ((onScreen ? 1 : 0) - gateLabelSmooth.alpha) * blend
+
+  selectedGateScreenLabel.value = {
+    visible: gateLabelSmooth.alpha > 0.04,
+    x: gateLabelSmooth.x,
+    y: gateLabelSmooth.y,
+    name: `${sel + 1}号闸门`,
+    opening: gateLabelSmooth.opening,
+    flow: Math.round(gateLabelSmooth.flow),
+    alpha: gateLabelSmooth.alpha,
+  }
+}
+
+function tickGateHighlight(dt: number) {
+  const sel = props.selectedGateIndex ?? -1
+  const k = Math.min(1, dt * 10)
+  for (let i = 0; i < 5; i++) {
+    const target = i === sel ? 1 : 0
+    const cur = gateHighlight.get(i) ?? 0
+    gateHighlight.set(i, cur + (target - cur) * k)
+  }
+  applyGateSelectionVisuals()
 }
 
 function frameCameraOnDam() {
@@ -685,58 +906,83 @@ function frameCameraOnDam() {
 function buildDischargeJets() {
   if (!dischargeGroup) return
   dischargeGroup.clear()
+  dischargeJetParts.length = 0
 
   const bayZs = [-14.25, -6.75, 0.75, 8.25, 16.0]
   for (let i = 0; i < bayZs.length; i++) {
     const z = bayZs[i]
-    const jetGroup = new THREE.Group()
-    jetGroup.name = `jetGroup_${i}`
-
-    const sheet = createDischargeSheet(3.8, 16)
-    sheet.position.set(7.5, 4, 0)
-    jetGroup.add(sheet)
-
-    const sheet2 = createDischargeSheet(2.6, 11)
-    sheet2.position.set(9, 1.2, 0.4)
-    sheet2.rotation.z = 0.06
-    jetGroup.add(sheet2)
-
-    const sheet3 = createDischargeSheet(1.8, 6)
-    sheet3.position.set(10.5, -1.5, -0.2)
-    sheet3.rotation.z = 0.12
-    jetGroup.add(sheet3)
-
-    const count = 360
-    const geo = new THREE.BufferGeometry()
-    const positions = new Float32Array(count * 3)
-    const velocities = new Float32Array(count * 3)
-    for (let j = 0; j < count; j++) {
-      positions[j * 3] = 5 + Math.random() * 2.5
-      positions[j * 3 + 1] = 6 + Math.random() * 3
-      positions[j * 3 + 2] = (Math.random() - 0.5) * 3.2
-      velocities[j * 3] = 0.28 + Math.random() * 0.32
-      velocities[j * 3 + 1] = -0.12 - Math.random() * 0.22
-      velocities[j * 3 + 2] = (Math.random() - 0.5) * 0.08
-    }
-    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    const pts = new THREE.Points(
-      geo,
-      new THREE.PointsMaterial({
-        color: 0xf0f8ff,
-        size: 0.52,
-        transparent: true,
-        opacity: 0.9,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        sizeAttenuation: true,
-      }),
-    )
-    pts.userData = { z, velocities, count }
-    pts.name = `jet_${i}`
-    jetGroup.position.set(0, 0, z)
-    jetGroup.add(pts)
-    dischargeGroup.add(jetGroup)
+    const parts = createDischargeJetGroup()
+    parts.group.name = `jetGroup_${i}`
+    parts.group.userData.gateIndex = i
+    parts.group.position.set(0, 0, z)
+    dischargeGroup.add(parts.group)
+    dischargeJetParts.push(parts)
   }
+}
+
+function applyDischargeLayoutFromSmooth() {
+  if (!dischargeGroup) return
+  const dsY = downstreamWater?.position.y ?? 1.2
+  dischargeJetParts.forEach((parts, i) => {
+    layoutDischargeJet(parts, {
+      visible: dischargeSmooth.visible[i] && dischargeSmooth.fallH[i] > 0.3,
+      topY: dischargeSmooth.topY[i],
+      fallH: dischargeSmooth.fallH[i],
+      width: dischargeSmooth.width[i],
+      thickness: dischargeSmooth.depth[i],
+      mistSpread: 0.6 + dischargeSmooth.opening[i] * 2.2,
+      splashSize: 1.2 + dischargeSmooth.opening[i] * 1.8,
+      opening: dischargeSmooth.opening[i],
+    }, dsY)
+    parts.group.visible = dischargeSmooth.visible[i] && dischargeSmooth.fallH[i] > 0.3
+  })
+  dischargeGroup.visible = dischargeSmooth.visible.some(Boolean)
+}
+
+function tickDischargeSmooth(dt: number) {
+  if (!dischargeGroup) return
+  const dsY = downstreamWater?.position.y ?? 1.2
+  const gateRatios = getGateOpenRatios()
+  const k = 1 - Math.exp(-14 * dt)
+
+  dischargeGroup.children.forEach((jetGroup, i) => {
+    const ratio = gateRatios[i] ?? gateRatios[0] ?? 0
+    let leafBottom: number | undefined
+    if (gateLeafObjects[i]) {
+      leafBottom = new THREE.Box3().setFromObject(gateLeafObjects[i]).min.y
+    }
+    const target = computeDischargeMetrics(ratio, dsY, leafBottom)
+
+    dischargeSmooth.topY[i] += (target.topY - dischargeSmooth.topY[i]) * k
+    dischargeSmooth.fallH[i] += (target.fallH - dischargeSmooth.fallH[i]) * k
+    dischargeSmooth.width[i] += (target.width - dischargeSmooth.width[i]) * k
+    dischargeSmooth.depth[i] += (target.depth - dischargeSmooth.depth[i]) * k
+    dischargeSmooth.opening[i] += (target.opening - dischargeSmooth.opening[i]) * k
+    dischargeSmooth.visible[i] =
+      dischargeSmooth.opening[i] > 0.02 && dischargeSmooth.fallH[i] > 0.4
+  })
+
+  applyDischargeLayoutFromSmooth()
+}
+
+function updateDischargeLayout(gateRatios: number[]) {
+  if (!dischargeGroup) return
+  const dsY = downstreamWater?.position.y ?? 1.2
+  dischargeGroup.children.forEach((jetGroup, i) => {
+    const ratio = gateRatios[i] ?? gateRatios[0] ?? 0
+    let leafBottom: number | undefined
+    if (gateLeafObjects[i]) {
+      leafBottom = new THREE.Box3().setFromObject(gateLeafObjects[i]).min.y
+    }
+    const target = computeDischargeMetrics(ratio, dsY, leafBottom)
+    dischargeSmooth.topY[i] = target.topY
+    dischargeSmooth.fallH[i] = target.fallH
+    dischargeSmooth.width[i] = target.width
+    dischargeSmooth.depth[i] = target.depth
+    dischargeSmooth.opening[i] = target.opening
+    dischargeSmooth.visible[i] = target.visible
+  })
+  applyDischargeLayoutFromSmooth()
 }
 
 function buildMist() {
@@ -776,52 +1022,86 @@ function buildMist() {
   }
 }
 
+function focusGateView(index: number) {
+  if (!camera || !controls || index < 0 || index >= pierObjects.length) return
+  const pier = pierObjects[index]
+  const gatePos = new THREE.Vector3()
+  pier.getWorldPosition(gatePos)
+  gatePos.y += 1.5
+
+  const camPreset = props.visualMode === 'panorama' ? PANORAMA_CAMERA : TWIN_CAMERA
+  // 仅轻微偏向选中闸门，保持与默认远景相近的观察距离
+  const blend = props.visualMode === 'panorama' ? 0.12 : 0.18
+  const toTarget = camPreset.target.clone().lerp(gatePos, blend)
+  const toPos = camPreset.pos.clone().lerp(
+    gatePos.clone().add(
+      props.visualMode === 'panorama'
+        ? new THREE.Vector3(28, 14, 34)
+        : new THREE.Vector3(20, 10, 24),
+    ),
+    blend * 0.6,
+  )
+  animateCameraTo(toPos, toTarget, 0.55)
+}
+
 function updateScene() {
   if (!upstreamWater) return
 
-  const waterY = upstreamLevelToSceneY(props.waterLevel)
-  upstreamWater.position.y = waterY
+  const level = safeNum(props.waterLevel, XIANGJIABA_HYDRO.normalPoolLevel)
+  const dsLevel = safeNum(props.downstreamLevel, XIANGJIABA_HYDRO.downstreamNormalLevel)
+  const flow = safeNum(props.flowRate, XIANGJIABA_HYDRO.normalInflow)
+  const gateRatios = getGateOpenRatios()
+
+  const waterY = upstreamLevelToSceneY(level)
+  const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
+  if (holo) {
+    upstreamWater.visible = true
+    upstreamWater.position.set(-28, waterY, -4)
+    if (upstreamMat) upstreamMat.uniforms.uOpacity.value = 0.55
+  } else {
+    upstreamWater.visible = true
+    upstreamWater.position.set(-16, waterY, 0)
+    if (upstreamMat) upstreamMat.uniforms.uOpacity.value = 0.92
+  }
   if (downstreamWater) {
-    const dsNorm = (props.downstreamLevel - 277) / 3
+    const dsNorm = (dsLevel - 277) / 3
     downstreamWater.position.y = 0.8 + dsNorm * 1.5
+    if (downstreamMat) downstreamMat.uniforms.uOpacity.value = holo ? 0.52 : 0.88
   }
 
-  const openRatio = props.gateOpening / 100
   if (damInstance) {
-    damInstance.applyGateOpening(openRatio)
+    if (props.gateOpenings?.length) {
+      damInstance.applyPerGateOpening(props.gateOpenings)
+    } else {
+      damInstance.applyGateOpening(gateRatios[0])
+    }
   } else if (damGroup) {
     damGroup.traverse((obj) => {
-      if (obj.name.startsWith('gateLeaf_')) {
-        obj.position.y = 6 + openRatio * 7
-        obj.scale.y = 1 - openRatio * 0.45
+      const m = obj.name.match(/^gateLeaf_(\d+)$/)
+      if (m) {
+        const idx = parseInt(m[1], 10)
+        const r = gateRatios[idx] ?? gateRatios[0]
+        obj.position.y = 6 + r * 7
+        obj.scale.y = 1 - r * 0.45
       }
     })
   }
 
-  const flowFactor = props.flowRate / 2000
+  const flowFactor = flow / 2000
   if (upstreamMat) upstreamMat.uniforms.uFlowSpeed.value = 0.75 + flowFactor * 0.75
   if (downstreamMat) downstreamMat.uniforms.uFlowSpeed.value = 0.95 + flowFactor * 0.95
 
   if (dischargeGroup) {
-    dischargeGroup.visible = openRatio > 0.03
-    dischargeGroup.children.forEach((g) => {
-      g.scale.setScalar(0.4 + openRatio * 1.05)
-      g.traverse((child) => {
-        if (child instanceof THREE.Mesh && child.material instanceof THREE.ShaderMaterial) {
-          child.material.uniforms.uIntensity.value = openRatio
-        }
-        if (child instanceof THREE.Points) {
-          (child.material as THREE.PointsMaterial).opacity = openRatio * 0.92
-        }
-      })
-    })
+    updateDischargeLayout(gateRatios)
   }
-  if (mistGroup) {
-    const twinStyle = props.visualMode === 'twin' || props.visualMode === 'panorama'
-    mistGroup.visible = !twinStyle && openRatio > 0.05
-    const spread = 0.65 + openRatio * 0.85
-    mistGroup.scale.set(spread, 0.8 + openRatio * 0.6, spread)
+  applyGateOpeningVisuals()
+  if (mistGroup && props.visualMode === 'default') {
+    const maxOpen = Math.max(...gateRatios)
+    mistGroup.visible = maxOpen > 0.03
+    const spread = 0.65 + maxOpen * 0.85
+    mistGroup.scale.set(spread, 0.8 + maxOpen * 0.6, spread)
   }
+  applyGateSelectionVisuals()
   updateWaterLevelMarkers()
 }
 
@@ -833,41 +1113,35 @@ function applyWeatherFromScene() {
   cinematicSky?.setWeather(simulationSceneToWeather(props.simScene))
 }
 
-function animateDischarge(t: number) {
-  if (!dischargeGroup || props.gateOpening <= 0) return
-  const speed = (props.flowRate / 2000) * 1.9
-  const openRatio = props.gateOpening / 100
+function animateDischarge(t: number, dt: number) {
+  tickDischargeSmooth(dt)
+  if (!dischargeGroup) return
+  const dsY = downstreamWater?.position.y ?? 1.2
 
-  dischargeGroup.children.forEach((g) => {
-    g.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.material instanceof THREE.ShaderMaterial) {
-        child.material.uniforms.uTime.value = t
-        child.material.uniforms.uIntensity.value = openRatio
-      }
-      if (child instanceof THREE.Points && child.name.startsWith('jet_')) {
-        const ud = child.userData
-        const pos = child.geometry.attributes.position as THREE.BufferAttribute
-        for (let i = 0; i < ud.count; i++) {
-          let x = pos.getX(i) + ud.velocities[i * 3] * speed
-          let y = pos.getY(i) + ud.velocities[i * 3 + 1] * speed
-          let z = pos.getZ(i) + ud.velocities[i * 3 + 2]
-          if (x > 24 || y < -0.5) {
-            x = 6 + Math.random() * 1.5
-            y = 5 + Math.random() * 2.2
-            z = (Math.random() - 0.5) * 2.8
-          }
-          pos.setXYZ(i, x, y, z)
-        }
-        pos.needsUpdate = true
-      }
-    })
+  dischargeJetParts.forEach((parts, i) => {
+    if (!parts.group.visible) return
+    const m = {
+      visible: true,
+      topY: dischargeSmooth.topY[i],
+      fallH: dischargeSmooth.fallH[i],
+      width: dischargeSmooth.width[i],
+      thickness: dischargeSmooth.depth[i],
+      mistSpread: 0.6 + dischargeSmooth.opening[i] * 2.2,
+      splashSize: 1.2 + dischargeSmooth.opening[i] * 1.8,
+      opening: dischargeSmooth.opening[i],
+    }
+    animateDischargeJet(parts, t, m)
+    const rainMul = 1 + safeNum(props.rainfall, 0) / 60
+    const mistMat = parts.mist.material as THREE.PointsMaterial
+    mistMat.opacity = (0.12 + m.opening * 0.32) * rainMul
+    layoutDischargeJet(parts, m, dsY)
   })
 }
 
 function animateMist(t: number) {
-  if (props.visualMode === 'twin' || props.visualMode === 'panorama') return
+  if (props.visualMode !== 'default') return
   if (!mistGroup || !cinematicSky || !mistGroup.visible) return
-  const openRatio = props.gateOpening / 100
+  const maxOpen = Math.max(...getGateOpenRatios())
   const mistMul = cinematicSky.currentWeather.mistMultiplier
 
   mistGroup.children.forEach((mist, idx) => {
@@ -875,7 +1149,7 @@ function animateMist(t: number) {
     const pos = pts.geometry.attributes.position as THREE.BufferAttribute
     const mat = pts.material as THREE.PointsMaterial
     const seeds = pts.userData.seeds as Float32Array
-    const base = 0.22 + openRatio * 0.48
+    const base = 0.22 + maxOpen * 0.48
     mat.opacity = base * mistMul
     mat.color.setHex(0xffe8c8)
     mat.size = 3.0 + Math.sin(t * 0.6 + idx) * 0.55
@@ -963,9 +1237,10 @@ function animate() {
   if (upstreamMat) upstreamMat.uniforms.uTime.value = t
   if (downstreamMat) downstreamMat.uniforms.uTime.value = t
 
-  animateDischarge(t)
+  animateDischarge(t, dt)
   animateMist(t)
-  updatePierScreenLabels()
+  tickGateHighlight(dt)
+  updateGateScreenLabels(dt)
   updateWaterLevelScreenLabel()
   updateBokehFocus()
 
@@ -988,8 +1263,11 @@ function animate() {
 
 function findNamedRoot(obj: THREE.Object3D): THREE.Object3D | null {
   let cur: THREE.Object3D | null = obj
+  let pierFallback: THREE.Object3D | null = null
   while (cur) {
     if (cur.name === '向家坝电站厂房') return cur
+    if (cur.name?.startsWith('gateLeaf_')) return cur
+    if (cur.name?.startsWith('pier_')) pierFallback = cur
     if (cur.name?.startsWith('phWindow_')) {
       let p: THREE.Object3D | null = cur.parent
       while (p) {
@@ -999,18 +1277,49 @@ function findNamedRoot(obj: THREE.Object3D): THREE.Object3D | null {
     }
     if (cur.name && cur.name !== '坝顶' && (
       cur.name.includes('坝') || cur.name.includes('闸门') || cur.name.includes('站')
-      || cur.name.includes('厂房') || cur.name.includes('水面') || cur.name.startsWith('pier_')
+      || cur.name.includes('厂房') || cur.name.includes('水面')
     )) {
       return cur
     }
     cur = cur.parent
   }
-  return obj.name ? obj : null
+  return pierFallback ?? (obj.name ? obj : null)
 }
 
 function getOutlineTarget(root: THREE.Object3D): THREE.Object3D {
   if (root.name === '向家坝电站厂房') return root
   return root
+}
+
+function parseGateIndex(obj: THREE.Object3D): number | null {
+  let cur: THREE.Object3D | null = obj
+  while (cur) {
+    const leafMatch = cur.name.match(/^gateLeaf_(\d+)$/)
+    if (leafMatch) return parseInt(leafMatch[1], 10)
+    const pierMatch = cur.name.match(/^pier_(\d+)$/)
+    if (pierMatch) return parseInt(pierMatch[1], 10) - 1
+    cur = cur.parent
+  }
+  return null
+}
+
+function onClick(e: MouseEvent) {
+  if (!containerRef.value || !camera || !scene) return
+  const rect = containerRef.value.getBoundingClientRect()
+  if (rect.width < 2 || rect.height < 2) return
+  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+  raycaster.setFromCamera(mouse, camera)
+  const hits = raycaster.intersectObjects(hoverables, true)
+  if (hits.length > 0) {
+    const idx = parseGateIndex(hits[0].object)
+    if (idx != null && idx >= 0 && idx < 5) {
+      if (props.selectedGateIndex !== idx) {
+        gateLabelSmooth.alpha = 0.2
+      }
+      emit('gate-select', idx)
+    }
+  }
 }
 
 function onMouseMove(e: MouseEvent) {
@@ -1022,6 +1331,25 @@ function onMouseMove(e: MouseEvent) {
   const hits = raycaster.intersectObjects(hoverables, true)
 
   if (hits.length > 0) {
+    const gateIdx = parseGateIndex(hits[0].object)
+    const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
+    if (gateIdx != null && gateIdx >= 0 && gateIdx < 5) {
+      const leaf = gateLeafObjects[gateIdx]
+      if (holo && leaf && outlinePass) {
+        if (hoveredObject !== leaf) {
+          hoveredObject = leaf
+          outlinePass.selectedObjects = [leaf]
+        }
+      }
+      const gateName = `gateLeaf_${gateIdx}`
+      const detail = getBimDefaultDetail(gateName)
+      const displayName = getBimDisplayName(gateName)
+      tooltip.value = { name: displayName, detail, x: e.clientX - rect.left + 14, y: e.clientY - rect.top - 10, visible: true }
+      emit('device-hover', { name: displayName, detail })
+      containerRef.value.style.cursor = 'pointer'
+      return
+    }
+
     const root = findNamedRoot(hits[0].object)
     if (root?.name) {
       const outlineTarget = getOutlineTarget(root)
@@ -1040,9 +1368,10 @@ function onMouseMove(e: MouseEvent) {
 
   hoveredObject = null
   const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
-  outlinePass.selectedObjects = holo
-    ? []
-    : (damOutlineMeshes.length ? damOutlineMeshes : [])
+  if (outlinePass) {
+    if (holo) applyGateSelectionVisuals()
+    else outlinePass.selectedObjects = damOutlineMeshes.length ? damOutlineMeshes : []
+  }
   tooltip.value.visible = false
   emit('device-hover', null)
   containerRef.value.style.cursor = 'grab'
@@ -1051,31 +1380,34 @@ function onMouseMove(e: MouseEvent) {
 function onMouseLeave() {
   tooltip.value.visible = false
   emit('device-hover', null)
-  if (outlinePass) {
-    const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
-    outlinePass.selectedObjects = holo
-      ? []
-      : (damOutlineMeshes.length ? damOutlineMeshes : [])
-  }
   hoveredObject = null
+  const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
+  if (outlinePass) {
+    if (holo) applyGateSelectionVisuals()
+    else outlinePass.selectedObjects = damOutlineMeshes.length ? damOutlineMeshes : []
+  }
   if (containerRef.value) containerRef.value.style.cursor = 'default'
 }
 
 function handleResize() {
   const el = containerRef.value
   if (!el || !camera || !renderer) return
-  const w = el.clientWidth
-  const h = el.clientHeight
+  const w = Math.max(1, el.clientWidth)
+  const h = Math.max(1, el.clientHeight)
   camera.aspect = w / h
   if (props.visualMode === 'twin' || props.visualMode === 'panorama') {
     const aspect = w / h
-    camera.fov = aspect > 1.6 ? 32 : aspect > 1.2 ? 36 : 40
+    camera.fov = aspect > 1.6 ? 38 : aspect > 1.2 ? 42 : 46
   }
   camera.updateProjectionMatrix()
   renderer.setSize(w, h)
   composer?.setSize(w, h)
   outlinePass?.setSize(w, h)
   bloomPass?.setSize(w, h)
+}
+
+function resizeScene() {
+  handleResize()
 }
 
 function zoomTowardTarget(factor: number) {
@@ -1106,26 +1438,43 @@ function zoomIn() { zoomTowardTarget(0.88) }
 function zoomOut() { zoomTowardTarget(1.12) }
 function setAutoRotate(v: boolean) { if (controls) controls.autoRotate = v }
 
-defineExpose({ resetView, zoomIn, zoomOut, setAutoRotate, focusSimulationView })
+defineExpose({ resetView, zoomIn, zoomOut, setAutoRotate, focusSimulationView, focusGateView, resizeScene })
 
-watch(() => [props.waterLevel, props.downstreamLevel, props.gateOpening, props.flowRate], updateScene)
+watch(() => [props.waterLevel, props.downstreamLevel, props.gateOpening, props.gateOpenings, props.flowRate], () => {
+  updateScene()
+  updateGateScreenLabels()
+})
+watch(() => props.selectedGateIndex, () => {
+  updateScene()
+  updateGateScreenLabels()
+})
 watch(() => props.autoRotate, (v) => setAutoRotate(v))
 watch(() => props.simScene, () => applyWeatherFromScene())
-watch(() => props.simRunning, (running) => {
-  if (running) focusSimulationView()
-  else resetView()
-})
 
 onMounted(() => {
-  initScene()
+  const el = containerRef.value
+  if (!el) return
+  const boot = () => {
+    if (el.clientWidth < 2 || el.clientHeight < 2) {
+      requestAnimationFrame(boot)
+      return
+    }
+    initScene()
+  }
+  boot()
+  resizeObserver = new ResizeObserver(() => handleResize())
+  resizeObserver.observe(el)
   window.addEventListener('resize', handleResize)
 })
 
 onUnmounted(() => {
   cancelAnimationFrame(animId)
+  resizeObserver?.disconnect()
+  resizeObserver = null
   window.removeEventListener('resize', handleResize)
   renderer?.domElement.removeEventListener('mousemove', onMouseMove)
   renderer?.domElement.removeEventListener('mouseleave', onMouseLeave)
+  renderer?.domElement.removeEventListener('click', onClick)
   controls?.dispose()
   composer?.dispose()
   cinematicSky?.dispose()
@@ -1182,7 +1531,7 @@ onUnmounted(() => {
     <div v-if="visualMode === 'default'" class="three-scene__badge" :class="{ 'is-fallback': damModelLabel === '程序化回退模型' }">
       {{ damModelLabel }}
     </div>
-    <div v-if="visualMode === 'twin' || visualMode === 'panorama'" class="three-scene__holo-overlay">
+    <div v-if="visualMode === 'twin'" class="three-scene__holo-overlay">
       <div class="three-scene__digital-particles" />
       <div class="three-scene__scan-strips" />
       <div class="three-scene__silk-streams" />
@@ -1223,8 +1572,21 @@ onUnmounted(() => {
       {{ waterLevelScreenLabel.text }}
     </div>
     <div
-      v-for="pl in pierScreenLabels"
-      v-show="pl.visible"
+      v-show="selectedGateScreenLabel.visible && (visualMode === 'twin' || visualMode === 'panorama')"
+      class="three-scene__gate-detail"
+      :style="{
+        left: selectedGateScreenLabel.x + 'px',
+        top: selectedGateScreenLabel.y + 'px',
+        opacity: selectedGateScreenLabel.alpha,
+      }"
+    >
+      <strong>{{ selectedGateScreenLabel.name }}</strong>
+      <span>开度 <b>{{ selectedGateScreenLabel.opening.toFixed(1) }}%</b></span>
+      <span>泄流 <b>{{ selectedGateScreenLabel.flow }} m³/s</b></span>
+    </div>
+    <div
+      v-for="(pl, idx) in pierScreenLabels"
+      v-show="pl.visible && visualMode === 'default'"
       :key="pl.name"
       class="three-scene__pier-label"
       :style="{ left: pl.x + 'px', top: pl.y + 'px' }"
@@ -1256,16 +1618,16 @@ onUnmounted(() => {
 
   &--twin {
     border-radius: 10px;
-    border: 1px solid rgba(24, 144, 255, 0.15);
-    box-shadow: 0 2px 12px rgba(24, 144, 255, 0.08);
-    background: linear-gradient(180deg, #ffffff 0%, #f7fbff 50%, #eef6fc 100%);
+    border: 1px solid rgba(30, 73, 118, 0.1);
+    box-shadow: 0 2px 12px rgba(15, 34, 56, 0.06);
+    background: linear-gradient(180deg, #f0f2f5 0%, #e8ebef 50%, #e2e6ea 100%);
   }
 
   &--panorama {
     border-radius: 0;
     border: none;
     box-shadow: none;
-    background: linear-gradient(180deg, #ffffff 0%, #f7fbff 50%, #eef6fc 100%);
+    background: linear-gradient(180deg, #f0f2f5 0%, #e8ebef 50%, #e2e6ea 100%);
   }
 
   &__digital-particles {
@@ -1449,6 +1811,58 @@ onUnmounted(() => {
     box-shadow: 0 0 12px #1890ff;
   }
 
+  &__gate-detail {
+    position: absolute;
+    z-index: 10;
+    transform: translate(-50%, -100%);
+    margin-top: -10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 14px;
+    min-width: 140px;
+    font-size: 13px;
+    color: #3d4f5f;
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(100, 160, 220, 0.45);
+    border-radius: 10px;
+    pointer-events: none;
+    white-space: nowrap;
+    box-shadow: 0 8px 24px rgba(30, 73, 118, 0.12);
+    transition: opacity 0.22s ease;
+
+    strong {
+      font-size: 15px;
+      color: #2a6cb8;
+      margin-bottom: 2px;
+    }
+
+    b {
+      color: #1e4976;
+      font-weight: 800;
+    }
+  }
+
+  &__tooltip {
+    position: absolute;
+    z-index: 12;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #3d4f5f;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(100, 160, 220, 0.4);
+    border-radius: 10px;
+    pointer-events: none;
+    box-shadow: 0 6px 20px rgba(30, 73, 118, 0.1);
+
+    strong {
+      display: block;
+      font-size: 14px;
+      color: #2a6cb8;
+      margin-bottom: 4px;
+    }
+  }
+
   &__pier-label {
     position: absolute;
     z-index: 8;
@@ -1465,6 +1879,14 @@ onUnmounted(() => {
     white-space: nowrap;
     box-shadow: 0 2px 8px rgba(24, 144, 255, 0.12);
     animation: pier-float 3s ease-in-out infinite;
+
+    &--active {
+      color: #fff;
+      background: linear-gradient(135deg, #1890ff, #096dd9);
+      border-color: rgba(255, 255, 255, 0.45);
+      box-shadow: 0 4px 14px rgba(24, 144, 255, 0.45);
+      transform: translate(-50%, -100%) scale(1.08);
+    }
   }
 
   &__level-label {

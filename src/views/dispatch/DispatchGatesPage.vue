@@ -94,6 +94,13 @@ const displaySelectedGate = computed(() =>
   displayGates.value.find((g) => g.id === selectedGateId.value) ?? null,
 )
 
+const hasStatusAlerts = computed(
+  () =>
+    !canManualControl.value ||
+    interlockStatus.value.type !== 'success' ||
+    simActive.value,
+)
+
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 function selectGate(id: number) { selectedGateId.value = id }
@@ -165,78 +172,97 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 
 <template>
   <div class="page gates-page">
-    <!-- 告警 -->
-    <div v-if="!canManualControl" class="gates-notice">
-      节点控制已锁定 · 需手动模式或 L1 权限
-      <ElButton link type="primary" @click="router.push('/dispatch/control')">前往运行控制</ElButton>
-    </div>
-
-    <div
-      v-if="interlockStatus.type !== 'success'"
-      class="gates-interlock-strip"
-      :class="{
-        'gates-interlock-strip--block': interlockStatus.type === 'danger',
-        'gates-interlock-strip--warn': interlockStatus.type === 'warning',
-      }"
-    >
-      <ElTag :type="interlockStatus.type" size="small">{{ interlockStatus.label }}</ElTag>
-      <span v-if="violationStats.total">
-        {{ violationStats.total }} 项约束
-        <template v-if="violationStats.blocks"> · {{ violationStats.blocks }} 阻断</template>
-        <template v-if="violationStats.warns"> · {{ violationStats.warns }} 警告</template>
-      </span>
-      <ElButton v-if="violationStats.total" link type="primary" @click="warnDialogVisible = true">查看详情</ElButton>
-    </div>
-
-    <div v-if="simActive" class="gates-sim-strip">
-      <ElTag type="success" size="small">虚拟仿真联动中</ElTag>
-      <ElButton link type="primary" @click="router.push('/hydrology/virtual-sim')">调整仿真参数</ElButton>
-    </div>
-
-    <!-- 四指标独立卡片 + 操作区 -->
-    <div class="gates-kpi-row">
-      <div class="kpi-card kpi-card--hero" :class="{ 'kpi-card--sim': simActive }">
-        <span class="kpi-card__label">聚合总开度</span>
-        <strong class="kpi-card__value">{{ displayAggregateTarget.toFixed(1) }}<em>%</em></strong>
-        <small v-if="displayAggregateTarget !== displayAggregateOpening">当前 {{ displayAggregateOpening.toFixed(1) }}%</small>
-      </div>
-      <div class="kpi-card">
-        <span class="kpi-card__label">开启孔数</span>
-        <strong class="kpi-card__value">{{ openGateCount }}<em>/{{ onlineGateCount }}</em></strong>
-      </div>
-      <div class="kpi-card" :class="{ 'kpi-card--sim': simActive }">
-        <span class="kpi-card__label">预估出库</span>
-        <strong class="kpi-card__value">{{ fmtNum(displayOutflowRate, 0) }}<em>m³/s</em></strong>
-      </div>
-      <div class="kpi-card" :class="{ 'kpi-card--sim': simActive }">
-        <span class="kpi-card__label">入库流量</span>
-        <strong class="kpi-card__value">{{ fmtNum(displayFlowRate, 1) }}<em>m³/s</em></strong>
-      </div>
-      <div class="kpi-actions">
-        <ElButton size="large" @click="router.push('/hydrology/virtual-sim')">虚拟仿真</ElButton>
-        <ElButton size="large" @click="router.push('/simulation')">数字孪生</ElButton>
-        <ElButton size="large" @click="store.resetAllGateTargets()">全部复位</ElButton>
-        <ElButton
-          size="large"
-          type="primary"
-          :disabled="!canManualControl || pendingChanges === 0 || submitting"
-          @click="submitAll"
-        >
-          提交变更{{ pendingChanges > 0 ? ` (${pendingChanges})` : '' }}
-        </ElButton>
-      </div>
-    </div>
-
-    <!-- 坝体剖面：全宽置顶 -->
+    <!-- 坝体剖面：指标 + 操作 + 剖面图 合一，减少上方框框 -->
     <GlassPanel3D title="坝体剖面" class="gates-viz-top" v-loading="gatesLoading">
-      <template #extra>
-        <span class="viz-extra" :class="{ 'viz-extra--sim': simActive }">
-          上游 <strong>{{ fmtNum(displayUpstreamLevel, 1) }}</strong> m
-          · 下游 <strong>{{ fmtNum(displayDownstreamLevel, 1) }}</strong> m
-          · 出库 <strong>{{ fmtNum(displayOutflowRate, 0) }}</strong> m³/s
-        </span>
-      </template>
+      <div class="gates-command">
+        <div v-if="hasStatusAlerts" class="gates-command__alerts">
+          <span v-if="!canManualControl" class="alert-chip alert-chip--info">
+            节点控制已锁定
+            <ElButton
+              link
+              type="primary"
+              class="alert-chip__link"
+              @click="router.push('/dispatch/control')"
+            >
+              去运行控制
+            </ElButton>
+          </span>
+          <span
+            v-if="interlockStatus.type !== 'success'"
+            class="alert-chip"
+            :class="{
+              'alert-chip--danger': interlockStatus.type === 'danger',
+              'alert-chip--warn': interlockStatus.type === 'warning',
+            }"
+          >
+            {{ interlockStatus.label }}
+            <template v-if="violationStats.total">
+              · {{ violationStats.blocks }}阻断 {{ violationStats.warns }}警告
+            </template>
+            <ElButton
+              v-if="violationStats.total"
+              link
+              type="primary"
+              class="alert-chip__link"
+              @click="warnDialogVisible = true"
+            >
+              详情
+            </ElButton>
+          </span>
+          <span v-if="simActive" class="alert-chip alert-chip--ok">
+            仿真联动中
+            <ElButton
+              link
+              type="primary"
+              class="alert-chip__link"
+              @click="router.push('/hydrology/virtual-sim')"
+            >
+              调参
+            </ElButton>
+          </span>
+        </div>
+
+        <div class="gates-command__main">
+          <div class="gates-command__metrics" :class="{ 'gates-command__metrics--sim': simActive }">
+            <div class="metric-pill">
+              <span class="metric-pill__label">聚合开度</span>
+              <strong class="metric-pill__value">{{ displayAggregateTarget.toFixed(1) }}<em>%</em></strong>
+              <span
+                v-if="displayAggregateTarget !== displayAggregateOpening"
+                class="metric-pill__sub"
+              >现 {{ displayAggregateOpening.toFixed(1) }}%</span>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-pill__label">开启孔数</span>
+              <strong class="metric-pill__value">{{ openGateCount }}<em>/{{ onlineGateCount }}</em></strong>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-pill__label">预估出库</span>
+              <strong class="metric-pill__value">{{ fmtNum(displayOutflowRate, 0) }}<em>m³/s</em></strong>
+            </div>
+            <div class="metric-pill">
+              <span class="metric-pill__label">入库流量</span>
+              <strong class="metric-pill__value">{{ fmtNum(displayFlowRate, 1) }}<em>m³/s</em></strong>
+            </div>
+          </div>
+
+          <div class="gates-command__actions">
+            <ElButton @click="router.push('/hydrology/virtual-sim')">虚拟仿真</ElButton>
+            <ElButton @click="router.push('/simulation')">数字孪生</ElButton>
+            <ElButton @click="store.resetAllGateTargets()">全部复位</ElButton>
+            <ElButton
+              type="primary"
+              :disabled="!canManualControl || pendingChanges === 0 || submitting"
+              @click="submitAll"
+            >
+              提交变更{{ pendingChanges > 0 ? ` (${pendingChanges})` : '' }}
+            </ElButton>
+          </div>
+        </div>
+      </div>
+
       <DamSectionDiagram
+        class="gates-command__diagram"
         :gates="displayGates"
         :selected-gate-id="selectedGateId"
         :upstream-level="displayUpstreamLevel"
@@ -385,179 +411,18 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   @include cockpit-typography;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   padding: 20px 24px 28px;
   min-height: calc(100vh - 110px);
   background: #fff;
 }
 
-.gates-interlock-strip,
-.gates-sim-strip {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  border-radius: 10px;
-  font-size: $cockpit-font-sm;
-  background: #fff;
-  border: 1px solid #eef2f6;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
-  color: #64748b;
-}
-
-.gates-interlock-strip {
-  border-left-width: 3px;
-
-  &--block {
-    border-left-color: #f87171;
-    background: #fffcfc;
-  }
-
-  &--warn {
-    border-left-color: #fdba74;
-    background: #fffdfb;
-  }
-
-  :deep(.el-tag) {
-    border: none;
-    font-weight: 600;
-  }
-}
-
-.gates-sim-strip {
-  border-left: 3px solid #86efac;
-  background: #fafff9;
-  color: #64748b;
-}
-
-.gates-kpi-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-  align-items: stretch;
-
-  @media (max-width: 1200px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-.kpi-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 14px 20px;
-  background: #fff;
-  border: 1px solid #eef2f6;
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-
-  :deep(.el-button) {
-    margin: 0;
-    height: 42px;
-    padding: 0 22px;
-    border-radius: 10px;
-    font-weight: 600;
-  }
-
-  :deep(.el-button--primary) {
-    background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
-    border: none;
-    box-shadow: 0 4px 12px rgba(24, 144, 255, 0.28);
-
-    &:hover {
-      background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%);
-    }
-  }
-}
-
-.kpi-card {
-  position: relative;
-  padding: 22px 24px 24px;
-  background: #fff;
-  border: 1px solid #eef2f6;
-  border-radius: 16px;
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 6px 20px rgba(24, 144, 255, 0.05);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  transition: transform 0.22s ease, box-shadow 0.22s ease;
-  overflow: hidden;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, #1890ff, #69c0ff);
-    opacity: 0;
-    transition: opacity 0.22s ease;
-  }
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow:
-      0 4px 8px rgba(15, 23, 42, 0.06),
-      0 12px 28px rgba(24, 144, 255, 0.1);
-  }
-
-  &--hero {
-    background: linear-gradient(160deg, #fff 0%, #f0f7ff 100%);
-    border-color: rgba(24, 144, 255, 0.18);
-
-    &::before { opacity: 1; }
-  }
-
-  &--sim {
-    border-color: rgba(34, 197, 94, 0.25);
-    .kpi-card__value { color: #16a34a !important; }
-    &::before {
-      opacity: 1;
-      background: linear-gradient(90deg, #22c55e, #4ade80);
-    }
-  }
-
-  &__label {
-    font-size: $cockpit-font-sm;
-    font-weight: 600;
-    color: #94a3b8;
-    letter-spacing: 0.02em;
-  }
-
-  &__value {
-    font-size: 42px;
-    font-weight: 700;
-    font-family: 'SF Mono', 'Consolas', monospace;
-    color: #1e293b;
-    line-height: 1;
-    letter-spacing: -0.02em;
-
-    em { font-style: normal; font-size: 17px; font-weight: 600; color: #94a3b8; margin-left: 3px; }
-  }
-
-  &--hero &__value {
-    color: #1890ff;
-    text-shadow: 0 2px 12px rgba(24, 144, 255, 0.15);
-  }
-
-  small { font-size: 13px; color: #94a3b8; }
-}
-
-// ── 顶部全宽剖面 ──
+// ── 坝体剖面：合一工具栏 + 剖面图 ──
 .gates-viz-top {
   flex-shrink: 0;
   border-radius: 16px;
   overflow: hidden;
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.04),
-    0 8px 24px rgba(24, 144, 255, 0.07);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 
   :deep(.glass-panel) {
     border-radius: 16px;
@@ -565,9 +430,9 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   }
 
   :deep(.glass-panel__header) {
-    padding: 18px 24px 14px;
-    background: linear-gradient(90deg, rgba(24, 144, 255, 0.04) 0%, transparent 60%);
-    border-bottom: 1px solid #f1f5f9;
+    padding: 14px 20px 12px;
+    background: #fff;
+    border-bottom: none;
 
     .glass-panel__title {
       font-size: $cockpit-font-lg;
@@ -577,46 +442,172 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 
     .glass-panel__deco {
       background: linear-gradient(180deg, #1890ff, #69c0ff);
-      box-shadow: 0 0 8px rgba(24, 144, 255, 0.35);
     }
   }
 
   :deep(.glass-panel__body) {
-    padding: 0;
-    min-height: 380px;
-    height: 380px;
     display: flex;
     flex-direction: column;
+    padding: 0;
+    min-height: 0;
     background: #fff;
     overflow: hidden;
+  }
+}
 
-    .dam-section {
-      flex: 1;
+.gates-command {
+  flex-shrink: 0;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fafbfc;
+
+  &__alerts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px 0;
+  }
+
+  &__main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 20px;
+    flex-wrap: wrap;
+  }
+
+  &__metrics {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 0;
+    min-width: 0;
+
+    &--sim .metric-pill__value {
+      color: #16a34a;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex-shrink: 0;
+
+    :deep(.el-button) {
+      margin: 0;
+      height: 36px;
+      padding: 0 16px;
+      border-radius: 8px;
+      font-weight: 600;
+    }
+
+    :deep(.el-button--primary) {
+      background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+      border: none;
+    }
+  }
+
+  &__diagram {
+    flex: 1;
+    min-height: 360px;
+    height: 360px;
+
+    :deep(.dam-section) {
+      height: 100%;
       min-height: 0;
-      width: 100%;
     }
   }
 }
 
-.viz-extra {
-  font-size: $cockpit-font-sm;
-  color: #94a3b8;
-  padding: 4px 12px;
-  background: #fafcff;
-  border-radius: 20px;
-  border: 1px solid #eef2f6;
+.alert-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #64748b;
+  background: #fff;
+  border: 1px solid #e2e8f0;
 
-  strong {
-    font-family: 'SF Mono', monospace;
-    font-weight: 700;
-    color: #1890ff;
-    margin: 0 2px;
+  &--info { border-color: rgba(24, 144, 255, 0.25); color: #1890ff; }
+  &--danger { border-color: rgba(239, 68, 68, 0.3); color: #dc2626; }
+  &--warn { border-color: rgba(249, 115, 22, 0.3); color: #ea580c; }
+  &--ok { border-color: rgba(34, 197, 94, 0.3); color: #16a34a; }
+
+  &__link {
+    padding: 0 2px;
+    font-size: 16px;
+    font-weight: 600;
+    vertical-align: baseline;
   }
 
-  &--sim {
-    border-color: rgba(34, 197, 94, 0.3);
-    background: #f0fdf4;
-    strong { color: #16a34a; }
+  :deep(.el-button.is-link) {
+    padding: 0 2px;
+    font-size: 16px !important;
+    font-weight: 600;
+    vertical-align: baseline;
+  }
+}
+
+.metric-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 18px;
+  border-right: 1px solid #e8edf2;
+
+  &:first-child { padding-left: 0; }
+  &:last-child { border-right: none; }
+
+  &__label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #94a3b8;
+    white-space: nowrap;
+  }
+
+  &__value {
+    font-size: 22px;
+    font-weight: 700;
+    font-family: 'SF Mono', Consolas, monospace;
+    color: #1890ff;
+    line-height: 1;
+    white-space: nowrap;
+
+    em {
+      font-style: normal;
+      font-size: 12px;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-left: 2px;
+    }
+  }
+
+  &__sub {
+    font-size: 11px;
+    color: #94a3b8;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 1100px) {
+  .gates-command__main {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gates-command__actions {
+    justify-content: flex-end;
+  }
+
+  .metric-pill {
+    padding: 6px 12px 6px 0;
+    border-right: none;
   }
 }
 
@@ -676,18 +667,6 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
     grid-template-columns: 1fr;
     min-height: auto;
   }
-}
-
-.gates-notice {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  background: rgba(24, 144, 255, 0.08);
-  border: 1px solid rgba(24, 144, 255, 0.18);
-  border-radius: 8px;
-  font-size: $cockpit-font-sm;
-  color: $cockpit-text;
 }
 
 .gates-panel {

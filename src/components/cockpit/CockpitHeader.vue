@@ -75,9 +75,9 @@ const now = computed(() => {
   align-items: center;
   gap: 16px;
   padding: 10px 20px;
-  border-bottom: 1px solid rgba(0, 212, 255, 0.15);
-  background: linear-gradient(180deg, rgba(8, 20, 38, 0.95) 0%, rgba(4, 11, 20, 0.8) 100%);
-  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(30, 73, 118, 0.35);
+  background: linear-gradient(180deg, #1a3a5c 0%, #122a45 55%, #0f2238 100%);
+  backdrop-filter: blur(10px);
 
   &__weather {
     font-size: 11px;
@@ -107,16 +107,17 @@ const now = computed(() => {
   }
 
   &__title {
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: 4px;
-    @include glow-text;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    color: rgba(232, 244, 255, 0.95);
+    text-shadow: none;
     margin: 0;
   }
 
   &__subtitle {
     font-size: 11px;
-    color: $cockpit-text-dim;
+    color: rgba(180, 200, 220, 0.75);
     margin: 2px 0 0;
     letter-spacing: 2px;
   }

@@ -108,7 +108,7 @@ const routes: RouteRecordRaw[] = [
         path: 'dispatch',
         component: () => import('@/views/dispatch/index.vue'),
         meta: { title: '调度决策' },
-        redirect: '/dispatch/gates',
+        redirect: '/dispatch/control',
         children: [
           {
             path: 'analysis',

@@ -13,6 +13,7 @@ const props = defineProps<{
   waterLevel: number
   downstreamLevel: number
   gateOpening: number
+  gateOpenings: number[]
   flowRate: number
   simScene: SimulationScene
   simSpeed: SimulationSpeed
@@ -25,10 +26,14 @@ const props = defineProps<{
   statusColor: string
   levelStatusColor: string
   levelStatusLabel: string
+  selectedGateIndex?: number
+  selectedGateOpening?: number
+  selectedGateFlow?: number
   /** 调度方案预览 — 仅展示 3D，隐藏仿真控制 */
   preview?: boolean
   previewPlanName?: string
   previewSafetyScore?: number
+  rainfall?: number
 }>()
 
 const emit = defineEmits<{
@@ -39,7 +44,30 @@ const emit = defineEmits<{
   'update:simScene': [scene: SimulationScene]
   'update:simSpeed': [speed: SimulationSpeed]
   'update:gateOpening': [opening: number]
+  'update:gate-opening-at': [index: number, opening: number]
+  'update:water-level': [level: number]
+  'update:rainfall': [mm: number]
+  'gate-select': [index: number]
 }>()
+
+function safeNum(v: number, fallback = 0) {
+  return Number.isFinite(v) ? v : fallback
+}
+
+const safeGateOpening = computed(() => safeNum(props.gateOpening, 45))
+const safeWaterLevel = computed(() => safeNum(props.waterLevel, 380))
+const safeDownstreamLevel = computed(() => safeNum(props.downstreamLevel, 277))
+const safeFlowRate = computed(() => safeNum(props.flowRate, 1911))
+const safeGateOpenings = computed(() =>
+  props.gateOpenings?.length
+    ? props.gateOpenings.map((v) => safeNum(v, 45))
+    : Array.from({ length: 5 }, () => safeGateOpening.value),
+)
+const hasGateSelected = computed(() => (props.selectedGateIndex ?? -1) >= 0)
+const activeGateNo = computed(() => (props.selectedGateIndex ?? -1) + 1)
+const activeGateOpening = computed(() => safeNum(props.selectedGateOpening ?? 0, 0))
+const activeGateFlow = computed(() => safeNum(props.selectedGateFlow ?? 0, 0))
+const safeRainfall = computed(() => safeNum(props.rainfall ?? 0, 0))
 
 const sceneRef = ref<InstanceType<typeof ThreeDamScene> | null>(null)
 const sceneInfo = computed(() => SIMULATION_SCENE_MAP[props.simScene])
@@ -58,17 +86,9 @@ watch(
   () => props.visible,
   (v) => {
     document.body.style.overflow = v ? 'hidden' : ''
-    if (v && simActive.value) {
-      setTimeout(() => sceneRef.value?.focusSimulationView(), 600)
-    }
-  },
-)
-
-watch(
-  () => props.simStatus.status,
-  (status) => {
-    if (props.visible && (status === 'running' || status === 'paused')) {
-      setTimeout(() => sceneRef.value?.focusSimulationView(), 400)
+    if (v) {
+      setTimeout(() => sceneRef.value?.resizeScene(), 80)
+      setTimeout(() => sceneRef.value?.resizeScene(), 420)
     }
   },
 )
@@ -79,7 +99,11 @@ onUnmounted(() => {
   document.body.style.overflow = ''
 })
 
-defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() })
+defineExpose({
+  focusSimulationView: () => sceneRef.value?.focusSimulationView(),
+  focusGateView: (index: number) => sceneRef.value?.focusGateView(index),
+  resizeScene: () => sceneRef.value?.resizeScene(),
+})
 </script>
 
 <template>
@@ -186,19 +210,80 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
               </div>
 
               <div class="sim-modal__field">
-                <label>闸门开度 {{ gateOpening }}%</label>
+                <label>上游水位 <strong>{{ safeWaterLevel.toFixed(2) }} m</strong></label>
+                <input
+                  type="range"
+                  class="sim-modal__slider"
+                  min="374"
+                  max="382"
+                  step="0.1"
+                  :value="safeWaterLevel"
+                  @input="emit('update:water-level', Number(($event.target as HTMLInputElement).value))"
+                />
+              </div>
+
+              <div class="sim-modal__field">
+                <label>降雨量 <strong>{{ safeRainfall.toFixed(1) }} mm/h</strong></label>
                 <input
                   type="range"
                   class="sim-modal__slider"
                   min="0"
-                  max="100"
+                  max="80"
                   step="1"
-                  :value="gateOpening"
-                  @input="
-                    emit('update:gateOpening', Number(($event.target as HTMLInputElement).value))
-                  "
+                  :value="safeRainfall"
+                  @input="emit('update:rainfall', Number(($event.target as HTMLInputElement).value))"
                 />
               </div>
+
+              <Transition name="gate-panel" mode="out-in">
+                <div v-if="hasGateSelected" :key="'gate-' + activeGateNo" class="sim-modal__gate-detail">
+                  <h4>{{ activeGateNo }} 号表孔 · 细化调节</h4>
+                  <div class="sim-modal__gate-flow">
+                    <div>
+                      <small>单孔泄流量</small>
+                      <strong>{{ activeGateFlow }} m³/s</strong>
+                    </div>
+                    <div>
+                      <small>平均开度</small>
+                      <strong>{{ safeGateOpening }}%</strong>
+                    </div>
+                  </div>
+                  <div class="sim-modal__field">
+                    <label>闸门开度 {{ activeGateOpening }}%</label>
+                    <input
+                      type="range"
+                      class="sim-modal__slider"
+                      min="0"
+                      max="100"
+                      step="1"
+                      :value="activeGateOpening"
+                      @input="
+                        emit(
+                          'update:gate-opening-at',
+                          props.selectedGateIndex ?? 0,
+                          Number(($event.target as HTMLInputElement).value),
+                        )
+                      "
+                    />
+                  </div>
+                  <p class="sim-modal__hint">宽幅水幕随开度变化；0% 完全隐藏泄流</p>
+                </div>
+                <div v-else key="gate-avg" class="sim-modal__field">
+                  <label>平均开度 {{ safeGateOpening }}%</label>
+                  <input
+                    type="range"
+                    class="sim-modal__slider"
+                    min="0"
+                    max="100"
+                    step="1"
+                    :value="safeGateOpening"
+                    @input="
+                      emit('update:gateOpening', Number(($event.target as HTMLInputElement).value))
+                    "
+                  />
+                  <p class="sim-modal__hint">点击右侧 3D 闸门，可单独调节每一孔开度与泄流量</p>
+                </div>
+              </Transition>
 
               <div class="sim-modal__actions">
                 <button
@@ -235,21 +320,21 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
                 <div class="sim-modal__kpi">
                   <small>上游水位</small>
                   <strong :style="{ color: levelStatusColor }"
-                    >{{ waterLevel.toFixed(2) }} m</strong
+                    >{{ safeWaterLevel.toFixed(2) }} m</strong
                   >
                   <em>{{ levelStatusLabel }}</em>
                 </div>
                 <div class="sim-modal__kpi">
                   <small>下游尾水</small>
-                  <strong>{{ downstreamLevel.toFixed(2) }} m</strong>
+                  <strong>{{ safeDownstreamLevel.toFixed(2) }} m</strong>
                 </div>
                 <div class="sim-modal__kpi">
                   <small>入库流量</small>
-                  <strong>{{ flowRate }} m³/s</strong>
+                  <strong>{{ safeFlowRate }} m³/s</strong>
                 </div>
                 <div class="sim-modal__kpi">
                   <small>闸门开度</small>
-                  <strong>{{ gateOpening }}%</strong>
+                  <strong>{{ safeGateOpening }}%</strong>
                 </div>
               </div>
 
@@ -267,45 +352,33 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
 
           <!-- 右侧：放大 3D 模型 -->
           <main class="sim-modal__viewport">
+            <Transition name="gate-hud" mode="out-in">
+              <div
+                v-if="hasGateSelected"
+                :key="activeGateNo"
+                class="sim-modal__gate-hud"
+              >
+                <strong>{{ activeGateNo }} 号表孔</strong>
+                <span>开度 {{ activeGateOpening }}%</span>
+                <span>泄流 {{ activeGateFlow }} m³/s</span>
+              </div>
+            </Transition>
             <ThreeDamScene
-              v-if="visible"
+              v-show="visible"
               ref="sceneRef"
               visual-mode="panorama"
-              :water-level="waterLevel"
-              :downstream-level="downstreamLevel"
-              :gate-opening="gateOpening"
-              :flow-rate="flowRate"
+              :water-level="safeWaterLevel"
+              :downstream-level="safeDownstreamLevel"
+              :gate-opening="safeGateOpening"
+              :gate-openings="safeGateOpenings"
+              :flow-rate="safeFlowRate"
               :sim-scene="simScene"
               :sim-running="simActive"
+              :selected-gate-index="selectedGateIndex ?? -1"
+              :rainfall="safeRainfall"
               :auto-rotate="false"
+              @gate-select="emit('gate-select', $event)"
             />
-            <svg
-              class="sim-modal__geo-lines"
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-            >
-              <defs>
-                <linearGradient id="simModalGeoGrad" x1="0%" y1="100%" x2="100%" y2="30%">
-                  <stop offset="0%" stop-color="rgba(24,144,255,0.85)" />
-                  <stop offset="100%" stop-color="rgba(64,200,255,0.15)" />
-                </linearGradient>
-              </defs>
-              <path
-                class="sim-modal__geo-line"
-                d="M 8 92 Q 22 72 38 58 T 62 44"
-                fill="none"
-                stroke="url(#simModalGeoGrad)"
-                stroke-width="0.2"
-              />
-              <path
-                class="sim-modal__geo-line sim-modal__geo-line--d2"
-                d="M 8 92 Q 18 68 32 50 T 55 38"
-                fill="none"
-                stroke="url(#simModalGeoGrad)"
-                stroke-width="0.15"
-              />
-            </svg>
             <button type="button" class="sim-modal__close" aria-label="关闭" @click="emit('close')">
               ✕
             </button>
@@ -340,10 +413,10 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
     width: min(92vw, 1400px);
     height: min(88vh, 860px);
     pointer-events: auto;
-    border-radius: 14px;
+    border-radius: 18px;
     overflow: hidden;
-    background: #fff;
-    box-shadow: 0 16px 64px rgba(0, 0, 0, 0.28);
+    background: #f2f4f7;
+    box-shadow: 0 20px 56px rgba(15, 34, 56, 0.18);
     transform-origin: center center;
   }
 
@@ -354,13 +427,13 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
   }
 
   &__sidebar {
-    flex: 0 0 300px;
+    flex: 0 0 320px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 20px 18px;
-    background: linear-gradient(180deg, #f7fbff 0%, #eef6fc 100%);
-    border-right: 1px solid rgba(24, 144, 255, 0.15);
+    gap: 16px;
+    padding: 22px 20px;
+    background: #eceff3;
+    border-right: 1px solid rgba(30, 73, 118, 0.08);
     overflow-y: auto;
   }
 
@@ -372,7 +445,7 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
 
     h2 {
       margin: 0;
-      font-size: 17px;
+      font-size: 18px;
       font-weight: 700;
       color: #1e4976;
     }
@@ -409,9 +482,15 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
     gap: 6px;
 
     label {
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
-      color: #64748b;
+      color: #5a6a7a;
+
+      strong {
+        color: #1e4976;
+        font-size: 15px;
+        font-weight: 800;
+      }
     }
   }
 
@@ -479,25 +558,26 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
   &__kpis {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    padding: 12px;
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.85);
-    border: 1px solid rgba(24, 144, 255, 0.12);
+    gap: 10px;
+    padding: 14px;
+    border-radius: 14px;
+    background: #f7f9fb;
+    border: 1px solid rgba(30, 73, 118, 0.08);
+    box-shadow: 0 4px 14px rgba(15, 34, 56, 0.05);
   }
 
   &__kpi {
     small {
       display: block;
-      font-size: 10px;
-      color: #94a3b8;
+      font-size: 11px;
+      color: #8a9aaa;
     }
 
     strong {
       display: block;
-      font-size: 15px;
+      font-size: 17px;
       color: #1e4976;
-      font-weight: 700;
+      font-weight: 800;
     }
 
     em {
@@ -532,29 +612,85 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
     line-height: 1.5;
   }
 
+  &__gate-detail {
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(24, 144, 255, 0.06);
+    border: 1px solid rgba(24, 144, 255, 0.22);
+
+    h4 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      color: #1890ff;
+    }
+  }
+
+  &__gate-flow {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+
+    small {
+      display: block;
+      font-size: 10px;
+      color: #94a3b8;
+    }
+
+    strong {
+      display: block;
+      font-size: 16px;
+      color: #1e4976;
+      font-weight: 700;
+    }
+  }
+
   &__viewport {
     flex: 1;
     min-width: 0;
+    min-height: 0;
     position: relative;
-    background: linear-gradient(180deg, #ffffff 0%, #f7fbff 50%, #eef6fc 100%);
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, #f0f2f5 0%, #e8ebef 50%, #e2e6ea 100%);
+
+    :deep(.three-scene) {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+    }
+  }
+
+  &__gate-hud {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(24, 144, 255, 0.35);
+    box-shadow: 0 4px 16px rgba(24, 144, 255, 0.15);
+    font-size: 12px;
+    color: #64748b;
+    pointer-events: none;
+
+    strong {
+      color: #1890ff;
+      font-size: 13px;
+    }
+
+    span b {
+      color: #1e4976;
+      font-weight: 700;
+    }
   }
 
   &__geo-lines {
-    position: absolute;
-    inset: 0;
-    z-index: 6;
-    pointer-events: none;
-    opacity: 0.6;
-  }
-
-  &__geo-line {
-    stroke-dasharray: 6 10;
-    animation: geo-line-flow 4s linear infinite;
-
-    &--d2 {
-      animation-delay: 0.8s;
-      opacity: 0.65;
-    }
+    display: none;
   }
 
   &__close {
@@ -607,5 +743,27 @@ defineExpose({ focusSimulationView: () => sceneRef.value?.focusSimulationView() 
   100% {
     stroke-dashoffset: -32;
   }
+}
+
+.gate-panel-enter-active,
+.gate-panel-leave-active,
+.gate-hud-enter-active,
+.gate-hud-leave-active {
+  transition:
+    opacity 0.28s ease,
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gate-panel-enter-from,
+.gate-panel-leave-to,
+.gate-hud-enter-from,
+.gate-hud-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.gate-hud-enter-from,
+.gate-hud-leave-to {
+  transform: translateY(-6px);
 }
 </style>

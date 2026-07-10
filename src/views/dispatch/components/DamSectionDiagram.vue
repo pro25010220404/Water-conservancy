@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import WaterColumn2D from '@/components/cockpit/WaterColumn2D.vue'
 import { isGateOnline } from '@/utils/gateControl'
 import type { GateNodeControl } from '@/types/gateControl'
 
@@ -26,16 +27,11 @@ const openCount = computed(() =>
   sortedGates.value.filter((g) => isGateOnline(g.status) && g.currentOpening > 0).length,
 )
 
-function levelFillPct(level: number) {
+const levelRange = computed(() => {
   const lo = Math.min(props.upstreamLevel, props.downstreamLevel) - 20
   const hi = Math.max(props.upstreamLevel, props.downstreamLevel) + 20
-  const span = Math.max(hi - lo, 40)
-  const t = (level - lo) / span
-  return Math.min(100, Math.max(6, t * 100))
-}
-
-const upFillPct = computed(() => levelFillPct(props.upstreamLevel))
-const downFillPct = computed(() => levelFillPct(props.downstreamLevel))
+  return { min: lo, max: Math.max(hi, lo + 40) }
+})
 
 function gateShortCode(code: string) {
   const m = code.match(/(\d+)/)
@@ -66,9 +62,15 @@ function togglePanel(zone: 'up' | 'down') {
             @click="togglePanel('up')"
           >
             <div class="dam-rail__gauge-wrap">
-              <div class="dam-rail__gauge">
-                <div class="dam-rail__fill" :style="{ height: `${upFillPct}%` }" />
-              </div>
+              <WaterColumn2D
+                :value="upstreamLevel"
+                :min="levelRange.min"
+                :max="levelRange.max"
+                mode="level"
+                size="xs"
+                :show-meta="false"
+                stretch
+              />
             </div>
             <div class="dam-rail__foot" aria-hidden="true" />
           </button>
@@ -119,23 +121,17 @@ function togglePanel(zone: 'up' | 'down') {
           >
             <div class="gate-col__inner">
               <div class="gate-col__slot">
-                <div class="gate-col__waterbox">
-                  <div
-                    v-if="isGateOnline(g.status)"
-                    class="gate-col__water gate-col__water--tgt"
-                    :style="{ height: `${g.targetOpening}%` }"
-                  />
-                  <div
-                    v-if="isGateOnline(g.status) && g.currentOpening > 0"
-                    class="gate-col__water gate-col__water--cur"
-                    :style="{ height: `${g.currentOpening}%` }"
-                  />
-                  <div
-                    v-if="isGateOnline(g.status)"
-                    class="gate-col__leaf"
-                    :style="{ height: `${100 - g.currentOpening}%` }"
-                  />
-                </div>
+                <WaterColumn2D
+                  v-if="isGateOnline(g.status)"
+                  :value="g.currentOpening"
+                  :target-value="g.targetOpening"
+                  :leaf-from-top="100 - g.currentOpening"
+                  mode="percent"
+                  size="xs"
+                  :show-meta="false"
+                  stretch
+                />
+                <div v-else class="gate-col__offline" />
               </div>
 
               <div class="gate-col__pillar">
@@ -174,9 +170,15 @@ function togglePanel(zone: 'up' | 'down') {
             @click="togglePanel('down')"
           >
             <div class="dam-rail__gauge-wrap">
-              <div class="dam-rail__gauge">
-                <div class="dam-rail__fill" :style="{ height: `${downFillPct}%` }" />
-              </div>
+              <WaterColumn2D
+                :value="downstreamLevel"
+                :min="levelRange.min"
+                :max="levelRange.max"
+                mode="level"
+                size="xs"
+                :show-meta="false"
+                stretch
+              />
             </div>
             <div class="dam-rail__foot" aria-hidden="true" />
           </button>
@@ -319,26 +321,11 @@ $pillar-foot-h: calc(#{$pill-h} + 15px);
   &__gauge-wrap {
     flex: 1;
     min-height: 0;
-    width: 100%;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-  }
-
-  &__gauge {
     width: $bar-w;
-    height: 100%;
-    border-radius: 4px;
-    background: #f0f9ff;
+    margin: 0 auto;
     display: flex;
-    align-items: flex-end;
-    overflow: hidden;
-  }
-
-  &__fill {
-    width: 100%;
-    border-radius: 3px 3px 0 0;
-    background: $color-actual;
+    align-items: stretch;
+    justify-content: center;
   }
 
   &__foot {
@@ -472,45 +459,16 @@ $pillar-foot-h: calc(#{$pill-h} + 15px);
     flex: 1;
     min-height: 0;
     width: $bar-w;
-    overflow: hidden;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
   }
 
-  &__waterbox {
-    position: relative;
+  &__offline {
     width: $bar-w;
     height: 100%;
-    margin: 0 auto;
     border-radius: 4px;
-    overflow: hidden;
-    background: #f0f9ff;
-  }
-
-  &__water {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    border-radius: 3px 3px 0 0;
-
-    &--cur {
-      z-index: 2;
-      background: $color-actual;
-    }
-
-    &--tgt {
-      z-index: 1;
-      background: $color-predict;
-    }
-  }
-
-  &__leaf {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 3;
-    background: #f0f9ff;
-    pointer-events: none;
+    background: #f1f5f9;
   }
 
   &__pillar {
