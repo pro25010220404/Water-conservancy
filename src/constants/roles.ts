@@ -83,8 +83,8 @@ export const MENU_ITEMS: MenuItem[] = [
   { path: '/equipment', title: '设备管理', icon: 'SetUp' },
   { path: '/dispatch', title: '调度决策', icon: 'Operation' },
   { path: '/virtual-simulation', title: '虚拟仿真', icon: 'SetUp' },
-  { path: '/warning', title: '告警管理', icon: 'Warning' },
   { path: '/simulation', title: '数字孪生', icon: 'Cpu' },
+  { path: '/warning', title: '告警管理', icon: 'Warning' },
   {
     path: '/settings/models',
     title: '模型管理',

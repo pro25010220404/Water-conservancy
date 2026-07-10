@@ -252,7 +252,7 @@ tableData.value = [...allData.value]
             :class="{ on: selectedMetrics.includes(m.value) }"
             @click="selectedMetrics.includes(m.value)
                 ? (selectedMetrics = selectedMetrics.filter((x) => x !== m.value))
-                : selectedMetrics.push(m.value))"
+                : selectedMetrics.push(m.value)"
             :style="{ '--c': m.color }"
             >{{ m.label }}</span
           >
