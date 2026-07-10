@@ -122,11 +122,9 @@ const METRICS: Record<number, ModelMetricLatest> = {
 
 const VERSION_CATALOG: Record<number, ModelVersionOption[]> = {
   1: [
-    { version: 'Physics-LSTM v5.1', source: '边缘实时', scores: {} },
-
-    { version: 'Physics-LSTM v5.0', source: '数字孪生仿真', scores: {} },
-
-    { version: 'Physics-LSTM v4.9', source: '历史归档', scores: {} },
+    { id: 1, version: 'Physics-LSTM v5.1', source: '边缘实时', scores: {} },
+    { id: 2, version: 'Physics-LSTM v5.0', source: '数字孪生仿真', scores: {} },
+    { id: 3, version: 'Physics-LSTM v4.9', source: '历史归档', scores: {} },
   ],
 }
 
@@ -501,31 +499,69 @@ export async function fetchModelHealthOverview(): Promise<ModelHealthOverviewIte
   return delay(list)
 }
 
-export async function fetchModelVersionOptions(reservoirId: number) {
-  // 版本列表暂无后端接口，使用 Mock
-  const opts = (VERSION_CATALOG[reservoirId] ?? VERSION_CATALOG[1]).map((v) => ({
+export async function fetchModelVersionOptions(_reservoirId: number) {
+  // TODO: 后续接 GET /v1/settings/models 获取真实模型列表
+  const opts = (VERSION_CATALOG[_reservoirId] ?? VERSION_CATALOG[1]).map((v) => ({
     ...v,
-    scores: versionScores(reservoirId, v.version),
+    scores: versionScores(_reservoirId, v.version),
   }))
   return delay(opts)
 }
 
+// 后端返回的英文字段 → 雷达图中文维度名
+const SCORE_KEY_MAP: Record<string, string> = {
+  prediction_score: '预测准确性',
+  decision_score: '决策可靠性',
+  compliance_score: '物理合规性',
+  safety_override_rate: '安全覆盖率',
+  l3_auto_rate: '决策自主率',
+}
+
+function normalizeCompareScores(raw: Record<string, number> | undefined): Record<string, number> {
+  if (!raw || Object.keys(raw).length === 0) return {}
+  const out: Record<string, number> = {}
+  for (const [en, zh] of Object.entries(SCORE_KEY_MAP)) {
+    if (raw[en] != null) out[zh] = raw[en]
+  }
+  // 如果映射后为空，直接用原始 key（兜底）
+  if (Object.keys(out).length === 0) return raw
+  return out
+}
+
 export async function fetchModelCompare(
   reservoirId: number,
-  currentVer?: string,
-  previousVer?: string,
+  modelAId?: number,
+  modelBId?: number,
 ) {
   try {
-    if (currentVer && previousVer) {
-      const res = await getAIVersionCompare({ reservoir_id: reservoirId, version1: currentVer, version2: previousVer })
-      if (res.data?.code === 0 && res.data.data) return res.data.data as unknown as { current: { version: string; source: string; scores: Record<string, number> }; previous: { version: string; source: string; scores: Record<string, number> } }
+    if (modelAId != null && modelBId != null) {
+      const res = await getAIVersionCompare({ reservoir_id: reservoirId, model_a_id: modelAId, model_b_id: modelBId })
+      if (res.data?.code === 0 && res.data.data) {
+        const d = res.data.data as any
+        const scoresA = normalizeCompareScores(d.period_a?.avg)
+        const scoresB = normalizeCompareScores(d.period_b?.avg)
+        // 两边都没有数据才回退 mock
+        if (Object.keys(scoresA).length > 0 || Object.keys(scoresB).length > 0) {
+          return {
+            current: {
+              version: `模型 #${modelAId}`,
+              source: d.period_a?.start ? `${d.period_a.start} ~ ${d.period_a.end}` : '',
+              scores: scoresA,
+            },
+            previous: {
+              version: `模型 #${modelBId}`,
+              source: d.period_b?.start ? `${d.period_b.start} ~ ${d.period_b.end}` : '',
+              scores: scoresB,
+            },
+          }
+        }
+      }
     }
   } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
+  // fallback mock
   const opts = VERSION_CATALOG[reservoirId] ?? VERSION_CATALOG[1]
-  const cur = currentVer ?? opts[0].version
-  const prev = previousVer ?? opts[1]?.version ?? opts[0].version
-  const curOpt = opts.find((o) => o.version === cur) ?? opts[0]
-  const prevOpt = opts.find((o) => o.version === prev) ?? opts[1] ?? opts[0]
+  const curOpt = opts[0]
+  const prevOpt = opts[1] ?? opts[0]
   return delay({
     current: { version: curOpt.version, source: curOpt.source, scores: versionScores(reservoirId, curOpt.version) },
     previous: { version: prevOpt.version, source: prevOpt.source, scores: versionScores(reservoirId, prevOpt.version) },

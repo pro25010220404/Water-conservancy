@@ -120,10 +120,10 @@ const viewMode = ref<'dashboard' | 'compare'>(props.fixedMode === 'compare' ? 'c
 const latest = ref<ModelMetricLatest | null>(null)
 const detail = ref<ModelMetricDetailRow[]>([])
 const compare = ref<ModelMetricCompare | null>(null)
-const versionOptions = ref<{ version: string; source: string }[]>([])
-const currentVersion = ref('')
-const previousVersion = ref('')
-const detailDays = ref(30)
+const versionOptions = ref<{ id: number; version: string; source: string }[]>([])
+const currentModelId = ref<number | null>(null)
+const previousModelId = ref<number | null>(null)
+const detailHours = ref(24)
 const loading = ref(false)
 const history = ref<Awaited<ReturnType<typeof fetchModelMetricsHistory>>>([])
 const historyEmpty = ref(false)
@@ -168,10 +168,12 @@ const chartOption = computed(() => {
 
 const compareRows = computed(() => {
   if (!compare.value) return []
-  const dims = Object.keys(compare.value.current.scores)
+  const curScores = compare.value.current.scores || {}
+  const prevScores = compare.value.previous.scores || {}
+  const dims = [...new Set([...Object.keys(curScores), ...Object.keys(prevScores)])]
   return dims.map((dim) => {
-    const cur = compare.value!.current.scores[dim]
-    const prev = compare.value!.previous.scores[dim]
+    const cur = curScores[dim] ?? 0
+    const prev = prevScores[dim] ?? 0
     const delta = +(cur - prev).toFixed(2)
     return { dim, current: cur, previous: prev, delta }
   })
@@ -179,7 +181,10 @@ const compareRows = computed(() => {
 
 const radarOption = computed(() => {
   if (!compare.value) return {}
-  const dims = Object.keys(compare.value.current.scores)
+  const curScores = compare.value.current.scores || {}
+  const prevScores = compare.value.previous.scores || {}
+  const dims = [...new Set([...Object.keys(curScores), ...Object.keys(prevScores)])]
+  if (dims.length === 0) return {}
   return {
     backgroundColor: 'transparent',
     legend: { bottom: 0, textStyle: { fontSize: 12 } },
@@ -188,8 +193,8 @@ const radarOption = computed(() => {
     series: [{
       type: 'radar',
       data: [
-        { name: compare.value.current.version, value: dims.map((d) => compare.value!.current.scores[d]) },
-        { name: compare.value.previous.version, value: dims.map((d) => compare.value!.previous.scores[d]) },
+        { name: compare.value.current.version, value: dims.map((d) => curScores[d] ?? 0) },
+        { name: compare.value.previous.version, value: dims.map((d) => prevScores[d] ?? 0) },
       ],
     }],
   }
@@ -257,11 +262,11 @@ async function load() {
     if (needCompare) {
       try {
         versionOptions.value = await fetchModelVersionOptions(rid)
-        if (!currentVersion.value) currentVersion.value = versionOptions.value[0]?.version ?? ''
-        if (!previousVersion.value) {
-          previousVersion.value = versionOptions.value[1]?.version ?? versionOptions.value[0]?.version ?? ''
+        if (currentModelId.value == null) currentModelId.value = versionOptions.value[0]?.id ?? null
+        if (previousModelId.value == null) {
+          previousModelId.value = versionOptions.value[1]?.id ?? versionOptions.value[0]?.id ?? null
         }
-        compare.value = await fetchModelCompare(rid, currentVersion.value, previousVersion.value)
+        compare.value = await fetchModelCompare(rid, currentModelId.value ?? undefined, previousModelId.value ?? undefined)
       } catch {
         compare.value = null
       }
@@ -271,11 +276,11 @@ async function load() {
   }
 }
 
-watch(reservoirId, () => { currentVersion.value = ''; previousVersion.value = ''; load() })
-watch(detailDays, load)
-watch([currentVersion, previousVersion], async () => {
+watch(reservoirId, () => { currentModelId.value = null; previousModelId.value = null; load() })
+watch(detailHours, load)
+watch([currentModelId, previousModelId], async () => {
   if (props.fixedMode === 'dashboard') return
-  compare.value = await fetchModelCompare(reservoirId.value, currentVersion.value, previousVersion.value)
+  compare.value = await fetchModelCompare(reservoirId.value, currentModelId.value ?? undefined, previousModelId.value ?? undefined)
 })
 
 onMounted(async () => {
@@ -320,12 +325,12 @@ onUnmounted(() => { if (dailyTimer) { clearTimeout(dailyTimer); clearInterval(da
       </ElSelect>
       <template v-if="fixedMode === 'compare'">
         <span>当前版</span>
-        <ElSelect v-model="currentVersion" style="width:200px">
-          <ElOption v-for="v in versionOptions" :key="v.version" :label="`${v.version} (${v.source})`" :value="v.version" />
+        <ElSelect v-model="currentModelId" style="width:200px">
+          <ElOption v-for="v in versionOptions" :key="v.id" :label="`${v.version} (${v.source})`" :value="v.id" />
         </ElSelect>
         <span>对比版</span>
-        <ElSelect v-model="previousVersion" style="width:200px">
-          <ElOption v-for="v in versionOptions" :key="v.version" :label="`${v.version} (${v.source})`" :value="v.version" />
+        <ElSelect v-model="previousModelId" style="width:200px">
+          <ElOption v-for="v in versionOptions" :key="v.id" :label="`${v.version} (${v.source})`" :value="v.id" />
         </ElSelect>
       </template>
       <div v-if="fixedMode === 'both'" class="view-toggle">

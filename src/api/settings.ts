@@ -206,10 +206,10 @@ export function getAIMetricsDetail(params: {
 
 export function getAIVersionCompare(params: {
   reservoir_id: number
-  version1: string
-  version2: string
+  model_a_id: number
+  model_b_id: number
 }) {
-  return http.get<ApiResponse<CompareResult>>(`${AI}/compare`, { params })
+  return http.post<ApiResponse<CompareResult>>(`${AI}/metrics/compare`, params)
 }
 
 // ════════════════════════════════════════════════════════════
