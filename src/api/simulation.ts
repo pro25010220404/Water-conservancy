@@ -370,7 +370,9 @@ export async function resetSimulation(simulationId: string): Promise<ApiResponse
   )
 }
 
-export async function getSimulationStatus(): Promise<ApiResponse<SimulationRealtimeData>> {
+export async function getSimulationStatus(
+  _simulationId?: string,
+): Promise<ApiResponse<SimulationRealtimeData>> {
   return withMockFallback(
     async () => {
       throw new Error('status poll replaced by websocket')

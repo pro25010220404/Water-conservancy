@@ -11,6 +11,7 @@ import {
   DAM_GATE_NAME_PREFIX,
   DAM_HERO_ANCHOR,
 } from '@/constants/damModel'
+import { PIER_MAT, DAM_BODY_MAT, GATE_FRAME_COLOR } from '@/utils/gateVisualTheme'
 import { buildDamBody } from './terrainBuilder'
 import { createConcreteTextures, createMetalTextures } from './proceduralTextures'
 
@@ -28,6 +29,7 @@ export interface DamModelInstance {
   fromGltf: boolean
   heroCenter: THREE.Vector3
   applyGateOpening: (ratio: number) => void
+  applyPerGateOpening: (openingsPct: number[]) => void
   dispose: () => void
 }
 
@@ -82,9 +84,19 @@ function collectHoverables(root: THREE.Object3D): THREE.Object3D[] {
 }
 
 function applyGateOpeningToLeaves(gates: GateLeafState[], ratio: number) {
+  const r = Math.min(1, Math.max(0, ratio))
   gates.forEach((g) => {
-    g.object.position.y = g.baseY + ratio * 7
-    g.object.scale.y = g.baseScaleY * (1 - ratio * 0.45)
+    g.object.position.y = g.baseY + r * 7
+    g.object.scale.y = g.baseScaleY * (1 - r * 0.45)
+  })
+}
+
+function applyPerGateOpeningToLeaves(gates: GateLeafState[], openingsPct: number[]) {
+  gates.forEach((g, i) => {
+    const pct = openingsPct[i] ?? openingsPct[openingsPct.length - 1] ?? 0
+    const r = Math.min(1, Math.max(0, pct / 100))
+    g.object.position.y = g.baseY + r * 7
+    g.object.scale.y = g.baseScaleY * (1 - r * 0.45)
   })
 }
 
@@ -111,6 +123,9 @@ function buildFallbackInstance(envMap?: THREE.Texture | null): DamModelInstance 
     heroCenter: computeHeroCenter(root),
     applyGateOpening(ratio) {
       applyGateOpeningToLeaves(gateLeaves, ratio)
+    },
+    applyPerGateOpening(openingsPct) {
+      applyPerGateOpeningToLeaves(gateLeaves, openingsPct)
     },
     dispose() {
       root.traverse((obj) => {
@@ -182,6 +197,9 @@ export function loadDamModel(
           applyGateOpening(ratio) {
             applyGateOpeningToLeaves(gateLeaves, ratio)
           },
+          applyPerGateOpening(openingsPct) {
+            applyPerGateOpeningToLeaves(gateLeaves, openingsPct)
+          },
           dispose() {
             root.traverse((obj) => {
               if (obj instanceof THREE.Mesh) obj.geometry?.dispose()
@@ -208,22 +226,35 @@ export function applyTwinLightBackgroundMaterials(root: THREE.Object3D) {
     const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
     mats.forEach((m) => {
       if (!(m instanceof THREE.MeshStandardMaterial)) return
-      const isSteel =
-        obj.name.startsWith(DAM_GATE_NAME_PREFIX) ||
-        obj.name.includes('闸门') ||
-        obj.name.startsWith('pier_')
-      if (isSteel) {
-        m.color.setHex(0x5a6a7a)
-        m.metalness = 0.52
+      const isGateLeaf =
+        obj.name.startsWith(DAM_GATE_NAME_PREFIX) || /^gateLeaf_\d+$/.test(obj.name)
+      const isPier = obj.name.startsWith('pier_')
+      const isGateSteel = obj.name.includes('闸门') && !isGateLeaf
+
+      if (isGateLeaf) {
+        m.color.setHex(0x4a5568)
+        m.metalness = 0.48
         m.roughness = 0.44
-        m.emissive.setHex(0x1890ff)
-        m.emissiveIntensity = 0.05
+        m.emissive.setHex(0x000000)
+        m.emissiveIntensity = 0
+      } else if (isPier) {
+        m.color.setHex(PIER_MAT.color)
+        m.metalness = PIER_MAT.metalness
+        m.roughness = PIER_MAT.roughness
+        m.emissive.setHex(PIER_MAT.emissive)
+        m.emissiveIntensity = PIER_MAT.emissiveIntensity
+      } else if (isGateSteel) {
+        m.color.setHex(GATE_FRAME_COLOR)
+        m.metalness = 0.4
+        m.roughness = 0.72
+        m.emissive.setHex(0x080a0e)
+        m.emissiveIntensity = 0.02
       } else {
-        m.color.setHex(0x6e7884)
-        m.metalness = 0.1
-        m.roughness = 0.74
-        m.emissive.setHex(0x2a3540)
-        m.emissiveIntensity = 0.07
+        m.color.setHex(DAM_BODY_MAT.color)
+        m.metalness = DAM_BODY_MAT.metalness
+        m.roughness = DAM_BODY_MAT.roughness
+        m.emissive.setHex(DAM_BODY_MAT.emissive)
+        m.emissiveIntensity = DAM_BODY_MAT.emissiveIntensity
       }
       m.envMap = null
       m.envMapIntensity = 0
@@ -323,7 +354,7 @@ export function getTwinCinematicCamera(root: THREE.Object3D, heroCenter: THREE.V
   const size = box.getSize(new THREE.Vector3())
   const center = box.getCenter(new THREE.Vector3())
   const span = Math.max(size.x, size.y, size.z, 32)
-  const dist = span * 2.9
+  const dist = span * 3.85
   return {
     position: new THREE.Vector3(
       center.x + dist * 0.4,
@@ -365,7 +396,7 @@ export function getPanoramaCamera(root: THREE.Object3D, heroCenter: THREE.Vector
   const size = box.getSize(new THREE.Vector3())
   const center = box.getCenter(new THREE.Vector3())
   const span = Math.max(size.x, size.y, size.z, 32)
-  const dist = span * 3.6
+  const dist = span * 4.5
   return {
     position: new THREE.Vector3(
       center.x + dist * 0.52,
