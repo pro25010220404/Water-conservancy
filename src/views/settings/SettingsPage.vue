@@ -26,7 +26,7 @@ import {
   ElMessage,
   ElMessageBox,
 } from 'element-plus'
-import { Plus, Upload, Search, Refresh, Warning } from '@element-plus/icons-vue'
+import { Plus, Upload, Search, Refresh, Warning, Download } from '@element-plus/icons-vue'
 import ModelMetricsPanel from './components/ModelMetricsPanel.vue'
 import PhysicsGuardPanel from './components/PhysicsGuardPanel.vue'
 import PhysicsGuardHistoryPanel from './components/PhysicsGuardHistoryPanel.vue'
@@ -149,6 +149,114 @@ const roleLabel = computed(() => {
   })
   return map
 })
+
+// ── CSV 导出工具 ──
+const exportingModels = ref(false)
+const exportingUsers = ref(false)
+
+function downloadCSV(filename: string, headers: string[], rows: string[][]) {
+  // BOM 确保 Excel 正确识别 UTF-8 中文
+  const BOM = '﻿'
+  const csvContent = [headers, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+/** 循环分页拉取全量数据，pageSize 对齐列表默认值 */
+const EXPORT_PAGE_SIZE = 10
+
+async function fetchAllModels(): Promise<ModelInfo[]> {
+  const first = await getModels({ page: 1, page_size: EXPORT_PAGE_SIZE })
+  if (first.data.code !== 0 || !first.data.data) return models.value
+  const { list, total } = first.data.data
+  const all = [...list]
+  const totalPages = Math.ceil(total / EXPORT_PAGE_SIZE)
+  for (let p = 2; p <= totalPages; p++) {
+    const res = await getModels({ page: p, page_size: EXPORT_PAGE_SIZE })
+    if (res.data.code === 0 && res.data.data?.list?.length) {
+      all.push(...res.data.data.list)
+    }
+  }
+  return all
+}
+
+async function fetchAllUsers(): Promise<SystemUser[]> {
+  const first = await getUsers({ page: 1, page_size: EXPORT_PAGE_SIZE })
+  if (first.data.code !== 0 || !first.data.data) return users.value
+  const { list, total } = first.data.data
+  const all: SystemUser[] = list.map((item) =>
+    normalizeSystemUser(item as unknown as Record<string, unknown>),
+  )
+  const totalPages = Math.ceil(total / EXPORT_PAGE_SIZE)
+  for (let p = 2; p <= totalPages; p++) {
+    const res = await getUsers({ page: p, page_size: EXPORT_PAGE_SIZE })
+    if (res.data.code === 0 && res.data.data?.list?.length) {
+      all.push(
+        ...res.data.data.list.map((item) =>
+          normalizeSystemUser(item as unknown as Record<string, unknown>),
+        ),
+      )
+    }
+  }
+  return all
+}
+
+async function exportModels() {
+  exportingModels.value = true
+  try {
+    const list = await fetchAllModels()
+    const headers = ['模型名称', '类型', '版本', '状态', '准确率(%)', '大小(MB)', '已下发节点', '健康等级', '综合评分']
+    const rows = list.map((m) => [
+      m.name,
+      modelTypeMap[m.type] ?? m.type,
+      m.version,
+      modelStatusMap[m.status] ?? m.status,
+      String(m.accuracy ?? ''),
+      String(m.size),
+      String(m.deployed_nodes),
+      m.health_grade ?? '',
+      m.overall_score != null ? (m.overall_score * 100).toFixed(0) : '',
+    ])
+    downloadCSV(`模型管理_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows)
+    ElMessage.success(`已导出 ${rows.length} 条模型记录`)
+  } catch {
+    ElMessage.error('导出失败，请稍后重试')
+  } finally {
+    exportingModels.value = false
+  }
+}
+
+async function exportUsers() {
+  exportingUsers.value = true
+  try {
+    const list = await fetchAllUsers()
+    const headers = ['用户名', '姓名', '角色', '状态', '手机号', '注册时间']
+    const rows = list.map((u) => {
+      const statusMeta = getUserStatusMeta(u)
+      return [
+        u.account,
+        u.realname,
+        roleLabel[u.role_id] || u.role_name || '未知',
+        statusMeta.label,
+        u.phone,
+        u.created_at?.slice(0, 16) ?? '',
+      ]
+    })
+    downloadCSV(`用户管理_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows)
+    ElMessage.success(`已导出 ${rows.length} 条用户记录`)
+  } catch {
+    ElMessage.error('导出失败，请稍后重试')
+  } finally {
+    exportingUsers.value = false
+  }
+}
 
 // ── 6. Computed (权重合计) ──
 const weightSum = computed(
@@ -375,6 +483,111 @@ const MOCK_MODELS: ModelInfo[] = [
     overall_score: 0.42,
     health_grade: 'C',
   },
+  {
+    id: 6,
+    name: 'Transformer 水位预测 v1',
+    version: 'v1.0.0',
+    type: 'lstm_prediction',
+    framework: 'pytorch',
+    status: 'ready',
+    accuracy: 79.8,
+    training_date: '2026-07-01',
+    size: 180,
+    is_active: 0,
+    deployed_nodes: 0,
+    overall_score: 0.55,
+    health_grade: 'C',
+  },
+  {
+    id: 7,
+    name: 'CNN 故障检测 v2',
+    version: 'v2.1.0',
+    type: 'fault_detection',
+    framework: 'onnx',
+    status: 'active',
+    accuracy: 91.3,
+    training_date: '2026-06-20',
+    size: 72,
+    is_active: 1,
+    deployed_nodes: 2,
+    overall_score: 0.85,
+    health_grade: 'A',
+  },
+  {
+    id: 8,
+    name: 'DQN 调度决策 v1',
+    version: 'v1.5.0',
+    type: 'dqn_decision',
+    framework: 'pytorch',
+    status: 'deprecated',
+    accuracy: 78.2,
+    training_date: '2026-03-10',
+    size: 200,
+    is_active: 0,
+    deployed_nodes: 0,
+    overall_score: 0.58,
+    health_grade: 'C',
+  },
+  {
+    id: 9,
+    name: 'GRU 水位预测 v3',
+    version: 'v3.0.2',
+    type: 'lstm_prediction',
+    framework: 'pytorch',
+    status: 'validating',
+    accuracy: 84.6,
+    training_date: '2026-07-05',
+    size: 110,
+    is_active: 0,
+    deployed_nodes: 1,
+    overall_score: 0.63,
+    health_grade: 'B',
+  },
+  {
+    id: 10,
+    name: '随机森林故障检测',
+    version: 'v1.0.0',
+    type: 'fault_detection',
+    framework: 'onnx',
+    status: 'ready',
+    accuracy: 74.5,
+    training_date: '2026-05-18',
+    size: 45,
+    is_active: 0,
+    deployed_nodes: 0,
+    overall_score: 0.48,
+    health_grade: 'C',
+  },
+  {
+    id: 11,
+    name: 'LSTM 水位预测 v4',
+    version: 'v4.0.0-beta',
+    type: 'lstm_prediction',
+    framework: 'pytorch',
+    status: 'uploaded',
+    accuracy: 0,
+    training_date: '2026-07-09',
+    size: 156,
+    is_active: 0,
+    deployed_nodes: 0,
+    overall_score: 0,
+    health_grade: 'D',
+  },
+  {
+    id: 12,
+    name: '强化学习调度 v5',
+    version: 'v5.0.0-rc1',
+    type: 'dqn_decision',
+    framework: 'pytorch',
+    status: 'validating',
+    accuracy: 81.9,
+    training_date: '2026-07-08',
+    size: 290,
+    is_active: 0,
+    deployed_nodes: 0,
+    overall_score: 0.51,
+    health_grade: 'C',
+  },
 ]
 // Tab3: 模型
 const models = ref<ModelInfo[]>([])
@@ -557,6 +770,7 @@ async function fetchModels() {
   try {
     const res = await getModels({
       page: modelsPage.value,
+      page_size: 10,
       keyword: modelKeyword.value || undefined,
     })
     if (res.data.code === 0 && res.data.data.list.length) {
@@ -743,17 +957,25 @@ async function submitUser() {
 }
 
 async function handleLock(row: SystemUser) {
+  let reason: string | undefined
   try {
-    const reason = await ElMessageBox.prompt('请输入锁定原因', '锁定账号', {
+    const result = await ElMessageBox.prompt('请输入锁定原因', '锁定账号', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
     })
-    await lockUser(row.id, { reason: reason.value || '管理员锁定' })
+    reason = result.value
+  } catch {
+    return // 用户取消
+  }
+  try {
+    await lockUser(row.id, { reason: reason || '管理员锁定' })
+    // 乐观更新本地数据，确保 UI 立即响应（不调 fetchUsers，避免后端旧数据覆盖）
+    row.lock_expire_time = new Date(Date.now() + 365 * 86400000).toISOString().replace('T', ' ').slice(0, 19)
+    row.is_enabled = 1
     recordLog('系统设置', '锁定账号', `锁定了用户「${row.realname}」`, 1)
     ElMessage.success('账号已锁定')
-    await fetchUsers()
-  } catch {
-    /* 取消或失败 */
+  } catch (e: any) {
+    ElMessage.error(e?.msg || e?.message || '锁定失败，请重试')
   }
 }
 
@@ -766,12 +988,18 @@ async function handleUnlock(row: SystemUser) {
         : `确定解锁用户「${row.realname}」？`,
       '解锁确认',
     )
+  } catch {
+    return // 用户取消
+  }
+  try {
     await unlockUser(row.id)
+    // 乐观更新本地数据
+    row.lock_expire_time = undefined
+    row.is_enabled = 1
     recordLog('系统设置', '解锁账号', `解锁了用户「${row.realname}」`, 1)
     ElMessage.success('账号已解锁')
-    await fetchUsers()
-  } catch {
-    /* 取消或失败 */
+  } catch (e: any) {
+    ElMessage.error(e?.msg || e?.message || '解锁失败，请重试')
   }
 }
 
@@ -1089,6 +1317,7 @@ onMounted(() => {
           @input="onModelKeywordInput()"
         />
         <ElButton :icon="Refresh" @click="fetchModels"> 刷新 </ElButton>
+        <ElButton :icon="Download" :loading="exportingModels" @click="exportModels"> 导出CSV </ElButton>
         <ElUpload
           ref="uploadRef"
           :http-request="handleUpload"
@@ -1252,6 +1481,7 @@ onMounted(() => {
           @input="onUserKeywordInput()"
         />
         <ElButton :icon="Refresh" @click="fetchUsers"> 刷新 </ElButton>
+        <ElButton :icon="Download" :loading="exportingUsers" @click="exportUsers"> 导出CSV </ElButton>
         <ElButton
           type="primary"
           :icon="Plus"
@@ -1276,8 +1506,8 @@ onMounted(() => {
           <template #default="scope">
             <ElTag type="info">
               {{
-                (scope.row as SystemUser).role_name ||
                 roleLabel[(scope.row as SystemUser).role_id] ||
+                (scope.row as SystemUser).role_name ||
                 '未知'
               }}
             </ElTag>

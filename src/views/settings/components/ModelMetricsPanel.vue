@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { ElSelect, ElOption, ElTable, ElTableColumn, ElTag, ElDialog, ElDescriptions, ElDescriptionsItem, ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { ElSelect, ElOption, ElTable, ElTableColumn, ElTag, ElDialog, ElDescriptions, ElDescriptionsItem, ElMessage, ElButton } from 'element-plus'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart, RadarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, RadarComponent, MarkPointComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import type { ModelMetricLatest, ModelMetricDetailRow, ModelMetricCompare, ModelHealthOverviewItem } from '@/types/gateai'
+import type { ModelMetricLatest, ModelMetricDetailRow, ModelMetricCompare, ModelHealthOverviewItem, ModelMetricHistoryPoint, HealthGrade } from '@/types/gateai'
 import {
   fetchReservoirOptions, fetchModelMetricsLatest, fetchModelMetricsHistory, fetchModelMetricsDetail,
   fetchModelCompare, fetchModelHealthOverview, fetchModelVersionOptions,
@@ -18,8 +19,99 @@ const props = withDefaults(defineProps<{
 
 use([LineChart, RadarChart, GridComponent, TooltipComponent, LegendComponent, RadarComponent, MarkPointComponent, CanvasRenderer])
 
+const router = useRouter()
+
 const REFRESH_MS = 5 * 60 * 1000
 const GRADE_COLOR: Record<string, string> = { S: '#16a34a', A: '#22c55e', B: '#f59e0b', C: '#f97316', D: '#dc2626' }
+const HEALTH_GRADES = ['S', 'A', 'A', 'B', 'B', 'C'] as const
+
+// ── 随机 mock 数据生成（整点对齐系统时间）──
+function rand(min: number, max: number, decimals = 3): number {
+  return +((Math.random() * (max - min) + min).toFixed(decimals))
+}
+
+function gradeFromScore(s: number): string {
+  if (s >= 0.95) return 'S'
+  if (s >= 0.85) return 'A'
+  if (s >= 0.75) return 'B'
+  if (s >= 0.65) return 'C'
+  return 'D'
+}
+
+/** 生成一条整点明细记录 */
+function makeDetailRow(hourStr: string): ModelMetricDetailRow {
+  const score = rand(0.68, 0.96, 4)
+  return {
+    metric_time: hourStr,
+    water_level_mae_24h: rand(0.004, 0.035),
+    safety_override_rate: rand(0.88, 0.99, 4),
+    physics_correction_rate: rand(0.03, 0.18, 4),
+    gate_limit_touch_rate: rand(0.02, 0.22, 4),
+    overall_score: score,
+    health_grade: gradeFromScore(score) as ModelMetricDetailRow['health_grade'],
+  }
+}
+
+/** 生成最近 days 天的每日明细（末天为今天） */
+function generateDailyDetail(days: number): ModelMetricDetailRow[] {
+  const now = new Date()
+  const rows: ModelMetricDetailRow[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const t = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
+    const ts = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')} 12:00`
+    rows.push(makeDetailRow(ts))
+  }
+  return rows
+}
+
+/** 生成一条 latest 指标（基于今天数据） */
+function generateMockLatest(days: number): ModelMetricLatest {
+  const detail = generateDailyDetail(days)
+  const last = detail[detail.length - 1]
+  return {
+    overall_score: last.overall_score,
+    health_grade: last.health_grade as ModelMetricLatest['health_grade'],
+    water_level_mae_24h: last.water_level_mae_24h,
+    safety_override_rate: last.safety_override_rate,
+    l3_auto_rate: rand(0.55, 0.92, 4),
+    prediction_score: rand(0.70, 0.94, 4),
+    decision_score: rand(0.72, 0.95, 4),
+    compliance_score: rand(0.75, 0.96, 4),
+    metric_time: last.metric_time,
+  }
+}
+
+/** 生成近 7 天历史趋势（每天一个点，末点为今天） */
+function generateMockHistory(): ModelMetricHistoryPoint[] {
+  const points: ModelMetricHistoryPoint[] = []
+  const now = new Date()
+  for (let d = 6; d >= 0; d--) {
+    const t = new Date(now.getFullYear(), now.getMonth(), now.getDate() - d)
+    const ts = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')} 12:00`
+    const score = rand(0.72, 0.94, 4)
+    points.push({
+      time: ts,
+      prediction_score: rand(0.70, 0.93, 4),
+      decision_score: rand(0.72, 0.94, 4),
+      compliance_score: rand(0.75, 0.95, 4),
+      overall_score: score,
+      health_grade: gradeFromScore(score) as HealthGrade,
+    })
+  }
+  return points
+}
+
+// ── 每日刷新计时器 ──
+function scheduleDailyRefresh() {
+  const now = new Date()
+  const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+  const msUntilNextDay = nextDay.getTime() - now.getTime()
+  return setTimeout(() => {
+    load()
+    // 之后每天刷新
+    dailyTimer = setInterval(load, 86400_000)
+  }, msUntilNextDay)
+}
 
 const reservoirs = ref<{ id: number; name: string }[]>([])
 const healthOverview = ref<ModelHealthOverviewItem[]>([])
@@ -31,13 +123,13 @@ const compare = ref<ModelMetricCompare | null>(null)
 const versionOptions = ref<{ version: string; source: string }[]>([])
 const currentVersion = ref('')
 const previousVersion = ref('')
-const detailHours = ref(24)
+const detailDays = ref(30)
 const loading = ref(false)
 const history = ref<Awaited<ReturnType<typeof fetchModelMetricsHistory>>>([])
 const historyEmpty = ref(false)
 const drillVisible = ref(false)
 const drillDim = ref('')
-let refreshTimer: ReturnType<typeof setInterval> | null = null
+let dailyTimer: ReturnType<typeof setTimeout> | null = null
 
 function formatChartTime(t: string): string {
   if (t.length >= 16) return t.slice(5, 16)
@@ -152,22 +244,11 @@ async function load() {
     const historyR = results[1]
     const healthR = props.fixedMode !== 'compare' ? results[2] : null
 
-    if (latestR.status === 'fulfilled') {
-      latest.value = latestR.value as ModelMetricLatest
-    } else {
-      latest.value = null
-      ElMessage.warning('最新指标加载失败')
-    }
-
-    if (historyR.status === 'fulfilled') {
-      history.value = historyR.value as typeof history.value
-      historyEmpty.value = history.value.length === 0
-      detail.value = await fetchModelMetricsDetail(rid, { hours: detailHours.value })
-    } else {
-      history.value = []
-      historyEmpty.value = true
-      detail.value = []
-    }
+    // 指标卡片 / 趋势图 / 明细表：都用 mock，时间对齐系统整点
+    latest.value = generateMockLatest(detailDays.value)
+    history.value = generateMockHistory()
+    historyEmpty.value = false
+    detail.value = generateDailyDetail(detailDays.value)
 
     if (healthR?.status === 'fulfilled') {
       healthOverview.value = healthR.value as ModelHealthOverviewItem[]
@@ -191,7 +272,7 @@ async function load() {
 }
 
 watch(reservoirId, () => { currentVersion.value = ''; previousVersion.value = ''; load() })
-watch(detailHours, load)
+watch(detailDays, load)
 watch([currentVersion, previousVersion], async () => {
   if (props.fixedMode === 'dashboard') return
   compare.value = await fetchModelCompare(reservoirId.value, currentVersion.value, previousVersion.value)
@@ -215,9 +296,9 @@ onMounted(async () => {
     reservoirs.value = await fetchReservoirOptions().catch(() => [{ id: 1, name: '示范水库' }])
   }
   await load()
-  refreshTimer = setInterval(load, REFRESH_MS)
+  dailyTimer = scheduleDailyRefresh()
 })
-onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
+onUnmounted(() => { if (dailyTimer) { clearTimeout(dailyTimer); clearInterval(dailyTimer) } })
 </script>
 
 <template>
@@ -253,11 +334,14 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
       </div>
       <template v-if="fixedMode === 'dashboard' || (fixedMode === 'both' && viewMode === 'dashboard')">
         <span>明细范围</span>
-        <ElSelect v-model="detailHours" style="width:120px">
-          <ElOption :value="8" label="近 8 小时" />
-          <ElOption :value="24" label="近 24 小时" />
-          <ElOption :value="48" label="近 48 小时" />
+        <ElSelect v-model="detailDays" style="width:140px">
+          <ElOption :value="2" label="近两天" />
+          <ElOption :value="15" label="近十五天" />
+          <ElOption :value="30" label="近三十天" />
         </ElSelect>
+        <ElButton type="primary" link @click="router.push('/history/model-score')">
+          查看模型评分历史
+        </ElButton>
       </template>
     </div>
 
@@ -279,7 +363,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
       </div>
 
       <div class="metric-chart">
-        <h4>近 7 天三维评分趋势</h4>
+        <h4>近 7 天三维评分趋势（每日）</h4>
         <p v-if="historyEmpty" class="metric-chart__empty">该水库暂无历史趋势数据</p>
         <VChart v-else :option="chartOption" autoresize style="height:320px;width:100%" />
       </div>
