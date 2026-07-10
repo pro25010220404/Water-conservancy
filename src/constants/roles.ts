@@ -28,8 +28,8 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   '/dispatch/control': ['dispatcher', 'manager', 'admin', 'algorithm_engineer'],
   '/dispatch/gates': ['dispatcher', 'manager', 'admin', 'algorithm_engineer'],
   '/dispatch/gate-actions': ['dispatcher', 'manager', 'admin'],
-  '/simulation': ['manager', 'admin', 'algorithm_engineer'],
-  '/virtual-simulation': ['manager', 'admin', 'algorithm_engineer'],
+  '/simulation': ['operator', 'dispatcher', 'manager', 'admin', 'algorithm_engineer'],
+  '/virtual-simulation': ['operator', 'dispatcher', 'manager', 'admin', 'algorithm_engineer'],
 
   // ═══ 设备管理 ═══
   '/equipment': ['operator', 'manager', 'admin'],
