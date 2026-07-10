@@ -1,0 +1,1 @@
+import{E as e,X as t,et as n,j as r}from"./vendor-echarts-CDBckQCH.js";import{t as i}from"./_plugin-vue_export-helper-BDNMzG2s.js";var a={},o={class:`history-shell`};function s(i,a){let s=n(`router-view`);return t(),e(`div`,o,[r(s)])}var c=i(a,[[`render`,s],[`__scopeId`,`data-v-8d52a494`]]);export{c as default};

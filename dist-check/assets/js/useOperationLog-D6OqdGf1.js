@@ -1,0 +1,1 @@
+var e=`operationLogs`;function t(){function t(){try{let t=localStorage.getItem(e);return t?JSON.parse(t):[]}catch{return[]}}function n(n,r,i,a){try{let o=t();o.unshift({id:Date.now(),time:new Date().toLocaleString(`zh-CN`),module:n,type:r,description:i,result:a}),o.length>100&&(o.length=100),localStorage.setItem(e,JSON.stringify(o))}catch{}}return{loadAll:t,record:n}}export{t};

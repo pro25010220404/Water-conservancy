@@ -18,6 +18,7 @@ import {
   SetUp,
   Setting,
   User,
+  MagicStick,
 } from '@element-plus/icons-vue'
 import { MENU_ITEMS } from '@/constants'
 import { usePermission } from '@/composables/usePermission'
@@ -42,6 +43,7 @@ const iconMap: Record<string, any> = {
   SetUp,
   Setting,
   User,
+  MagicStick,
 }
 
 const visibleMenus = computed(() =>
@@ -72,7 +74,7 @@ v-if="item.children?.length" :index="item.path"
             <span>{{ item.title }}</span>
           </template>
           <ElMenuItem v-for="c in item.children"
-:key="c.path" :index="c.path">
+:key="`${item.path}-${c.path}-${c.title}`" :index="c.path">
             <span>{{ c.title }}</span>
           </ElMenuItem>
         </ElSubMenu>

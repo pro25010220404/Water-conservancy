@@ -84,13 +84,13 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/history/components/InterlockEventTab.vue'),
             meta: { title: '互锁事件回溯' },
           },
-          {
-            path: 'replay',
-            name: 'HistoryReplay',
-            component: () => import('@/views/history/components/ReplayTab.vue'),
-            meta: { title: '时光机回放' },
-          },
         ],
+      },
+      {
+        path: 'hydrology/virtual-sim',
+        name: 'HydrologyVirtualSim',
+        component: () => import('@/views/hydrology/VirtualSimulationPage.vue'),
+        meta: { title: '水情虚拟仿真' },
       },
       {
         path: 'warning',
@@ -100,9 +100,35 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'dispatch',
-        name: 'Dispatch',
-        component: () => import('@/views/dispatch/DispatchPage.vue'),
+        component: () => import('@/views/dispatch/index.vue'),
         meta: { title: '调度决策' },
+        redirect: '/dispatch/gates',
+        children: [
+          {
+            path: 'analysis',
+            name: 'DispatchAnalysis',
+            component: () => import('@/views/dispatch/DispatchAnalysisPage.vue'),
+            meta: { title: '决策分析' },
+          },
+          {
+            path: 'control',
+            name: 'DispatchControl',
+            component: () => import('@/views/dispatch/DispatchControlPage.vue'),
+            meta: { title: '运行控制' },
+          },
+          {
+            path: 'gates',
+            name: 'DispatchGates',
+            component: () => import('@/views/dispatch/DispatchGatesPage.vue'),
+            meta: { title: '节点控制' },
+          },
+        ],
+      },
+      {
+        path: 'virtual-simulation',
+        name: 'VirtualSimulation',
+        component: () => import('@/views/simulation/SimulationPage.vue'),
+        meta: { title: '虚拟仿真', shortTitle: '虚拟仿真' },
       },
       {
         path: 'simulation',

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElIcon } from 'element-plus'
-import { DataAnalysis, VideoPlay, Close } from '@element-plus/icons-vue'
+import { DataAnalysis } from '@element-plus/icons-vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
@@ -14,7 +14,6 @@ import {
   MarkPointComponent,
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { isReplaying } from '@/composables/useReplayMode'
 use([
   LineChart,
   GridComponent,
@@ -127,94 +126,6 @@ function onChartZoom(params: any) {
   }
 }
 
-// ═══ 时光机回放 ═══
-const replayMode = ref(false)
-const replayTime = ref(0)
-const replayPlaying = ref(false)
-const replaySpeed = ref(1)
-let replayTimer: ReturnType<typeof setInterval> | null = null
-
-const replayTimeMin = computed(() => allData.value[0]?.time ?? 0)
-const replayTimeMax = computed(() => allData.value[allData.value.length - 1]?.time ?? 0)
-const replayTimeLabel = computed(() => new Date(replayTime.value).toLocaleString('zh-CN'))
-
-// 快照：最接近 replayTime 的数据点
-const replaySnapshot = computed(() => {
-  const ts = replayTime.value
-  let best = allData.value[0]
-  let bestDiff = Infinity
-  for (const d of allData.value) {
-    const diff = Math.abs(d.time - ts)
-    if (diff < bestDiff) {
-      bestDiff = diff
-      best = d
-    }
-  }
-  return best
-})
-
-function enterReplay() {
-  replayMode.value = true
-  isReplaying.value = true
-  replayTime.value = allData.value[Math.floor(allData.value.length / 2)]?.time ?? Date.now()
-  replayPlaying.value = false
-  replaySpeed.value = 1
-}
-
-function exitReplay() {
-  stopReplayTimer()
-  replayMode.value = false
-  isReplaying.value = false
-  replayPlaying.value = false
-}
-
-function toggleReplayPlay() {
-  if (replayPlaying.value) {
-    stopReplayTimer()
-  } else {
-    startReplayTimer()
-  }
-}
-
-function startReplayTimer() {
-  replayPlaying.value = true
-  replayTimer = setInterval(() => {
-    const step = replaySpeed.value * 15 * 60000 // 每 100ms 推进 speed×15min
-    replayTime.value += step
-    if (replayTime.value >= replayTimeMax.value) {
-      replayTime.value = replayTimeMax.value
-      stopReplayTimer()
-    }
-  }, 100)
-}
-
-function stopReplayTimer() {
-  replayPlaying.value = false
-  if (replayTimer) {
-    clearInterval(replayTimer)
-    replayTimer = null
-  }
-}
-
-function seekReplay(e: Event) {
-  const target = e.target as HTMLInputElement
-  replayTime.value = Number(target.value)
-}
-
-function jumpReplay(delta: number) {
-  const step = 5 * 15 * 60000 // 一次跳 5 个数据点
-  replayTime.value = Math.min(
-    replayTimeMax.value,
-    Math.max(replayTimeMin.value, replayTime.value + delta * step),
-  )
-}
-
-// 退出回放时清理
-onUnmounted(() => {
-  if (replayTimer) clearInterval(replayTimer)
-  if (replayMode.value) isReplaying.value = false
-})
-
 // ═══ 图表配置 ═══
 const chartOpt = computed(() => {
   const data =
@@ -252,20 +163,6 @@ const chartOpt = computed(() => {
     }
   }
 
-  // 回放模式下添加 markLine 竖线
-  if (replayMode.value && replaySnapshot.value) {
-    const cursorLabel = replaySnapshot.value.label
-    series.forEach((s: any) => {
-      s.markLine = {
-        silent: true,
-        symbol: 'none',
-        lineStyle: { color: '#f59e0b', width: 2, type: 'dashed' },
-        data: [{ xAxis: cursorLabel }],
-        label: { show: false },
-      }
-    })
-  }
-
   return {
     backgroundColor: 'transparent',
     legend: {
@@ -275,7 +172,6 @@ const chartOpt = computed(() => {
     },
     grid: { left: 56, right: 56, top: 36, bottom: 60 },
     tooltip: { trigger: 'axis', textStyle: { fontSize: 14 } },
-    animation: !replayMode.value,
     xAxis: {
       type: 'category',
       data: data.map((d) => d.label),
@@ -337,14 +233,14 @@ tableData.value = [...allData.value]
 </script>
 
 <template>
-  <div class="hp" :class="{ dark: darkMode, 'hp--replaying': replayMode }">
+  <div class="hp" :class="{ dark: darkMode }">
     <!-- 筛选区 -->
     <div class="filter">
       <div class="filter__row">
         <label>日期范围</label>
-        <input type="datetime-local" v-model="dateRange.start" class="inp" :disabled="replayMode" />
+        <input type="datetime-local" v-model="dateRange.start" class="inp" />
         <span>—</span>
-        <input type="datetime-local" v-model="dateRange.end" class="inp" :disabled="replayMode" />
+        <input type="datetime-local" v-model="dateRange.end" class="inp" />
       </div>
       <div class="filter__row">
         <label>数据项</label>
@@ -354,8 +250,7 @@ tableData.value = [...allData.value]
             :key="m.value"
             class="tag"
             :class="{ on: selectedMetrics.includes(m.value) }"
-            @click="!replayMode &&
-              (selectedMetrics.includes(m.value)
+            @click="selectedMetrics.includes(m.value)
                 ? (selectedMetrics = selectedMetrics.filter((x) => x !== m.value))
                 : selectedMetrics.push(m.value))"
             :style="{ '--c': m.color }"
@@ -371,69 +266,18 @@ tableData.value = [...allData.value]
             :key="g.value"
             class="tag"
             :class="{ on: granularity === g.value }"
-            @click="!replayMode && (granularity = g.value as any)"
+            @click="granularity = g.value as any"
             >{{ g.label }}</span
           >
         </div>
       </div>
       <div class="filter__btns">
-        <button v-if="!replayMode" class="btn btn--replay" @click="enterReplay">
-          <el-icon><VideoPlay /></el-icon>
-          时光机回放
-        </button>
-        <button v-if="replayMode" class="btn btn--replay-exit" @click="exitReplay">
-          <el-icon><Close /></el-icon>
-          退出回放
-        </button>
-        <button class="btn btn--q" @click="applyFilters" :disabled="!isOnline || replayMode">
+        <button class="btn btn--q" @click="applyFilters" :disabled="!isOnline">
           查询
         </button>
-        <button class="btn" @click="resetFilters" :disabled="replayMode">重置</button>
+        <button class="btn" @click="resetFilters">重置</button>
         <button class="btn" @click="darkMode = !darkMode">{{ darkMode ? '☀' : '☾' }}</button>
         <span v-if="!isOnline" class="offline">离线 · 查询导出已禁用</span>
-      </div>
-    </div>
-
-    <!-- 回放控制栏 -->
-    <div v-if="replayMode" class="replay-bar">
-      <div class="replay-bar__controls">
-        <button class="replay-btn" title="快退" @click="jumpReplay(-1)">⏮</button>
-        <button class="replay-btn replay-btn--play" @click="toggleReplayPlay">
-          {{ replayPlaying ? '⏸' : '▶' }}
-        </button>
-        <button class="replay-btn" title="快进" @click="jumpReplay(1)">⏭</button>
-        <span class="replay-bar__time">{{ replayTimeLabel }}</span>
-      </div>
-      <div class="replay-bar__speed">
-        <button
-          v-for="s in [1, 2, 5, 10]"
-          :key="s"
-          class="replay-speed-btn"
-          :class="{ active: replaySpeed === s }"
-          @click="replaySpeed = s"
-        >
-          {{ s }}x
-        </button>
-      </div>
-      <div class="replay-bar__slider">
-        <input
-          type="range"
-          class="replay-slider"
-          :min="replayTimeMin"
-          :max="replayTimeMax"
-          :value="replayTime"
-          @input="seekReplay"
-        />
-      </div>
-    </div>
-
-    <!-- 回放快照面板 -->
-    <div v-if="replayMode && replaySnapshot" class="replay-snapshot">
-      <div class="replay-snapshot__item" v-for="m in metricOptions" :key="m.value">
-        <span class="replay-snapshot__label">{{ m.label }}</span>
-        <span class="replay-snapshot__value" :style="{ color: m.color }">
-          {{ replaySnapshot[m.value] }} {{ m.unit }}
-        </span>
       </div>
     </div>
 
@@ -441,7 +285,6 @@ tableData.value = [...allData.value]
     <div class="chart-wrap">
       <v-chart
         class="chart"
-        :class="{ 'chart--replay': replayMode }"
         :option="chartOpt"
         autoresize
         @datazoom="onChartZoom"
@@ -456,7 +299,7 @@ tableData.value = [...allData.value]
           <button
             class="btn btn--sm"
             @click="doExport('csv')"
-            :disabled="!isOnline || exporting || replayMode"
+            :disabled="!isOnline || exporting"
           >
             {{ exporting ? '导出中...' : 'CSV 导出' }}
           </button>
@@ -478,10 +321,7 @@ tableData.value = [...allData.value]
             <tr
               v-for="d in pagedData"
               :key="d.time"
-              :class="{
-                'tbl__row--replay-cursor':
-                  replayMode && replaySnapshot && d.time === replaySnapshot.time,
-              }"
+>
             >
               <td>{{ d.label }}</td>
               <td v-for="m in selectedMetrics" :key="m">{{ d[m] }} {{ metricUnit(m) }}</td>
@@ -560,244 +400,6 @@ tableData.value = [...allData.value]
     background: #0f172a;
     color: #e2e8f0;
   }
-
-  // ── 琥珀色回放边框 ──
-  &--replaying {
-    border: 3px solid #f59e0b;
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
-    animation: replay-glow 2s ease-in-out infinite;
-    border-radius: 0;
-  }
-}
-
-@keyframes replay-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 16px rgba(245, 158, 11, 0.25);
-  }
-  50% {
-    box-shadow: 0 0 32px rgba(245, 158, 11, 0.55);
-  }
-}
-
-// ── 回放控制栏 ──
-.replay-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 24px;
-  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-  border-bottom: 2px solid #f59e0b;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-}
-
-.dark .replay-bar {
-  background: linear-gradient(135deg, #1c1917 0%, #292010 100%);
-  border-color: #b45309;
-}
-
-.replay-bar__controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.replay-btn {
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  color: #92400e;
-  background: #fff;
-  border: 1px solid #f59e0b;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s;
-
-  &:hover {
-    background: #fffbeb;
-    color: #78350f;
-  }
-
-  &--play {
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
-    background: #f59e0b;
-    color: #fff;
-    border-color: transparent;
-    border-radius: 50%;
-
-    &:hover {
-      background: #d97706;
-      color: #fff;
-    }
-  }
-}
-
-.dark .replay-btn {
-  color: #fbbf24;
-  background: #292524;
-  border-color: #b45309;
-
-  &:hover {
-    background: #3a2f1f;
-  }
-
-  &--play {
-    background: #d97706;
-    color: #fff;
-    border-color: transparent;
-
-    &:hover {
-      background: #b45309;
-    }
-  }
-}
-
-.replay-bar__time {
-  margin-left: 8px;
-  font-size: 15px;
-  font-weight: 700;
-  font-family: 'SF Mono', monospace;
-  color: #92400e;
-  min-width: 180px;
-}
-
-.dark .replay-bar__time {
-  color: #f59e0b;
-}
-
-.replay-bar__speed {
-  display: flex;
-  gap: 3px;
-  flex-shrink: 0;
-}
-
-.replay-speed-btn {
-  padding: 5px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #92400e;
-  background: #fff;
-  border: 1px solid #fcd34d;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: all 0.15s;
-
-  &:hover {
-    background: #fffbeb;
-  }
-
-  &.active {
-    color: #fff;
-    background: #f59e0b;
-    border-color: #f59e0b;
-  }
-}
-
-.dark .replay-speed-btn {
-  color: #fbbf24;
-  background: #292524;
-  border-color: #78350f;
-
-  &.active {
-    color: #fff;
-    background: #d97706;
-    border-color: #d97706;
-  }
-}
-
-.replay-bar__slider {
-  flex: 1;
-  min-width: 160px;
-
-  .replay-slider {
-    width: 100%;
-    height: 6px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: linear-gradient(90deg, #fcd34d 0%, #f59e0b 100%);
-    border-radius: 3px;
-    outline: none;
-    cursor: pointer;
-
-    &::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: #f59e0b;
-      border: 3px solid #fff;
-      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.5);
-      cursor: pointer;
-      transition: transform 0.15s;
-
-      &:hover {
-        transform: scale(1.2);
-      }
-    }
-  }
-}
-
-// ── 回放快照面板 ──
-.replay-snapshot {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 8px;
-  padding: 10px 24px;
-  background: rgba(245, 158, 11, 0.06);
-  border-bottom: 1px solid rgba(245, 158, 11, 0.15);
-  flex-shrink: 0;
-}
-
-.dark .replay-snapshot {
-  background: rgba(245, 158, 11, 0.08);
-  border-color: rgba(245, 158, 11, 0.2);
-}
-
-.replay-snapshot__item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  text-align: center;
-}
-
-.replay-snapshot__label {
-  font-size: 12px;
-  color: #92400e;
-  font-weight: 500;
-}
-
-.dark .replay-snapshot__label {
-  color: #a16207;
-}
-
-.replay-snapshot__value {
-  font-size: 16px;
-  font-weight: 700;
-  font-family: 'SF Mono', monospace;
-}
-
-// ── 图表回放光标 ──
-.chart--replay {
-  border-left: 2px dashed #f59e0b;
-}
-
-// ── 表格回放行高亮 ──
-.tbl__row--replay-cursor {
-  background: rgba(245, 158, 11, 0.12) !important;
-
-  td {
-    font-weight: 600;
-  }
-}
-
 // ═══ 原有样式 ═══
 .filter {
   display: flex;
@@ -931,35 +533,6 @@ tableData.value = [...allData.value]
     background: #2563eb;
   }
 }
-
-.btn--replay {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: #fff;
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  border-color: transparent;
-  font-weight: 600;
-
-  &:hover:not(:disabled) {
-    background: linear-gradient(135deg, #fbbf24, #f59e0b);
-  }
-}
-
-.btn--replay-exit {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: #92400e;
-  background: #fef3c7;
-  border-color: #f59e0b;
-  font-weight: 600;
-
-  &:hover:not(:disabled) {
-    background: #fde68a;
-  }
-}
-
 .btn--sm {
   padding: 7px 14px;
   font-size: 14px;

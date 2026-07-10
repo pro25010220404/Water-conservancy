@@ -180,7 +180,7 @@ export function useVoiceAssistant() {
       speak('已打开数字孪生')
       return
     }
-    if (t.includes('历史') || t.includes('查询') || t.includes('回放')) {
+    if (t.includes('历史') || t.includes('查询')) {
       router.push('/history')
       speak('已打开历史查询')
       return

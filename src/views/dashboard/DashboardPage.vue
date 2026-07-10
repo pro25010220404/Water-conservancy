@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AiModelHealthRing from './components/AiModelHealthRing.vue'
 import PhysicsGuardSummaryCard from './components/PhysicsGuardSummaryCard.vue'
@@ -7,11 +7,16 @@ import InterlockSummaryCard from './components/InterlockSummaryCard.vue'
 import { fetchPhysicsGuardSummary } from '@/api/dispatchPage'
 import { fetchRealtimeKpi, fetchDashboardAlarms } from '@/api/monitoring'
 import { fetchInterlockDashboardSummary } from '@/api/gateaiSettings'
+import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
+import { storeToRefs } from 'pinia'
 import type { RealtimeKpi, DashboardAlarm } from '@/types/monitoring'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
 
 const router = useRouter()
 const physicsGuard = ref<PhysicsGuardSummary | null>(null)
+
+const simStore = useVirtualSimulationStore()
+const { active: simActive, derived: simDerived } = storeToRefs(simStore)
 
 const data = ref<RealtimeKpi>({
   upstreamLevel: 378.52,
@@ -23,6 +28,21 @@ const data = ref<RealtimeKpi>({
   capacity: 48.36,
   timestamp: '',
 })
+
+/** 虚拟仿真激活时，叠加仿真数据到 KPI */
+const kpi = computed<RealtimeKpi>(() => {
+  if (!simActive.value) return data.value
+  const d = simDerived.value
+  return {
+    ...data.value,
+    upstreamLevel: d.upstreamLevel,
+    downstreamLevel: d.downstreamLevel,
+    inflowRate: d.inflowRate,
+    outflowRate: d.outflowRate,
+    gateOpening: d.aggregateOpening,
+  }
+})
+
 async function refreshKpi() {
   data.value = await fetchRealtimeKpi(1)
 }
@@ -47,76 +67,79 @@ function toggle(id: string) {
   expanded.value = expanded.value === id ? null : id
 }
 
-const sections = [
-  {
-    id: 'hydrology',
-    title: '水情监测',
-    path: '/dashboard/hydrology',
-    preview: [
-      { l: '上游水位', v: '378.52 m' },
-      { l: '入库流量', v: '6,350 m³/s' },
-    ],
-    detail: [
-      { l: '上游水位', v: '378.52', u: 'm' },
-      { l: '下游水位', v: '269.18', u: 'm' },
-      { l: '入库流量', v: '6,350', u: 'm³/s' },
-      { l: '出库流量', v: '5,820', u: 'm³/s' },
-      { l: '库容', v: '48.36', u: '亿m³' },
-      { l: '水头', v: '109.34', u: 'm' },
-    ],
-  },
-  {
-    id: 'gate',
-    title: '闸门检测',
-    path: '/dashboard/gate',
-    preview: [
-      { l: '平均开度', v: '34.0 %' },
-      { l: '运行中', v: '8 扇' },
-    ],
-    detail: [
-      { l: '表孔 1-8#', v: '34.0', u: '%' },
-      { l: '中孔 1-2#', v: '22.0', u: '%' },
-      { l: '底孔 1-2#', v: '0.0', u: '%' },
-      { l: '最近动作', v: '14:08', u: '' },
-      { l: '动作耗时', v: '12', u: 's' },
-      { l: '操作模式', v: 'AI-DQN', u: '' },
-    ],
-  },
-  {
-    id: 'power',
-    title: '发电检测',
-    path: '/dashboard/power',
-    preview: [
-      { l: '总出力', v: '4,119 MW' },
-      { l: '今日发电', v: '1,248 万kWh' },
-    ],
-    detail: [
-      { l: '1#机组', v: '685', u: 'MW' },
-      { l: '2#机组', v: '692', u: 'MW' },
-      { l: '4#机组', v: '678', u: 'MW' },
-      { l: '5#机组', v: '688', u: 'MW' },
-      { l: '7#机组', v: '695', u: 'MW' },
-      { l: '8#机组', v: '681', u: 'MW' },
-    ],
-  },
-  {
-    id: 'security',
-    title: '安防检测',
-    path: '/dashboard/security',
-    preview: [
-      { l: '摄像头', v: '5/6 在线' },
-      { l: '今日告警', v: '2 条' },
-    ],
-    detail: [
-      { l: '摄像头在线', v: '5/6', u: '路' },
-      { l: '门禁已锁', v: '3/4', u: '扇' },
-      { l: '今日告警', v: '2', u: '条' },
-      { l: '巡检完成', v: '2/3', u: '条' },
-      { l: '周界安全', v: '5/6', u: '区' },
-      { l: '最近事件', v: '12:05', u: '' },
-    ],
-  },
-]
+const sections = computed(() => {
+  const d = kpi.value
+  return [
+    {
+      id: 'hydrology',
+      title: '水情监测',
+      path: '/dashboard/hydrology',
+      preview: [
+        { l: '上游水位', v: `${d.upstreamLevel.toFixed(2)} m` },
+        { l: '入库流量', v: `${fmt(d.inflowRate, 0)} m³/s` },
+      ],
+      detail: [
+        { l: '上游水位', v: d.upstreamLevel.toFixed(2), u: 'm' },
+        { l: '下游水位', v: d.downstreamLevel.toFixed(2), u: 'm' },
+        { l: '入库流量', v: fmt(d.inflowRate, 0), u: 'm³/s' },
+        { l: '出库流量', v: fmt(d.outflowRate, 0), u: 'm³/s' },
+        { l: '库容', v: d.capacity.toFixed(2), u: '亿m³' },
+        { l: '水头', v: (d.upstreamLevel - d.downstreamLevel).toFixed(2), u: 'm' },
+      ],
+    },
+    {
+      id: 'gate',
+      title: '闸门检测',
+      path: '/dashboard/gate',
+      preview: [
+        { l: '平均开度', v: `${d.gateOpening.toFixed(1)} %` },
+        { l: '运行中', v: '8 扇' },
+      ],
+      detail: [
+        { l: '表孔 1-8#', v: d.gateOpening.toFixed(1), u: '%' },
+        { l: '中孔 1-2#', v: '22.0', u: '%' },
+        { l: '底孔 1-2#', v: '0.0', u: '%' },
+        { l: '最近动作', v: '14:08', u: '' },
+        { l: '动作耗时', v: '12', u: 's' },
+        { l: '操作模式', v: 'AI-DQN', u: '' },
+      ],
+    },
+    {
+      id: 'power',
+      title: '发电检测',
+      path: '/dashboard/power',
+      preview: [
+        { l: '总出力', v: `${fmt(d.powerOutput, 0)} MW` },
+        { l: '今日发电', v: '1,248 万kWh' },
+      ],
+      detail: [
+        { l: '1#机组', v: '685', u: 'MW' },
+        { l: '2#机组', v: '692', u: 'MW' },
+        { l: '4#机组', v: '678', u: 'MW' },
+        { l: '5#机组', v: '688', u: 'MW' },
+        { l: '7#机组', v: '695', u: 'MW' },
+        { l: '8#机组', v: '681', u: 'MW' },
+      ],
+    },
+    {
+      id: 'security',
+      title: '安防检测',
+      path: '/dashboard/security',
+      preview: [
+        { l: '摄像头', v: '5/6 在线' },
+        { l: '今日告警', v: '2 条' },
+      ],
+      detail: [
+        { l: '摄像头在线', v: '5/6', u: '路' },
+        { l: '门禁已锁', v: '3/4', u: '扇' },
+        { l: '今日告警', v: '2', u: '条' },
+        { l: '巡检完成', v: '2/3', u: '条' },
+        { l: '周界安全', v: '5/6', u: '区' },
+        { l: '最近事件', v: '12:05', u: '' },
+      ],
+    },
+  ]
+})
 
 // D-101: 闸门互锁约束状态（从 API 轮询）
 const gateInterlocked = ref(false)
@@ -160,21 +183,25 @@ async function refreshAlarms() {
       <span class="hd__status"><i /> 系统运行中</span>
     </div>
 
+    <div v-if="simActive" class="dp-sim-banner">
+      <span>🔬 虚拟仿真联动中 — 水位 {{ simDerived.upstreamLevel.toFixed(1) }} m · 开度 {{ simDerived.aggregateOpening.toFixed(1) }}% · 入库 {{ simDerived.inflowRate }} m³/s</span>
+    </div>
+
     <div class="hero">
-      <div class="kpi">
-        <span>上游水位</span><b>{{ fmt(data.upstreamLevel) }}<small>m</small></b>
+      <div class="kpi" :class="{ 'kpi--sim': simActive }">
+        <span>上游水位</span><b>{{ fmt(kpi.upstreamLevel) }}<small>m</small></b>
       </div>
-      <div class="kpi">
-        <span>入库流量</span><b>{{ fmt(data.inflowRate, 0) }}<small>m³/s</small></b>
+      <div class="kpi" :class="{ 'kpi--sim': simActive }">
+        <span>入库流量</span><b>{{ fmt(kpi.inflowRate, 0) }}<small>m³/s</small></b>
       </div>
       <div class="kpi">
         <span>发电功率</span
-        ><b style="color: #3b82f6">{{ fmt(data.powerOutput, 0) }}<small>MW</small></b>
+        ><b style="color: #3b82f6">{{ fmt(kpi.powerOutput, 0) }}<small>MW</small></b>
       </div>
-      <div class="kpi">
+      <div class="kpi" :class="{ 'kpi--sim': simActive }">
         <span>闸门开度</span
         ><b
-          >{{ fmt(data.gateOpening, 1) }}<small>%</small
+          >{{ fmt(kpi.gateOpening, 1) }}<small>%</small
           ><span
             v-if="gateInterlocked"
             class="kpi__interlock"
@@ -184,7 +211,7 @@ async function refreshAlarms() {
         >
       </div>
       <div class="kpi">
-        <span>库容</span><b>{{ fmt(data.capacity) }}<small>亿m³</small></b>
+        <span>库容</span><b>{{ fmt(kpi.capacity) }}<small>亿m³</small></b>
       </div>
     </div>
 
@@ -325,6 +352,41 @@ async function refreshAlarms() {
     font-weight: 400;
     color: #64748b;
   }
+}
+
+.kpi--sim {
+  position: relative;
+  &::after {
+    content: '仿真';
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 600;
+    color: #fff;
+    background: #22c55e;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+  }
+}
+
+.kpi--sim b {
+  color: #16a34a !important;
+}
+
+.dp-sim-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  margin: 0 40px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #15803d;
 }
 
 .kpi__interlock {
