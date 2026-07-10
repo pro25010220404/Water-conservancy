@@ -66,8 +66,13 @@ export function mapProgressToRealtime(
   payload: SimulationProgressPayload,
   durationSec: number,
 ): SimulationRealtimeData {
+  const finite = (v: unknown, fallback: number) => {
+    const n = typeof v === 'number' ? v : Number(v)
+    return Number.isFinite(n) ? n : fallback
+  }
+
   const metrics = payload.metrics ?? {}
-  const progress = payload.progress ?? 0
+  const progress = finite(payload.progress, 0)
   const elapsedSec = Math.max(0, Math.round((progress / 100) * durationSec))
   const backendStatus = (payload.status ?? '').toLowerCase()
 
@@ -82,10 +87,10 @@ export function mapProgressToRealtime(
     status = 'running'
   }
 
-  const level = metrics.upstream_level ?? current.currentLevel
-  const flow = metrics.inflow_rate ?? current.currentFlow
-  const opening = metrics.gate_opening ?? current.currentOpening
-  const downstream = metrics.downstream_level ?? current.currentDownstreamLevel
+  const level = finite(metrics.upstream_level, current.currentLevel)
+  const flow = finite(metrics.inflow_rate, current.currentFlow)
+  const opening = finite(metrics.gate_opening, current.currentOpening)
+  const downstream = finite(metrics.downstream_level, current.currentDownstreamLevel)
 
   const historyLevels = [...current.historyLevels, { time: elapsedSec, value: level }]
   const historyFlows = [...current.historyFlows, { time: elapsedSec, value: flow }]

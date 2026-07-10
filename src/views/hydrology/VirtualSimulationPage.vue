@@ -2,6 +2,7 @@
 import { computed, onMounted, watch } from 'vue'
 import { ElButton, ElSlider, ElInputNumber, ElTag, ElMessage } from 'element-plus'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
+import WaterColumn2D from '@/components/cockpit/WaterColumn2D.vue'
 import DamSectionDiagram from '@/views/dispatch/components/DamSectionDiagram.vue'
 import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
 import { useDispatchStore } from '@/stores/dispatch'
@@ -112,6 +113,33 @@ onMounted(async () => {
 
       <!-- 右：预览 -->
       <GlassPanel3D title="实时仿真预览" fill class="vsim-panel vsim-panel--preview">
+        <div class="vsim-columns">
+          <WaterColumn2D
+            label="上游水位"
+            :value="derived.upstreamLevel"
+            unit="m"
+            :min="110"
+            :max="200"
+            size="lg"
+          />
+          <WaterColumn2D
+            label="下游水位"
+            :value="derived.downstreamLevel"
+            unit="m"
+            :min="100"
+            :max="160"
+            size="lg"
+          />
+          <WaterColumn2D
+            label="入库流量"
+            :value="derived.inflowRate"
+            unit="m³/s"
+            :min="0"
+            :max="4000"
+            size="lg"
+          />
+        </div>
+
         <div class="vsim-metrics">
           <div class="vsim-metric">
             <span>聚合总开度</span>
@@ -196,6 +224,22 @@ onMounted(async () => {
   gap: 16px;
   padding: 16px 20px 20px;
   min-height: 0;
+}
+
+.vsim-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  padding: 8px 12px 4px;
+  background: linear-gradient(180deg, #f8fbff 0%, #fff 100%);
+  border: 1px solid #eef2f6;
+  border-radius: 14px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+    max-width: 280px;
+    margin: 0 auto;
+  }
 }
 
 .vsim-hint {

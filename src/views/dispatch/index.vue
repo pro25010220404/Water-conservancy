@@ -9,16 +9,16 @@ const router = useRouter()
 const store = useDispatchStore()
 
 const tabs = [
+  { path: '/dispatch/control', label: '运行控制' },
   { path: '/dispatch/gates', label: '节点控制' },
   { path: '/dispatch/analysis', label: '决策分析' },
-  { path: '/dispatch/control', label: '运行控制' },
 ]
 
 const activeTab = computed(() => route.path)
 
 function goTab(path: string) {
   if (path === route.path) return
-  if (store.pendingChanges > 0 && !route.path.endsWith('/gates') && path !== '/dispatch/gates') {
+  if (store.pendingChanges > 0 && route.path.endsWith('/gates') && path !== '/dispatch/gates') {
     ElMessageBox.confirm(
       `节点控制有 ${store.pendingChanges} 处开度未提交，确认离开？`,
       '未提交的变更',
