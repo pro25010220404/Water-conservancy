@@ -84,12 +84,6 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/history/components/InterlockEventTab.vue'),
             meta: { title: '互锁事件回溯' },
           },
-          {
-            path: 'replay',
-            name: 'HistoryReplay',
-            component: () => import('@/views/history/components/ReplayTab.vue'),
-            meta: { title: '时光机回放' },
-          },
         ],
       },
       {

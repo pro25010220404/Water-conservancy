@@ -20,7 +20,6 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   '/history/compare': ['dispatcher', 'manager', 'admin'],
   '/history/model-score': ['dispatcher', 'manager', 'admin', 'algorithm_engineer'],
   '/history/interlock': ['dispatcher', 'manager', 'admin'],
-  '/history/replay': ['dispatcher', 'manager', 'admin', 'algorithm_engineer'],
 
   // ═══ 告警 / 调度 / 仿真 ═══
   '/warning': ['operator', 'dispatcher', 'manager', 'admin'],
@@ -104,7 +103,6 @@ export const MENU_ITEMS: MenuItem[] = [
       { path: '/history/compare', title: '双时段对比', icon: 'Clock' },
       { path: '/settings/ai/compare', title: '模型评分', icon: 'Clock' },
       { path: '/history/interlock', title: '互锁事件回溯', icon: 'Clock' },
-      { path: '/history/replay', title: '时光机回放', icon: 'Clock' },
       { path: '/settings/physics-guard-history', title: '配置变更历史', icon: 'Setting' },
       { path: '/settings/gate-interlock/logs', title: '互锁触发日志', icon: 'Setting' },
     ],
