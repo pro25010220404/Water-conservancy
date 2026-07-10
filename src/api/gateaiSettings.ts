@@ -68,6 +68,7 @@ const METRICS: Record<number, ModelMetricLatest> = {
     compliance_score: 0.81,
 
     metric_time: new Date().toISOString(),
+    dimension_weights: { prediction: 0.4, decision: 0.35, compliance: 0.25, safety_coverage: 0.15, decision_auto_rate: 0.15 },
   },
 
   2: {
@@ -83,6 +84,7 @@ const METRICS: Record<number, ModelMetricLatest> = {
     compliance_score: 0.75,
 
     metric_time: new Date().toISOString(),
+    dimension_weights: { prediction: 0.4, decision: 0.35, compliance: 0.25, safety_coverage: 0.15, decision_auto_rate: 0.15 },
   },
 
   3: {
@@ -98,6 +100,7 @@ const METRICS: Record<number, ModelMetricLatest> = {
     compliance_score: 0.84,
 
     metric_time: new Date().toISOString(),
+    dimension_weights: { prediction: 0.4, decision: 0.35, compliance: 0.25, safety_coverage: 0.15, decision_auto_rate: 0.15 },
   },
 
   4: {
@@ -113,6 +116,7 @@ const METRICS: Record<number, ModelMetricLatest> = {
     compliance_score: 0.68,
 
     metric_time: new Date().toISOString(),
+    dimension_weights: { prediction: 0.4, decision: 0.35, compliance: 0.25, safety_coverage: 0.15, decision_auto_rate: 0.15 },
   },
 }
 
@@ -144,18 +148,18 @@ function versionScores(reservoirId: number, version: string): Record<string, num
   }
 }
 
-function historyFor(reservoirId: number): ModelMetricHistoryPoint[] {
+function historyFor(reservoirId: number, hours = 24): ModelMetricHistoryPoint[] {
   const base = METRICS[reservoirId]?.overall_score ?? 0.75
+  const count = Math.min(hours, 48)
 
-  return Array.from({ length: 7 }, (_, i) => {
+  return Array.from({ length: count }, (_, i) => {
     const d = new Date()
+    d.setHours(d.getHours() - (count - 1 - i))
 
-    d.setDate(d.getDate() - (6 - i))
-
-    const jitter = (i - 3) * 0.01
+    const jitter = (i - Math.floor(count / 2)) * 0.005
 
     const point: ModelMetricHistoryPoint = {
-      time: d.toISOString().slice(0, 10),
+      time: d.toISOString().slice(0, 16),
 
       prediction_score: +(base + 0.03 + jitter).toFixed(2),
 
@@ -166,9 +170,9 @@ function historyFor(reservoirId: number): ModelMetricHistoryPoint[] {
       overall_score: +(base + jitter * 0.8).toFixed(2),
     }
 
-    if (i === 4) point.grade_event = { from: 'B', to: 'A', label: '综合评分回升至 A 级' }
-
-    if (i === 2) point.grade_event = { from: 'A', to: 'B', label: '安全覆盖率下降，降至 B 级' }
+    const mid = Math.floor(count / 2)
+    if (i === mid) point.grade_event = { from: 'B', to: 'A', label: '综合评分回升至 A 级' }
+    if (i === mid - 4) point.grade_event = { from: 'A', to: 'B', label: '安全覆盖率下降，降至 B 级' }
 
     return point
   })
@@ -211,6 +215,7 @@ type AIMetricsLatestRaw = {
   compliance_score?: number
   metric_time?: string
   decision_level_dist?: Partial<Record<'L1' | 'L2' | 'L3' | 'OVERRIDE', number>>
+  dimension_weights?: Record<string, number>
 }
 
 function normalizeModelMetricsLatest(raw: AIMetricsLatestRaw): ModelMetricLatest {
@@ -225,6 +230,13 @@ function normalizeModelMetricsLatest(raw: AIMetricsLatestRaw): ModelMetricLatest
     decision_score: raw.decision_score ?? 0,
     compliance_score: raw.compliance_score ?? 0,
     metric_time: raw.metric_time ?? '',
+    dimension_weights: raw.dimension_weights ?? {
+      prediction: 0.4,
+      decision: 0.35,
+      compliance: 0.25,
+      safety_coverage: 0.15,
+      decision_auto_rate: 0.15,
+    },
   }
 }
 
@@ -288,7 +300,7 @@ function getHttpStatus(e: unknown): number | undefined {
 async function fetchDetailFromHistory(reservoirId: number, limit: number): Promise<ModelMetricDetailRow[]> {
   if (isAiApiDisabled('history')) return []
   try {
-    const res = await getAIMetricsHistory({ reservoir_id: reservoirId, days: 7 })
+    const res = await getAIMetricsHistory({ reservoir_id: reservoirId, hours: 168 })
     if (res.data?.code === 0) {
       const list = extractHistoryList(res.data.data)
       return list
@@ -359,13 +371,13 @@ function normalizeHistoryPoint(raw: AIMetricsHistoryItem | ModelMetricHistoryPoi
 
 export async function fetchModelMetricsHistory(
   reservoirId: number,
-  days = 7,
+  hours = 24,
 ): Promise<ModelMetricHistoryPoint[]> {
   if (isAiApiDisabled('history')) {
-    return delay(historyFor(reservoirId))
+    return delay(historyFor(reservoirId, hours))
   }
   try {
-    const res = await getAIMetricsHistory({ reservoir_id: reservoirId, days })
+    const res = await getAIMetricsHistory({ reservoir_id: reservoirId, hours })
     if (res.data?.code === 0) {
       const list = extractHistoryList(res.data.data)
       aiApiAvailability.history = true
@@ -375,7 +387,7 @@ export async function fetchModelMetricsHistory(
     markAiApiUnavailable('history', e)
     if (!GATEAI_MOCK_FALLBACK) throw e
   }
-  return delay(historyFor(reservoirId))
+  return delay(historyFor(reservoirId, hours))
 }
 
 export async function fetchModelMetricsDetail(

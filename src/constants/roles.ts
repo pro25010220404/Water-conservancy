@@ -90,7 +90,8 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: 'DataAnalysis',
     children: [
       { path: '/settings/models', title: '模型版本管理', icon: 'Setting' },
-      { path: '/history/model-score', title: '模型健康度', icon: 'Setting' },
+      { path: '/settings/ai/metrics', title: '模型健康度', icon: 'Setting' },
+      { path: '/settings/ai/compare', title: '模型版本对比', icon: 'Setting' },
       { path: '/history/model-score', title: '模型评分历史', icon: 'Clock' },
     ],
   },
@@ -101,7 +102,6 @@ export const MENU_ITEMS: MenuItem[] = [
     children: [
       { path: '/history/query', title: '数据查询', icon: 'Clock' },
       { path: '/history/compare', title: '双时段对比', icon: 'Clock' },
-      { path: '/settings/ai/compare', title: '模型评分', icon: 'Clock' },
       { path: '/history/interlock', title: '互锁事件回溯', icon: 'Clock' },
       { path: '/settings/physics-guard-history', title: '配置变更历史', icon: 'Setting' },
       { path: '/settings/gate-interlock/logs', title: '互锁触发日志', icon: 'Setting' },

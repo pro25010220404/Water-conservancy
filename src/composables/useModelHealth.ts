@@ -92,6 +92,7 @@ export function useModelHealth() {
       decision_score: d.decision_score,
       compliance_score: d.compliance_score,
       metric_time: d.evaluated_at,
+      dimension_weights: { prediction: 0.4, decision: 0.35, compliance: 0.25, safety_coverage: 0.15, decision_auto_rate: 0.15 },
     }
     modelVersion.value = d.model_version
     reservoirName.value = d.reservoir_name

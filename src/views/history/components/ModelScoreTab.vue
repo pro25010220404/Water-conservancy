@@ -32,7 +32,7 @@ import {
 import type { ModelMetricHistoryPoint, ModelMetricLatest } from '@/types/gateai'
 
 const reservoirId = ref(1)
-const days = ref(7)
+const hours = ref(24)
 const loading = ref(false)
 const historyError = ref<'none' | 'empty' | 'failed'>('none')
 const latest = ref<ModelMetricLatest | null>(null)
@@ -101,7 +101,7 @@ async function loadScores() {
   const rid = Number(reservoirId.value)
   try {
     const [historyResult, latestResult] = await Promise.allSettled([
-      fetchModelMetricsHistory(rid, days.value),
+      fetchModelMetricsHistory(rid, hours.value),
       fetchModelMetricsLatest(rid),
     ])
 
@@ -223,10 +223,10 @@ function onQuery() {
           {{ r.label }}
         </option>
       </select>
-      <select v-model="days" @change="onQuery" class="ms__sel">
-        <option :value="7">近 7 天</option>
-        <option :value="30">近 30 天</option>
-        <option :value="90">近 90 天</option>
+      <select v-model="hours" @change="onQuery" class="ms__sel">
+        <option :value="7">近 7 小时</option>
+        <option :value="24">近 24 小时</option>
+        <option :value="48">近 48 小时</option>
       </select>
       <div class="ms__grades">
         <span class="ms__g" :class="{ on: !gradeFilter }" @click="gradeFilter = ''">全部</span>
@@ -245,7 +245,7 @@ function onQuery() {
     </div>
 
     <div v-if="!loading && historyError === 'empty'" class="ms__hint">
-      {{ latest ? '该水库暂无历史趋势数据，仅显示最新指标（可切换「示范水库 #1」或缩短查询天数）' : '该水库暂无评分数据' }}
+      {{ latest ? '该水库暂无历史趋势数据，仅显示最新指标（可切换「示范水库 #1」或缩短查询时间）' : '该水库暂无评分数据' }}
     </div>
     <div v-else-if="!loading && historyError === 'failed'" class="ms__hint ms__hint--error">
       历史趋势接口请求失败，请确认 natapp 隧道可用后点击刷新
@@ -254,7 +254,7 @@ function onQuery() {
     <div class="ms__chart">
       <VChart
         v-if="hasHistory"
-        :key="`${reservoirId}-${days}`"
+        :key="`${reservoirId}-${hours}`"
         :option="chartOpt"
         autoresize
         style="width: 100%; height: 100%"
