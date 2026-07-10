@@ -105,6 +105,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '调度决策' },
       },
       {
+        path: 'virtual-simulation',
+        name: 'VirtualSimulation',
+        component: () => import('@/views/simulation/SimulationPage.vue'),
+        meta: { title: '虚拟仿真', shortTitle: '虚拟仿真' },
+      },
+      {
         path: 'simulation',
         name: 'Simulation',
         component: () => import('@/views/simulation/SimulationPage.vue'),

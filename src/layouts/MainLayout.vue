@@ -13,7 +13,9 @@ const route = useRoute()
 const collapsed = ref(false)
 
 /** 数字孪生等全幅驾驶舱页：内容区与顶栏无缝衔接，去掉双层边距 */
-const isFlushPage = computed(() => route.path.startsWith('/simulation'))
+const isFlushPage = computed(
+  () => route.path.startsWith('/simulation') || route.path.startsWith('/virtual-simulation'),
+)
 /** 告警 / 调度：纯白内容区底 */
 const isWhitePage = computed(() =>
   route.path.startsWith('/warning') || route.path.startsWith('/dispatch'),

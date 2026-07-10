@@ -72,7 +72,7 @@ v-if="item.children?.length" :index="item.path"
             <span>{{ item.title }}</span>
           </template>
           <ElMenuItem v-for="c in item.children"
-:key="c.path" :index="c.path">
+:key="`${item.path}-${c.path}-${c.title}`" :index="c.path">
             <span>{{ c.title }}</span>
           </ElMenuItem>
         </ElSubMenu>
