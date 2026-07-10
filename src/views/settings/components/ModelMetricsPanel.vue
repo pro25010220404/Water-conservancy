@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElSelect, ElOption, ElTable, ElTableColumn, ElTag, ElDialog, ElDescriptions, ElDescriptionsItem, ElMessage, ElButton } from 'element-plus'
+import { ElSelect, ElOption, ElTable, ElTableColumn, ElTag, ElDialog, ElDescriptions, ElDescriptionsItem, ElMessage, ElButton, ElPagination } from 'element-plus'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart, RadarChart } from 'echarts/charts'
@@ -124,6 +124,12 @@ const versionOptions = ref<{ version: string; source: string }[]>([])
 const currentVersion = ref('')
 const previousVersion = ref('')
 const detailDays = ref(30)
+const detailPage = ref(1)
+const detailPageSize = 10
+const pagedDetail = computed(() => {
+  const start = (detailPage.value - 1) * detailPageSize
+  return detail.value.slice(start, start + detailPageSize)
+})
 const loading = ref(false)
 const history = ref<Awaited<ReturnType<typeof fetchModelMetricsHistory>>>([])
 const historyEmpty = ref(false)
@@ -249,6 +255,7 @@ async function load() {
     history.value = generateMockHistory()
     historyEmpty.value = false
     detail.value = generateDailyDetail(detailDays.value)
+    detailPage.value = 1
 
     if (healthR?.status === 'fulfilled') {
       healthOverview.value = healthR.value as ModelHealthOverviewItem[]
@@ -313,11 +320,7 @@ onUnmounted(() => { if (dailyTimer) { clearTimeout(dailyTimer); clearInterval(da
       </div>
     </div>
 
-    <div class="gateai-panel__toolbar">
-      <span>水库</span>
-      <ElSelect v-model="reservoirId" style="width:200px">
-        <ElOption v-for="r in reservoirs" :key="r.id" :label="r.name" :value="r.id" />
-      </ElSelect>
+    <div v-if="fixedMode === 'compare' || fixedMode === 'both'" class="gateai-panel__toolbar">
       <template v-if="fixedMode === 'compare'">
         <span>当前版</span>
         <ElSelect v-model="currentVersion" style="width:200px">
@@ -332,17 +335,6 @@ onUnmounted(() => { if (dailyTimer) { clearTimeout(dailyTimer); clearInterval(da
         <button type="button" :class="{ active: viewMode === 'dashboard' }" @click="viewMode = 'dashboard'">健康仪表盘</button>
         <button type="button" :class="{ active: viewMode === 'compare' }" @click="viewMode = 'compare'">版本对比</button>
       </div>
-      <template v-if="fixedMode === 'dashboard' || (fixedMode === 'both' && viewMode === 'dashboard')">
-        <span>明细范围</span>
-        <ElSelect v-model="detailDays" style="width:140px">
-          <ElOption :value="2" label="近两天" />
-          <ElOption :value="15" label="近十五天" />
-          <ElOption :value="30" label="近三十天" />
-        </ElSelect>
-        <ElButton type="primary" link @click="router.push('/history/model-score')">
-          查看模型评分历史
-        </ElButton>
-      </template>
     </div>
 
     <template v-if="fixedMode === 'dashboard' || (fixedMode === 'both' && viewMode === 'dashboard')">
@@ -368,7 +360,20 @@ onUnmounted(() => { if (dailyTimer) { clearTimeout(dailyTimer); clearInterval(da
         <VChart v-else :option="chartOption" autoresize style="height:320px;width:100%" />
       </div>
 
-      <ElTable :data="detail" stripe border>
+      <!-- 数据表筛选 + 跳转 -->
+      <div class="detail-toolbar">
+        <span>明细范围</span>
+        <ElSelect v-model="detailDays" style="width:140px" @change="detailPage = 1">
+          <ElOption :value="2" label="近两天" />
+          <ElOption :value="15" label="近十五天" />
+          <ElOption :value="30" label="近三十天" />
+        </ElSelect>
+        <ElButton type="primary" link @click="router.push('/history/model-score')">
+          查看模型评分历史
+        </ElButton>
+      </div>
+
+      <ElTable :data="pagedDetail" stripe border>
         <ElTableColumn prop="metric_time" label="时间" min-width="200" />
         <ElTableColumn prop="water_level_mae_24h" label="水位MAE(m)" min-width="130" />
         <ElTableColumn prop="safety_override_rate" label="安全覆盖" min-width="120" />
@@ -383,6 +388,15 @@ onUnmounted(() => { if (dailyTimer) { clearTimeout(dailyTimer); clearInterval(da
           </template>
         </ElTableColumn>
       </ElTable>
+
+      <ElPagination
+        v-model:current-page="detailPage"
+        :page-size="detailPageSize"
+        :total="detail.length"
+        layout="total, prev, pager, next"
+        background
+        style="margin-top: 12px; justify-content: flex-end"
+      />
     </template>
 
     <template v-else-if="compare && (fixedMode === 'compare' || (fixedMode === 'both' && viewMode === 'compare'))">
@@ -454,6 +468,10 @@ onUnmounted(() => { if (dailyTimer) { clearTimeout(dailyTimer); clearInterval(da
   span { display: block; font-size: 14px; color: #64748b; margin-bottom: 8px; }
   strong { font-size: 24px; color: #1e293b; }
   &.clickable { cursor: pointer; }
+}
+.detail-toolbar {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+  span { font-size: 14px; color: #475569; }
 }
 .metric-chart {
   width: 100%;
