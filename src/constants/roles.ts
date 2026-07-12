@@ -90,8 +90,8 @@ export const MENU_ITEMS: MenuItem[] = [
     title: '模型管理',
     icon: 'DataAnalysis',
     children: [
-      { path: '/settings/models', title: '模型版本管理', icon: 'Setting' },
       { path: '/settings/ai/metrics', title: '模型健康度', icon: 'Setting' },
+      { path: '/settings/models', title: '模型版本管理', icon: 'Setting' },
       { path: '/settings/ai/compare', title: '模型版本对比', icon: 'Setting' },
       { path: '/history/model-score', title: '模型评分历史', icon: 'Clock' },
     ],

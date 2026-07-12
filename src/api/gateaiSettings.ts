@@ -558,10 +558,10 @@ export async function fetchModelCompare(
       }
     }
   } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
-  // fallback mock
+  // fallback mock — 按所选模型 ID 匹配，避免切换版本后数据不变
   const opts = VERSION_CATALOG[reservoirId] ?? VERSION_CATALOG[1]
-  const curOpt = opts[0]
-  const prevOpt = opts[1] ?? opts[0]
+  const curOpt = opts.find((o) => o.id === modelAId) ?? opts[0]
+  const prevOpt = opts.find((o) => o.id === modelBId) ?? opts[1] ?? opts[0]
   return delay({
     current: { version: curOpt.version, source: curOpt.source, scores: versionScores(reservoirId, curOpt.version) },
     previous: { version: prevOpt.version, source: prevOpt.source, scores: versionScores(reservoirId, prevOpt.version) },
