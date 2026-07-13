@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { ElDatePicker } from 'element-plus'
 import VChart from 'vue-echarts'
 import { fetchHistoryData } from '@/api/history'
 import type { HistoryDataPoint } from '@/types/monitoring'
@@ -21,23 +22,60 @@ use([
   CanvasRenderer,
 ])
 
-// 时段 A / B
+// ── 数据项（单选，模仿 DataQueryTab 的 tag 按钮） ──
+const metricOptions = [
+  { value: 'upstreamLevel', label: '上游水位', unit: 'm', color: '#3b82f6' },
+  { value: 'downstreamLevel', label: '下游水位', unit: 'm', color: '#06b6d4' },
+  { value: 'inflowRate', label: '入库流量', unit: 'm³/s', color: '#8b5cf6' },
+  { value: 'outflowRate', label: '出库流量', unit: 'm³/s', color: '#22c55e' },
+  { value: 'gateOpening', label: '闸门开度', unit: '%', color: '#f59e0b' },
+  { value: 'powerOutput', label: '发电功率', unit: 'MW', color: '#ef4444' },
+]
+const selectedMetric = ref('upstreamLevel')
+const metricCfg = computed(() => metricOptions.find((o) => o.value === selectedMetric.value)!)
+const metricLabel = computed(() => metricCfg.value.label)
+const metricUnit = computed(() => metricCfg.value.unit)
+const metricColorA = '#1890ff'
+const metricColorB = '#ff7f0e'
+
+// 切换数据项 → 自动清除上一次对比结果
+watch(selectedMetric, () => {
+  timeError.value = ''
+  const aOk = rangeA.value.start && rangeA.value.end && new Date(rangeA.value.end) >= new Date(rangeA.value.start)
+  const bOk = rangeB.value.start && rangeB.value.end && new Date(rangeB.value.end) >= new Date(rangeB.value.start)
+  if (aOk && bOk) {
+    doQuery()
+  } else {
+    dataA.value = []
+    dataB.value = []
+    queried.value = false
+  }
+})
+
+// ── 时段 A / B ──
 const rangeA = ref({ start: '', end: '' })
 const rangeB = ref({ start: '', end: '' })
-const nowISO = computed(() => new Date().toISOString().slice(0, 16))
-const endAMin = computed(() => rangeA.value.start || undefined)
-const endBMin = computed(() => rangeB.value.start || undefined)
 const compareMode = ref(false)
 const queried = ref(false)
 const timeError = ref('')
 
-// 生成模拟数据
+// el-date-picker 禁用日期
+const disableFuture = (time: Date) => time.getTime() > Date.now()
+function disableBeforeTime(time: Date, startVal: string) {
+  if (!startVal) return false
+  const startDay = new Date(startVal)
+  startDay.setHours(0, 0, 0, 0)
+  return time.getTime() < startDay.getTime()
+}
+function disableBeforeA(time: Date) { return disableBeforeTime(time, rangeA.value.start) }
+function disableBeforeB(time: Date) { return disableBeforeTime(time, rangeB.value.start) }
+
 async function loadRange(startIso: string, endIso: string) {
   const pts = await fetchHistoryData({
     reservoirId: 1,
     start: startIso,
     end: endIso,
-    metrics: ['upstreamLevel', 'inflowRate'],
+    metrics: [selectedMetric.value],
     granularity: 'hour',
   })
   return pts.map((d) => ({
@@ -47,8 +85,7 @@ async function loadRange(startIso: string, endIso: string) {
       day: 'numeric',
       hour: '2-digit',
     }),
-    level: d.upstreamLevel,
-    flow: d.inflowRate,
+    value: (d as any)[selectedMetric.value] as number,
   }))
 }
 
@@ -61,20 +98,20 @@ async function doQuery() {
   for (const [label, range] of [['时段 A', rangeA] as const, ['时段 B', rangeB] as const]) {
     const s = range.value.start
     const e = range.value.end
-    if (s && e && new Date(e) < new Date(s)) {
+    if (!s || !e) {
+      timeError.value = `请为${label}选择完整的起止时间`
+      return
+    }
+    if (new Date(e) < new Date(s)) {
       timeError.value = `${label}：结束时间不能早于开始时间，请重新选择`
       return
     }
   }
 
-  const nowIso = new Date().toISOString().slice(0, 16)
-  const defStartA = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 16)
-  const defStartB = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 16)
-
   try {
     const [a, b] = await Promise.all([
-      loadRange(rangeA.value.start || defStartA, rangeA.value.end || nowIso),
-      loadRange(rangeB.value.start || defStartB, rangeB.value.end || nowIso),
+      loadRange(rangeA.value.start, rangeA.value.end),
+      loadRange(rangeB.value.start, rangeB.value.end),
     ])
     dataA.value = a
     dataB.value = b
@@ -85,74 +122,56 @@ async function doQuery() {
   }
 }
 
-// 差异统计
+// ── 差异统计 ──
 const diffStats = computed(() => {
   if (!dataA.value.length || !dataB.value.length) return null
   const len = Math.min(dataA.value.length, dataB.value.length)
   let maxDiff = 0,
-    sumDiff = 0
+    sumDiff = 0,
+    sumA = 0
   for (let i = 0; i < len; i++) {
-    const d = Math.abs(dataA.value[i].level - dataB.value[i].level)
+    const va = dataA.value[i].value
+    const vb = dataB.value[i].value
+    const d = Math.abs(va - vb)
     if (d > maxDiff) maxDiff = d
     sumDiff += d
+    sumA += va
   }
+  const avgBase = sumA / len || 1
   return {
     maxDiff: +maxDiff.toFixed(2),
     avgDiff: +(sumDiff / len).toFixed(2),
-    pct: +((sumDiff / len / 378.5) * 100).toFixed(1),
+    pct: +((sumDiff / len / avgBase) * 100).toFixed(1),
   }
 })
 
-// 图表
+// ── 图表（单选数据项，A / B 各一条线）──
 const chartOpt = computed(() => {
   const allLabels = dataA.value.map((d, i) => (dataB.value[i] || d).label)
   return {
     tooltip: { trigger: 'axis' },
-    legend: { data: ['时段A 水位', '时段A 流量', '时段B 水位', '时段B 流量'], top: 0 },
-    grid: { left: 60, right: 60, top: 40, bottom: 60 },
+    legend: { data: [`时段A ${metricLabel.value}`, `时段B ${metricLabel.value}`], top: 0 },
+    grid: { left: 60, right: 40, top: 40, bottom: 60 },
     xAxis: { type: 'category', data: allLabels, axisLabel: { interval: 5 } },
-    yAxis: [
-      { type: 'value', name: '水位(m)' },
-      { type: 'value', name: '流量(m³/s)' },
-    ],
+    yAxis: { type: 'value', name: `${metricLabel.value}(${metricUnit.value})` },
     dataZoom: [{ type: 'slider', bottom: 0, height: 22 }],
     series: [
       {
-        name: '时段A 水位',
+        name: `时段A ${metricLabel.value}`,
         type: 'line',
-        data: dataA.value.map((d) => d.level),
+        data: dataA.value.map((d) => d.value),
         smooth: true,
-        lineStyle: { color: '#1890ff', width: 2 },
-        itemStyle: { color: '#1890ff' },
+        lineStyle: { color: metricColorA, width: 2 },
+        itemStyle: { color: metricColorA },
         symbol: 'none',
       },
       {
-        name: '时段A 流量',
+        name: `时段B ${metricLabel.value}`,
         type: 'line',
-        data: dataA.value.map((d) => d.flow),
+        data: dataB.value.map((d) => d.value),
         smooth: true,
-        yAxisIndex: 1,
-        lineStyle: { color: '#91caff' },
-        itemStyle: { color: '#91caff' },
-        symbol: 'none',
-      },
-      {
-        name: '时段B 水位',
-        type: 'line',
-        data: dataB.value.map((d) => d.level),
-        smooth: true,
-        lineStyle: { color: '#ff7f0e', width: 2, type: 'dashed' },
-        itemStyle: { color: '#ff7f0e' },
-        symbol: 'none',
-      },
-      {
-        name: '时段B 流量',
-        type: 'line',
-        data: dataB.value.map((d) => d.flow),
-        smooth: true,
-        yAxisIndex: 1,
-        lineStyle: { color: '#ffbb78', type: 'dashed' },
-        itemStyle: { color: '#ffbb78' },
+        lineStyle: { color: metricColorB, width: 2, type: 'dashed' },
+        itemStyle: { color: metricColorB },
         symbol: 'none',
       },
     ],
@@ -160,15 +179,14 @@ const chartOpt = computed(() => {
 })
 
 function doExport() {
-  const rows = [['时间', 'A水位', 'A流量', 'B水位', 'B流量']]
+  const h = metricLabel.value
+  const rows = [['时间', `A${h}`, `B${h}`]]
   const len = Math.max(dataA.value.length, dataB.value.length)
   for (let i = 0; i < len; i++) {
     rows.push([
       dataA.value[i]?.label ?? '',
-      dataA.value[i]?.level ?? '',
-      dataA.value[i]?.flow ?? '',
-      dataB.value[i]?.level ?? '',
-      dataB.value[i]?.flow ?? '',
+      dataA.value[i]?.value ?? '',
+      dataB.value[i]?.value ?? '',
     ])
   }
   const csv = rows.map((r) => r.join(',')).join('\n')
@@ -182,39 +200,87 @@ function doExport() {
 
 <template>
   <div class="dc">
+    <!-- 筛选区 -->
     <div class="dc__filters">
-      <div class="dc__period">
-        <span class="dc__badge dc__badge--a">时段 A</span>
-        <input type="datetime-local" v-model="rangeA.start" :max="nowISO" />
-        <span>—</span>
-        <input type="datetime-local" v-model="rangeA.end" :max="nowISO" :min="endAMin" />
+      <!-- 数据项（单选 tag） -->
+      <div class="dc__metric-row">
+        <label class="dc__label">数据项</label>
+        <div class="dc__tags">
+          <span
+            v-for="m in metricOptions"
+            :key="m.value"
+            class="dc__tag"
+            :class="{ on: selectedMetric === m.value }"
+            :style="{ '--c': m.color }"
+            @click="selectedMetric = m.value"
+          >{{ m.label }}</span>
+        </div>
       </div>
-      <div class="dc__period">
-        <span class="dc__badge dc__badge--b">时段 B</span>
-        <input type="datetime-local" v-model="rangeB.start" :max="nowISO" />
-        <span>—</span>
-        <input type="datetime-local" v-model="rangeB.end" :max="nowISO" :min="endBMin" />
+
+      <!-- 时段选择 -->
+      <div class="dc__period-row">
+        <div class="dc__period">
+          <span class="dc__badge dc__badge--a">时段 A</span>
+          <ElDatePicker
+            v-model="rangeA.start"
+            type="datetime"
+            placeholder="开始时间"
+            format="YYYY-MM-DD HH:mm"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            :disabled-date="disableFuture"
+            style="width: 190px"
+          />
+          <span>—</span>
+          <ElDatePicker
+            v-model="rangeA.end"
+            type="datetime"
+            placeholder="结束时间"
+            format="YYYY-MM-DD HH:mm"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            :disabled-date="disableBeforeA"
+            style="width: 190px"
+          />
+        </div>
+        <div class="dc__period">
+          <span class="dc__badge dc__badge--b">时段 B</span>
+          <ElDatePicker
+            v-model="rangeB.start"
+            type="datetime"
+            placeholder="开始时间"
+            format="YYYY-MM-DD HH:mm"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            :disabled-date="disableFuture"
+            style="width: 190px"
+          />
+          <span>—</span>
+          <ElDatePicker
+            v-model="rangeB.end"
+            type="datetime"
+            placeholder="结束时间"
+            format="YYYY-MM-DD HH:mm"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            :disabled-date="disableBeforeB"
+            style="width: 190px"
+          />
+        </div>
+        <button class="dc__btn dc__btn--q" @click="doQuery">对比查询</button>
+        <button class="dc__btn" @click="doExport" :disabled="!queried">导出 CSV</button>
       </div>
-      <button class="dc__btn dc__btn--q" @click="doQuery">对比查询</button>
-      <button class="dc__btn" @click="doExport" :disabled="!queried">导出 CSV</button>
+
       <p v-if="timeError" class="dc__error">{{ timeError }}</p>
     </div>
 
+    <!-- 差异统计 -->
     <div v-if="diffStats" class="dc__stats">
-      <span
-        >最大差 <b>{{ diffStats.maxDiff }}m</b></span
-      >
-      <span
-        >平均差 <b>{{ diffStats.avgDiff }}m</b></span
-      >
-      <span
-        >变化率 <b>{{ diffStats.pct }}%</b></span
-      >
+      <span>最大差 <b>{{ diffStats.maxDiff }}{{ metricUnit }}</b></span>
+      <span>平均差 <b>{{ diffStats.avgDiff }}{{ metricUnit }}</b></span>
+      <span>变化率 <b>{{ diffStats.pct }}%</b></span>
     </div>
 
+    <!-- 图表 -->
     <div class="dc__chart">
       <VChart v-if="queried" :option="chartOpt" autoresize style="width: 100%; height: 100%" />
-      <div v-else class="dc__empty">请选择 A / B 时段并点击"对比查询"</div>
+      <div v-else class="dc__empty">请选择数据项和 A / B 时段，然后点击"对比查询"</div>
     </div>
   </div>
 </template>
@@ -227,17 +293,62 @@ function doExport() {
   height: 100%;
   padding: 18px 24px;
   gap: 14px;
+
   &__filters {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__metric-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__label {
+    @include text-tag;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  &__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  &__tag {
+    padding: 7px 16px;
+    @include text-tag;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 100px;
+    cursor: pointer;
+    transition: all 0.15s;
+    &:hover {
+      border-color: #93c5fd;
+    }
+    &.on {
+      color: #fff;
+      background: var(--c, #3b82f6);
+      border-color: var(--c, #3b82f6);
+    }
+  }
+
+  &__period-row {
     display: flex;
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
   }
+
   &__period {
     display: flex;
     align-items: center;
     gap: 8px;
   }
+
   &__badge {
     padding: 4px 14px;
     font-size: 14px;
@@ -251,12 +362,7 @@ function doExport() {
       background: #ff7f0e;
     }
   }
-  input {
-    padding: 7px 10px;
-    @include text-input;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
-  }
+
   &__btn {
     padding: 8px 16px;
     @include text-btn;
@@ -280,12 +386,14 @@ function doExport() {
       }
     }
   }
+
   &__error {
     width: 100%;
     margin: 0;
     font-size: 14px;
     color: #dc2626;
   }
+
   &__stats {
     display: flex;
     gap: 20px;
@@ -298,6 +406,7 @@ function doExport() {
       margin-left: 4px;
     }
   }
+
   &__chart {
     flex: 1;
     min-height: 0;
@@ -305,6 +414,7 @@ function doExport() {
     border-radius: 8px;
     border: 1px solid #eef0f2;
   }
+
   &__empty {
     display: flex;
     align-items: center;
