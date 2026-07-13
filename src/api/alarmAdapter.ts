@@ -13,6 +13,22 @@ import type {
 } from '@/types/alarm'
 import { ALARM_TYPE_MAP } from '@/constants/alarm'
 
+/** 后端仅返回用户 ID 时的演示姓名映射 */
+const ALARM_USER_NAMES: Record<number, string> = {
+  1: '张调度',
+  2: '李运维',
+  3: '王巡检',
+}
+
+function resolveAlarmUserName(
+  id: number | null | undefined,
+  name: string | null | undefined,
+): string | null {
+  if (name?.trim()) return name.trim()
+  if (id != null && ALARM_USER_NAMES[id]) return ALARM_USER_NAMES[id]
+  return null
+}
+
 /** 后端列表项（GET /v1/alarms） */
 export interface BackendAlarmItem {
   id: number
@@ -170,10 +186,20 @@ export function mapBackendAlarm(item: BackendAlarmItem): AlarmRecord {
     status: STATUS_FROM_BACKEND[item.status] ?? 'pending',
     confirmedAt: item.confirmed_at ?? item.acknowledged_at ?? null,
     confirmedBy: item.confirmed_by ?? item.acknowledged_by ?? null,
-    confirmedByName: item.confirmed_by_name ?? item.acknowledged_by_name ?? null,
+    confirmedByName: resolveAlarmUserName(
+      item.confirmed_by ?? item.acknowledged_by ?? null,
+      item.confirmed_by_name ?? item.acknowledged_by_name ?? null,
+    ),
     handledAt: item.handled_at ?? item.disposed_at ?? null,
-    handledBy: item.handled_by ?? item.disposed_by ?? null,
-    handledByName: item.handled_by_name ?? item.disposed_by_name ?? null,
+    handledBy: item.handled_by ?? item.disposed_by ?? item.dispose_user_id ?? null,
+    handledByName: resolveAlarmUserName(
+      item.handled_by ?? item.disposed_by ?? item.dispose_user_id ?? null,
+      item.handled_by_name
+        ?? item.disposed_by_name
+        ?? item.dispose_user_name
+        ?? item.handler_name
+        ?? null,
+    ),
     remark: item.dispose_note ?? null,
     createdAt: item.created_at,
     exceedStart: item.exceed_start ?? null,

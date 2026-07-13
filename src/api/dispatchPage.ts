@@ -45,8 +45,14 @@ async function withMockFallback<T>(
   apiFn: () => Promise<ApiResponse<T>>,
   mockFn: () => Promise<ApiResponse<T>>,
 ): Promise<ApiResponse<T>> {
+  const waitMs = import.meta.env.DEV ? 2500 : 28000
   try {
-    return await apiFn()
+    return await Promise.race([
+      apiFn(),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('api_timeout')), waitMs)
+      }),
+    ])
   } catch {
     return mockFn()
   }
@@ -69,22 +75,22 @@ export function fetchDispatchStatus() {
       const detailRaw = unwrap(detailRes)?.data
       if (!detailRaw) throw new Error('decision detail failed')
       const detail = mapBackendDecision(detailRaw)
-      const mockStatus = (await mockApi.getDispatchStatus()).data
+      const savedMode = localStorage.getItem('dispatch_mode')
       return {
         code: 0,
         msg: 'ok',
         success: true,
         trace_id: listBody!.trace_id,
         data: {
-          ...mockStatus,
+          mode: savedMode === 'manual' || savedMode === 'auto' ? savedMode : 'auto',
+          autoLevel: 2 as const,
           upstreamLevel: detail.upstream_level,
           downstreamLevel: detail.downstream_level,
           flowRate: detail.inflow_rate,
           gateOpening: detail.current_opening,
           lastDispatchAt: detail.decision_time,
-          isExecuting: detail.execution_status === 'pending',
-          executingTarget:
-            detail.execution_status === 'pending' ? detail.recommended_opening : null,
+          isExecuting: false,
+          executingTarget: null,
         },
       }
     },

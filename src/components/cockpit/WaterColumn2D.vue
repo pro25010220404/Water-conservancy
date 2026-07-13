@@ -144,25 +144,15 @@ const bubbleSeeds = [12, 28, 44, 58, 72, 86]
     min-height: 0;
   }
 
-  /* 直边矩形容器 — 不要胶囊形 */
   &__shell {
     position: relative;
     width: 100%;
     height: 100%;
-    border-radius: 4px;
+    border-radius: 5px;
     overflow: hidden;
-    background: linear-gradient(
-      90deg,
-      rgba(224, 242, 254, 0.55) 0%,
-      rgba(255, 255, 255, 0.15) 18%,
-      rgba(255, 255, 255, 0.08) 50%,
-      rgba(255, 255, 255, 0.15) 82%,
-      rgba(224, 242, 254, 0.55) 100%
-    );
-    border: 1px solid rgba(56, 189, 248, 0.28);
-    box-shadow:
-      inset 0 0 18px rgba(14, 165, 233, 0.08),
-      0 1px 4px rgba(14, 165, 233, 0.1);
+    background: linear-gradient(180deg, #f8fafc 0%, #edf4fc 100%);
+    border: 1px solid rgba(24, 144, 255, 0.16);
+    box-shadow: inset 0 2px 8px rgba(15, 23, 42, 0.04);
   }
 
   &__glass-shine {
@@ -171,8 +161,8 @@ const bubbleSeeds = [12, 28, 44, 58, 72, 86]
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgba(255, 255, 255, 0.45) 22%,
-      transparent 44%
+      rgba(255, 255, 255, 0.28) 24%,
+      transparent 48%
     );
     pointer-events: none;
     z-index: 4;
@@ -183,28 +173,19 @@ const bubbleSeeds = [12, 28, 44, 58, 72, 86]
     left: 0;
     right: 0;
     bottom: 0;
-    border-radius: 2px 2px 0 0;
+    border-radius: 3px 3px 0 0;
     transition: height 0.45s cubic-bezier(0.22, 1, 0.36, 1);
     overflow: hidden;
 
     &--tgt {
       z-index: 1;
-      background: linear-gradient(
-        180deg,
-        rgba(145, 213, 255, 0.72) 0%,
-        rgba(105, 192, 255, 0.65) 100%
-      );
+      background: linear-gradient(180deg, #d0ebff 0%, #91d5ff 100%);
     }
 
     &--cur {
       z-index: 2;
-      background: linear-gradient(
-        180deg,
-        rgba(125, 211, 252, 0.92) 0%,
-        rgba(56, 189, 248, 0.88) 35%,
-        rgba(2, 132, 199, 0.95) 100%
-      );
-      box-shadow: inset 0 6px 14px rgba(255, 255, 255, 0.25);
+      background: linear-gradient(180deg, #5cadff 0%, #228be6 52%, #1864ab 100%);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
     }
   }
 
@@ -214,7 +195,7 @@ const bubbleSeeds = [12, 28, 44, 58, 72, 86]
     left: 0;
     right: 0;
     z-index: 5;
-    background: linear-gradient(180deg, #f8fafc 0%, #f0f9ff 100%);
+    background: linear-gradient(180deg, #f8fafc 0%, #edf4fc 100%);
     pointer-events: none;
   }
 
@@ -228,7 +209,7 @@ const bubbleSeeds = [12, 28, 44, 58, 72, 86]
   }
 
   &__wave-path {
-    fill: rgba(186, 230, 253, 0.95);
+    fill: rgba(186, 224, 255, 0.75);
 
     &--a {
       animation: wave-drift 3.2s linear infinite;
@@ -262,7 +243,7 @@ const bubbleSeeds = [12, 28, 44, 58, 72, 86]
       font-size: 22px;
       font-weight: 700;
       font-family: 'SF Mono', Consolas, monospace;
-      color: #0ea5e9;
+      color: #228be6;
     }
 
     em {

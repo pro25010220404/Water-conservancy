@@ -205,14 +205,66 @@ export function precheckGateChanges(
   }
 
   const hasBlock = violations.some((v) => v.severity === 'block')
-  return { passed: !hasBlock, violations }
+  return { passed: !hasBlock, violations: consolidateViolations(violations) }
+}
+
+/** 同类规则合并为一条，演示/界面最多 3 类互锁项 */
+function consolidateViolations(list: GatePrecheckViolation[]): GatePrecheckViolation[] {
+  const map = new Map<string, GatePrecheckViolation>()
+  for (const v of list) {
+    const hit = map.get(v.ruleCode)
+    if (!hit) {
+      map.set(v.ruleCode, {
+        ...v,
+        affectedGateIds: [...v.affectedGateIds],
+      })
+      continue
+    }
+    for (const id of v.affectedGateIds) {
+      if (!hit.affectedGateIds.includes(id)) hit.affectedGateIds.push(id)
+    }
+  }
+
+  const out = [...map.values()]
+  const rate = out.find((v) => v.ruleCode === 'rate_exceeded')
+  if (rate && rate.affectedGateIds.length > 1) {
+    rate.message = `${rate.affectedGateIds.length} 个节点单次变化超过 ${SINGLE_STEP_MAX}%，建议分步执行`
+  }
+  return out
+}
+
+/** 将预检结果标注到各闸门节点，供坝体图/列表直接展示 */
+export function annotateGatesWithInterlock(
+  gates: GateNodeControl[],
+  violations: GatePrecheckViolation[],
+): GateNodeControl[] {
+  const map = new Map<number, { block: boolean; names: string[] }>()
+  for (const v of violations) {
+    for (const id of v.affectedGateIds) {
+      const cur = map.get(id) ?? { block: false, names: [] }
+      if (v.severity === 'block') cur.block = true
+      if (!cur.names.includes(v.ruleName)) cur.names.push(v.ruleName)
+      map.set(id, cur)
+    }
+  }
+  return gates.map((g) => {
+    const hit = map.get(g.id)
+    if (!hit) {
+      return { ...g, interlockBlocked: false, interlockReason: undefined }
+    }
+    return {
+      ...g,
+      interlockBlocked: hit.block,
+      interlockReason: hit.names.join('、'),
+    }
+  })
 }
 
 export function openingBarColor(opening: number): string {
   if (opening <= 0) return '#94a3b8'
-  if (opening <= 30) return '#3b82f6'
-  if (opening <= 70) return '#06b6d4'
-  return '#f59e0b'
+  if (opening <= 30) return '#74c0fc'
+  if (opening <= 70) return '#228be6'
+  return '#1864ab'
 }
 
 export function pendingChangeCount(gates: GateNodeControl[]): number {
