@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  ElButton, ElSlider, ElInputNumber, ElMessage, ElMessageBox, ElTag, ElDialog,
+  ElButton, ElSlider, ElInputNumber, ElMessage, ElMessageBox, ElTag, ElDialog, ElTooltip,
 } from 'element-plus'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import DamSectionDiagram from './components/DamSectionDiagram.vue'
@@ -11,6 +11,7 @@ import { useDispatchStore } from '@/stores/dispatch'
 import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
 import { useOperationLog } from '@/composables/useOperationLog'
 import { isGateOnline, openingBarColor } from '@/utils/gateControl'
+import { confirmInterlockAction } from '@/utils/interlockNotify'
 import type { GateGroup, GateNodeControl } from '@/types/gateControl'
 import { OPENING_MIN, OPENING_MAX, OPENING_STEP } from '@/constants/dispatch'
 
@@ -21,7 +22,7 @@ const { active: simActive, derived: simDerived } = storeToRefs(simStore)
 const { record: recordLog } = useOperationLog()
 
 const {
-  status, gates, selectedGateId, selectedGate, gatesLoading, canManualControl,
+  status, gates, selectedGateId, selectedGate, gatesInitialLoading, canManualControl,
   aggregateOpening, aggregateTargetOpening, pendingChanges, impactPreview,
   precheckResult,
 } = storeToRefs(store)
@@ -60,10 +61,13 @@ const groupedGates = computed(() => {
 })
 
 const interlockStatus = computed(() => {
+  const violations = precheckResult.value?.violations ?? []
   if (!precheckResult.value) return { label: '待校验', type: 'info' as const }
-  if (precheckResult.value.passed) return { label: '互锁正常', type: 'success' as const }
-  const hasBlock = precheckResult.value.violations.some((v) => v.severity === 'block')
-  return { label: hasBlock ? '互锁阻断' : '存在警告', type: hasBlock ? 'danger' as const : 'warning' as const }
+  const blocks = violations.filter((v) => v.severity === 'block').length
+  const warns = violations.filter((v) => v.severity === 'warn').length
+  if (!blocks && !warns) return { label: '互锁正常', type: 'success' as const }
+  if (blocks) return { label: `${blocks} 处阻断`, type: 'danger' as const }
+  return { label: `${warns} 处警告`, type: 'warning' as const }
 })
 
 const violationStats = computed(() => {
@@ -73,6 +77,31 @@ const violationStats = computed(() => {
     blocks: list.filter((v) => v.severity === 'block').length,
     warns: list.filter((v) => v.severity === 'warn').length,
   }
+})
+
+/** 按规则类型汇总，详情弹窗用 */
+const violationSummary = computed(() => {
+  const map = new Map<string, {
+    ruleName: string
+    severity: 'block' | 'warn'
+    count: number
+    message: string
+  }>()
+  for (const v of precheckResult.value?.violations ?? []) {
+    const key = `${v.ruleCode}:${v.severity}`
+    const hit = map.get(key)
+    if (hit) {
+      hit.count += 1
+    } else {
+      map.set(key, {
+        ruleName: v.ruleName,
+        severity: v.severity,
+        count: 1,
+        message: v.message,
+      })
+    }
+  }
+  return [...map.values()]
 })
 
 const waterTrendLabel = computed(() => {
@@ -94,6 +123,13 @@ const displaySelectedGate = computed(() =>
   displayGates.value.find((g) => g.id === selectedGateId.value) ?? null,
 )
 
+const submitDisabledReason = computed(() => {
+  if (!canManualControl.value) return '当前为自动模式且非 L1，请先在运行控制切换手动模式'
+  if (pendingChanges.value === 0) return '暂无待提交变更：请先将某孔目标开度调到与当前开度不同'
+  if (submitting.value) return '正在提交中…'
+  return ''
+})
+
 const hasStatusAlerts = computed(
   () =>
     !canManualControl.value ||
@@ -102,12 +138,28 @@ const hasStatusAlerts = computed(
 )
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let pollInFlight = false
+
+async function pollGates() {
+  if (pollInFlight || document.hidden) return
+  pollInFlight = true
+  try {
+    await store.refreshGates({ silent: true })
+  } finally {
+    pollInFlight = false
+  }
+}
 
 function selectGate(id: number) { selectedGateId.value = id }
 
+function setSelectedGateTarget(opening: number) {
+  if (!selectedGate.value) return
+  store.setGateTarget(selectedGate.value.id, opening)
+}
+
 function onSliderChange(val: number | number[]) {
   const opening = Array.isArray(val) ? val[0] : val
-  if (selectedGateId.value && opening != null) store.setGateTarget(selectedGateId.value, opening)
+  if (selectedGateId.value && opening != null) setSelectedGateTarget(opening)
 }
 
 function fmtNum(n: number, d = 1) { return Number(n.toFixed(d)) }
@@ -118,34 +170,51 @@ function fmtDelta(cur: number, tgt: number) {
 
 async function executeOne() {
   if (!selectedGate.value || !canManualControl.value) return
-  if (!precheckResult.value?.passed) { ElMessage.error('互锁校验未通过'); return }
   const g = selectedGate.value
-  if (g.targetOpening === g.currentOpening) { ElMessage.info('目标与当前相同'); return }
+  if (g.targetOpening === g.currentOpening) {
+    ElMessage.info('目标开度与当前相同，无需执行')
+    return
+  }
+  const ok = await confirmInterlockAction({
+    title: '执行本孔',
+    actionSummary: `将 <strong>${g.name}</strong> 开度由 ${g.currentOpening}% 调整至 ${g.targetOpening}%`,
+    confirmText: '确认执行',
+    violations: precheckResult.value?.violations ?? [],
+  })
+  if (!ok) return
   try {
-    await ElMessageBox.confirm(`确认执行 ${g.name}：${g.currentOpening}% → ${g.targetOpening}%？`, '执行本孔', { type: 'warning' })
     submitting.value = true
     await store.mockExecuteGate(g.id)
     recordLog('调度决策', '节点控制', `${g.name} → ${g.targetOpening}%`, 1)
     ElMessage.success(`${g.name} 执行完成`)
-  } catch { /* cancel */ } finally { submitting.value = false }
+  } finally { submitting.value = false }
 }
 
 async function submitAll() {
-  if (!canManualControl.value) { ElMessage.warning('请先切换手动模式'); router.push('/dispatch/control'); return }
-  if (!changedList.value.length) { ElMessage.info('没有待提交变更'); return }
-  if (!precheckResult.value?.passed) { ElMessage.error('存在互锁阻断项'); return }
-  const warns = precheckResult.value?.violations.filter((v) => v.severity === 'warn') ?? []
+  if (!canManualControl.value) {
+    ElMessage.warning('请先切换手动模式')
+    router.push('/dispatch/control')
+    return
+  }
+  if (!changedList.value.length) {
+    ElMessage.info('没有待提交变更')
+    return
+  }
+  const n = changedList.value.length
+  const ok = await confirmInterlockAction({
+    title: '提交变更',
+    actionSummary: `批量下发 <strong>${n}</strong> 处节点开度变更`,
+    confirmText: '确认提交',
+    violations: precheckResult.value?.violations ?? [],
+  })
+  if (!ok) return
   try {
-    const msg = warns.length
-      ? `存在 ${warns.length} 条警告，仍要提交 ${changedList.value.length} 处变更？`
-      : `确认提交 ${changedList.value.length} 处节点开度变更？`
-    await ElMessageBox.confirm(msg, '批量提交', { type: 'warning' })
     submitting.value = true
     await store.mockBatchExecute()
-    recordLog('调度决策', '节点批量控制', `${changedList.value.length} 孔`, 1)
+    recordLog('调度决策', '节点批量控制', `${n} 孔`, 1)
     ElMessage.success('全部变更已下发')
-    await store.refreshGates()
-  } catch { /* cancel */ } finally { submitting.value = false }
+    await store.refreshGates({ silent: true })
+  } finally { submitting.value = false }
 }
 
 function syncGroup(group: GateGroup) {
@@ -160,12 +229,12 @@ function stepTargetOpening(delta: number) {
     OPENING_MAX,
     Math.max(OPENING_MIN, +(selectedGate.value.targetOpening + delta).toFixed(1)),
   )
-  store.setGateTarget(selectedGate.value.id, next)
+  setSelectedGateTarget(next)
 }
 
 onMounted(async () => {
-  await store.refreshCore()
-  pollTimer = setInterval(() => store.refreshGates(), 5000)
+  await store.ensureCoreLoaded()
+  pollTimer = setInterval(pollGates, 15000)
 })
 onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 </script>
@@ -173,7 +242,12 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 <template>
   <div class="page gates-page">
     <!-- 坝体剖面：指标 + 操作 + 剖面图 合一，减少上方框框 -->
-    <GlassPanel3D title="坝体剖面" class="gates-viz-top" v-loading="gatesLoading">
+    <GlassPanel3D
+      title="坝体剖面"
+      class="gates-viz-top"
+      v-loading="gatesInitialLoading"
+      element-loading-background="rgba(255,255,255,0.45)"
+    >
       <div class="gates-command">
         <div v-if="hasStatusAlerts" class="gates-command__alerts">
           <span v-if="!canManualControl" class="alert-chip alert-chip--info">
@@ -195,10 +269,9 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
               'alert-chip--warn': interlockStatus.type === 'warning',
             }"
           >
-            {{ interlockStatus.label }}
-            <template v-if="violationStats.total">
-              · {{ violationStats.blocks }}阻断 {{ violationStats.warns }}警告
-            </template>
+            互锁检查
+            <span class="alert-chip__stat alert-chip__stat--block">{{ violationStats.blocks }} 阻断</span>
+            <span class="alert-chip__stat alert-chip__stat--warn">{{ violationStats.warns }} 警告</span>
             <ElButton
               v-if="violationStats.total"
               link
@@ -206,7 +279,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
               class="alert-chip__link"
               @click="warnDialogVisible = true"
             >
-              详情
+              查看规则
             </ElButton>
           </span>
           <span v-if="simActive" class="alert-chip alert-chip--ok">
@@ -250,13 +323,19 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
             <ElButton @click="router.push('/virtual-simulation')">虚拟仿真</ElButton>
             <ElButton @click="router.push('/simulation')">数字孪生</ElButton>
             <ElButton @click="store.resetAllGateTargets()">全部复位</ElButton>
-            <ElButton
-              type="primary"
-              :disabled="!canManualControl || pendingChanges === 0 || submitting"
-              @click="submitAll"
+            <ElTooltip
+              :content="submitDisabledReason"
+              :disabled="!submitDisabledReason"
+              placement="top"
             >
-              提交变更{{ pendingChanges > 0 ? ` (${pendingChanges})` : '' }}
-            </ElButton>
+              <ElButton
+                type="primary"
+                :disabled="!canManualControl || pendingChanges === 0 || submitting"
+                @click="submitAll"
+              >
+                提交变更{{ pendingChanges > 0 ? ` (${pendingChanges})` : '' }}
+              </ElButton>
+            </ElTooltip>
           </div>
         </div>
       </div>
@@ -274,7 +353,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
     </GlassPanel3D>
 
     <!-- 下方：左列表 + 右详情 -->
-    <div class="gates-body" v-loading="gatesLoading">
+    <div class="gates-body">
       <GlassPanel3D title="闸门节点" fill class="gates-panel gates-panel--list">
         <template v-for="(list, group) in groupedGates" :key="group">
           <div class="gate-group-label">{{ groupLabels[group as GateGroup] }}</div>
@@ -336,7 +415,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
                 :disabled="!canManualControl || !isGateOnline(selectedGate.status)"
                 controls-position="right"
                 class="detail-target-input"
-                @update:model-value="(v: number | undefined) => v != null && store.setGateTarget(selectedGate!.id, v)"
+                @update:model-value="(v: number | undefined) => v != null && setSelectedGateTarget(v)"
               />
               <ElButton
                 type="primary"
@@ -368,6 +447,9 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
           </div>
         </div>
 
+        <p class="detail-flow-tip">
+          调开度时顶栏实时显示互锁结果；点「执行本孔」仅下发当前孔，点顶部「提交变更」批量下发全部待改孔。
+        </p>
         <div class="detail-btns">
           <ElButton type="primary" size="large" :disabled="!canManualControl || !isGateOnline(selectedGate.status) || submitting" @click="executeOne">
             执行本孔
@@ -391,10 +473,10 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
     </GlassPanel3D>
   </div>
 
-  <ElDialog v-model="warnDialogVisible" title="互锁约束详情" width="560px" append-to-body>
-    <ul v-if="precheckResult?.violations.length" class="warn-dialog-list">
-      <li v-for="(v, i) in precheckResult.violations" :key="i" :class="v.severity">
-        <strong>{{ v.ruleName }}</strong>
+  <ElDialog v-model="warnDialogVisible" title="互锁规则说明" width="560px" append-to-body>
+    <ul v-if="violationSummary.length" class="warn-dialog-list">
+      <li v-for="(v, i) in violationSummary" :key="i" :class="v.severity">
+        <strong>{{ v.ruleName }}<template v-if="v.count > 1">（{{ v.count }} 项）</template></strong>
         <p>{{ v.message }}</p>
       </li>
     </ul>
@@ -512,8 +594,8 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 
   &__diagram {
     flex: 1;
-    min-height: 360px;
-    height: 360px;
+    min-height: 420px;
+    height: 420px;
 
     :deep(.dam-section) {
       height: 100%;
@@ -528,11 +610,21 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   gap: 8px;
   padding: 6px 14px;
   border-radius: 6px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   color: #64748b;
   background: #fff;
   border: 1px solid #e2e8f0;
+  white-space: nowrap;
+
+  &__stat {
+    font-family: 'SF Mono', Consolas, monospace;
+    font-weight: 700;
+    font-size: 14px;
+
+    &--block { color: #dc2626; }
+    &--warn { color: #ea580c; }
+  }
 
   &--info { border-color: rgba(24, 144, 255, 0.25); color: #1890ff; }
   &--danger { border-color: rgba(239, 68, 68, 0.3); color: #dc2626; }
@@ -946,6 +1038,17 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   }
 }
 
+.detail-flow-tip {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #eef2f6;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #64748b;
+}
+
 .detail-btns {
   display: flex;
   gap: 10px;
@@ -1006,6 +1109,88 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
     &:hover { background: #fafbfc; }
     &:last-child { border-bottom: none; }
     span:first-child { font-family: inherit; font-weight: 600; color: #334155; }
+  }
+}
+</style>
+
+<style lang="scss">
+.interlock-modal-box {
+  max-width: 480px;
+  padding-bottom: 16px;
+
+  .el-message-box__header {
+    padding-top: 20px;
+  }
+
+  .el-message-box__title {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .el-message-box__message {
+    text-align: left;
+  }
+
+  .interlock-modal__item {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #f8fafc;
+    border-left: 3px solid #faad14;
+    line-height: 1.5;
+
+    strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #1e293b;
+    }
+
+    span {
+      font-size: 14px;
+      color: #64748b;
+    }
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  &.el-message-box--error .interlock-modal__item {
+    border-left-color: #ff7875;
+    background: #fff2f0;
+  }
+
+  &--block .interlock-modal__lead {
+    margin: 0 0 12px;
+    font-size: 14px;
+    color: #64748b;
+  }
+}
+
+.interlock-confirm-box {
+  max-width: 500px;
+
+  .interlock-confirm__action {
+    margin: 0 0 14px;
+    font-size: 15px;
+    line-height: 1.55;
+    color: #1e293b;
+  }
+
+  .interlock-confirm__warns {
+    padding-top: 12px;
+    border-top: 1px solid #eef2f6;
+  }
+
+  .interlock-confirm__warn-title {
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #b45309;
+  }
+
+  &--plain .interlock-confirm__action {
+    margin-bottom: 0;
   }
 }
 </style>
