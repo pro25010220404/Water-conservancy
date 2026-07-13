@@ -5,7 +5,7 @@
 
 // ── 1. 外部依赖 ──
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ElCard,
   ElTable,
@@ -33,6 +33,7 @@ import PhysicsGuardHistoryPanel from './components/PhysicsGuardHistoryPanel.vue'
 import GateInterlockPanel from './components/GateInterlockPanel.vue'
 import { FORM_RULES } from '@/constants/validation'
 import { useOperationLog } from '@/composables/useOperationLog'
+import { useUserStore } from '@/stores/user'
 import {
   fetchThresholdList,
   toThresholdUpdatePayload,
@@ -63,6 +64,8 @@ import {
 
 const { record: recordLog } = useOperationLog()
 const route = useRoute()
+const router = useRouter()
+const userStore = useUserStore()
 
 const SETTINGS_TAB_NAMES = [
   'thresholds',
@@ -136,10 +139,10 @@ const metricLabelMap: Record<string, string> = {
 
 // 角色
 const roleOptions = [
-  { label: '值班运维', value: 1 },
-  { label: '调度工程师', value: 2 },
-  { label: '站长/管理', value: 3 },
-  { label: '系统管理员', value: 4 },
+  { label: '系统管理员', value: 1 },
+  { label: '调度员', value: 2 },
+  { label: '运维人员', value: 3 },
+  { label: '站长', value: 4 },
   { label: '算法工程师', value: 5 },
 ]
 const roleLabel = computed(() => {
@@ -622,7 +625,7 @@ function onUserKeywordInput() {
 }
 const userDialogVisible = ref(false)
 const userDialogMode = ref<'create' | 'edit'>('create')
-const userForm = ref({ account: '', password: '', realname: '', role_id: 4 })
+const userForm = ref({ account: '', password: '', realname: '', role_id: 3 })
 const editingUserId = ref<number | null>(null)
 const userSubmitting = ref(false)
 
@@ -815,6 +818,10 @@ async function handleActivateModel(id: number) {
 async function handleRollbackModel(id: number) {
   try {
     await ElMessageBox.confirm('确定回滚到上一个版本？', '确认回滚')
+  } catch {
+    return // 用户取消
+  }
+  try {
     await rollbackModel(id)
     recordLog('系统设置', '回滚模型', `回滚了模型 ID:${id}`, 1)
     await ElMessageBox.alert('模型已成功回滚到上一个版本', '回滚成功', {
@@ -822,8 +829,8 @@ async function handleRollbackModel(id: number) {
       type: 'success',
     })
     fetchModels()
-  } catch {
-    /* 取消 */
+  } catch (e: any) {
+    ElMessage.error(e?.message || e?.msg || '回滚失败，请重试')
   }
 }
 
@@ -878,12 +885,16 @@ async function handleDeleteModel(id: number) {
     await ElMessageBox.confirm('确定删除该模型？已激活的模型不可删除', '删除确认', {
       type: 'warning',
     })
+  } catch {
+    return // 用户取消
+  }
+  try {
     await deleteModel(id)
     recordLog('系统设置', '删除模型', `删除了模型 ID:${id}`, 1)
     ElMessage.success('模型已删除')
     fetchModels()
-  } catch {
-    /* 取消 */
+  } catch (e: any) {
+    ElMessage.error(e?.message || e?.msg || '删除失败，请重试')
   }
 }
 
@@ -929,7 +940,7 @@ function openUserDialog(mode: 'create' | 'edit', row?: SystemUser) {
     }
   } else {
     editingUserId.value = null
-    userForm.value = { account: '', password: '12345678', realname: '', role_id: 4 }
+    userForm.value = { account: '', password: '12345678', realname: '', role_id: 3 }
   }
   userDialogVisible.value = true
 }
@@ -1024,10 +1035,37 @@ async function handleResetPwd(row: SystemUser) {
     // 填了密码就传给后端，留空传空对象让后端自己生成
     await resetUserPassword(row.id, val ? { new_password: val } : ({} as any))
     recordLog('系统设置', '重置密码', `重置了用户「${row.realname}」的密码`, 1)
+
+    // 如果重置的是自己的密码，退出登录并跳转到登录页
+    const isSelf =
+      row.id == userStore.userInfo?.id ||
+      row.account === userStore.userInfo?.username
+    console.log('[resetPwd] self-check:', {
+      rowId: row.id,
+      rowIdType: typeof row.id,
+      rowAccount: row.account,
+      storeId: userStore.userInfo?.id,
+      storeIdType: typeof userStore.userInfo?.id,
+      storeUsername: userStore.userInfo?.username,
+      isSelf,
+    })
+    if (isSelf) {
+      ElMessage.success('密码重置成功，请重新登录')
+      setTimeout(() => {
+        userStore.logout()
+        router.push('/login')
+      }, 3000)
+      return
+    }
+
     ElMessage.success('密码重置成功')
     fetchUsers()
-  } catch {
-    /* 取消 */
+  } catch (err: any) {
+    // 用户取消了 prompt（点取消或关闭弹窗）
+    if (err === 'cancel' || err === 'close') return
+    // API 或其他异常
+    const msg = err?.response?.data?.msg || err?.msg || err?.message || '密码重置失败'
+    ElMessage.error(msg)
   }
 }
 
@@ -1036,12 +1074,16 @@ async function handleDelete(row: SystemUser) {
     await ElMessageBox.confirm(`确定删除用户「${row.realname}」？此操作不可撤销`, '删除确认', {
       type: 'warning',
     })
+  } catch {
+    return // 用户取消
+  }
+  try {
     await deleteUser(row.id)
     recordLog('系统设置', '删除用户', `删除了用户「${row.realname}」`, 1)
     ElMessage.success('用户已删除')
     fetchUsers()
-  } catch {
-    /* 取消 */
+  } catch (e: any) {
+    ElMessage.error(e?.message || e?.msg || '删除失败，请重试')
   }
 }
 

@@ -116,7 +116,10 @@ async function submit() {
     // 头像：写入 store + localStorage + dispatch 事件强制刷新
     if (form.avatar) {
       profileStore.avatarUrl = form.avatar
-      localStorage.setItem('profile_avatar', form.avatar)
+      const avatarCacheKey = `profile_avatar_${userStore.userInfo?.id ?? '0'}`
+      localStorage.setItem(avatarCacheKey, form.avatar)
+      // 清理旧的无用户隔离的 key，避免污染其他账号
+      localStorage.removeItem('profile_avatar')
       window.dispatchEvent(new CustomEvent('avatar-updated', { detail: form.avatar }))
     }
     recordLog('个人中心', '修改', '更新了个人资料', 1)

@@ -46,6 +46,10 @@ http.interceptors.response.use(
         }
         return Promise.reject(new ApiBusinessError(data.code, data.msg || '认证失败', data.data))
       }
+      // 权限类业务错误：弹 toast 提醒用户（调用方可能未处理）
+      if (data.code >= 40300 && data.code <= 40399) {
+        ElMessage.error(data.msg || '无操作权限')
+      }
       // 业务错误不弹 toast，由调用方决定是否提示
       return Promise.reject(new ApiBusinessError(data.code, data.msg || '请求失败', data.data))
     }

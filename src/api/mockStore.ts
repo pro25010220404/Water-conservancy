@@ -1009,7 +1009,7 @@ export const mockApi = {
       item.status = 'confirmed'
       item.confirmedAt = nowIso(0)
       item.confirmedBy = 1
-      item.confirmedByName = '当前用户'
+      item.confirmedByName = '张调度'
       persistAlarmStore(alarmStore)
     }
     return delay(ok(null))
@@ -1021,7 +1021,7 @@ export const mockApi = {
       item.status = 'handled'
       item.handledAt = nowIso(0)
       item.handledBy = 1
-      item.handledByName = '当前用户'
+      item.handledByName = '张调度'
       item.remark = params.remark
       persistAlarmStore(alarmStore)
     }

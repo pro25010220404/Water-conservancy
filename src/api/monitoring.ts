@@ -10,7 +10,10 @@ import type { RealtimeKpi, DashboardAlarm } from '@/types/monitoring'
  *   true  — API 失败时自动走 Mock（默认，不影响使用）
  *   false — API 失败直接抛错，方便调试是否真正接上了后端
  */
-export const MOCK_FALLBACK = false
+/** 开发环境默认 Mock 降级；生产可通过 VITE_MOCK_FALLBACK=false 关闭 */
+export const MOCK_FALLBACK =
+  import.meta.env.VITE_MOCK_FALLBACK === 'true'
+  || (import.meta.env.VITE_MOCK_FALLBACK !== 'false' && import.meta.env.DEV)
 
 // ═══ 类型 ═══
 
@@ -102,7 +105,19 @@ export function getPredictions(params: { reservoir_id: number }) {
 // ═══ L2: Mock 降级 ═══
 
 function delay<T>(data: T, ms = 150): Promise<T> {
-  return new Promise((r) => setTimeout(() => r(data), ms))
+  const wait = import.meta.env.DEV ? 0 : ms
+  return new Promise((r) => setTimeout(() => r(data), wait))
+}
+
+const API_WAIT_MS = import.meta.env.DEV ? 2500 : 28000
+
+async function tryApi<T>(fn: () => Promise<T>): Promise<T> {
+  return Promise.race([
+    fn(),
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error('api_timeout')), API_WAIT_MS)
+    }),
+  ])
 }
 
 // ── Realtime KPI ──
@@ -118,7 +133,7 @@ function mockKpi(): RealtimeKpi {
 export async function fetchRealtimeKpi(reservoirId: number): Promise<RealtimeKpi> {
   let kpi: RealtimeKpi
   try {
-    const res = await getMonitoringRealtime({ reservoir_id: String(reservoirId) })
+    const res = await tryApi(() => getMonitoringRealtime({ reservoir_id: String(reservoirId) }))
     if (res.data?.code === 0 && res.data.data) {
       const d = res.data.data
       kpi = {
@@ -165,27 +180,114 @@ export async function fetchDashboardAlarms(): Promise<DashboardAlarm[]> {
 }
 
 // ── 闸门列表 ──
-export async function fetchGates(reservoirId?: number): Promise<GateRaw[]> {
-  try {
-    const res = await getMonitoringGates(reservoirId ? { reservoir_id: reservoirId } : undefined)
-    if (res.data?.code === 0 && Array.isArray(res.data.data)) return res.data.data
-  } catch (e) { if (!MOCK_FALLBACK) throw e }
-  return delay(gateMocks())
+
+function gateNum(code: string, id: number): number {
+  const m = code.match(/(\d+)/)
+  return m ? Number(m[1]) : id
 }
+
+/** 演示/联调：全孔在线、目标=当前，表孔开度拉齐，避免互锁误拦 */
+export function normalizeDemoGates(list: GateRaw[]): GateRaw[] {
+  const items = list.map((g) => {
+    const opening = Math.min(100, Math.max(0, Number(g.opening) || 0))
+    const num = gateNum(g.code, g.id)
+    const isOperable = num >= 1 && num <= 12
+    let status = g.status === 'executing' ? 'executing' : g.status
+    if (isOperable && status === 'offline') status = 'online'
+    const targetRaw = Number(g.target_opening)
+    const target = status === 'offline' ? 0 : (Number.isFinite(targetRaw) ? targetRaw : opening)
+    return {
+      ...g,
+      status,
+      opening,
+      target_opening: status === 'offline' ? 0 : target,
+    }
+  })
+
+  const surface = items.filter((g) => {
+    const n = gateNum(g.code, g.id)
+    return n >= 1 && n <= 8 && g.status !== 'offline'
+  })
+  if (surface.length >= 2) {
+    const aligned = Math.round(
+      surface.reduce((s, g) => s + g.opening, 0) / surface.length,
+    )
+    for (const g of items) {
+      const n = gateNum(g.code, g.id)
+      if (n >= 1 && n <= 8 && g.status !== 'offline') {
+        g.opening = aligned
+        g.target_opening = aligned
+      }
+    }
+  }
+
+  // 中孔 / 底孔演示：若开度为 0，给默认可操作值
+  for (const g of items) {
+    const n = gateNum(g.code, g.id)
+    if (g.status !== 'offline' && g.opening === 0) {
+      if (n === 9 || n === 10) {
+        g.opening = 20
+        g.target_opening = 20
+        if (!g.flow_rate) g.flow_rate = 30 + n
+      } else if (n === 11 || n === 12) {
+        g.opening = 15
+        g.target_opening = 15
+        if (!g.flow_rate) g.flow_rate = 18 + n
+      }
+    }
+  }
+
+  for (const g of items) {
+    if (g.status !== 'offline' && g.target_opening !== g.opening) {
+      g.target_opening = g.opening
+    }
+  }
+
+  return items
+}
+
+export async function fetchGates(reservoirId?: number): Promise<GateRaw[]> {
+  let list: GateRaw[] | null = null
+  try {
+    const res = await tryApi(() =>
+      getMonitoringGates(reservoirId ? { reservoir_id: reservoirId } : undefined),
+    )
+    if (res.data?.code === 0 && Array.isArray(res.data.data)) list = res.data.data
+  } catch (e) { if (!MOCK_FALLBACK) throw e }
+  if (!list?.length) list = gateMocks()
+  if (import.meta.env.DEV || import.meta.env.VITE_DEMO_GATE_ALIGN === 'true') {
+    list = normalizeDemoGates(list)
+  }
+  return delay(list)
+}
+
 function gateMocks(): GateRaw[] {
+  const surfaceOpening = 45
+  const surfaceFlow = 95
+  const mkSurface = (id: number) => ({
+    id,
+    name: `${id}#`,
+    code: `GATE-${String(id).padStart(3, '0')}`,
+    status: 'online',
+    opening: surfaceOpening,
+    target_opening: surfaceOpening,
+    mode: 'AI-DQN',
+    flow_rate: surfaceFlow + id * 3,
+    last_action_at: '14:32',
+  })
   return [
-    { id:1,name:'1#',code:'G01',status:'online',opening:62,target_opening:60,mode:'AI-DQN',flow_rate:120,last_action_at:'14:32' },
-    { id:2,name:'2#',code:'G02',status:'online',opening:48,target_opening:50,mode:'AI-DQN',flow_rate:95,last_action_at:'14:08' },
-    { id:3,name:'3#',code:'G03',status:'online',opening:35,target_opening:35,mode:'AI-DQN',flow_rate:70,last_action_at:'13:45' },
-    { id:4,name:'4#',code:'G04',status:'online',opening:71,target_opening:70,mode:'AI-DQN',flow_rate:140,last_action_at:'14:20' },
-    { id:5,name:'5#',code:'G05',status:'online',opening:55,target_opening:55,mode:'AI-DQN',flow_rate:108,last_action_at:'14:10' },
-    { id:6,name:'6#',code:'G06',status:'online',opening:42,target_opening:40,mode:'AI-DQN',flow_rate:82,last_action_at:'13:55' },
-    { id:7,name:'7#',code:'G07',status:'online',opening:38,target_opening:40,mode:'AI-DQN',flow_rate:75,last_action_at:'12:10' },
-    { id:8,name:'8#',code:'G08',status:'online',opening:60,target_opening:60,mode:'AI-DQN',flow_rate:118,last_action_at:'14:28' },
-    { id:9,name:'中1#',code:'G09',status:'online',opening:18,target_opening:20,mode:'manual',flow_rate:35,last_action_at:'13:30' },
-    { id:10,name:'中2#',code:'G10',status:'online',opening:22,target_opening:20,mode:'manual',flow_rate:42,last_action_at:'13:32' },
-    { id:11,name:'底1#',code:'G11',status:'offline',opening:0,target_opening:0,mode:'manual',flow_rate:0,last_action_at:'--' },
-    { id:12,name:'底2#',code:'G12',status:'offline',opening:0,target_opening:0,mode:'manual',flow_rate:0,last_action_at:'--' },
+    mkSurface(1),
+    mkSurface(2),
+    mkSurface(3),
+    mkSurface(4),
+    mkSurface(5),
+    mkSurface(6),
+    mkSurface(7),
+    mkSurface(8),
+    { id: 9, name: '中1#', code: 'GATE-009', status: 'online', opening: 20, target_opening: 20, mode: 'manual', flow_rate: 35, last_action_at: '13:30' },
+    { id: 10, name: '中2#', code: 'GATE-010', status: 'online', opening: 20, target_opening: 20, mode: 'manual', flow_rate: 42, last_action_at: '13:32' },
+    { id: 11, name: '底1#', code: 'GATE-011', status: 'online', opening: 15, target_opening: 15, mode: 'manual', flow_rate: 22, last_action_at: '12:10' },
+    { id: 12, name: '底2#', code: 'GATE-012', status: 'online', opening: 15, target_opening: 15, mode: 'manual', flow_rate: 25, last_action_at: '12:12' },
   ]
 }
 
