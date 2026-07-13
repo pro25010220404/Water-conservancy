@@ -1,17 +1,17 @@
 // ============================================================
-// 泄流可视化 — 宽幅水幕 + 水雾 + 底部水花（BIM 工业流体）
+// 泄流可视化 — 宽幅水幕 + 水雾 + 底部水花（浅青蓝清爽水流）
 // ============================================================
 import * as THREE from 'three'
+import {
+  gateLeafBottomY,
+  GATE_SILL_Y,
+  LINTEL_BOTTOM_Y,
+} from '@/utils/gateKinematics'
 
-export const GATE_SILL_Y = 4.5
-export const LINTEL_BOTTOM_Y = 15.5
+export { GATE_SILL_Y, LINTEL_BOTTOM_Y }
 export const DISCHARGE_X = 6.2
 /** 闸门开孔满宽（与 bay 宽 3.2 对齐，略外扩铺满） */
 export const GATE_OPENING_WIDTH = 2.85
-
-const GATE_LEAF_BASE = 6
-const GATE_LIFT = 7
-const GATE_HALF_H = 5
 
 export interface DischargeMetrics {
   visible: boolean
@@ -58,9 +58,9 @@ function waterfallMaterial() {
         float streak = smoothstep(0.0, 0.08, flow) * (1.0 - smoothstep(0.38, 0.58, flow));
         float refr = 0.12 + streak * 0.22;
 
-        vec3 topCol = vec3(0.72, 0.9, 0.98);
-        vec3 midCol = vec3(0.35, 0.68, 0.92);
-        vec3 botCol = vec3(0.12, 0.42, 0.72);
+        vec3 topCol = vec3(0.78, 0.94, 0.99);
+        vec3 midCol = vec3(0.42, 0.76, 0.94);
+        vec3 botCol = vec3(0.18, 0.52, 0.78);
         vec3 col = mix(botCol, midCol, smoothstep(0.0, 0.55, vUv.y));
         col = mix(col, topCol, smoothstep(0.55, 1.0, vUv.y));
         col += vec3(0.35, 0.45, 0.5) * refr;
@@ -114,11 +114,8 @@ function splashMaterial() {
   })
 }
 
-export function gateOutletY(openRatio: number, baseY = GATE_LEAF_BASE, lift = GATE_LIFT, halfH = GATE_HALF_H) {
-  const r = Math.min(1, Math.max(0, openRatio))
-  const leafY = baseY + r * lift
-  const scaleY = 1 - r * 0.45
-  return leafY - halfH * scaleY
+export function gateOutletY(openRatio: number) {
+  return gateLeafBottomY(openRatio)
 }
 
 export function computeDischargeMetrics(

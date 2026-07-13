@@ -54,13 +54,13 @@ function safeNum(v: number, fallback = 0) {
   return Number.isFinite(v) ? v : fallback
 }
 
-const safeGateOpening = computed(() => safeNum(props.gateOpening, 45))
+const safeGateOpening = computed(() => safeNum(props.gateOpening, 100))
 const safeWaterLevel = computed(() => safeNum(props.waterLevel, 380))
 const safeDownstreamLevel = computed(() => safeNum(props.downstreamLevel, 277))
 const safeFlowRate = computed(() => safeNum(props.flowRate, 1911))
 const safeGateOpenings = computed(() =>
   props.gateOpenings?.length
-    ? props.gateOpenings.map((v) => safeNum(v, 45))
+    ? props.gateOpenings.map((v) => safeNum(v, 100))
     : Array.from({ length: 5 }, () => safeGateOpening.value),
 )
 const hasGateSelected = computed(() => (props.selectedGateIndex ?? -1) >= 0)

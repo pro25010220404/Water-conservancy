@@ -91,13 +91,18 @@ export async function fetchReservoirList() {
 
 // ── 水库物理防护摘要（兼容旧调用，来自 physics-guard）──
 import type { PhysicsGuardSummary } from '@/types/dispatch'
+import type { BackendPhysicsGuardRaw } from './physicsGuardAdapter'
+import { mapBackendPhysicsGuardSummary } from './physicsGuardAdapter'
+
 export async function fetchReservoirPhysicsSummary(reservoirId: number): Promise<PhysicsGuardSummary> {
   try {
-    const res = await http.get<ApiResponse<PhysicsGuardSummary>>(
+    const res = await http.get<ApiResponse<BackendPhysicsGuardRaw>>(
       `${V1_PREFIX}/admin/physics-guard`,
       { params: { reservoir_id: reservoirId } },
     )
-    if (res.data?.code === 0 && res.data.data) return res.data.data
+    if (res.data?.code === 0 && res.data.data) {
+      return mapBackendPhysicsGuardSummary(res.data.data)
+    }
   } catch { /* fallback */ }
   // mock fallback
   return {

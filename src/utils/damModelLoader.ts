@@ -12,6 +12,7 @@ import {
   DAM_HERO_ANCHOR,
 } from '@/constants/damModel'
 import { PIER_MAT, DAM_BODY_MAT, GATE_FRAME_COLOR } from '@/utils/gateVisualTheme'
+import { applyGateLeafTransform } from '@/utils/gateKinematics'
 import { buildDamBody } from './terrainBuilder'
 import { createConcreteTextures, createMetalTextures } from './proceduralTextures'
 
@@ -85,18 +86,14 @@ function collectHoverables(root: THREE.Object3D): THREE.Object3D[] {
 
 function applyGateOpeningToLeaves(gates: GateLeafState[], ratio: number) {
   const r = Math.min(1, Math.max(0, ratio))
-  gates.forEach((g) => {
-    g.object.position.y = g.baseY + r * 7
-    g.object.scale.y = g.baseScaleY * (1 - r * 0.45)
-  })
+  gates.forEach((g) => applyGateLeafTransform(g.object, r, g.baseY, g.baseScaleY))
 }
 
 function applyPerGateOpeningToLeaves(gates: GateLeafState[], openingsPct: number[]) {
   gates.forEach((g, i) => {
     const pct = openingsPct[i] ?? openingsPct[openingsPct.length - 1] ?? 0
     const r = Math.min(1, Math.max(0, pct / 100))
-    g.object.position.y = g.baseY + r * 7
-    g.object.scale.y = g.baseScaleY * (1 - r * 0.45)
+    applyGateLeafTransform(g.object, r, g.baseY, g.baseScaleY)
   })
 }
 
