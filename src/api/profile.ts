@@ -84,7 +84,7 @@ export async function getMyProfile(userId: number, account?: string) {
     account: string
     realname: string
     role_name: string
-    role_code: string
+    role_id: number   // 后端实际返回 role_id（数字），不是 role_code
     phone: string
     email?: string
     avatar?: string
@@ -103,7 +103,8 @@ export async function getMyProfile(userId: number, account?: string) {
             id: user.id,
             account: user.account,
             realname: user.realname,
-            role_name: user.role_name || user.role_code || '',
+            role_id: user.role_id,                          // 数字 1-5，精确映射
+            role_name: user.role_name || '',
             phone: user.phone || '',
             email: user.email || '',
             avatar: user.avatar || '',

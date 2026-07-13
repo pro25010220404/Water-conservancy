@@ -24,7 +24,7 @@ import {
   ElProgress,
   ElMessage,
 } from 'element-plus'
-import { useUserStore } from '@/stores/user'
+import { useUserStore, ROLE_LABEL_MAP } from '@/stores/user'
 import { checkPasswordStrength, FORM_RULES, PASSWORD_RULE } from '@/constants/validation'
 import { changePassword, updateProfile } from '@/api/profile'
 import type { OperationLog } from '@/shared/types'
@@ -117,15 +117,8 @@ const displayName = computed(
 )
 
 const roleLabel = computed(() => {
-  const map: Record<string, string> = {
-    operator: '值班运维',
-    dispatcher: '调度工程师',
-    manager: '站长/管理',
-    admin: '系统管理员',
-    algorithm_engineer: '算法工程师',
-  }
   const roles = userStore.userInfo?.roles ?? []
-  return roles.map((r) => map[r] ?? r).join('、')
+  return roles.map((r) => ROLE_LABEL_MAP[r] ?? r).join('、') || '未分配'
 })
 
 /** 注册时间：优先 localStorage，否则用当前时间 */

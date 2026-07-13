@@ -5,7 +5,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElCard, ElAvatar, ElTag, ElButton, ElMessageBox } from 'element-plus'
-import { useUserStore } from '@/stores/user'
+import { useUserStore, ROLE_LABEL_MAP } from '@/stores/user'
 import { useProfileStore } from '@/stores/profile'
 import { getMyProfile } from '@/api/profile'
 import EditProfileDialog from './EditProfileDialog.vue'
@@ -31,15 +31,13 @@ const realname = computed(
 )
 
 const roleLabel = computed(() => {
-  const map: Record<string, string> = {
-    operator: '值班运维',
-    dispatcher: '调度工程师',
-    manager: '站长/管理',
-    admin: '系统管理员',
-    algorithm_engineer: '算法工程师',
-  }
   const roles = userStore.userInfo?.roles ?? []
-  return roles.map((r) => map[r] ?? r).join('、') || '未分配'
+  if (roles.length > 0) {
+    // 使用与用户管理页面同一套映射（ROLE_LABEL_MAP）
+    return roles.map((r) => ROLE_LABEL_MAP[r] ?? r).join('、')
+  }
+  // 兜底：直接从 profileStore 的后端 role_name 显示
+  return profileStore.userInfo?.role_name || '未分配'
 })
 
 const phone = computed(() => profileStore.userInfo?.phone || '未填写')
@@ -48,7 +46,8 @@ const registerTime = computed(() => profileStore.userInfo?.created_at || '-')
 const currentAvatarUrl = ref('')
 
 function loadAvatar() {
-  let raw = profileStore.avatarUrl || localStorage.getItem('profile_avatar') || ''
+  const avatarCacheKey = `profile_avatar_${userStore.userInfo?.id ?? '0'}`
+  let raw = profileStore.avatarUrl || localStorage.getItem(avatarCacheKey) || ''
   // 修复后端返回的不完整 OSS URL：缺 https:// 和 bucket 名
   if (raw && !raw.startsWith('data:') && !raw.startsWith('http')) {
     if (raw.startsWith('oss-')) raw = 'https://fmy-base.' + raw
@@ -84,6 +83,8 @@ async function initProfile() {
           const d = res.data.data
           // 后端返回 avatar OSS URL，优先用后端的
           const backendAvatar = (d as any).avatar || ''
+          // 不再从 profile 接口覆盖角色 — 角色仅由登录 /auth/login 确定
+          // 若需刷新权限，请重新登录
           profileStore.setUserInfo({
             id: d.id,
             account: d.account,

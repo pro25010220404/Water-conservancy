@@ -55,18 +55,18 @@ export const METRIC_LABEL_MAP: Record<string, string> = {
 
 // ---------- 用户角色 ----------
 export const USER_ROLES: Record<string, string> = {
-  operator: '值班运维人员',
-  dispatcher: '调度决策工程师',
-  manager: '站长/管理人员',
+  operator: '运维人员',
+  dispatcher: '调度员',
+  manager: '站长',
   admin: '系统管理员',
   algorithm_engineer: '算法工程师',
 }
 
 export const USER_ROLE_OPTIONS = [
-  { label: '值班运维人员', value: 'operator' },
-  { label: '调度决策工程师', value: 'dispatcher' },
-  { label: '站长/管理人员', value: 'manager' },
   { label: '系统管理员', value: 'admin' },
+  { label: '调度员', value: 'dispatcher' },
+  { label: '运维人员', value: 'operator' },
+  { label: '站长', value: 'manager' },
   { label: '算法工程师', value: 'algorithm_engineer' },
 ] as const
 
