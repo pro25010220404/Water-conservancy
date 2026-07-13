@@ -418,7 +418,7 @@ async function resetRecordSearch() {
 }
 
 async function refreshAll() {
-  await dispatchStore.refreshCore(predictTerm.value)
+  await dispatchStore.ensureCoreLoaded(predictTerm.value)
   try {
     const logs = await fetchDispatchLogs(appliedRecordKeyword.value || undefined)
     records.value = logs.data.list
@@ -429,16 +429,33 @@ async function refreshAll() {
   if (status.value.isExecuting && !executionRefreshTimer) {
     executionRefreshTimer = setTimeout(async () => {
       executionRefreshTimer = null
-      await refreshAll()
+      await dispatchStore.refreshCore(predictTerm.value)
+      await refreshRecordsOnly()
     }, 4200)
   }
+}
+
+async function refreshRecordsOnly() {
+  try {
+    const logs = await fetchDispatchLogs(appliedRecordKeyword.value || undefined)
+    records.value = logs.data.list
+  } catch { /* optional */ }
+}
+
+async function pollAnalysis() {
+  if (document.hidden) return
+  await dispatchStore.refreshGates({ silent: true })
+  await refreshRecordsOnly()
 }
 
 function toggleRecordExpand(id: number) {
   expandedRecordId.value = expandedRecordId.value === id ? null : id
 }
 
-watch(predictTerm, () => refreshAll())
+watch(predictTerm, async () => {
+  await dispatchStore.refreshCore(predictTerm.value)
+  await refreshRecordsOnly()
+})
 watch(recordPageNum, () => { expandedRecordId.value = null })
 
 function applyRecordQuery() {
@@ -457,7 +474,7 @@ onMounted(async () => {
   dispatchStore.applySavedMode()
   applyRecordQuery()
   if (route.query.openDetail === '1') decisionDialogVisible.value = true
-  pollTimer = setInterval(refreshAll, 10000)
+  pollTimer = setInterval(pollAnalysis, 20000)
 })
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)

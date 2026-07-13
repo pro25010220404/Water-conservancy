@@ -235,6 +235,45 @@ const drillContent = computed(() => {
 
 function openDrill(dim: string) { drillDim.value = dim; drillVisible.value = true }
 
+async function loadVersionOptions() {
+  const rid = Number(reservoirId.value)
+  versionOptions.value = await fetchModelVersionOptions(rid)
+  if (currentModelId.value == null) {
+    currentModelId.value = versionOptions.value[0]?.id ?? null
+  }
+  if (previousModelId.value == null) {
+    previousModelId.value = versionOptions.value[1]?.id ?? versionOptions.value[0]?.id ?? null
+  }
+}
+
+async function loadCompare() {
+  if (props.fixedMode === 'dashboard') return
+  if (currentModelId.value == null || previousModelId.value == null) {
+    ElMessage.warning('请选择当前版和对比版')
+    return
+  }
+  if (currentModelId.value === previousModelId.value) {
+    ElMessage.warning('请选择两个不同的版本进行对比')
+    return
+  }
+
+  loading.value = true
+  try {
+    await loadVersionOptions()
+    compare.value = await fetchModelCompare(
+      Number(reservoirId.value),
+      currentModelId.value,
+      previousModelId.value,
+    )
+    ElMessage.success('对比数据已更新')
+  } catch {
+    compare.value = null
+    ElMessage.error('查询对比数据失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 async function load() {
   loading.value = true
   historyEmpty.value = false
@@ -252,8 +291,6 @@ async function load() {
 
     const results = await Promise.allSettled(tasks)
 
-    const latestR = results[0]
-    const historyR = results[1]
     const healthR = props.fixedMode !== 'compare' ? results[2] : null
 
     // 指标卡片 / 趋势图 / 明细表：都用 mock，时间对齐系统整点
@@ -269,12 +306,10 @@ async function load() {
 
     if (needCompare) {
       try {
-        versionOptions.value = await fetchModelVersionOptions(rid)
-        if (currentModelId.value == null) currentModelId.value = versionOptions.value[0]?.id ?? null
-        if (previousModelId.value == null) {
-          previousModelId.value = versionOptions.value[1]?.id ?? versionOptions.value[0]?.id ?? null
+        await loadVersionOptions()
+        if (currentModelId.value != null && previousModelId.value != null) {
+          compare.value = await fetchModelCompare(rid, currentModelId.value, previousModelId.value)
         }
-        compare.value = await fetchModelCompare(rid, currentModelId.value ?? undefined, previousModelId.value ?? undefined)
       } catch {
         compare.value = null
       }
@@ -286,10 +321,6 @@ async function load() {
 
 watch(reservoirId, () => { currentModelId.value = null; previousModelId.value = null; load() })
 watch(detailDays, load)
-watch([currentModelId, previousModelId], async () => {
-  if (props.fixedMode === 'dashboard') return
-  compare.value = await fetchModelCompare(reservoirId.value, currentModelId.value ?? undefined, previousModelId.value ?? undefined)
-})
 
 onMounted(async () => {
   try {
@@ -336,6 +367,7 @@ onUnmounted(() => { if (dailyTimer) { clearTimeout(dailyTimer); clearInterval(da
         <ElSelect v-model="previousModelId" style="width:200px">
           <ElOption v-for="v in versionOptions" :key="v.id" :label="`${v.version} (${v.source})`" :value="v.id" />
         </ElSelect>
+        <ElButton type="primary" :loading="loading" @click="loadCompare">查询</ElButton>
       </template>
       <div v-if="fixedMode === 'both'" class="view-toggle">
         <button type="button" :class="{ active: viewMode === 'dashboard' }" @click="viewMode = 'dashboard'">健康仪表盘</button>

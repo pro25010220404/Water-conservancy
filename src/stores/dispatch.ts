@@ -47,8 +47,12 @@ export const useDispatchStore = defineStore('dispatch', () => {
   const targetOpening = ref(45)
   const userModifiedTarget = ref(false)
   const selectedGateId = ref<number | null>(null)
-  const gatesLoading = ref(false)
+  const gatesInitialLoading = ref(false)
+  const coreReady = ref(false)
   const precheckResult = ref<GatePrecheckResult | null>(null)
+
+  let coreLoadPromise: Promise<void> | null = null
+  let gatesRefreshPromise: Promise<void> | null = null
 
   const outflowRate = ref(0)
 
@@ -83,30 +87,53 @@ export const useDispatchStore = defineStore('dispatch', () => {
 
   function applySavedMode() {
     const saved = localStorage.getItem('dispatch_mode')
-    if (saved === 'manual' || saved === 'auto') status.value.mode = saved
+    if (saved === 'manual' || saved === 'auto') {
+      status.value.mode = saved
+    } else if (import.meta.env.DEV) {
+      status.value.mode = 'manual'
+    }
   }
 
-  async function refreshGates() {
-    gatesLoading.value = true
-    const simStore = useVirtualSimulationStore()
-    try {
-      const [gateList, kpiRaw] = await Promise.all([fetchGates(1), fetchRealtimeKpi(1)])
-      simStore.initBaselineFromKpi(kpiRaw)
-      const kpi = simStore.overlayKpi(kpiRaw)
-      gates.value = simStore.overlayGates(gateList.map(buildGateNode))
-      if (!selectedGateId.value && gates.value.length) {
-        selectedGateId.value = gates.value.find((g) => isGateOnline(g.status))?.id ?? gates.value[0].id
+  async function refreshGates(options?: { silent?: boolean }) {
+    if (gatesRefreshPromise) return gatesRefreshPromise
+
+    const silent = options?.silent ?? false
+    const showLoading = !silent && gates.value.length === 0
+    if (showLoading) gatesInitialLoading.value = true
+
+    gatesRefreshPromise = (async () => {
+      const simStore = useVirtualSimulationStore()
+      const prevTargets = new Map(gates.value.map((g) => [g.id, g.targetOpening]))
+      const hadPending = pendingChangeCount(gates.value) > 0
+      try {
+        const [gateList, kpiRaw] = await Promise.all([fetchGates(1), fetchRealtimeKpi(1)])
+        simStore.initBaselineFromKpi(kpiRaw)
+        const kpi = simStore.overlayKpi(kpiRaw)
+        gates.value = simStore.overlayGates(gateList.map(buildGateNode))
+        if (hadPending) {
+          gates.value = gates.value.map((g) => ({
+            ...g,
+            targetOpening: prevTargets.get(g.id) ?? g.targetOpening,
+          }))
+        }
+        if (!selectedGateId.value && gates.value.length) {
+          selectedGateId.value = gates.value.find((g) => isGateOnline(g.status))?.id ?? gates.value[0].id
+        }
+        status.value.upstreamLevel = kpi.upstreamLevel
+        status.value.downstreamLevel = kpi.downstreamLevel
+        status.value.flowRate = kpi.inflowRate
+        outflowRate.value = kpi.outflowRate
+        const agg = calcAggregateOpening(gates.value, false)
+        if (agg != null) status.value.gateOpening = agg
+        precheckResult.value = precheckGateChanges(gates.value, head.value)
+      } finally {
+        if (showLoading) gatesInitialLoading.value = false
       }
-      status.value.upstreamLevel = kpi.upstreamLevel
-      status.value.downstreamLevel = kpi.downstreamLevel
-      status.value.flowRate = kpi.inflowRate
-      outflowRate.value = kpi.outflowRate
-      const agg = calcAggregateOpening(gates.value, false)
-      if (agg != null) status.value.gateOpening = agg
-      precheckResult.value = precheckGateChanges(gates.value, head.value)
-    } finally {
-      gatesLoading.value = false
-    }
+    })().finally(() => {
+      gatesRefreshPromise = null
+    })
+
+    return gatesRefreshPromise
   }
 
   async function refreshCore(predictTerm: 1 | 2 | 3 = 2) {
@@ -115,14 +142,28 @@ export const useDispatchStore = defineStore('dispatch', () => {
       fetchDecisionDetail(),
       fetchPrediction(predictTerm),
     ])
-    status.value = st.data
+    status.value = {
+      ...status.value,
+      ...st.data,
+      autoLevel: status.value.autoLevel,
+    }
     applySavedMode()
     decision.value = dec.data
     prediction.value = pred.data
     if (dec.data && !userModifiedTarget.value && !st.data.isExecuting) {
       targetOpening.value = dec.data.recommended_opening
     }
-    await refreshGates()
+    await refreshGates({ silent: gates.value.length > 0 })
+    coreReady.value = true
+  }
+
+  async function ensureCoreLoaded(predictTerm: 1 | 2 | 3 = 2, force = false) {
+    if (coreReady.value && !force) return
+    if (coreLoadPromise) return coreLoadPromise
+    coreLoadPromise = refreshCore(predictTerm).finally(() => {
+      coreLoadPromise = null
+    })
+    return coreLoadPromise
   }
 
   function setGateTarget(gateId: number, opening: number) {
@@ -151,6 +192,16 @@ export const useDispatchStore = defineStore('dispatch', () => {
     precheckResult.value = precheckGateChanges(gates.value, head.value)
   }
 
+  /** 表孔一键拉齐：以在线表孔当前开度均值（或指定值）同步目标 */
+  function alignSurfaceTargets(opening?: number) {
+    const surface = gates.value.filter((g) => g.group === 'surface' && isGateOnline(g.status))
+    if (!surface.length) return
+    const val = opening ?? Math.round(
+      surface.reduce((s, g) => s + g.currentOpening, 0) / surface.length,
+    )
+    syncGroupTargets('surface', Math.min(100, Math.max(0, val)))
+  }
+
   function applyTotalOpeningDistribution(targetTotal: number, surfaceOnly = false) {
     gates.value = distributeTotalOpening(gates.value, targetTotal, surfaceOnly)
     precheckResult.value = precheckGateChanges(gates.value, head.value)
@@ -176,9 +227,20 @@ export const useDispatchStore = defineStore('dispatch', () => {
     const changed = gates.value.filter(
       (g) => isGateOnline(g.status) && g.targetOpening !== g.currentOpening,
     )
-    for (const g of changed) {
-      await mockExecuteGate(g.id)
-    }
+    if (!changed.length) return
+    const ids = new Set(changed.map((g) => g.id))
+    gates.value = gates.value.map((g) =>
+      ids.has(g.id) ? { ...g, status: 'executing' as const } : g,
+    )
+    await new Promise((r) => setTimeout(r, 600))
+    gates.value = gates.value.map((g) =>
+      ids.has(g.id)
+        ? { ...g, status: 'online' as const, currentOpening: g.targetOpening }
+        : g,
+    )
+    const agg = calcAggregateOpening(gates.value, false)
+    if (agg != null) status.value.gateOpening = agg
+    precheckResult.value = precheckGateChanges(gates.value, head.value)
   }
 
   return {
@@ -189,7 +251,8 @@ export const useDispatchStore = defineStore('dispatch', () => {
     targetOpening,
     userModifiedTarget,
     selectedGateId,
-    gatesLoading,
+    gatesInitialLoading,
+    coreReady,
     precheckResult,
     outflowRate,
     canManualControl,
@@ -201,11 +264,13 @@ export const useDispatchStore = defineStore('dispatch', () => {
     impactPreview,
     interlockOk,
     refreshCore,
+    ensureCoreLoaded,
     refreshGates,
     setGateTarget,
     resetGateTarget,
     resetAllGateTargets,
     syncGroupTargets,
+    alignSurfaceTargets,
     applyTotalOpeningDistribution,
     mockExecuteGate,
     mockBatchExecute,

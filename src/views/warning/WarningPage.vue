@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import {
   ElSelect, ElOption, ElInput, ElButton, ElPagination,
   ElDialog, ElForm, ElFormItem, ElMessage, ElMessageBox, ElDescriptions, ElDescriptionsItem,
-  ElDatePicker, ElTooltip,
+  ElDatePicker, ElTooltip, ElSwitch,
 } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
@@ -21,9 +21,11 @@ import type { PhysicsGuardSummary } from '@/types/dispatch'
 import { getAlarmList, getAlarmDetail, confirmAlarm, handleAlarm, getAlarmExceedLogs, pollAlarmPush, getPhysicsGuardSummary } from '@/api/warning'
 import { useAlarmNotify, pendingAlarmCount } from '@/composables/useAlarmNotify'
 import { useWebSocket } from '@/composables/useWebSocket'
+import { useAlarmDetailDisplay } from '@/composables/useAlarmDetailDisplay'
 
 const { handlePushMessage } = useAlarmNotify()
 const router = useRouter()
+const { config: alarmDisplay, setShowConfirmedBy, setShowHandledBy } = useAlarmDetailDisplay()
 
 const filter = reactive<AlarmFilterParams>({
   level: undefined, status: undefined, type: undefined,
@@ -318,6 +320,25 @@ onUnmounted(() => {
 
     <!-- 已处置详情 -->
     <ElDialog v-model="detailVisible" title="告警详情" width="640px">
+      <div class="detail-display-toggles">
+        <span class="detail-display-toggles__label">详情字段显示</span>
+        <label class="detail-display-toggles__item">
+          <ElSwitch
+            :model-value="alarmDisplay.showConfirmedBy"
+            size="small"
+            @change="(v: boolean) => setShowConfirmedBy(v)"
+          />
+          确认人
+        </label>
+        <label class="detail-display-toggles__item">
+          <ElSwitch
+            :model-value="alarmDisplay.showHandledBy"
+            size="small"
+            @change="(v: boolean) => setShowHandledBy(v)"
+          />
+          处置人
+        </label>
+      </div>
       <ElDescriptions v-if="detailRow" :column="1" border class="alarm-desc">
         <ElDescriptionsItem v-if="detailRow.alarmNo" label="告警编号">{{ detailRow.alarmNo }}</ElDescriptionsItem>
         <ElDescriptionsItem label="级别"><span class="level-badge" :class="levelClass(detailRow.level)">{{ ALARM_LEVEL_MAP[detailRow.level]?.label }}</span></ElDescriptionsItem>
@@ -332,9 +353,19 @@ onUnmounted(() => {
         <ElDescriptionsItem label="触发时间">{{ formatTime(detailRow.createdAt) }}</ElDescriptionsItem>
         <ElDescriptionsItem v-if="detailRow.updatedAt" label="更新时间">{{ formatTime(detailRow.updatedAt) }}</ElDescriptionsItem>
         <ElDescriptionsItem v-if="detailRow.confirmedAt" label="确认时间">{{ formatTime(detailRow.confirmedAt) }}</ElDescriptionsItem>
-        <ElDescriptionsItem v-if="detailRow.confirmedByName || detailRow.confirmedBy" label="确认人">{{ detailRow.confirmedByName || `用户#${detailRow.confirmedBy}` }}</ElDescriptionsItem>
+        <ElDescriptionsItem
+          v-if="alarmDisplay.showConfirmedBy && detailRow.confirmedByName"
+          label="确认人"
+        >
+          {{ detailRow.confirmedByName }}
+        </ElDescriptionsItem>
         <ElDescriptionsItem v-if="detailRow.handledAt" label="处置时间">{{ formatTime(detailRow.handledAt) }}</ElDescriptionsItem>
-        <ElDescriptionsItem v-if="detailRow.handledByName || detailRow.handledBy" label="处置人">{{ detailRow.handledByName || `用户#${detailRow.handledBy}` }}</ElDescriptionsItem>
+        <ElDescriptionsItem
+          v-if="alarmDisplay.showHandledBy && detailRow.handledByName"
+          label="处置人"
+        >
+          {{ detailRow.handledByName }}
+        </ElDescriptionsItem>
         <ElDescriptionsItem v-if="detailRow.remark" label="处置备注">{{ detailRow.remark }}</ElDescriptionsItem>
         <ElDescriptionsItem v-if="detailRow.traceId" label="Trace ID"><span class="mono">{{ detailRow.traceId }}</span></ElDescriptionsItem>
         <template v-if="detailRow.type === 'MODEL_HEALTH_DEGRADED' && physicsGuardCtx">
@@ -411,6 +442,31 @@ onUnmounted(() => {
 }
 .duration--formal { color: #16a34a; }
 .duration--log { color: #64748b; font-weight: 500; }
+.detail-display-toggles {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: $cockpit-font-sm;
+
+  &__label {
+    font-weight: 600;
+    color: $cockpit-text-dim;
+  }
+
+  &__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: $cockpit-text;
+  }
+}
 .table-panel { flex: 1; min-height: 420px; display: flex; flex-direction: column; }
 .table-3d {
   flex: 1; overflow: auto;

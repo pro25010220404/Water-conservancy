@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import {
   ElButton, ElSlider, ElInputNumber, ElMessage, ElMessageBox, ElTag, ElProgress, ElDialog, ElFormItem, ElInput,
 } from 'element-plus'
-import { View, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { View, CircleClose } from '@element-plus/icons-vue'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import { storeToRefs } from 'pinia'
 import { useDispatchStore } from '@/stores/dispatch'
@@ -25,7 +25,7 @@ const { record: recordLog } = useOperationLog()
 
 const {
   status, decision, targetOpening, userModifiedTarget, canManualControl,
-  aggregateOpening, outflowRate,
+  aggregateOpening, outflowRate, pendingChanges,
 } = storeToRefs(store)
 
 /** 虚拟仿真激活时，叠加仿真数据到显示值 */
@@ -59,11 +59,20 @@ const canModifyLevel = computed(() => {
 
 const executingTarget = computed(() => status.value.executingTarget)
 
+const baselineOpening = computed(() => displayGateOpening.value)
+
 const canSubmitExecute = computed(() =>
   canManualControl.value
   && !status.value.isExecuting
-  && targetOpening.value !== status.value.gateOpening,
+  && Math.abs(targetOpening.value - baselineOpening.value) >= OPENING_STEP,
 )
+
+const showSuggestionHint = computed(() =>
+  decision.value != null
+  && Math.abs(targetOpening.value - decision.value.recommended_opening) < OPENING_STEP,
+)
+
+const canIgnoreSuggestion = computed(() => status.value.autoLevel !== 3)
 
 const confidenceValue = computed(() => decision.value?.confidence ?? 0)
 const confidenceColor = computed(() => getConfidenceColor(confidenceValue.value))
@@ -97,7 +106,7 @@ function onTargetInput() {
 }
 
 async function refresh() {
-  await store.refreshCore()
+  await store.refreshGates({ silent: true })
 }
 
 async function toggleMode(next: 'auto' | 'manual') {
@@ -116,16 +125,33 @@ async function toggleMode(next: 'auto' | 'manual') {
   } catch { /* cancel */ }
 }
 
-async function handleExecuteProportional() {
-  if (!canManualControl.value || !canSubmitExecute.value) return
-  store.applyTotalOpeningDistribution(targetOpening.value, false)
+async function handleDistributeToGates() {
+  if (!canManualControl.value || status.value.isExecuting) return
+  if (!canSubmitExecute.value) {
+    ElMessage.info('目标总开度与当前相同，无需分配')
+    return
+  }
+  const delta = targetOpening.value - baselineOpening.value
+  try {
+    await ElMessageBox.confirm(
+      `将总开度 ${targetOpening.value}%（较当前 ${delta >= 0 ? '+' : ''}${delta}%）按各孔当前开度比例写入各节点目标值。\n\n分配后请前往「节点控制」确认互锁并提交。`,
+      '分配到各孔',
+      { type: 'warning', confirmButtonText: '确认分配' },
+    )
+    store.applyTotalOpeningDistribution(targetOpening.value, false)
+    recordLog('调度决策', '分配到各孔', `总开度 → ${targetOpening.value}%`, 1)
+    ElMessage.success(`已写入各孔目标开度（${pendingChanges.value} 处变更），请前往节点控制提交`)
+  } catch { /* cancel */ }
+}
+
+function handleGoNodeControl() {
+  if (!canManualControl.value) return
   router.push('/dispatch/gates')
-  ElMessage.info('已按比例填入各孔目标开度，请在节点控制页确认并提交')
 }
 
 async function handleExecuteDirect() {
   if (!canSubmitExecute.value) return
-  const delta = targetOpening.value - status.value.gateOpening
+  const delta = targetOpening.value - baselineOpening.value
   try {
     await ElMessageBox.confirm(
       `目标开度 ${targetOpening.value}%（较当前 ${delta >= 0 ? '+' : ''}${delta}%）`,
@@ -151,19 +177,10 @@ async function handleCancelExecute() {
   } catch { /* cancel */ }
 }
 
-async function handleAccept() {
-  if (!decision.value || status.value.isExecuting) return
-  try {
-    await ElMessageBox.confirm(
-      `确认采纳建议，将开度调整至 ${decision.value.recommended_opening}%？`,
-      '采纳建议',
-      { type: 'warning' },
-    )
-    await store.postAcceptDecision(decision.value.id, decision.value.recommended_opening)
-    recordLog('调度决策', '采纳建议', `开度 → ${decision.value.recommended_opening}%`, 1)
-    ElMessage.success('建议已采纳并下发')
-    await refresh()
-  } catch { /* cancel */ }
+function applyRecommendation() {
+  if (!decision.value || !canManualControl.value) return
+  targetOpening.value = decision.value.recommended_opening
+  userModifiedTarget.value = false
 }
 
 async function handleIgnore() {
@@ -190,9 +207,9 @@ async function submitLevel() {
 }
 
 onMounted(async () => {
-  await refresh()
+  await store.ensureCoreLoaded()
   store.applySavedMode()
-  pollTimer = setInterval(refresh, 10000)
+  pollTimer = setInterval(refresh, 15000)
 })
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
@@ -252,9 +269,13 @@ onUnmounted(() => {
 
         <GlassPanel3D title="手动干预" class="ctrl-panel ctrl-panel--manual">
           <p v-if="!canManualControl" class="manual-tip">自动模式且非 L1 时，手动控制已锁定</p>
+          <p v-if="showSuggestionHint" class="suggestion-hint">此开度为调度建议开度</p>
           <div v-if="status.isExecuting" class="exec-strip">
             <ElTag type="primary" size="small">执行中</ElTag>
             <span>目标 <strong>{{ executingTarget ?? targetOpening }}%</strong> · 当前 {{ displayGateOpening.toFixed(1) }}%</span>
+          </div>
+          <div v-if="status.isExecuting" class="exec-cancel-row">
+            <ElButton type="danger" plain class="manual-action-btn" @click="handleCancelExecute">取消执行</ElButton>
           </div>
           <div class="manual-row">
             <span class="lbl">目标开度</span>
@@ -280,22 +301,47 @@ onUnmounted(() => {
             @change="onTargetInput"
           />
           <div class="manual-actions">
-            <template v-if="status.isExecuting">
-              <ElButton type="danger" plain class="manual-action-btn" @click="handleCancelExecute">取消执行</ElButton>
-            </template>
-            <template v-else>
-              <ElButton type="primary" class="manual-action-btn" :disabled="!canSubmitExecute" @click="handleExecuteDirect">总开度执行</ElButton>
-              <ElButton class="manual-action-btn" :disabled="!canSubmitExecute" @click="handleExecuteProportional">分配到各孔</ElButton>
-              <ElButton class="manual-action-btn" :disabled="!canManualControl" @click="router.push('/dispatch/gates')">节点控制</ElButton>
-            </template>
+            <ElButton
+              type="primary"
+              class="manual-action-btn"
+              :disabled="!canSubmitExecute || status.isExecuting"
+              @click="handleExecuteDirect"
+            >
+              总开度执行
+            </ElButton>
+            <ElButton
+              class="manual-action-btn"
+              :disabled="!canSubmitExecute || status.isExecuting"
+              @click="handleDistributeToGates"
+            >
+              分配到各孔
+            </ElButton>
+            <ElButton
+              class="manual-action-btn"
+              :disabled="!canManualControl"
+              @click="handleGoNodeControl"
+            >
+              节点控制{{ pendingChanges > 0 ? ` (${pendingChanges})` : '' }}
+            </ElButton>
           </div>
+          <p v-if="pendingChanges > 0" class="manual-pending-hint">
+            各孔有 {{ pendingChanges }} 处目标开度待提交，请前往节点控制确认
+          </p>
         </GlassPanel3D>
       </div>
 
       <GlassPanel3D v-if="decision" title="调度建议" class="ctrl-panel ctrl-panel--decision">
         <div class="decision-hero">
           <span class="lbl">推荐动作</span>
-          <p class="action-val">闸门开至 <strong>{{ decision.recommended_opening }}%</strong> <em>{{ openingDirection }}</em></p>
+          <p class="action-val">
+            闸门开至
+            <strong
+              class="action-val__opening"
+              :class="{ clickable: canManualControl }"
+              @click="applyRecommendation"
+            >{{ decision.recommended_opening }}%</strong>
+            <em>{{ openingDirection }}</em>
+          </p>
         </div>
         <p class="effect-val">{{ expectedEffect }}</p>
         <div class="decision-conf">
@@ -307,9 +353,15 @@ onUnmounted(() => {
         </div>
         <div class="decision-btns">
           <ElButton type="primary" :icon="View" @click="router.push({ path: '/dispatch/analysis', query: { openDetail: '1' } })">查看详情</ElButton>
-          <ElButton type="success" :icon="CircleCheck" :disabled="status.isExecuting" @click="handleAccept">采纳建议</ElButton>
-          <ElButton :icon="CircleClose" @click="ignoreVisible = true">忽略</ElButton>
+          <ElButton
+            :icon="CircleClose"
+            :disabled="!canIgnoreSuggestion || status.isExecuting"
+            @click="ignoreVisible = true"
+          >
+            忽略
+          </ElButton>
         </div>
+        <p v-if="!canIgnoreSuggestion" class="readonly-tip">L3 权限下不可忽略调度建议</p>
       </GlassPanel3D>
     </div>
 
@@ -548,6 +600,25 @@ onUnmounted(() => {
   }
 }
 
+.suggestion-hint {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f0f7ff;
+  border: 1px solid rgba(24, 144, 255, 0.2);
+  font-size: 13px;
+  color: #1890ff;
+}
+
+.exec-cancel-row {
+  margin-bottom: 14px;
+
+  .manual-action-btn {
+    width: 100%;
+    height: 40px;
+  }
+}
+
 .exec-strip {
   display: flex;
   align-items: center;
@@ -604,6 +675,16 @@ onUnmounted(() => {
   }
 }
 
+.manual-pending-hint {
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  font-size: 13px;
+  color: #b45309;
+}
+
 .manual-actions {
   display: flex;
   gap: 10px;
@@ -627,6 +708,12 @@ onUnmounted(() => {
       font-size: 36px;
       color: #1890ff;
       margin: 0 6px;
+    }
+
+    .action-val__opening.clickable {
+      cursor: pointer;
+      text-decoration: underline dotted rgba(24, 144, 255, 0.45);
+      text-underline-offset: 4px;
     }
 
     em {

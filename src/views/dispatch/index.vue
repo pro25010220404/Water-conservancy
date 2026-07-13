@@ -54,7 +54,7 @@ onBeforeRouteLeave((_to, from, next) => {
         :key="tab.path"
         type="button"
         class="dispatch-tabs__item"
-        :class="{ active: activeTab === tab.path || activeTab.startsWith(tab.path) }"
+        :class="{ active: activeTab === tab.path }"
         @click="goTab(tab.path)"
       >
         {{ tab.label }}
@@ -110,18 +110,21 @@ onBeforeRouteLeave((_to, from, next) => {
   }
 
   &__badge {
+    position: absolute;
+    top: 4px;
+    right: 6px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     min-width: 18px;
     height: 18px;
-    margin-left: 6px;
     padding: 0 5px;
     border-radius: 9px;
     background: #f59e0b;
     color: #fff;
     font-size: 11px;
     font-weight: 700;
+    line-height: 1;
   }
 }
 
