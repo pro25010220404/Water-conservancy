@@ -229,8 +229,8 @@ async function handleRollback(row: PhysicsGuardHistoryItem) {
     const res = await postPhysicsGuardRollback(row.id)
     physicsGuard.value = res.data
     await loadPhysicsGuard()
-    recordLog('调度决策', '回滚物理防护配置', `版本 → ${row.config_version}`, 1)
-    ElMessage.success(`已回滚至 ${row.config_version}`)
+    recordLog('调度决策', '回滚物理防护配置', `版本 → ${res.data.config_version}`, 1)
+    ElMessage.success(res.msg || `已回滚至 ${res.data.config_version}`)
     historyVisible.value = false
   } catch { /* cancel */ }
 }

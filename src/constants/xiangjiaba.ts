@@ -1,6 +1,11 @@
 // ============================================================
 // 向家坝水电站 — 真实水文特征值（公开资料）
 // ============================================================
+import { GATE_SILL_Y, LINTEL_BOTTOM_Y } from '@/utils/gateKinematics'
+
+/** 3D 场景 — 上游水面映射区间（泄洪闸正面可视高度，非坝顶） */
+export const UPSTREAM_SCENE_Y_MIN = GATE_SILL_Y + 2.5
+export const UPSTREAM_SCENE_Y_MAX = LINTEL_BOTTOM_Y - 1.5
 
 /** 向家坝水电站关键高程与流量特征（单位：m / m³/s） */
 export const XIANGJIABA_HYDRO = {
@@ -32,11 +37,20 @@ export const XIANGJIABA_HYDRO = {
   river: '金沙江',
 } as const
 
-/** 将实际上游水位 (m) 映射到 3D 场景水面高度 */
-export function upstreamLevelToSceneY(level: number, damVisualHeight = 28): number {
+/** 上游水位上限 — 严格低于坝顶，不漫坝 */
+export function clampUpstreamLevel(level: number): number {
+  const max = XIANGJIABA_HYDRO.crestElevation - 0.25
+  const min = XIANGJIABA_HYDRO.deadLevel
+  return Math.max(min, Math.min(max, level))
+}
+
+/** 将实际上游水位 (m) 映射到 3D 场景水面高度（对齐闸孔正面，不贴坝顶） */
+export function upstreamLevelToSceneY(level: number): number {
+  const clamped = clampUpstreamLevel(level)
   const { deadLevel, crestElevation } = XIANGJIABA_HYDRO
-  const t = Math.max(0, Math.min(1, (level - deadLevel) / (crestElevation - deadLevel)))
-  return 1.5 + t * (damVisualHeight * 0.82)
+  const visualMax = crestElevation - 0.35
+  const t = Math.max(0, Math.min(1, (clamped - deadLevel) / (visualMax - deadLevel)))
+  return UPSTREAM_SCENE_Y_MIN + t * (UPSTREAM_SCENE_Y_MAX - UPSTREAM_SCENE_Y_MIN)
 }
 
 /** 水位相对特征值的差值描述 */
@@ -44,9 +58,8 @@ export function getLevelStatus(level: number): { label: string; color: string } 
   const h = XIANGJIABA_HYDRO
   if (level >= h.warningLevel) return { label: '超预警', color: '#ff4757' }
   if (level >= h.floodLimitLevel) return { label: '达汛限', color: '#ffa502' }
-  if (level >= h.normalPoolLevel - 0.3) return { label: '正常蓄水', color: '#2ed573' }
-  if (level <= h.deadLevel + 0.5) return { label: '接近死水位', color: '#3b82f6' }
-  return { label: '偏低运行', color: '#70a1ff' }
+  if (level >= h.normalPoolLevel - 0.3) return { label: '正常蓄水', color: '#22c55e' }
+  return { label: '正常运行', color: '#22c55e' }
 }
 
 /** 水位在特征标尺上的百分比位置 (0–100) */

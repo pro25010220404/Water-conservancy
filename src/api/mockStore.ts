@@ -1263,7 +1263,7 @@ export const mockApi = {
       snapshot: buildRecordSnapshot(v, 100),
     })
     if (dispatchRecords.length > 100) dispatchRecords.pop()
-    return delay(ok(null))
+    return delay(ok({ command_id: `CMD-MOCK-${Date.now()}` }))
   },
 
   cancelDispatch() {

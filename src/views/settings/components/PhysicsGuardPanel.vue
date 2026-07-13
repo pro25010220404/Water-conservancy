@@ -188,13 +188,20 @@ async function openCloneDialog() {
 }
 
 async function confirmClone() {
-  await clonePhysicsGuardConfig(
-    cloneSourceId.value,
-    cloneTargetId.value,
-    cloneVersion.value || undefined,
-  )
-  ElMessage.success('配置已克隆')
-  cloneDialogVisible.value = false
+  try {
+    const res = await clonePhysicsGuardConfig(
+      cloneSourceId.value,
+      cloneTargetId.value,
+      cloneVersion.value || undefined,
+    )
+    ElMessage.success(res.msg || '配置已克隆')
+    cloneDialogVisible.value = false
+    if (cloneTargetId.value === reservoirId.value) {
+      await load()
+    }
+  } catch {
+    ElMessage.error('克隆失败')
+  }
 }
 
 watch(reservoirId, async (_newVal, oldVal) => {

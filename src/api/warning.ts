@@ -11,6 +11,8 @@ import type {
   AlarmPushMessage,
 } from '@/types/alarm'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
+import type { BackendPhysicsGuardRaw } from './physicsGuardAdapter'
+import { mapBackendPhysicsGuardSummary } from './physicsGuardAdapter'
 import { mockApi } from './mockStore'
 import {
   mapBackendAlarm,
@@ -200,12 +202,14 @@ export async function pollAlarmPush(): Promise<ApiResponse<AlarmPushMessage | nu
 
 export async function getPhysicsGuardSummary(): Promise<ApiResponse<PhysicsGuardSummary>> {
   try {
-    const res = await http.get<ApiResponse<PhysicsGuardSummary>>(
+    const res = await http.get<ApiResponse<BackendPhysicsGuardRaw>>(
       `${V1_PREFIX}/admin/physics-guard`,
       { params: { reservoir_id: 1 } },
     )
     const body = unwrap(res)
-    if (body?.data) return body
+    if (body?.data) {
+      return { ...body, data: mapBackendPhysicsGuardSummary(body.data) }
+    }
     throw new Error('physics guard failed')
   } catch {
     return mockApi.getPhysicsGuardSummary()

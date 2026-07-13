@@ -14,7 +14,19 @@ import type {
   CommandTrace,
   EmergencyStopLog,
 } from '@/types/dispatch'
-import { mockApi } from './mockStore'
+import { cancelCommand } from './dispatch'
+import {
+  getPhysicsGuard,
+  updatePhysicsGuard,
+  getPhysicsGuardHistory,
+  rollbackPhysicsGuard,
+} from './settings'
+import type { BackendPhysicsGuardRaw } from './physicsGuardAdapter'
+import {
+  mapBackendPhysicsGuardSummary,
+  mapBackendPhysicsGuardHistory,
+  mapBackendPhysicsGuardConfig,
+} from './physicsGuardAdapter'
 import {
   mapBackendPrediction,
   mapBackendDecision,
@@ -29,6 +41,7 @@ import {
   type BackendCommandTraceItem,
   type BackendEmergencyStopItem,
 } from './dispatchAdapter'
+import { mockApi } from './mockStore'
 
 const V1_PREFIX = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
 const DISPATCH_BASE = `${V1_PREFIX}/dispatch`
@@ -195,10 +208,14 @@ export function postExecute(targetOpening: number, decisionId?: number) {
   )
 }
 
-export function postCancelExecute() {
+export function postCancelExecute(commandId?: string) {
   return withMockFallback(
     async () => {
-      throw new Error('cancel not on api')
+      if (!commandId) throw new Error('no command_id to cancel')
+      const res = await cancelCommand(commandId)
+      const body = unwrap(res)
+      if (!body) throw new Error('cancel failed')
+      return body
     },
     () => mockApi.cancelDispatch(),
   )
@@ -236,20 +253,41 @@ export function putAutoLevel(level: 1 | 2 | 3) {
 }
 
 export function fetchPhysicsGuardSummary() {
-  return withMockFallback('/v1/admin/physics-guard?reservoir_id=1', () =>
-    mockApi.getPhysicsGuardSummary(),
+  return withMockFallback(
+    async () => {
+      const res = await getPhysicsGuard({ reservoir_id: DEFAULT_RESERVOIR_ID })
+      const body = unwrap(res)
+      if (!body?.data) throw new Error('physics guard failed')
+      return { ...body, data: mapBackendPhysicsGuardSummary(body.data as BackendPhysicsGuardRaw) }
+    },
+    () => mockApi.getPhysicsGuardSummary(),
   )
 }
 
 export function fetchPhysicsGuardHistory() {
-  return withMockFallback('/v1/admin/physics-guard/history?reservoir_id=1', () =>
-    mockApi.getPhysicsGuardHistory(),
+  return withMockFallback(
+    async () => {
+      const res = await getPhysicsGuardHistory({ reservoir_id: DEFAULT_RESERVOIR_ID })
+      const body = unwrap(res)
+      if (!Array.isArray(body?.data)) throw new Error('physics guard history failed')
+      const list = mapBackendPhysicsGuardHistory(body.data as BackendPhysicsGuardRaw[])
+      return { ...body, data: { list, total: list.length } }
+    },
+    () => mockApi.getPhysicsGuardHistory(),
   )
 }
 
 export function postPhysicsGuardRollback(id: number) {
   return withMockFallback(
-    `/v1/admin/physics-guard/${id}/rollback`,
+    async () => {
+      const res = await rollbackPhysicsGuard(id)
+      const body = unwrap(res)
+      if (!body?.data) throw new Error('physics guard rollback failed')
+      return {
+        ...body,
+        data: mapBackendPhysicsGuardSummary(body.data as BackendPhysicsGuardRaw),
+      }
+    },
     () => mockApi.rollbackPhysicsGuardConfig(id),
   )
 }

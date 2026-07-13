@@ -55,6 +55,14 @@ export function getCommandTrace(command_id: string) {
   )
 }
 
+// ── §4.4.1 取消执行中指令（待后端正式纳入总接口文档）──
+export function cancelCommand(command_id: string, operate_note?: string) {
+  return http.post<ApiResponse<null>>(
+    `${DISPATCH_BASE}/commands/${encodeURIComponent(command_id)}/cancel`,
+    operate_note ? { operate_note } : undefined,
+  )
+}
+
 // ── §4.6 闸门动作历史 ──
 export function getGateActions(params: {
   page?: number

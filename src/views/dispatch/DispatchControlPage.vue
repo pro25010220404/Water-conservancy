@@ -158,7 +158,7 @@ async function handleExecuteDirect() {
       '确认执行',
       { type: 'warning' },
     )
-    await store.postExecute(targetOpening.value)
+    await store.executeOpening(targetOpening.value)
     userModifiedTarget.value = false
     recordLog('调度决策', '手动执行', `开度 ${targetOpening.value}%`, 1)
     ElMessage.success('指令已下发')
@@ -170,10 +170,9 @@ async function handleCancelExecute() {
   if (!status.value.isExecuting) return
   try {
     await ElMessageBox.confirm('确认取消正在执行的指令？', '取消执行', { type: 'warning' })
-    await store.postCancelExecute()
+    await store.cancelExecuting()
     recordLog('调度决策', '取消执行', '执行中指令', 1)
     ElMessage.success('已取消执行')
-    await refresh()
   } catch { /* cancel */ }
 }
 
