@@ -90,15 +90,15 @@ function parseLstmPredictions(
 function parseFactorList(val: unknown): DecisionFactor[] | undefined {
   const parsed = parseJsonField<unknown>(val, null)
   if (!Array.isArray(parsed) || !parsed.length) return undefined
-  if (typeof parsed[0] === 'string') {
-    return parsed.map((name) => ({
-      name: String(name),
-      value: '—',
-      direction: 'neutral' as const,
-      weight: 1 / parsed.length,
-    }))
+  // 仅有名称无数值时交给 buildDefaultFactors 用实时量补齐
+  if (typeof parsed[0] === 'string') return undefined
+  if (typeof parsed[0] === 'object') {
+    const list = parsed as DecisionFactor[]
+    const usable = list.filter(
+      (f) => f && f.value != null && f.value !== '' && f.value !== '—',
+    )
+    return usable.length ? usable : undefined
   }
-  if (typeof parsed[0] === 'object') return parsed as DecisionFactor[]
   return undefined
 }
 
@@ -198,15 +198,23 @@ function mapPhysicsValidation(
 }
 
 function buildDefaultFactors(raw: BackendDecisionItem): DecisionFactor[] {
-  if (Array.isArray(raw.factors) && raw.factors.length) return raw.factors
+  const list = Array.isArray(raw.factors) ? raw.factors : []
+  const usable = list.filter(
+    (f) => f && typeof f === 'object' && f.value != null && f.value !== '' && f.value !== '—',
+  )
+  if (usable.length) return usable
+
   const upstream = toNum(raw.upstream_level)
   const inflow = toNum(raw.inflow_rate)
   const opening = toNum(raw.current_opening)
+  const recommended = toNum(raw.recommended_opening)
   const lstm1h = raw.lstm_predictions?.['1h']
+  const openDir: DecisionFactor['direction'] =
+    recommended > opening ? 'up' : recommended < opening ? 'down' : 'neutral'
   return [
     { name: '上游水位', value: `${upstream.toFixed(2)} m`, direction: 'neutral', weight: 0.25 },
     { name: '入库流量', value: `${inflow.toFixed(1)} m³/s`, direction: 'neutral', weight: 0.25 },
-    { name: '当前开度', value: `${opening.toFixed(1)}%`, direction: 'neutral', weight: 0.2 },
+    { name: '当前开度', value: `${opening.toFixed(1)}%`, direction: openDir, weight: 0.2 },
     {
       name: 'LSTM 1h 预测',
       value: lstm1h

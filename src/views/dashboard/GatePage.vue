@@ -1,12 +1,35 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { fetchGates, fetchGateActionLogs, fetchRealtimeKpi } from '@/api/monitoring'
 import { formatActionSource, formatGateControlMode } from '@/constants/dispatch'
+import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
+import { scaleGateOpening } from '@/utils/virtualSimulationEngine'
+
+const simStore = useVirtualSimulationStore()
+const { active: simActive, derived: simDerived } = storeToRefs(simStore)
 
 const gates = ref<{ id: number; name: string; v: number; mode: string }[]>([])
 const logs = ref<{ time: string; gate: string; action: string; actual: string; type: string; dur: string; by: string }[]>([])
 const upstreamLevel = ref(378.5)
 const downstreamLevel = ref(269.2)
+
+/** 仿真激活时叠加开度，与节点控制同一套联动 */
+const displayGates = computed(() => {
+  if (!simActive.value) return gates.value
+  const scale = simDerived.value.gateScale
+  return gates.value.map((g) => ({
+    ...g,
+    v: scaleGateOpening(g.v, scale),
+  }))
+})
+
+const displayUpstream = computed(() =>
+  simActive.value ? simDerived.value.upstreamLevel : upstreamLevel.value,
+)
+const displayDownstream = computed(() =>
+  simActive.value ? simDerived.value.downstreamLevel : downstreamLevel.value,
+)
 
 let t: ReturnType<typeof setInterval>
 async function loadData() {
@@ -44,20 +67,26 @@ onUnmounted(() => clearInterval(t))
 
 <template>
   <div class="gp">
+    <div v-if="simActive" class="gp-sim-banner">
+      虚拟仿真联动中 — 上游 {{ displayUpstream.toFixed(1) }} m · 下游 {{ displayDownstream.toFixed(1) }} m · 聚合开度 {{ simDerived.aggregateOpening.toFixed(1) }}%
+    </div>
+
     <!-- KPI + 标题 -->
     <div class="kpis">
       <div class="kpi">
         <span class="kpi__dot" style="background: #3b82f6" /><span class="kpi__l">闸门总数</span
-        ><span class="kpi__v">{{ gates.length }}<small> 扇</small></span>
+        ><span class="kpi__v">{{ displayGates.length }}<small> 扇</small></span>
       </div>
-      <div class="kpi">
+      <div class="kpi" :class="{ 'kpi--sim': simActive }">
         <span class="kpi__dot" style="background: #22c55e" /><span class="kpi__l">开启中</span
-        ><span class="kpi__v">{{ gates.filter((g) => g.v > 0).length }}<small> 扇</small></span>
+        ><span class="kpi__v">{{ displayGates.filter((g) => g.v > 0).length }}<small> 扇</small></span>
       </div>
-      <div class="kpi">
+      <div class="kpi" :class="{ 'kpi--sim': simActive }">
         <span class="kpi__dot" style="background: #f59e0b" /><span class="kpi__l">平均开度</span
         ><span class="kpi__v"
-          >{{ (gates.reduce((s, g) => s + g.v, 0) / gates.length).toFixed(1)
+          >{{ displayGates.length
+            ? (displayGates.reduce((s, g) => s + g.v, 0) / displayGates.length).toFixed(1)
+            : '0.0'
           }}<small> %</small></span
         >
       </div>
@@ -71,17 +100,20 @@ onUnmounted(() => clearInterval(t))
     <div class="main">
       <!-- 左侧：大坝剖面示意 -->
       <div class="diagram">
-        <div class="diagram__title">闸门开度示意</div>
+        <div class="diagram__title">
+          闸门开度示意
+          <em v-if="simActive" class="diagram__sim-tag">仿真</em>
+        </div>
         <div class="diagram__scene">
           <!-- 上游 -->
           <div class="diagram__pool diagram__pool--up">
-            <span>上游 {{ upstreamLevel.toFixed(1) }}m</span>
+            <span>上游 {{ displayUpstream.toFixed(1) }}m</span>
           </div>
           <!-- 坝体 + 闸门：表孔8扇 + 中孔底孔4扇分两排 -->
           <div class="diagram__dam">
             <div class="diagram__dam-inner">
               <div class="diagram__slots">
-                <div v-for="g in gates.slice(0, 8)" :key="g.name" class="dslot">
+                <div v-for="g in displayGates.slice(0, 8)" :key="g.name" class="dslot">
                   <div class="dslot__leaf" :style="{ height: 100 - g.v + '%' }" />
                   <div class="dslot__water" :style="{ opacity: g.v / 100 }" />
                   <span class="dslot__lbl">{{ g.name }}</span>
@@ -89,7 +121,7 @@ onUnmounted(() => clearInterval(t))
               </div>
               <div class="diagram__divider"><span>中孔 / 底孔</span></div>
               <div class="diagram__slots diagram__slots--sub">
-                <div v-for="g in gates.slice(8)" :key="g.name" class="dslot dslot--sub">
+                <div v-for="g in displayGates.slice(8)" :key="g.name" class="dslot dslot--sub">
                   <div class="dslot__leaf" :style="{ height: 100 - g.v + '%' }" />
                   <div class="dslot__water" :style="{ opacity: g.v / 100 }" />
                   <span class="dslot__lbl">{{ g.name }}</span>
@@ -99,7 +131,7 @@ onUnmounted(() => clearInterval(t))
           </div>
           <!-- 下游 -->
           <div class="diagram__pool diagram__pool--dn">
-            <span>下游 {{ downstreamLevel.toFixed(1) }}m</span>
+            <span>下游 {{ displayDownstream.toFixed(1) }}m</span>
           </div>
         </div>
         <div class="diagram__legend">
@@ -123,9 +155,9 @@ onUnmounted(() => clearInterval(t))
             </tr>
           </thead>
           <tbody>
-            <tr v-for="g in gates" :key="g.name">
+            <tr v-for="g in displayGates" :key="g.name">
               <td class="td-name">{{ g.name }}</td>
-              <td class="td-val">{{ g.v }}%</td>
+              <td class="td-val" :class="{ 'td-val--sim': simActive }">{{ g.v }}%</td>
               <td>
                 <span class="td-st" :class="{ off: g.v === 0 }">{{
                   g.v > 0 ? '运行中' : '关闭'
@@ -163,6 +195,37 @@ onUnmounted(() => clearInterval(t))
   flex-direction: column;
   background: #fff;
   overflow: hidden;
+}
+
+.gp-sim-banner {
+  flex-shrink: 0;
+  padding: 8px 20px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #15803d;
+  background: #f0fdf4;
+  border-bottom: 1px solid #bbf7d0;
+}
+
+.kpi--sim .kpi__v {
+  color: #16a34a;
+}
+
+.diagram__sim-tag {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: #22c55e;
+}
+
+.td-val--sim {
+  color: #16a34a;
+  font-weight: 700;
 }
 
 // KPI 卡片行

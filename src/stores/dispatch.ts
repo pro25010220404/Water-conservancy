@@ -101,6 +101,25 @@ export const useDispatchStore = defineStore('dispatch', () => {
     } else if (import.meta.env.DEV) {
       status.value.mode = 'manual'
     }
+    const savedLevel = Number(localStorage.getItem('dispatch_auto_level'))
+    if (savedLevel === 1 || savedLevel === 2 || savedLevel === 3) {
+      status.value.autoLevel = savedLevel
+    }
+  }
+
+  /** 切换三级自动执行权限（本地立即生效；接口无实现时仍走 mock/本地） */
+  async function switchAutoLevel(level: 1 | 2 | 3) {
+    try {
+      await putAutoLevel(level)
+    } catch {
+      /* 接口失败仍写本地，避免界面点了没反应 */
+    }
+    // 整对象替换，避免个别环境里字段写了但视图不刷新
+    status.value = {
+      ...status.value,
+      autoLevel: level,
+    }
+    localStorage.setItem('dispatch_auto_level', String(level))
   }
 
   function restorePendingCommand() {
@@ -418,6 +437,6 @@ export const useDispatchStore = defineStore('dispatch', () => {
     postAcceptDecision,
     postIgnoreDecision,
     putDispatchMode: switchDispatchMode,
-    putAutoLevel,
+    putAutoLevel: switchAutoLevel,
   }
 })
