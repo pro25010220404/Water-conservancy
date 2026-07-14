@@ -12,6 +12,7 @@ import type {
   ModelDeployResult,
 } from '@/types/edgeNode'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
+import type { BackendPhysicsGuardRaw } from './physicsGuardAdapter'
 
 const V1_PREFIX = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
 /** Apifox §12.1：/api/edge/physics-config（无 v1 前缀） */
@@ -90,7 +91,7 @@ export function rollbackPhysicsGuard(id: number) {
 
 // ── §12.9 跨水库复制物理防护配置 ──
 export function clonePhysicsGuard(fromReservoirId: number, toReservoirId: number) {
-  return http.post<ApiResponse<null>>(`${V1_PREFIX}/admin/physics-guard/clone`, {
+  return http.post<ApiResponse<BackendPhysicsGuardRaw>>(`${V1_PREFIX}/admin/physics-guard/clone`, {
     from_reservoir_id: fromReservoirId,
     to_reservoir_id: toReservoirId,
   })

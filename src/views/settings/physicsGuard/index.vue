@@ -2,7 +2,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElSelect, ElOption, ElButton, ElMessage, ElMessageBox, ElAlert } from 'element-plus'
 import { RESERVOIR_OPTIONS } from '@/constants/settings'
-import { getPhysicsGuard, updatePhysicsGuard, clonePhysicsGuard } from '@/api/settings'
+import { getPhysicsGuard, updatePhysicsGuard } from '@/api/settings'
+import { clonePhysicsGuardConfig } from '@/api/gateaiSettings'
+import { mapBackendPhysicsGuardConfig } from '@/api/physicsGuardAdapter'
+import type { BackendPhysicsGuardRaw } from '@/api/physicsGuardAdapter'
 import { usePhysicsGuardStore } from '@/stores/physicsGuard'
 import type { PhysicsGuardConfig } from '@/stores/physicsGuard'
 import PhysicsGuardForm from './components/PhysicsGuardForm.vue'
@@ -64,9 +67,10 @@ async function fetchConfig() {
   try {
     const res = await getPhysicsGuard({ reservoir_id: reservoirId.value })
     if (res.data?.code === 0 && res.data.data) {
-      config.value = res.data.data
-      editedConfig.value = JSON.parse(JSON.stringify(res.data.data))
-      store.setConfig(res.data.data)
+      const mapped = mapBackendPhysicsGuardConfig(res.data.data as BackendPhysicsGuardRaw)
+      config.value = { ...mapped, version: (res.data.data as BackendPhysicsGuardRaw).config_version } as PhysicsGuardConfig
+      editedConfig.value = JSON.parse(JSON.stringify(config.value))
+      store.setConfig(config.value)
       return
     }
   } catch {
@@ -120,12 +124,15 @@ function handleReset() {
 
 function handleClone(data: { sourceReservoirId: number; targetReservoirId: number }) {
   cloneDialogVisible.value = false
-  clonePhysicsGuard(data)
-    .then(() => {
-      ElMessage.success('配置已克隆')
+  clonePhysicsGuardConfig(data.sourceReservoirId, data.targetReservoirId)
+    .then((res) => {
+      ElMessage.success(res.msg || '配置已克隆')
+      if (data.targetReservoirId === reservoirId.value) {
+        fetchConfig()
+      }
     })
     .catch(() => {
-      ElMessage.info('克隆操作已提交')
+      ElMessage.error('克隆失败')
     })
 }
 

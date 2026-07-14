@@ -21,8 +21,8 @@ import type {
   SimulationRealtimeData, AiModel, SimulationReport, FaultReview,
   SimulationScenarioItem, SimulationProgressPayload, SimulationScenarioPayload,
 } from '@/types/simulation'
-import { XIANGJIABA_HYDRO, getLevelStatus, levelGaugePercent } from '@/constants/xiangjiaba'
-import { estimateSpillwayDischarge } from '@/utils/xiangjiabaTelemetry'
+import { XIANGJIABA_HYDRO, getLevelStatus, levelGaugePercent, clampUpstreamLevel } from '@/constants/xiangjiaba'
+import { estimateGateBayDischarge } from '@/utils/xiangjiabaTelemetry'
 import {
   SIMULATION_SCENE_OPTIONS, SIMULATION_SCENE_MAP, getScenePreset,
   SIMULATION_STATUS_MAP, SPEED_OPTIONS, DEFAULT_TRAINING_CONFIG,
@@ -87,7 +87,7 @@ const simStatus = ref<SimulationRealtimeData>({
   status: 'idle', elapsedSec: 0,
   currentLevel: XIANGJIABA_HYDRO.normalPoolLevel,
   currentDownstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
-  currentFlow: XIANGJIABA_HYDRO.normalInflow, currentOpening: 45,
+  currentFlow: XIANGJIABA_HYDRO.normalInflow, currentOpening: 100,
   historyLevels: [], historyFlows: [],
 })
 const simParams = reactive<SimulationParams>({
@@ -97,13 +97,13 @@ const simParams = reactive<SimulationParams>({
 const simScene = ref<SimulationScene>('normal')
 const GATE_COUNT = 5
 const simSpeed = ref<SimulationSpeed>(1)
-const gateOpening = ref(45)
-const gateOpenings = ref<number[]>([45, 45, 45, 45, 45])
+const gateOpening = ref(100)
+const gateOpenings = ref<number[]>([100, 100, 100, 100, 100])
 const gateLocalEdit = ref(false)
 const selectedGateIndex = ref(-1)
 let gateSyncTimer: ReturnType<typeof setTimeout> | null = null
 
-function safeOpening(v: number, fallback = 45) {
+function safeOpening(v: number, fallback = 100) {
   return Number.isFinite(v) ? Math.min(100, Math.max(0, v)) : fallback
 }
 
@@ -124,6 +124,10 @@ function setGateOpeningAt(index: number, opening: number) {
     i === index ? safeOpening(opening) : g,
   )
   syncAggregateFromGates()
+  simStatus.value = {
+    ...simStatus.value,
+    currentOpening: Math.round(gateOpening.value),
+  }
   if (gateSyncTimer) clearTimeout(gateSyncTimer)
   gateSyncTimer = setTimeout(() => {
     const id = activeSimulationId.value
@@ -137,6 +141,10 @@ watch(gateOpening, (v) => {
   if (opening !== v) gateOpening.value = opening
   if (gateLocalEdit.value) return
   syncGatesFromAggregate(opening)
+  simStatus.value = {
+    ...simStatus.value,
+    currentOpening: Math.round(opening),
+  }
   if (gateSyncTimer) clearTimeout(gateSyncTimer)
   gateSyncTimer = setTimeout(() => {
     const id = activeSimulationId.value
@@ -198,22 +206,32 @@ const selectedGateOpening = computed(() =>
 const selectedGateFlow = computed(() => {
   if (selectedGateIndex.value < 0) return 0
   return Math.round(
-    estimateSpillwayDischarge(displayWaterLevel.value, gateOpenings.value[selectedGateIndex.value]),
+    estimateGateBayDischarge(displayWaterLevel.value, gateOpenings.value[selectedGateIndex.value], GATE_COUNT),
   )
 })
 const gateFlowAt = (index: number) =>
-  Math.round(estimateSpillwayDischarge(displayWaterLevel.value, gateOpenings.value[index] ?? 0))
+  Math.round(estimateGateBayDischarge(displayWaterLevel.value, gateOpenings.value[index] ?? 0, GATE_COUNT))
 
-const smoothWaterLevel = useSmoothNumber(displayWaterLevel, 800)
-const sliderWaterLevel = ref(XIANGJIABA_HYDRO.normalPoolLevel)
+/** 五孔合计泄流，便于与入库流量对照 */
+const totalOutflowRate = computed(() =>
+  Math.round(
+    displayGateOpenings.value.reduce(
+      (sum, o) => sum + estimateGateBayDischarge(displayWaterLevel.value, o, GATE_COUNT),
+      0,
+    ),
+  ),
+)
+
+const clampedWaterLevel = computed(() => clampUpstreamLevel(displayWaterLevel.value))
+const sceneWaterLevel = computed(() => clampedWaterLevel.value)
+const smoothWaterLevel = useSmoothNumber(clampedWaterLevel, 800)
+const sliderWaterLevel = ref<number>(XIANGJIABA_HYDRO.normalPoolLevel)
 const sliderRainfall = ref(0)
 
-watch(displayWaterLevel, (v) => {
+watch(clampedWaterLevel, (v) => {
   sliderWaterLevel.value = v
 }, { immediate: true })
 
-const sceneWaterLevel = computed(() => sliderWaterLevel.value)
-const smoothSceneWater = useSmoothNumber(sceneWaterLevel, 600)
 const sceneFlowRate = computed(() =>
   Math.round(displayFlowRate.value + sliderRainfall.value * 12),
 )
@@ -266,6 +284,12 @@ const panoramaRef = ref<InstanceType<typeof DamPanoramaModal> | null>(null)
 
 function openPanorama() {
   if (viewMode.value === '3d') panoramaVisible.value = true
+}
+
+/** 打开全景仿真控制面板 */
+function handleOpenSimModal() {
+  viewMode.value = '3d'
+  panoramaVisible.value = true
 }
 
 // ── 9. 方法函数 ──
@@ -483,12 +507,6 @@ function onSceneChange(scene: SimulationScene) {
   applyScenePreset(scene)
 }
 
-/** 打开全景弹窗（开始/暂停/重置均在弹窗内操作） */
-function handleOpenSimModal() {
-  viewMode.value = '3d'
-  panoramaVisible.value = true
-}
-
 async function handleStartSim() {
   if (!canStart.value) return
   try {
@@ -641,6 +659,9 @@ async function handleImportToSim(id: number) {
 // ── 8. 生命周期 ──
 onMounted(() => {
   applyScenePreset(simScene.value)
+  gateOpening.value = 100
+  syncGatesFromAggregate(100)
+  simStatus.value = { ...simStatus.value, currentOpening: 100 }
   fetchScenarios()
   fetchSim()
   fetchModels()
@@ -763,8 +784,8 @@ onUnmounted(() => {
               v-else
               ref="mainSceneRef"
               visual-mode="twin"
-              :water-level="smoothSceneWater"
-              :downstream-level="smoothDownstreamLevel"
+              :water-level="sceneWaterLevel"
+              :downstream-level="displayDownstreamLevel"
               :gate-opening="displayGateOpening"
               :gate-openings="displayGateOpenings"
               :flow-rate="sceneFlowRate"
@@ -833,12 +854,36 @@ onUnmounted(() => {
               >
                 <span>{{ n }} 号表孔</span>
                 <b>{{ perGateOpening(n - 1).toFixed(1) }}%</b>
-                <em v-if="selectedGateIndex === n - 1">泄流 {{ gateFlowAt(n - 1) }} m³/s</em>
+                <em v-if="selectedGateIndex === n - 1">单孔 {{ gateFlowAt(n - 1) }} m³/s</em>
               </li>
             </ul>
             <p class="twin-gate-summary">
-              {{ selectedGateIndex >= 0 ? `${selectedGateIndex + 1} 号闸门已选中 · 点击 3D 闸门可切换` : '5 孔同步 · 点击闸门查看细节' }}
+              {{
+                selectedGateIndex >= 0
+                  ? `${selectedGateIndex + 1} 号闸门已选中 · 单孔约 ${gateFlowAt(selectedGateIndex)} m³/s · 五孔合计约 ${totalOutflowRate} m³/s`
+                  : `5 孔默认全开 · 合计泄流约 ${totalOutflowRate} m³/s · 点击闸面查看细节`
+              }}
             </p>
+            <div v-if="selectedGateIndex >= 0" class="twin-gate-slider">
+              <label>{{ selectedGateIndex + 1 }} 号表孔开度 <b>{{ perGateOpening(selectedGateIndex).toFixed(0) }}%</b></label>
+              <ElSlider
+                :model-value="gateOpenings[selectedGateIndex]"
+                :min="0"
+                :max="100"
+                :step="1"
+                @update:model-value="(v) => setGateOpeningAt(selectedGateIndex, Number(v))"
+              />
+            </div>
+            <div v-else class="twin-gate-slider">
+              <label>平均开度 <b>{{ displayGateOpening.toFixed(0) }}%</b></label>
+              <ElSlider
+                :model-value="gateOpening"
+                :min="0"
+                :max="100"
+                :step="1"
+                @update:model-value="(v) => { gateOpening = Number(v) }"
+              />
+            </div>
           </GlassPanel3D>
 
           <GlassPanel3D title="功能面板" fill class="sim-func-panel">
@@ -915,7 +960,7 @@ onUnmounted(() => {
         @update:sim-speed="simSpeed = $event"
         @update:gate-opening="gateOpening = $event"
         @update:gate-opening-at="setGateOpeningAt"
-        @update:water-level="sliderWaterLevel = $event"
+        @update:water-level="sliderWaterLevel = clampUpstreamLevel($event)"
         @update:rainfall="sliderRainfall = $event"
         @gate-select="onGateSelect"
       />
@@ -1429,6 +1474,43 @@ onUnmounted(() => {
     }
   }
 
+  .sim-actions-bar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 14px;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.92) 0%, rgba(232, 244, 252, 0.88) 100%);
+    border: 1px solid rgba(24, 144, 255, 0.2);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(24, 144, 255, 0.08);
+
+    &__btn {
+      padding: 10px 32px;
+      font-size: $cockpit-font-base;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(135deg, #1890ff, #096dd9);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 0 16px rgba(24, 144, 255, 0.3);
+      transition:
+        transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 0.2s ease;
+
+      &:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px rgba(24, 144, 255, 0.4);
+      }
+
+      &:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+    }
+  }
+
   .sim-toolbar {
     flex-shrink: 0;
     display: flex;
@@ -1864,6 +1946,34 @@ onUnmounted(() => {
       font-style: normal;
       color: #64748b;
     }
+  }
+}
+
+.twin-gate-slider {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(34, 197, 94, 0.2);
+
+  label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    font-size: $cockpit-font-sm;
+    color: #64748b;
+
+    b {
+      color: #16a34a;
+      font-size: $cockpit-font-base;
+    }
+  }
+
+  :deep(.el-slider__runway) {
+    background: rgba(34, 197, 94, 0.12);
+  }
+
+  :deep(.el-slider__bar) {
+    background: linear-gradient(90deg, #22c55e, #4ade80);
   }
 }
 

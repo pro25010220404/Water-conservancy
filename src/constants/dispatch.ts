@@ -65,6 +65,16 @@ export const AUTO_LEVEL_OPTIONS = Object.entries(AUTO_LEVEL_MAP).map(([value, it
   value: Number(value),
 }))
 
+/** 指令追踪中视为「执行中」的状态 */
+export const IN_PROGRESS_COMMAND_STATUSES = [
+  'pending',
+  'sent',
+  'acknowledged',
+  'verified',
+] as const
+
+export const PENDING_COMMAND_STORAGE_KEY = 'dispatch_pending_command'
+
 // ---------- 执行结果 ----------
 export const DISPATCH_RESULT_MAP: Record<string, DictOption> = {
   success: { label: '成功', value: 'success', color: '#22c55e' },

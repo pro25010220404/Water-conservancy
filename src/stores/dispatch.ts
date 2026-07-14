@@ -15,8 +15,13 @@ import {
   postIgnoreDecision,
   putDispatchMode,
   putAutoLevel,
+  fetchCommandTrace,
 } from '@/api/dispatchPage'
 import { fetchGates, fetchRealtimeKpi } from '@/api/monitoring'
+import {
+  IN_PROGRESS_COMMAND_STATUSES,
+  PENDING_COMMAND_STORAGE_KEY,
+} from '@/constants/dispatch'
 import {
   buildGateNode,
   calcAggregateOpening,
@@ -50,6 +55,7 @@ export const useDispatchStore = defineStore('dispatch', () => {
   const gatesInitialLoading = ref(false)
   const coreReady = ref(false)
   const precheckResult = ref<GatePrecheckResult | null>(null)
+  const pendingCommandId = ref<string | null>(null)
 
   let coreLoadPromise: Promise<void> | null = null
   let gatesRefreshPromise: Promise<void> | null = null
@@ -94,6 +100,70 @@ export const useDispatchStore = defineStore('dispatch', () => {
     }
   }
 
+  function restorePendingCommand() {
+    try {
+      const raw = sessionStorage.getItem(PENDING_COMMAND_STORAGE_KEY)
+      if (!raw) return
+      const saved = JSON.parse(raw) as { commandId?: string; target?: number }
+      if (saved.commandId) pendingCommandId.value = saved.commandId
+      if (saved.target != null) {
+        status.value.isExecuting = true
+        status.value.executingTarget = saved.target
+      }
+    } catch { /* ignore */ }
+  }
+
+  function savePendingCommand(commandId: string, target: number) {
+    pendingCommandId.value = commandId
+    sessionStorage.setItem(
+      PENDING_COMMAND_STORAGE_KEY,
+      JSON.stringify({ commandId, target }),
+    )
+  }
+
+  function clearExecutingState() {
+    pendingCommandId.value = null
+    sessionStorage.removeItem(PENDING_COMMAND_STORAGE_KEY)
+    status.value.isExecuting = false
+    status.value.executingTarget = null
+  }
+
+  async function syncExecutingFromTrace() {
+    if (!pendingCommandId.value) return
+    try {
+      const res = await fetchCommandTrace(pendingCommandId.value)
+      const trace = res.data
+      if (!trace) return
+      const inProgress = (IN_PROGRESS_COMMAND_STATUSES as readonly string[]).includes(trace.status)
+      if (inProgress) {
+        status.value.isExecuting = true
+        status.value.executingTarget = trace.target_opening
+      } else {
+        clearExecutingState()
+      }
+    } catch { /* 追踪失败时保留本地执行中状态 */ }
+  }
+
+  async function executeOpening(targetOpening: number, decisionId?: number) {
+    const res = await postExecute(targetOpening, decisionId)
+    status.value.isExecuting = true
+    status.value.executingTarget = targetOpening
+    status.value.lastDispatchAt = new Date().toISOString()
+    const commandId = res.data?.command_id
+    if (commandId) savePendingCommand(commandId, targetOpening)
+    return res
+  }
+
+  async function cancelExecuting() {
+    try {
+      await postCancelExecute(pendingCommandId.value ?? undefined)
+    } finally {
+      clearExecutingState()
+    }
+  }
+
+  restorePendingCommand()
+
   async function refreshGates(options?: { silent?: boolean }) {
     if (gatesRefreshPromise) return gatesRefreshPromise
 
@@ -137,6 +207,8 @@ export const useDispatchStore = defineStore('dispatch', () => {
   }
 
   async function refreshCore(predictTerm: 1 | 2 | 3 = 2) {
+    const wasExecuting = status.value.isExecuting
+    const savedTarget = status.value.executingTarget
     const [st, dec, pred] = await Promise.all([
       fetchDispatchStatus(),
       fetchDecisionDetail(),
@@ -146,6 +218,12 @@ export const useDispatchStore = defineStore('dispatch', () => {
       ...status.value,
       ...st.data,
       autoLevel: status.value.autoLevel,
+    }
+    if (pendingCommandId.value) {
+      await syncExecutingFromTrace()
+    } else if (wasExecuting && !st.data.isExecuting) {
+      status.value.isExecuting = wasExecuting
+      status.value.executingTarget = savedTarget
     }
     applySavedMode()
     decision.value = dec.data
@@ -275,6 +353,10 @@ export const useDispatchStore = defineStore('dispatch', () => {
     mockExecuteGate,
     mockBatchExecute,
     applySavedMode,
+    executeOpening,
+    cancelExecuting,
+    syncExecutingFromTrace,
+    pendingCommandId,
     // re-export API helpers for pages
     postExecute,
     postCancelExecute,

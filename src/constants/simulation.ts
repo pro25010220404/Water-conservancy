@@ -24,7 +24,7 @@ export const SIMULATION_SCENE_PRESETS: Record<
     initialLevel: 380.38,
     inflowRate: XIANGJIABA_HYDRO.normalInflow,
     durationMin: 60,
-    gateOpening: 45,
+    gateOpening: 100,
   },
   flood: {
     initialLevel: 380.65,
@@ -48,7 +48,7 @@ export const SIMULATION_SCENE_PRESETS: Record<
     initialLevel: XIANGJIABA_HYDRO.normalPoolLevel,
     inflowRate: XIANGJIABA_HYDRO.normalInflow,
     durationMin: 60,
-    gateOpening: 45,
+    gateOpening: 100,
   },
 }
 

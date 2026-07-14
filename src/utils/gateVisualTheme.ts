@@ -30,40 +30,36 @@ export interface GateLeafVisual {
   edgeColor: number
 }
 
-/** 关 / 半开 / 全开 明度与描边 */
+/**
+ * 闸叶颜色：关=钢灰 → 开=略亮钢灰（不使用绿色）
+ * 选中态由蓝色描边单独表达，避免工况色与选中色打架
+ */
 export function gateLeafVisualForOpening(openRatio: number): GateLeafVisual {
   const r = Math.min(1, Math.max(0, openRatio))
-  if (r < 0.04) {
+
+  if (r < 0.08) {
     return {
-      color: 0x4a5568,
+      color: 0x3f4856,
       emissive: 0x000000,
       emissiveIntensity: 0,
-      edgeOpacity: 0.1,
-      edgeColor: 0x6a8aaa,
+      edgeOpacity: 0.12,
+      edgeColor: 0x5a6575,
     }
   }
-  if (r < 0.55) {
-    const t = (r - 0.04) / 0.51
-    return {
-      color: lerpHex(0x4a5568, 0x6b8fa8, t),
-      emissive: 0x1a4060,
-      emissiveIntensity: t * 0.18,
-      edgeOpacity: 0.18 + t * 0.28,
-      edgeColor: 0x7eb8e8,
-    }
-  }
-  const t = (r - 0.55) / 0.45
+
+  // 全行程保持钢色体系，开度越大略提亮，不做绿/琥珀色跳变
+  const t = (r - 0.08) / 0.92
   return {
-    color: lerpHex(0x6b8fa8, 0x8ec8f0, t),
-    emissive: 0x2a6090,
-    emissiveIntensity: 0.18 + t * 0.38,
-    edgeOpacity: 0.42 + t * 0.38,
-    edgeColor: 0xa8dcff,
+    color: lerpHex(0x3f4856, 0x6a7688, t),
+    emissive: 0x10141a,
+    emissiveIntensity: t * 0.1,
+    edgeOpacity: 0.14 + t * 0.2,
+    edgeColor: lerpHex(0x5a6575, 0x8a96a8, t),
   }
 }
 
 function lerpHex(a: number, b: number, t: number) {
   const ca = new THREE.Color(a)
   const cb = new THREE.Color(b)
-  return ca.lerp(cb, t).getHex()
+  return ca.lerp(cb, Math.min(1, Math.max(0, t))).getHex()
 }

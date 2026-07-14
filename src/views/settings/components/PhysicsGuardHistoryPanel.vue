@@ -63,8 +63,8 @@ async function handleRollback(row: PhysicsGuardHistoryItem) {
       '回滚物理防护配置',
       { type: 'warning' },
     )
-    await rollbackPhysicsGuard(reservoirId.value, row.id)
-    ElMessage.success(`已回滚至 v${row.config_version}`)
+    const res = await rollbackPhysicsGuard(reservoirId.value, row.id)
+    ElMessage.success(res.msg || `已回滚至 v${res.new_version}`)
     await load()
   } catch {
     /* cancel */

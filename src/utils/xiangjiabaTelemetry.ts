@@ -4,6 +4,9 @@
 // ============================================================
 import { XIANGJIABA_HYDRO } from '@/constants/xiangjiaba'
 
+/** 泄洪表孔数量（向家坝场景 5 孔） */
+export const SPILLWAY_BAY_COUNT = 5
+
 export interface StationTelemetry {
   upstreamLevel: number
   downstreamLevel: number
@@ -13,12 +16,34 @@ export interface StationTelemetry {
   updatedAt: number
 }
 
-/** 有效泄流能力 (m³/s)，与开度、水头相关 */
+/** 满开时整站泄流能力 (m³/s)，与水头相关 */
+export function estimatePlantFullDischarge(upstreamLevel: number): number {
+  const head = Math.max(0, upstreamLevel - XIANGJIABA_HYDRO.downstreamNormalLevel - 95)
+  return 900 + head * 12 + upstreamLevel * 2.5
+}
+
+/**
+ * 整站泄流 (m³/s)
+ * @param gateOpeningPct 综合/平均闸门开度 0–100
+ */
 export function estimateSpillwayDischarge(upstreamLevel: number, gateOpeningPct: number): number {
   const opening = Math.max(0, Math.min(100, gateOpeningPct)) / 100
   if (opening < 0.02) return 80 + opening * 200
-  const head = Math.max(0, upstreamLevel - XIANGJIABA_HYDRO.downstreamNormalLevel - 95)
-  return opening * (900 + head * 12 + upstreamLevel * 2.5)
+  return opening * estimatePlantFullDischarge(upstreamLevel)
+}
+
+/**
+ * 单孔泄流 (m³/s) — 按整站能力均分到各表孔，避免「每孔≈整站流量」的误差
+ */
+export function estimateGateBayDischarge(
+  upstreamLevel: number,
+  gateOpeningPct: number,
+  bayCount = SPILLWAY_BAY_COUNT,
+): number {
+  const opening = Math.max(0, Math.min(100, gateOpeningPct)) / 100
+  const bays = Math.max(1, bayCount)
+  if (opening < 0.02) return (80 + opening * 200) / bays
+  return (opening * estimatePlantFullDischarge(upstreamLevel)) / bays
 }
 
 /** 日变化来水（枯汛期向家坝典型波动） */

@@ -28,10 +28,10 @@ import type {
   MetricsDetailItem,
   CompareResult,
 } from '@/stores/aiHealth'
-import type { PhysicsGuardConfig, ConfigHistoryItem } from '@/stores/physicsGuard'
 import type { InterlockRule } from '@/stores/gateInterlock'
 import type { AIHealthOverviewResponse } from '@/types/gateai'
 import type { ApiInterlockRule, ApiInterlockStat } from './interlockAdapter'
+import type { BackendPhysicsGuardRaw } from './physicsGuardAdapter'
 
 /** v1 路径前缀，由 .env 中 VITE_API_V1_PREFIX 控制 */
 const V1 = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
@@ -219,21 +219,27 @@ export function getAIVersionCompare(params: {
 const ADMIN_PHYSICS_GUARD = '/v1/admin/physics-guard'
 
 export function getPhysicsGuard(params: { reservoir_id: number }) {
-  return http.get<ApiResponse<PhysicsGuardConfig>>(ADMIN_PHYSICS_GUARD, { params })
+  return http.get<ApiResponse<BackendPhysicsGuardRaw>>(ADMIN_PHYSICS_GUARD, { params })
 }
 
-export function updatePhysicsGuard(id: number, data: Partial<PhysicsGuardConfig>) {
-  return http.put<ApiResponse<{ new_version: string }>>(`${ADMIN_PHYSICS_GUARD}/${id}`, data)
+export function updatePhysicsGuard(
+  id: number,
+  data: Record<string, unknown>,
+  reservoirId?: number,
+) {
+  return http.put<ApiResponse<BackendPhysicsGuardRaw>>(`${ADMIN_PHYSICS_GUARD}/${id}`, data, {
+    params: reservoirId != null ? { reservoir_id: reservoirId } : undefined,
+  })
 }
 
 export function getPhysicsGuardHistory(params: { reservoir_id: number }) {
-  return http.get<ApiResponse<ConfigHistoryItem[]>>(`${ADMIN_PHYSICS_GUARD}/history`, {
+  return http.get<ApiResponse<BackendPhysicsGuardRaw[]>>(`${ADMIN_PHYSICS_GUARD}/history`, {
     params,
   })
 }
 
 export function rollbackPhysicsGuard(id: number) {
-  return http.post<ApiResponse<{ new_version: string }>>(
+  return http.post<ApiResponse<BackendPhysicsGuardRaw>>(
     `${ADMIN_PHYSICS_GUARD}/${id}/rollback`,
   )
 }
@@ -242,7 +248,7 @@ export function clonePhysicsGuard(data: {
   source_reservoir_id: number
   target_reservoir_id: number
 }) {
-  return http.post<ApiResponse<PhysicsGuardConfig>>(`${ADMIN_PHYSICS_GUARD}/clone`, {
+  return http.post<ApiResponse<BackendPhysicsGuardRaw>>(`${ADMIN_PHYSICS_GUARD}/clone`, {
     from_reservoir_id: data.source_reservoir_id,
     to_reservoir_id: data.target_reservoir_id,
   })

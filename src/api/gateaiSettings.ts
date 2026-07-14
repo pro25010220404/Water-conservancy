@@ -53,6 +53,13 @@ import {
   toGateInterlockRule,
   toInterlockUpdatePayload,
 } from './interlockAdapter'
+import type { BackendPhysicsGuardRaw } from './physicsGuardAdapter'
+import {
+  mapBackendPhysicsGuardConfig,
+  mapBackendPhysicsGuardHistoryGateai,
+  mapBackendPhysicsGuardSummary,
+  toBackendPhysicsGuardPayload,
+} from './physicsGuardAdapter'
 
 const METRICS: Record<number, ModelMetricLatest> = {
   1: {
@@ -573,7 +580,7 @@ export async function fetchPhysicsGuardConfig(reservoirId: number): Promise<Phys
   try {
     const res = await getPhysicsGuard({ reservoir_id: reservoirId })
     if (res.data?.code === 0 && res.data.data) {
-      return res.data.data as unknown as PhysicsGuardConfig
+      return mapBackendPhysicsGuardConfig(res.data.data as BackendPhysicsGuardRaw)
     }
   } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.getPhysicsConfig(reservoirId))
@@ -584,9 +591,10 @@ export async function savePhysicsGuardConfig(
   meta?: { description?: string; changed_by_name?: string },
 ): Promise<null> {
   try {
-    const id = (config as unknown as Record<string, unknown>).id as number
+    const id = config.id
     if (id) {
-      const res = await updatePhysicsGuard(id, config as unknown as Record<string, unknown>)
+      const payload = toBackendPhysicsGuardPayload(config, meta)
+      const res = await updatePhysicsGuard(id, payload, config.reservoir_id)
       if (res.data?.code === 0) return null
     }
   } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
@@ -598,8 +606,7 @@ export async function fetchPhysicsGuardHistory(reservoirId: number) {
   try {
     const res = await getPhysicsGuardHistory({ reservoir_id: reservoirId })
     if (res.data?.code === 0 && Array.isArray(res.data.data)) {
-      // 后端 ConfigHistoryItem → gateai PhysicsGuardHistoryItem，字段有差异用类型断言
-      return res.data.data as unknown as ReturnType<typeof gateaiSharedStore.getPhysicsHistory> extends Promise<infer T> ? T : never
+      return mapBackendPhysicsGuardHistoryGateai(res.data.data as BackendPhysicsGuardRaw[])
     }
   } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
   return delay(gateaiSharedStore.getPhysicsHistory(reservoirId))
@@ -613,19 +620,45 @@ export async function fetchPhysicsGuardHistoryVersions(reservoirId: number) {
 export async function rollbackPhysicsGuard(reservoirId: number, historyId: number) {
   try {
     const res = await rollbackPhysicsGuardApi(historyId)
-    if (res.data?.code === 0) return { new_version: (res.data.data as Record<string, unknown>)?.new_version ?? '' }
+    if (res.data?.code === 0 && res.data.data) {
+      const raw = res.data.data as BackendPhysicsGuardRaw
+      return {
+        new_version: raw.config_version,
+        msg: res.data.msg,
+        config: mapBackendPhysicsGuardConfig(raw),
+        summary: mapBackendPhysicsGuardSummary(raw),
+      }
+    }
   } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
-  return delay(gateaiSharedStore.rollbackPhysics(reservoirId, historyId))
+  const config = gateaiSharedStore.rollbackPhysics(reservoirId, historyId)
+  const version = (config as { config_version?: string }).config_version ?? ''
+  return delay({
+    new_version: version,
+    msg: version ? `已回滚至 v${version}` : '已回滚',
+    config,
+    summary: gateaiSharedStore.getPhysicsSummary(reservoirId) as import('@/types/dispatch').PhysicsGuardSummary,
+  })
 }
 
 export async function clonePhysicsGuardConfig(fromId: number, toId: number, _version?: string) {
   try {
     const res = await clonePhysicsGuardApi({ source_reservoir_id: fromId, target_reservoir_id: toId })
     if (res.data?.code === 0 && res.data.data) {
-      return res.data.data as unknown as PhysicsGuardConfig
+      const raw = res.data.data as BackendPhysicsGuardRaw
+      return {
+        msg: res.data.msg,
+        config: mapBackendPhysicsGuardConfig(raw),
+        summary: mapBackendPhysicsGuardSummary(raw),
+      }
     }
+    throw new Error(res.data?.msg || 'clone failed')
   } catch (e) { if (!GATEAI_MOCK_FALLBACK) throw e }
-  return delay(gateaiSharedStore.clonePhysics(fromId, toId))
+  const config = gateaiSharedStore.clonePhysics(fromId, toId, _version)
+  return delay({
+    msg: '配置克隆成功',
+    config,
+    summary: gateaiSharedStore.getPhysicsSummary(toId) as import('@/types/dispatch').PhysicsGuardSummary,
+  })
 }
 
 // ═══ 闸门互锁 ═══

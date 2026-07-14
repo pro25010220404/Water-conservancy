@@ -129,11 +129,11 @@ function formatDuration(sec: number) {
             <dd>{{ simStatus.currentLevel.toFixed(2) }} m</dd>
           </div>
           <div class="summary-list__row">
-            <dt>当前流量</dt>
+            <dt>入库流量</dt>
             <dd>{{ simStatus.currentFlow }} m³/s</dd>
           </div>
           <div class="summary-list__row">
-            <dt>闸门开度</dt>
+            <dt>平均开度</dt>
             <dd>{{ simStatus.currentOpening }}%</dd>
           </div>
           <template v-if="physicsGuard">
@@ -271,11 +271,11 @@ function formatDuration(sec: number) {
             <dd>{{ simStatus.currentLevel.toFixed(2) }} m</dd>
           </div>
           <div class="summary-list__row">
-            <dt>当前流量</dt>
+            <dt>入库流量</dt>
             <dd>{{ simStatus.currentFlow }} m³/s</dd>
           </div>
           <div class="summary-list__row">
-            <dt>闸门开度</dt>
+            <dt>平均开度</dt>
             <dd>{{ simStatus.currentOpening }}%</dd>
           </div>
           <template v-if="physicsGuard">
