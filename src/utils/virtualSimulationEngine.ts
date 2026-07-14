@@ -12,6 +12,8 @@ export interface SimulationBaseline {
 
 export interface SimulationInput {
   upstreamLevel: number
+  /** 显式给定时用手动下游水位；否则按上游变化弱联动推算 */
+  downstreamLevel?: number
   rainfall: number
   baseline: SimulationBaseline
 }
@@ -35,11 +37,15 @@ export function computeSimulationDerived(input: SimulationInput): SimulationDeri
     Math.round(baseline.inflowRate + rainfall * 12 + upDelta * 85),
   )
 
-  const downstreamLevel = Math.max(
-    baseline.downstreamLevel - 5,
-    +(baseline.downstreamLevel + upDelta * 0.12).toFixed(2),
-  )
+  const downstreamLevel =
+    input.downstreamLevel != null
+      ? +Math.max(80, Math.min(280, input.downstreamLevel)).toFixed(2)
+      : +Math.max(
+          baseline.downstreamLevel - 5,
+          Math.min(280, baseline.downstreamLevel + upDelta * 0.12),
+        ).toFixed(2)
 
+  // 正常工况上游应高于下游；若数据反挂，仍保证水头≥1 以免计算崩溃
   const head = Math.max(1, upstreamLevel - downstreamLevel)
   const baseHead = Math.max(1, baseline.upstreamLevel - baseline.downstreamLevel)
   const headRatio = head / baseHead
@@ -52,9 +58,13 @@ export function computeSimulationDerived(input: SimulationInput): SimulationDeri
   if (imbalance > 80) waterTrend = 'up'
   else if (imbalance < -80) waterTrend = 'down'
 
+  // 枯水时避免开度被压到接近 0，剖面中间「看起来没水」难理解
   const aggregateOpening = Math.min(
     100,
-    Math.max(0, +(baseline.gateOpening * (outflowRate / Math.max(baseline.outflowRate, 1))).toFixed(1)),
+    Math.max(
+      2,
+      +(baseline.gateOpening * (outflowRate / Math.max(baseline.outflowRate, 1))).toFixed(1),
+    ),
   )
 
   const gateScale = aggregateOpening / Math.max(baseline.gateOpening, 1)

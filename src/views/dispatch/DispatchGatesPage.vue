@@ -15,15 +15,25 @@ import { confirmInterlockAction } from '@/utils/interlockNotify'
 import type { GateGroup, GateNodeControl } from '@/types/gateControl'
 import { OPENING_MIN, OPENING_MAX, OPENING_STEP } from '@/constants/dispatch'
 
+const INTERLOCK_BYPASS_KEY = 'dispatch_interlock_manual_bypass'
+
 const router = useRouter()
 const store = useDispatchStore()
 const simStore = useVirtualSimulationStore()
 const { active: simActive, derived: simDerived } = storeToRefs(simStore)
 const { record: recordLog } = useOperationLog()
 
+/** 演示：手动绕过=可强制提交；互锁严格=阻断不可过 */
+const manualBypass = ref(localStorage.getItem(INTERLOCK_BYPASS_KEY) !== 'false')
+function onBypassChange(v: boolean | string | number) {
+  manualBypass.value = Boolean(v)
+  localStorage.setItem(INTERLOCK_BYPASS_KEY, manualBypass.value ? 'true' : 'false')
+  ElMessage.info(manualBypass.value ? '已开启手动绕过：互锁阻断仍可强制执行' : '已切换互锁严格：阻断时不可执行')
+}
+
 const {
   status, gates, selectedGateId, selectedGate, gatesInitialLoading, canManualControl,
-  aggregateOpening, aggregateTargetOpening, pendingChanges, impactPreview,
+  aggregateOpening, pendingChanges, impactPreview,
   precheckResult,
 } = storeToRefs(store)
 
@@ -45,9 +55,6 @@ const displayOutflowRate = computed(() =>
 )
 const displayAggregateOpening = computed(() =>
   simActive.value ? simDerived.value.aggregateOpening : aggregateOpening.value,
-)
-const displayAggregateTarget = computed(() =>
-  simActive.value ? simDerived.value.aggregateOpening : aggregateTargetOpening.value,
 )
 
 const submitting = ref(false)
@@ -130,13 +137,6 @@ const submitDisabledReason = computed(() => {
   return ''
 })
 
-const hasStatusAlerts = computed(
-  () =>
-    !canManualControl.value ||
-    interlockStatus.value.type !== 'success' ||
-    simActive.value,
-)
-
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let pollInFlight = false
 
@@ -152,13 +152,8 @@ async function pollGates() {
 
 function selectGate(id: number) { selectedGateId.value = id }
 
-/** 目标开度 > 0 视为「开」，否则「关」 */
-function isGateCommandOpen(g: GateNodeControl) {
-  return g.targetOpening > 0
-}
-
-/** 当前实际开度是否开启（展示用） */
-function isGateActuallyOpen(g: GateNodeControl) {
+/** 开度 > 0 视为开启 */
+function isGateOpen(g: GateNodeControl) {
   return g.currentOpening > 0
 }
 
@@ -167,8 +162,8 @@ function setSelectedGateTarget(opening: number) {
   store.setGateTarget(selectedGate.value.id, opening)
 }
 
-/** 单孔开/关：开→100%，关→0%（写入目标开度，需执行/提交后生效） */
-function setGateOpenClose(gateId: number, open: boolean) {
+/** 单孔开/关：即时生效（状态跟着按钮走） */
+async function setGateOpenClose(gateId: number, open: boolean) {
   if (!canManualControl.value) {
     ElMessage.warning('请先切换手动模式')
     return
@@ -178,11 +173,21 @@ function setGateOpenClose(gateId: number, open: boolean) {
     ElMessage.info('该节点离线或不可控')
     return
   }
-  store.setGateTarget(gateId, open ? OPENING_MAX : OPENING_MIN)
+  if ((g.currentOpening > 0) === open && (g.targetOpening > 0) === open) {
+    return
+  }
+  submitting.value = true
+  try {
+    await store.applyGateOpenClose(gateId, open)
+    recordLog('调度决策', '节点启闭', `${g.name} → ${open ? '开启' : '关闭'}`, 1)
+    ElMessage.success(`${g.name} 已${open ? '开启' : '关闭'}`)
+  } finally {
+    submitting.value = false
+  }
 }
 
-function onGateOpenSwitch(gateId: number, open: boolean | string | number) {
-  setGateOpenClose(gateId, Boolean(open))
+async function onGateOpenSwitch(gateId: number, open: boolean | string | number) {
+  await setGateOpenClose(gateId, Boolean(open))
 }
 
 function onSliderChange(val: number | number[]) {
@@ -208,6 +213,7 @@ async function executeOne() {
     actionSummary: `将 <strong>${g.name}</strong> 开度由 ${g.currentOpening}% 调整至 ${g.targetOpening}%`,
     confirmText: '确认执行',
     violations: precheckResult.value?.violations ?? [],
+    allowForce: manualBypass.value,
   })
   if (!ok) return
   try {
@@ -215,6 +221,9 @@ async function executeOne() {
     await store.mockExecuteGate(g.id)
     recordLog('调度决策', '节点控制', `${g.name} → ${g.targetOpening}%`, 1)
     ElMessage.success(`${g.name} 执行完成`)
+    await store.refreshGates({ silent: true })
+  } catch {
+    ElMessage.error(`${g.name} 下发失败，请检查登录态或接口`)
   } finally { submitting.value = false }
 }
 
@@ -234,6 +243,7 @@ async function submitAll() {
     actionSummary: `批量下发 <strong>${n}</strong> 处节点开度变更`,
     confirmText: '确认提交',
     violations: precheckResult.value?.violations ?? [],
+    allowForce: manualBypass.value,
   })
   if (!ok) return
   try {
@@ -242,6 +252,8 @@ async function submitAll() {
     recordLog('调度决策', '节点批量控制', `${n} 孔`, 1)
     ElMessage.success('全部变更已下发')
     await store.refreshGates({ silent: true })
+  } catch {
+    ElMessage.error('批量下发失败，请检查登录态或接口')
   } finally { submitting.value = false }
 }
 
@@ -277,7 +289,21 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
       element-loading-background="rgba(255,255,255,0.45)"
     >
       <div class="gates-command">
-        <div v-if="hasStatusAlerts" class="gates-command__alerts">
+        <!-- 始终显示：手动绕过开关（不跟告警条一起被 v-if 藏掉） -->
+        <div class="gates-command__toolbar">
+          <div class="gates-bypass" title="开=互锁阻断仍可强制执行；关=严格拦截">
+            <span class="gates-bypass__label">{{ manualBypass ? '手动绕过' : '互锁严格' }}</span>
+            <ElSwitch
+              :model-value="manualBypass"
+              inline-prompt
+              active-text="绕过"
+              inactive-text="严格"
+              @change="onBypassChange"
+            />
+          </div>
+          <ElButton size="small" :disabled="!canManualControl" @click="store.alignSurfaceTargets()">
+            表孔拉齐
+          </ElButton>
           <span v-if="!canManualControl" class="alert-chip alert-chip--info">
             节点控制已锁定
             <ElButton
@@ -327,11 +353,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
           <div class="gates-command__metrics" :class="{ 'gates-command__metrics--sim': simActive }">
             <div class="metric-pill">
               <span class="metric-pill__label">聚合开度</span>
-              <strong class="metric-pill__value">{{ displayAggregateTarget.toFixed(1) }}<em>%</em></strong>
-              <span
-                v-if="displayAggregateTarget !== displayAggregateOpening"
-                class="metric-pill__sub"
-              >现 {{ displayAggregateOpening.toFixed(1) }}%</span>
+              <strong class="metric-pill__value">{{ displayAggregateOpening.toFixed(1) }}<em>%</em></strong>
             </div>
             <div class="metric-pill">
               <span class="metric-pill__label">开启孔数</span>
@@ -404,10 +426,10 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
               <ElTag
                 v-else
                 size="small"
-                :type="isGateActuallyOpen(g) ? 'success' : 'info'"
+                :type="isGateOpen(g) ? 'success' : 'info'"
                 effect="plain"
               >
-                {{ isGateActuallyOpen(g) ? '开' : '关' }}
+                {{ isGateOpen(g) ? '开' : '关' }}
               </ElTag>
               <span class="gate-item__flow">{{ fmtNum(g.flowRate, 1) }} m³/s</span>
             </div>
@@ -423,9 +445,9 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
               <span>{{ g.currentOpening }}%</span>
               <span v-if="g.targetOpening !== g.currentOpening" class="gate-item__tgt">→ {{ g.targetOpening }}%</span>
               <div class="gate-item__switch" @click.stop>
-                <span class="gate-item__switch-label">{{ isGateCommandOpen(g) ? '开' : '关' }}</span>
+                <span class="gate-item__switch-label">{{ isGateOpen(g) ? '开' : '关' }}</span>
                 <ElSwitch
-                  :model-value="isGateCommandOpen(g)"
+                  :model-value="isGateOpen(g)"
                   :disabled="!canManualControl || !isGateOnline(g.status) || submitting"
                   inline-prompt
                   active-text="开"
@@ -442,22 +464,15 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
         <template #extra><span class="detail-code">{{ selectedGate.code }}</span></template>
 
         <div class="detail-open-close">
-          <div class="detail-open-close__info">
-            <span class="detail-label">节点启闭</span>
-            <strong :class="isGateActuallyOpen(displaySelectedGate ?? selectedGate) ? 'is-open' : 'is-closed'">
-              当前 {{ isGateActuallyOpen(displaySelectedGate ?? selectedGate) ? '开启' : '关闭' }}
-              <em>（{{ (displaySelectedGate ?? selectedGate).currentOpening }}%）</em>
-            </strong>
-          </div>
-          <div class="detail-open-close__ctrl">
-            <ElButton
-              :disabled="!canManualControl || !isGateOnline(selectedGate.status) || submitting"
-              @click="setGateOpenClose(selectedGate.id, false)"
-            >
-              关闸 (0%)
-            </ElButton>
+          <div class="detail-open-close__row">
+            <div class="detail-open-close__info">
+              <span class="detail-label">节点启闭</span>
+              <strong :class="isGateOpen(displaySelectedGate ?? selectedGate) ? 'is-open' : 'is-closed'">
+                {{ isGateOpen(displaySelectedGate ?? selectedGate) ? '开启' : '关闭' }}
+              </strong>
+            </div>
             <ElSwitch
-              :model-value="isGateCommandOpen(selectedGate)"
+              :model-value="isGateOpen(selectedGate)"
               :disabled="!canManualControl || !isGateOnline(selectedGate.status) || submitting"
               inline-prompt
               active-text="开"
@@ -465,15 +480,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
               size="large"
               @change="(v) => onGateOpenSwitch(selectedGate.id, v)"
             />
-            <ElButton
-              type="primary"
-              :disabled="!canManualControl || !isGateOnline(selectedGate.status) || submitting"
-              @click="setGateOpenClose(selectedGate.id, true)"
-            >
-              开闸 (100%)
-            </ElButton>
           </div>
-          <p class="detail-open-close__hint">切换后写入目标开度，需「执行本孔」或顶部「提交变更」后正式下发。</p>
         </div>
 
         <div class="detail-opening">
@@ -624,7 +631,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   border-bottom: 1px solid #f1f5f9;
   background: #fafbfc;
 
-  &__alerts {
+  &__toolbar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -683,6 +690,26 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
       height: 100%;
       min-height: 0;
     }
+  }
+}
+
+.gates-bypass {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #e6f4ff;
+  border: 1px solid #91caff;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(9, 88, 217, 0.08);
+
+  &__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0958d9;
+    white-space: nowrap;
   }
 }
 
@@ -1026,39 +1053,24 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   background: linear-gradient(135deg, #f8fafc 0%, #f0f7ff 100%);
   border: 1px solid #e2e8f0;
 
-  &__info {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-
-    strong {
-      font-size: 15px;
-      &.is-open { color: #16a34a; }
-      &.is-closed { color: #64748b; }
-      em {
-        font-style: normal;
-        font-weight: 500;
-        font-size: 13px;
-        color: #94a3b8;
-        margin-left: 4px;
-      }
-    }
-  }
-
-  &__ctrl {
+  &__row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
+    gap: 16px;
   }
 
-  &__hint {
-    margin: 0;
-    font-size: 12px;
-    color: #94a3b8;
-    line-height: 1.4;
+  &__info {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    min-width: 0;
+
+    strong {
+      font-size: 16px;
+      &.is-open { color: #16a34a; }
+      &.is-closed { color: #64748b; }
+    }
   }
 }
 

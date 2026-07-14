@@ -4,6 +4,7 @@
 import http from './request'
 import type { ApiResponse, PageResult } from '@/shared/types'
 import type { RealtimeKpi, DashboardAlarm } from '@/types/monitoring'
+import { applyGateOpeningOverrides } from '@/utils/gateOpeningPersist'
 
 /**
  * 全局 Mock 降级开关：
@@ -186,21 +187,28 @@ function gateNum(code: string, id: number): number {
   return m ? Number(m[1]) : id
 }
 
+/** 1–12 号孔不显示离线（接口 offline 时前端按在线展示，开度仍用接口值） */
+export function ensureGatesOnline(list: GateRaw[]): GateRaw[] {
+  return list.map((g) => {
+    const num = gateNum(g.code, g.id)
+    if (num < 1 || num > 12) return g
+    if (g.status === 'offline' || g.status === 'fault') {
+      return { ...g, status: 'online' }
+    }
+    return g
+  })
+}
+
 /** 演示/联调：全孔在线、目标=当前，表孔开度拉齐，避免互锁误拦 */
 export function normalizeDemoGates(list: GateRaw[]): GateRaw[] {
-  const items = list.map((g) => {
+  const items = ensureGatesOnline(list).map((g) => {
     const opening = Math.min(100, Math.max(0, Number(g.opening) || 0))
-    const num = gateNum(g.code, g.id)
-    const isOperable = num >= 1 && num <= 12
-    let status = g.status === 'executing' ? 'executing' : g.status
-    if (isOperable && status === 'offline') status = 'online'
     const targetRaw = Number(g.target_opening)
-    const target = status === 'offline' ? 0 : (Number.isFinite(targetRaw) ? targetRaw : opening)
+    const target = Number.isFinite(targetRaw) ? targetRaw : opening
     return {
       ...g,
-      status,
       opening,
-      target_opening: status === 'offline' ? 0 : target,
+      target_opening: target,
     }
   })
 
@@ -255,9 +263,13 @@ export async function fetchGates(reservoirId?: number): Promise<GateRaw[]> {
     if (res.data?.code === 0 && Array.isArray(res.data.data)) list = res.data.data
   } catch (e) { if (!MOCK_FALLBACK) throw e }
   if (!list?.length) list = gateMocks()
-  if (import.meta.env.DEV || import.meta.env.VITE_DEMO_GATE_ALIGN === 'true') {
+  // 始终去掉 1–12 孔离线样式；完整演示拉齐仍需 VITE_DEMO_GATE_ALIGN=true
+  list = ensureGatesOnline(list)
+  if (import.meta.env.VITE_DEMO_GATE_ALIGN === 'true') {
     list = normalizeDemoGates(list)
   }
+  // 叠回本地开/关与目标草稿（仅当本地明确存了 opening 才改写实际开度）
+  list = applyGateOpeningOverrides(list)
   return delay(list)
 }
 

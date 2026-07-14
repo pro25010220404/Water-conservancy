@@ -15,7 +15,7 @@ const router = useRouter()
 const simStore = useVirtualSimulationStore()
 const dispatchStore = useDispatchStore()
 
-const { active, locked, upstreamLevel, rainfall, derived } = storeToRefs(simStore)
+const { active, locked, upstreamLevel, downstreamLevel, rainfall, derived } = storeToRefs(simStore)
 const { gates, selectedGateId, status, canManualControl } = storeToRefs(dispatchStore)
 
 const aggregateOpening = computed(() => derived.value.aggregateOpening)
@@ -31,9 +31,9 @@ const waterTrendLabel = computed(() => {
 })
 
 const PRESETS = [
-  { key: 'normal', label: '常水位', level: 175.7, rain: 0 },
-  { key: 'flood', label: '汛限偏高', level: 185.0, rain: 35 },
-  { key: 'dry', label: '枯水偏低', level: 165.0, rain: 0 },
+  { key: 'normal', label: '常水位', up: 175.7, down: 121.0, rain: 0 },
+  { key: 'flood', label: '汛限偏高', up: 185.0, down: 125.0, rain: 35 },
+  { key: 'dry', label: '枯水偏低', up: 165.0, down: 118.0, rain: 0 },
 ] as const
 
 async function refreshPreview() {
@@ -47,8 +47,9 @@ function onParamChange() {
   }
 }
 
-function applyPreset(level: number, rain: number) {
-  upstreamLevel.value = level
+function applyPreset(up: number, down: number, rain: number) {
+  upstreamLevel.value = up
+  downstreamLevel.value = down
   rainfall.value = rain
   if (!locked.value) {
     simStore.applySimulation()
@@ -92,7 +93,7 @@ function ensureManualMode() {
   return true
 }
 
-watch([upstreamLevel, rainfall], () => {
+watch([upstreamLevel, downstreamLevel, rainfall], () => {
   if (active.value && !locked.value) refreshPreview()
 })
 
@@ -110,7 +111,7 @@ onMounted(async () => {
     <div class="vsim-guide">
       <div class="vsim-guide__main">
         <strong>虚拟仿真</strong>
-        <span>手动调参预览（非 AI 训练）。调节水位/降雨 → 预览联动 → 应用后同步至节点控制、数字孪生、监控大屏。</span>
+        <span>手动调参预览（非 AI 训练）。调节上下游水位/降雨 → 预览联动 → 应用后同步至节点控制、数字孪生、监控大屏。</span>
       </div>
       <div class="vsim-guide__tags">
         <ElTag v-if="active" type="success" size="large">仿真生效中</ElTag>
@@ -122,7 +123,7 @@ onMounted(async () => {
     <div class="vsim-steps">
       <div class="vsim-step">
         <b>1</b>
-        <span>左侧调水位 / 降雨</span>
+        <span>左侧调上/下游水位与降雨</span>
       </div>
       <div class="vsim-step">
         <b>2</b>
@@ -149,7 +150,7 @@ onMounted(async () => {
               :key="p.key"
               size="small"
               :disabled="locked"
-              @click="applyPreset(p.level, p.rain)"
+              @click="applyPreset(p.up, p.down, p.rain)"
             >
               {{ p.label }}
             </ElButton>
@@ -174,6 +175,22 @@ onMounted(async () => {
 
         <div class="vsim-param">
           <div class="vsim-param__head">
+            <span class="vsim-param__label">下游水位</span>
+            <strong class="vsim-param__value">{{ downstreamLevel.toFixed(1) }} <small>m</small></strong>
+          </div>
+          <ElSlider
+            v-model="downstreamLevel"
+            :min="80"
+            :max="180"
+            :step="0.1"
+            :disabled="locked"
+            show-input
+            @change="onParamChange"
+          />
+        </div>
+
+        <div class="vsim-param">
+          <div class="vsim-param__head">
             <span class="vsim-param__label">降雨量</span>
             <strong class="vsim-param__value">{{ rainfall.toFixed(1) }} <small>mm/h</small></strong>
           </div>
@@ -189,7 +206,8 @@ onMounted(async () => {
         </div>
 
         <div class="vsim-ref">
-          <div><span>基准水位</span><strong>{{ status.upstreamLevel.toFixed(1) }} m</strong></div>
+          <div><span>基准上游</span><strong>{{ status.upstreamLevel.toFixed(1) }} m</strong></div>
+          <div><span>基准下游</span><strong>{{ simStore.baseline.downstreamLevel.toFixed(1) }} m</strong></div>
           <div><span>基准入库</span><strong>{{ status.flowRate }} m³/s</strong></div>
         </div>
 
@@ -216,8 +234,8 @@ onMounted(async () => {
             label="下游水位"
             :value="derived.downstreamLevel"
             unit="m"
-            :min="100"
-            :max="160"
+            :min="80"
+            :max="180"
             size="lg"
           />
           <FlowGauge2D

@@ -183,8 +183,13 @@ function applyRecommendation() {
 }
 
 async function handleIgnore() {
+  const reason = ignoreReason.value.trim()
+  if (!reason) {
+    ElMessage.warning('请填写忽略原因')
+    return
+  }
   await store.postIgnoreDecision()
-  recordLog('调度决策', '忽略建议', ignoreReason.value || '未填写原因', 1)
+  recordLog('调度决策', '忽略建议', reason, 1)
   ElMessage.info('已忽略本次建议')
   ignoreVisible.value = false
   ignoreReason.value = ''
@@ -399,7 +404,9 @@ onUnmounted(() => {
     </ElDialog>
 
     <ElDialog v-model="ignoreVisible" title="忽略建议" width="420px">
-      <ElFormItem label="原因（选填）"><ElInput v-model="ignoreReason" type="textarea" :rows="3" placeholder="可填写忽略原因" /></ElFormItem>
+      <ElFormItem label="原因（必填）" required>
+        <ElInput v-model="ignoreReason" type="textarea" :rows="3" placeholder="请填写忽略原因" />
+      </ElFormItem>
       <template #footer>
         <ElButton @click="ignoreVisible = false">取消</ElButton>
         <ElButton type="warning" @click="handleIgnore">确认忽略</ElButton>
