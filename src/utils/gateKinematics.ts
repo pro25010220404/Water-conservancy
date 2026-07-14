@@ -42,5 +42,6 @@ export function applyGateLeafTransform(
   const t = gateLeafTransform(openRatio, baseY, baseScaleY)
   object.position.y = t.positionY
   object.scale.y = t.scaleY
-  if ('visible' in object) object.visible = !t.retracted
+  // 全开时仍保持可见（缩成门楣细条），便于点选/描边，避免“孔空了却显示闸门”
+  if ('visible' in object) object.visible = true
 }

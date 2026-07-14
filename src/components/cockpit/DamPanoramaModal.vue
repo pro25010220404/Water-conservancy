@@ -244,12 +244,12 @@ defineExpose({
                       <strong>{{ activeGateFlow }} m³/s</strong>
                     </div>
                     <div>
-                      <small>平均开度</small>
+                      <small>五孔平均开度</small>
                       <strong>{{ safeGateOpening }}%</strong>
                     </div>
                   </div>
                   <div class="sim-modal__field">
-                    <label>闸门开度 {{ activeGateOpening }}%</label>
+                    <label>本孔开度 {{ activeGateOpening }}%</label>
                     <input
                       type="range"
                       class="sim-modal__slider"
@@ -266,7 +266,7 @@ defineExpose({
                       "
                     />
                   </div>
-                  <p class="sim-modal__hint">宽幅水幕随开度变化；0% 完全隐藏泄流</p>
+                  <p class="sim-modal__hint">宽幅水幕随开度变化；0% 完全隐藏泄流。近全开时选中框会转到闸墩。</p>
                 </div>
                 <div v-else key="gate-avg" class="sim-modal__field">
                   <label>平均开度 {{ safeGateOpening }}%</label>

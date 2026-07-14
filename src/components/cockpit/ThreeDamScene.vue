@@ -22,6 +22,7 @@ import {
   computeDischargeMetrics,
   layoutDischargeJet,
   animateDischargeJet,
+  DISCHARGE_X,
   type DischargeJetParts,
 } from '@/utils/dischargeShader'
 import { buildValleyTerrain, buildRiverbed, buildDistantRidgeline, buildForestHillside, buildFoamZone } from '@/utils/terrainBuilder'
@@ -30,8 +31,8 @@ import {
   getSimulationFocusCamera, collectDamMeshes, applyTwinLightBackgroundMaterials, type DamModelInstance,
 } from '@/utils/damModelLoader'
 import { XIANGJIABA_HYDRO, upstreamLevelToSceneY, getLevelStatus, levelGaugePercent, clampUpstreamLevel } from '@/constants/xiangjiaba'
-import { applyGateLeafTransform } from '@/utils/gateKinematics'
-import { estimateSpillwayDischarge } from '@/utils/xiangjiabaTelemetry'
+import { applyGateLeafTransform, gateLeafBottomY, LINTEL_BOTTOM_Y } from '@/utils/gateKinematics'
+import { estimateGateBayDischarge } from '@/utils/xiangjiabaTelemetry'
 import { getBimDisplayName, getBimDefaultDetail } from '@/utils/bimDisplayName'
 import type { SimulationScene } from '@/types/simulation'
 
@@ -118,7 +119,6 @@ const dischargeSmooth = {
   visible: [false, false, false, false, false],
 }
 const gateHighlight = new Map<number, number>()
-const waterLevelScreenLabel = ref({ x: 0, y: 0, visible: false, text: '', color: '#1890ff' })
 let pierObjects: THREE.Object3D[] = []
 let gateLeafObjects: THREE.Object3D[] = []
 let waterLevelGroup: THREE.Group | null = null
@@ -157,6 +157,11 @@ let mouse = new THREE.Vector2()
 let gateBayGroup: THREE.Group | null = null
 let gateBayPickers: THREE.Mesh[] = []
 let hoverables: THREE.Object3D[] = []
+/** 缓存动画目标，避免每帧 scene.traverse */
+let twinWireLines: THREE.LineSegments[] = []
+let twinPierGlowLines: THREE.LineSegments[] = []
+let pulseMeshes: THREE.Mesh[] = []
+let animFrame = 0
 let hoveredObject: THREE.Object3D | null = null
 let resizeObserver: ResizeObserver | null = null
 const dischargeJetParts: DischargeJetParts[] = []
@@ -200,10 +205,15 @@ function initScene() {
   }
   camera.position.copy(camPreset.pos)
 
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' })
+  renderer = new THREE.WebGLRenderer({
+    antialias: !isTwinStyle,
+    alpha: false,
+    powerPreference: 'high-performance',
+  })
   renderer.setSize(w, h)
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3))
-  renderer.shadowMap.enabled = true
+  // 孪生页：限制分辨率，避免 2K/4K 屏上 DPR=2~3 时掉帧白屏
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTwinStyle ? 1.25 : 2))
+  renderer.shadowMap.enabled = !isTwinStyle
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = isTwinStyle ? 1.06 : 0.9
@@ -250,16 +260,18 @@ function initScene() {
 
   sunLight = new THREE.DirectionalLight(isTwinStyle ? 0xfff5eb : 0xffcc88, isTwinStyle ? 0.92 : 0.65)
   sunLight.position.set(isTwinStyle ? -65 : 55, isTwinStyle ? 82 : 75, isTwinStyle ? 48 : 35)
-  sunLight.castShadow = true
-  sunLight.shadow.mapSize.set(4096, 4096)
-  sunLight.shadow.bias = -0.0008
-  sunLight.shadow.normalBias = 0.02
-  sunLight.shadow.camera.near = 10
-  sunLight.shadow.camera.far = 250
-  sunLight.shadow.camera.left = -70
-  sunLight.shadow.camera.right = 70
-  sunLight.shadow.camera.top = 70
-  sunLight.shadow.camera.bottom = -70
+  sunLight.castShadow = !isTwinStyle
+  if (!isTwinStyle) {
+    sunLight.shadow.mapSize.set(2048, 2048)
+    sunLight.shadow.bias = -0.0008
+    sunLight.shadow.normalBias = 0.02
+    sunLight.shadow.camera.near = 10
+    sunLight.shadow.camera.far = 250
+    sunLight.shadow.camera.left = -70
+    sunLight.shadow.camera.right = 70
+    sunLight.shadow.camera.top = 70
+    sunLight.shadow.camera.bottom = -70
+  }
   scene.add(sunLight)
 
   const fill = new THREE.DirectionalLight(isTwinStyle ? 0xd0dce8 : 0x6699cc, isTwinStyle ? 0.32 : 0.38)
@@ -293,43 +305,51 @@ function initScene() {
   }
 
   upstreamMat = createWaterMaterial({
-    color: isTwinStyle ? 0xa8dce8 : 0x1a5080,
-    deepColor: isTwinStyle ? 0x6ec4dc : 0x0a2540,
-    opacity: isTwinStyle ? 0.58 : 0.92,
+    color: isTwinStyle ? 0x8fd4ea : 0x1a5080,
+    deepColor: isTwinStyle ? 0x4fb4d0 : 0x0a2540,
+    opacity: isTwinStyle ? 0.62 : 0.92,
     envMap: isTwinStyle ? null : cinematicSky.envMap,
     waveScale: isTwinStyle ? 0.22 : 0.42,
-    specIntensity: isTwinStyle ? 0.28 : 1.0,
-    reflectivity: isTwinStyle ? 0.22 : 0.72,
-    gridStrength: 0,
+    specIntensity: isTwinStyle ? 0.32 : 1.0,
+    reflectivity: isTwinStyle ? 0.28 : 0.72,
+    gridStrength: isTwinStyle ? 0.08 : 0,
   })
+  const upSegW = isTwinStyle ? 48 : 128
+  const upSegH = isTwinStyle ? 36 : 96
+  // 孪生页库区水面控制在坝前范围，略扩大便于看见流动
   upstreamWater = new THREE.Mesh(
-    new THREE.PlaneGeometry(isTwinStyle ? 32 : 48, isTwinStyle ? 28 : 38, 128, 96),
+    new THREE.PlaneGeometry(isTwinStyle ? 22 : 48, isTwinStyle ? 24 : 38, upSegW, upSegH),
     upstreamMat,
   )
   upstreamWater.rotation.x = -Math.PI / 2
-  upstreamWater.position.set(isTwinStyle ? -32 : -16, 0, 0)
+  upstreamWater.position.set(isTwinStyle ? -16 : -16, 0, 0)
   upstreamWater.name = '上游水面'
-  upstreamWater.userData.detail = '库区水位实时监测 · 物理流体动态'
-  upstreamWater.receiveShadow = true
+  upstreamWater.userData.detail = formatUpstreamWaterDetail()
+  upstreamWater.receiveShadow = !isTwinStyle
   scene.add(upstreamWater)
   hoverables.push(upstreamWater)
 
   downstreamMat = createWaterMaterial({
-    color: isTwinStyle ? 0x8ed4e8 : 0x124870,
-    deepColor: isTwinStyle ? 0x5ab8d0 : 0x081830,
-    opacity: isTwinStyle ? 0.55 : 0.88,
+    color: isTwinStyle ? 0x72c8e4 : 0x124870,
+    deepColor: isTwinStyle ? 0x3aa0c0 : 0x081830,
+    opacity: isTwinStyle ? 0.58 : 0.88,
     envMap: isTwinStyle ? null : cinematicSky.envMap,
     waveScale: isTwinStyle ? 0.28 : 0.48,
-    specIntensity: isTwinStyle ? 0.32 : 1.0,
-    reflectivity: isTwinStyle ? 0.28 : 0.72,
-    gridStrength: isTwinStyle ? 0.06 : 0,
+    specIntensity: isTwinStyle ? 0.36 : 1.0,
+    reflectivity: isTwinStyle ? 0.3 : 0.72,
+    gridStrength: isTwinStyle ? 0.1 : 0,
   })
-  downstreamWater = new THREE.Mesh(new THREE.PlaneGeometry(50, 30, 128, 64), downstreamMat)
+  const dsSegW = isTwinStyle ? 40 : 128
+  const dsSegH = isTwinStyle ? 24 : 64
+  downstreamWater = new THREE.Mesh(
+    new THREE.PlaneGeometry(isTwinStyle ? 32 : 50, isTwinStyle ? 20 : 30, dsSegW, dsSegH),
+    downstreamMat,
+  )
   downstreamWater.rotation.x = -Math.PI / 2
-  downstreamWater.position.set(24, 0.2, 0)
+  downstreamWater.position.set(isTwinStyle ? 16 : 24, 0.2, 0)
   downstreamWater.name = '下游水面'
   downstreamWater.userData.detail = '泄洪尾水 · 湍流泡沫与生态流量'
-  downstreamWater.receiveShadow = true
+  downstreamWater.receiveShadow = !isTwinStyle
   scene.add(downstreamWater)
   hoverables.push(downstreamWater)
 
@@ -371,15 +391,16 @@ function initScene() {
   outlinePass.selectedObjects = []
   composer.addPass(outlinePass)
 
-  bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(w, h),
-    isTwin ? 0.04 : isPanorama ? 0.05 : 0.16,
-    0.62,
-    0.92,
-  )
-  composer.addPass(bloomPass)
-
+  // 孪生驾驶舱关闭 Bloom，省一次全屏后处理
   if (!isTwinStyle) {
+    bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(w, h),
+      isPanorama ? 0.05 : 0.16,
+      0.62,
+      0.92,
+    )
+    composer.addPass(bloomPass)
+
     bokehPass = new BokehPass(scene, camera, {
       focus: 42,
       aperture: 0.00012,
@@ -421,6 +442,13 @@ async function mountDamModel() {
     collectPierObjects(damInstance.root)
     collectGateLeafMeshes(damInstance.root)
     buildGateBayPickers()
+    collectAnimCaches(damInstance.root)
+    // 泄流挂到坝体下，随模型缩放/偏移，并与各闸叶对齐
+    if (dischargeGroup && damGroup) {
+      scene?.remove(dischargeGroup)
+      damGroup.add(dischargeGroup)
+      syncDischargeJetsToLeaves()
+    }
   }
   if (outlinePass) {
     damOutlineMeshes = collectDamMeshes(damInstance.root)
@@ -548,21 +576,15 @@ function updateWaterLevelMarkers() {
   })
 }
 
-function updateWaterLevelScreenLabel() {
-  if (!waterLevelGroup || !camera || !containerRef.value) return
-  const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
-  if (!holo) return
-  const w = containerRef.value.clientWidth
-  const h = containerRef.value.clientHeight
-  const v = new THREE.Vector3(-9, waterLevelGroup.position.y, 0)
-  v.project(camera)
-  waterLevelScreenLabel.value = {
-    x: (v.x * 0.5 + 0.5) * w,
-    y: (-v.y * 0.5 + 0.5) * h,
-    visible: v.z < 1 && v.z > -1,
-    text: `上游水位 ${props.waterLevel.toFixed(2)} m · ${levelStatus.value.label}`,
-    color: levelStatus.value.color,
-  }
+/** 上游水面悬停提示：名称 + 实时水位/汛限状态（合并原橙色水位标签） */
+function formatUpstreamWaterDetail() {
+  const level = safeNum(props.waterLevel, XIANGJIABA_HYDRO.normalPoolLevel)
+  return `${level.toFixed(2)} m · ${levelStatus.value.label} · 库区水位实时监测`
+}
+
+function syncUpstreamWaterTip() {
+  if (!upstreamWater) return
+  upstreamWater.userData.detail = formatUpstreamWaterDetail()
 }
 
 function buildDataStreams() {
@@ -602,6 +624,22 @@ function buildDataStreams() {
     dataStreamGroup!.add(line)
   })
   scene.add(dataStreamGroup)
+}
+
+function collectAnimCaches(root: THREE.Object3D) {
+  twinWireLines = []
+  twinPierGlowLines = []
+  pulseMeshes = []
+  root.traverse((obj) => {
+    if (obj.name === 'twinWire' && obj instanceof THREE.LineSegments) twinWireLines.push(obj)
+    if (obj.name === 'twinPierGlow' && obj instanceof THREE.LineSegments) twinPierGlowLines.push(obj)
+    if (
+      obj instanceof THREE.Mesh &&
+      (obj.name.startsWith('gateLed_') || obj.name.startsWith('phWindow_'))
+    ) {
+      pulseMeshes.push(obj)
+    }
+  })
 }
 
 function addTwinWireframeOverlay(root: THREE.Object3D) {
@@ -737,19 +775,31 @@ function buildGateBayPickers() {
 
   gateBayGroup = new THREE.Group()
   gateBayGroup.name = 'gateBayPickers'
+  // 拾取盒：visible=true + opacity=0（material.visible=false / object.visible=false 会被 Raycaster 跳过）
+  // 全开时闸叶 retracted 不可见，必须靠这些盒子点选
   const bayZs = [-14.25, -6.75, 0.75, 8.25, 16.0]
-  const geo = new THREE.BoxGeometry(3.2, 12, 1.8)
+  const geo = new THREE.BoxGeometry(5.5, 13, 4.2)
   const mat = new THREE.MeshBasicMaterial({
-    visible: false,
     transparent: true,
     opacity: 0,
     depthWrite: false,
+    colorWrite: false,
+    side: THREE.DoubleSide,
   })
 
   for (let i = 0; i < 5; i++) {
     const picker = new THREE.Mesh(geo, mat)
     picker.name = `gateBay_${i}`
-    picker.position.set(2.5, 11, bayZs[i])
+    picker.visible = true
+    // 略靠下游侧，优先拦住穿过表孔的射线；Z 尽量对齐实际闸叶
+    let z = bayZs[i]
+    const leaf = damGroup.getObjectByName(`gateLeaf_${i}`)
+    if (leaf) {
+      const local = leaf.getWorldPosition(new THREE.Vector3())
+      damGroup.worldToLocal(local)
+      z = local.z
+    }
+    picker.position.set(5.2, 10.5, z)
     picker.userData.gateIndex = i
     gateBayGroup.add(picker)
     gateBayPickers.push(picker)
@@ -759,13 +809,13 @@ function buildGateBayPickers() {
 }
 
 function collectGateLeafMeshes(root: THREE.Object3D) {
-  gateLeafObjects = []
+  gateLeafObjects = new Array(5)
   gateLeafMeshes = []
   gateLeafBaseColors.clear()
   for (let i = 0; i < 5; i++) {
     const leaf = root.getObjectByName(`gateLeaf_${i}`)
     if (leaf) {
-      gateLeafObjects.push(leaf)
+      gateLeafObjects[i] = leaf
       leaf.traverse((obj) => {
         if (obj instanceof THREE.Mesh && obj.material instanceof THREE.MeshStandardMaterial) {
           obj.userData.gateIndex = i
@@ -813,22 +863,23 @@ function applyGateOpeningVisuals() {
     const highlight = gateHighlight.get(gateIdx) ?? 0
 
     mat.color.setHex(vis.color)
+    // 选中用统一蓝色高光，不跟工况色跳变
     if (highlight > 0.02 && sel === gateIdx) {
       mat.emissive.setHex(0x1890ff)
-      mat.emissiveIntensity = vis.emissiveIntensity + highlight * 0.35
-      mat.color.lerp(new THREE.Color(0x3aa0ff), highlight * 0.25)
+      mat.emissiveIntensity = 0.12 + highlight * 0.28
+      mat.color.lerp(new THREE.Color(0x4a90c8), highlight * 0.2)
     } else {
       mat.emissive.setHex(vis.emissive)
       mat.emissiveIntensity = vis.emissiveIntensity
     }
-    mat.metalness = 0.48 + ratio * 0.22
-    mat.roughness = 0.42 - ratio * 0.12
+    mat.metalness = 0.42 + ratio * 0.18
+    mat.roughness = 0.48 - ratio * 0.1
 
     const edge = gateEdgeLines.get(mesh)
     if (edge) {
       const edgeMat = edge.material as THREE.LineBasicMaterial
       edgeMat.color.setHex(vis.edgeColor)
-      edgeMat.opacity = vis.edgeOpacity + (sel === gateIdx ? highlight * 0.2 : 0)
+      edgeMat.opacity = vis.edgeOpacity + (sel === gateIdx ? highlight * 0.18 : 0)
     }
   })
 }
@@ -836,6 +887,7 @@ function applyGateOpeningVisuals() {
 function applyGateSelectionVisuals() {
   const sel = props.selectedGateIndex ?? -1
   const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
+  const ratios = getGateOpenRatios()
 
   pierObjects.forEach((pier) => {
     pier.traverse((obj) => {
@@ -856,8 +908,24 @@ function applyGateSelectionVisuals() {
   applyGateOpeningVisuals()
 
   if (outlinePass && holo) {
-    outlinePass.selectedObjects =
-      sel >= 0 && gateLeafObjects[sel] ? [gateLeafObjects[sel]] : []
+    // 描整孔闸室（含门槽/门楣），避免全开时只描一侧闸墩造成“号位对不上”
+    if (sel >= 0 && sel < 5) {
+      const bay = damGroup?.getObjectByName(`${sel + 1}号闸门`)
+      const ratio = ratios[sel] ?? 0
+      if (bay) {
+        outlinePass.selectedObjects = [bay]
+      } else if (ratio >= 0.9 && pierObjects[sel]) {
+        outlinePass.selectedObjects = [pierObjects[sel]]
+      } else if (gateLeafObjects[sel]) {
+        outlinePass.selectedObjects = [gateLeafObjects[sel]]
+      } else {
+        outlinePass.selectedObjects = []
+      }
+    } else {
+      outlinePass.selectedObjects = []
+    }
+    outlinePass.visibleEdgeColor.set('#1890ff')
+    outlinePass.hiddenEdgeColor.set('#64748b')
   }
 }
 
@@ -872,7 +940,7 @@ function updateGateScreenLabels(dt = 0.016) {
   const sel = props.selectedGateIndex ?? -1
   pierScreenLabels.value = []
 
-  if (!holo || !camera || !containerRef.value || sel < 0 || sel >= gateLeafObjects.length) {
+  if (!holo || !camera || !containerRef.value || sel < 0 || sel >= 5) {
     gateLabelSmooth.alpha += (0 - gateLabelSmooth.alpha) * Math.min(1, dt * 14)
     selectedGateScreenLabel.value.visible = gateLabelSmooth.alpha > 0.04
     selectedGateScreenLabel.value.alpha = gateLabelSmooth.alpha
@@ -882,12 +950,18 @@ function updateGateScreenLabels(dt = 0.016) {
   const w = containerRef.value.clientWidth
   const h = containerRef.value.clientHeight
   const v = new THREE.Vector3()
-  const obj = gateLeafObjects[sel]
+  const bay = damGroup?.getObjectByName(`${sel + 1}号闸门`)
+  const obj = bay ?? gateLeafObjects[sel]
+  if (!obj) {
+    selectedGateScreenLabel.value.visible = false
+    return
+  }
   const opening = getGateOpeningAt(sel)
-  const flow = Math.round(estimateSpillwayDischarge(safeNum(props.waterLevel, 380), opening))
+  const flow = Math.round(estimateGateBayDischarge(safeNum(props.waterLevel, 380), opening))
 
   obj.getWorldPosition(v)
-  v.y += 4.5
+  // 锚在孔口中部，避免全开闸叶收到门楣后标签飞到坝顶
+  v.y = Math.min(Math.max(v.y, 10), 14)
   v.project(camera!)
 
   const targetX = (v.x * 0.5 + 0.5) * w
@@ -961,6 +1035,26 @@ function buildDischargeJets() {
     dischargeGroup.add(parts.group)
     dischargeJetParts.push(parts)
   }
+  syncDischargeJetsToLeaves()
+}
+
+/** 泄流水幕跟实际闸叶 X/Z 对齐，避免硬编码孔位与模型错位 */
+function syncDischargeJetsToLeaves() {
+  if (!dischargeGroup || !dischargeJetParts.length) return
+  const parent = dischargeGroup.parent
+  const bayZs = [-14.25, -6.75, 0.75, 8.25, 16.0]
+  for (let i = 0; i < dischargeJetParts.length; i++) {
+    const jet = dischargeJetParts[i].group
+    const leaf = damGroup?.getObjectByName(`gateLeaf_${i}`) ?? gateLeafObjects[i]
+    if (leaf && parent) {
+      const world = leaf.getWorldPosition(new THREE.Vector3())
+      parent.worldToLocal(world)
+      // layout 里水流在局部 X=DISCHARGE_X，用 jet 位移补偿到闸叶正面
+      jet.position.set(world.x - DISCHARGE_X, 0, world.z)
+    } else {
+      jet.position.set(0, 0, bayZs[i] ?? 0)
+    }
+  }
 }
 
 function applyDischargeLayoutFromSmooth() {
@@ -973,8 +1067,8 @@ function applyDischargeLayoutFromSmooth() {
       fallH: dischargeSmooth.fallH[i],
       width: dischargeSmooth.width[i],
       thickness: dischargeSmooth.depth[i],
-      mistSpread: 0.6 + dischargeSmooth.opening[i] * 2.2,
-      splashSize: 1.2 + dischargeSmooth.opening[i] * 1.8,
+      mistSpread: 0.32 + dischargeSmooth.opening[i] * 0.7,
+      splashSize: 1.0 + dischargeSmooth.opening[i] * 1.2,
       opening: dischargeSmooth.opening[i],
     }, dsY)
     parts.group.visible = dischargeSmooth.visible[i] && dischargeSmooth.fallH[i] > 0.3
@@ -991,10 +1085,8 @@ function tickDischargeSmooth(dt: number) {
 
   dischargeGroup.children.forEach((jetGroup, i) => {
     const ratio = gateRatios[i] ?? gateRatios[0] ?? 0
-    let leafBottom: number | undefined
-    if (gateLeafObjects[i]) {
-      leafBottom = new THREE.Box3().setFromObject(gateLeafObjects[i]).min.y
-    }
+    // 用运动学高度，避免 Box3 在闸叶收起时算出超出门楣的落点
+    const leafBottom = Math.min(gateLeafBottomY(ratio), LINTEL_BOTTOM_Y - 0.35)
     const target = computeDischargeMetrics(ratio, dsY, leafBottom)
 
     dischargeSmooth.topY[i] += (target.topY - dischargeSmooth.topY[i]) * k
@@ -1014,10 +1106,7 @@ function updateDischargeLayout(gateRatios: number[]) {
   const dsY = downstreamWater?.position.y ?? 1.2
   dischargeGroup.children.forEach((jetGroup, i) => {
     const ratio = gateRatios[i] ?? gateRatios[0] ?? 0
-    let leafBottom: number | undefined
-    if (gateLeafObjects[i]) {
-      leafBottom = new THREE.Box3().setFromObject(gateLeafObjects[i]).min.y
-    }
+    const leafBottom = Math.min(gateLeafBottomY(ratio), LINTEL_BOTTOM_Y - 0.35)
     const target = computeDischargeMetrics(ratio, dsY, leafBottom)
     dischargeSmooth.topY[i] = target.topY
     dischargeSmooth.fallH[i] = target.fallH
@@ -1100,8 +1189,8 @@ function updateScene() {
   const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
   if (holo) {
     upstreamWater.visible = true
-    upstreamWater.position.set(-26, waterY, -2)
-    if (upstreamMat) upstreamMat.uniforms.uOpacity.value = 0.48
+    upstreamWater.position.set(-16, waterY, 0)
+    if (upstreamMat) upstreamMat.uniforms.uOpacity.value = 0.62
   } else {
     upstreamWater.visible = true
     upstreamWater.position.set(-16, waterY, 0)
@@ -1110,7 +1199,7 @@ function updateScene() {
   if (downstreamWater) {
     const dsNorm = (dsLevel - 277) / 3
     downstreamWater.position.y = 0.8 + dsNorm * 1.5
-    if (downstreamMat) downstreamMat.uniforms.uOpacity.value = holo ? 0.52 : 0.88
+    if (downstreamMat) downstreamMat.uniforms.uOpacity.value = holo ? 0.58 : 0.88
   }
 
   if (damInstance) {
@@ -1131,10 +1220,11 @@ function updateScene() {
   }
 
   const flowFactor = flow / 2000
-  if (upstreamMat) upstreamMat.uniforms.uFlowSpeed.value = 0.75 + flowFactor * 0.75
-  if (downstreamMat) downstreamMat.uniforms.uFlowSpeed.value = 0.95 + flowFactor * 0.95
+  if (upstreamMat) upstreamMat.uniforms.uFlowSpeed.value = (holo ? 1.35 : 0.75) + flowFactor * (holo ? 1.1 : 0.75)
+  if (downstreamMat) downstreamMat.uniforms.uFlowSpeed.value = (holo ? 1.55 : 0.95) + flowFactor * (holo ? 1.25 : 0.95)
 
   if (dischargeGroup) {
+    syncDischargeJetsToLeaves()
     updateDischargeLayout(gateRatios)
   }
   applyGateOpeningVisuals()
@@ -1146,6 +1236,7 @@ function updateScene() {
   }
   applyGateSelectionVisuals()
   updateWaterLevelMarkers()
+  syncUpstreamWaterTip()
 }
 
 function applyWeatherFromScene() {
@@ -1169,14 +1260,14 @@ function animateDischarge(t: number, dt: number) {
       fallH: dischargeSmooth.fallH[i],
       width: dischargeSmooth.width[i],
       thickness: dischargeSmooth.depth[i],
-      mistSpread: 0.6 + dischargeSmooth.opening[i] * 2.2,
-      splashSize: 1.2 + dischargeSmooth.opening[i] * 1.8,
+      mistSpread: 0.32 + dischargeSmooth.opening[i] * 0.7,
+      splashSize: 1.0 + dischargeSmooth.opening[i] * 1.2,
       opening: dischargeSmooth.opening[i],
     }
     animateDischargeJet(parts, t, m)
-    const rainMul = 1 + safeNum(props.rainfall, 0) / 60
+    const rainMul = 1 + safeNum(props.rainfall, 0) / 80
     const mistMat = parts.mist.material as THREE.PointsMaterial
-    mistMat.opacity = (0.12 + m.opening * 0.32) * rainMul
+    mistMat.opacity = (0.1 + m.opening * 0.24) * rainMul
     layoutDischargeJet(parts, m, dsY)
   })
 }
@@ -1220,20 +1311,17 @@ function animateDataStreams(t: number) {
 
 function animateHoloWireframe(t: number) {
   const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
-  if (!holo || !damGroup) return
+  if (!holo) return
   const scanBand = (Math.sin(t * 0.45) + 1) * 0.5
-  damGroup.traverse((obj) => {
-    if (obj.name === 'twinWire') {
-      const mat = (obj as THREE.LineSegments).material as THREE.LineBasicMaterial
-      const phase = (obj.userData.scanPhase as number) ?? 0
-      const base = 0.12
-      mat.opacity = base + Math.sin(t * 0.8 + phase) * 0.08 + scanBand * 0.14
-    }
-    if (obj.name === 'twinPierGlow') {
-      const mat = (obj as THREE.LineSegments).material as THREE.LineBasicMaterial
-      mat.opacity = 0.38 + Math.sin(t * 1.2 + obj.id * 0.05) * 0.18
-    }
-  })
+  for (const obj of twinWireLines) {
+    const mat = obj.material as THREE.LineBasicMaterial
+    const phase = (obj.userData.scanPhase as number) ?? 0
+    mat.opacity = 0.12 + Math.sin(t * 0.8 + phase) * 0.08 + scanBand * 0.14
+  }
+  for (const obj of twinPierGlowLines) {
+    const mat = obj.material as THREE.LineBasicMaterial
+    mat.opacity = 0.38 + Math.sin(t * 1.2 + obj.id * 0.05) * 0.18
+  }
   if (pipelineGroup) {
     pipelineGroup.children.forEach((line) => {
       const mat = (line as THREE.Line).material as THREE.LineBasicMaterial
@@ -1245,6 +1333,8 @@ function animateHoloWireframe(t: number) {
 
 function syncSunLight(dt: number) {
   if (!cinematicSky || !sunLight || !scene || !renderer) return
+  // 孪生白底场景天空关闭，跳过昂贵的天空更新
+  if (props.visualMode === 'twin' || props.visualMode === 'panorama') return
   const t = clock.getElapsedTime()
   cinematicSky.update(t, dt)
   cinematicSky.applyToScene(scene, { sun: sunLight, ambient: ambientLight, hemi: hemiLight }, renderer)
@@ -1268,37 +1358,40 @@ function updateBokehFocus() {
 
 function animate() {
   animId = requestAnimationFrame(animate)
+  animFrame += 1
   const dt = clock.getDelta()
   const t = clock.getElapsedTime()
+  const isTwinStyle = props.visualMode === 'twin' || props.visualMode === 'panorama'
   controls?.update()
 
   updateCameraAnim(dt)
   syncSunLight(dt)
-  animateDataStreams(t)
-  animateHoloWireframe(t)
+  // 装饰动画隔帧算，减轻主线程压力
+  if (!isTwinStyle || animFrame % 2 === 0) {
+    animateDataStreams(t)
+    animateHoloWireframe(t)
+  }
 
   if (upstreamMat) upstreamMat.uniforms.uTime.value = t
   if (downstreamMat) downstreamMat.uniforms.uTime.value = t
 
   animateDischarge(t, dt)
-  animateMist(t)
+  if (!isTwinStyle) animateMist(t)
   tickGateHighlight(dt)
   updateGateScreenLabels(dt)
-  updateWaterLevelScreenLabel()
-  updateBokehFocus()
+  if (!isTwinStyle) updateBokehFocus()
 
-  scene?.traverse((obj) => {
-    if (obj.name.startsWith('gateLed_')) {
-      const mat = (obj as THREE.Mesh).material as THREE.MeshStandardMaterial
-      const pulse = 0.6 + Math.sin(t * 3 + parseInt(obj.name.split('_')[1]) * 0.8) * 0.4
-      mat.emissiveIntensity = pulse * 1.5
+  if (pulseMeshes.length && animFrame % 2 === 0) {
+    for (const obj of pulseMeshes) {
+      const mat = obj.material as THREE.MeshStandardMaterial
+      if (obj.name.startsWith('gateLed_')) {
+        const pulse = 0.6 + Math.sin(t * 3 + parseInt(obj.name.split('_')[1]) * 0.8) * 0.4
+        mat.emissiveIntensity = pulse * 1.5
+      } else if (obj.name.startsWith('phWindow_')) {
+        mat.emissiveIntensity = 1.2 * (0.85 + Math.sin(t * 1.2 + obj.name.length) * 0.15)
+      }
     }
-    if (obj.name.startsWith('phWindow_')) {
-      const mat = (obj as THREE.Mesh).material as THREE.MeshStandardMaterial
-      const flicker = 0.85 + Math.sin(t * 1.2 + obj.name.length) * 0.15
-      mat.emissiveIntensity = 1.2 * flicker
-    }
-  })
+  }
 
   if (composer) composer.render()
   else if (renderer && scene && camera) renderer.render(scene, camera)
@@ -1335,6 +1428,9 @@ function getOutlineTarget(root: THREE.Object3D): THREE.Object3D {
 }
 
 function resolveGateFromHits(hits: THREE.Intersection[]): number | null {
+  if (!hits.length) return null
+
+  // 射线常先擦过闸墩侧壁或坝体孔口，再打到拾取盒/闸叶；只要整条射线上有闸门就选中
   for (const hit of hits) {
     let cur: THREE.Object3D | null = hit.object
     while (cur) {
@@ -1363,8 +1459,11 @@ function onClick(e: MouseEvent) {
         gateLabelSmooth.alpha = 0.2
       }
       emit('gate-select', idx)
+      return
     }
   }
+  // 点到闸墩 / 坝体 / 空白：取消闸门选中，避免误以为坝体就是闸门
+  emit('gate-select', -1)
 }
 
 function onMouseMove(e: MouseEvent) {
@@ -1379,11 +1478,19 @@ function onMouseMove(e: MouseEvent) {
     const gateIdx = resolveGateFromHits(hits)
     const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
     if (gateIdx != null && gateIdx >= 0 && gateIdx < 5) {
-      const leaf = gateLeafObjects[gateIdx]
-      if (holo && leaf && outlinePass) {
-        if (hoveredObject !== leaf) {
-          hoveredObject = leaf
-          outlinePass.selectedObjects = [leaf]
+      if (holo && outlinePass) {
+        const bay = damGroup?.getObjectByName(`${gateIdx + 1}号闸门`)
+        const ratios = getGateOpenRatios()
+        const target =
+          bay
+          ?? ((ratios[gateIdx] ?? 0) >= 0.9 && pierObjects[gateIdx]
+            ? pierObjects[gateIdx]
+            : gateLeafObjects[gateIdx])
+        if (target && hoveredObject !== target) {
+          hoveredObject = target
+          outlinePass.selectedObjects = [target]
+          outlinePass.visibleEdgeColor.set('#1890ff')
+          outlinePass.hiddenEdgeColor.set('#64748b')
         }
       }
       const gateName = `gateLeaf_${gateIdx}`
@@ -1397,16 +1504,17 @@ function onMouseMove(e: MouseEvent) {
 
     const root = findNamedRoot(hits[0].object)
     if (root?.name) {
-      const outlineTarget = getOutlineTarget(root)
-      if (hoveredObject !== outlineTarget) {
-        hoveredObject = outlineTarget
-        outlinePass.selectedObjects = [outlineTarget]
-      }
-      const detail = (root.userData.detail as string) || getBimDefaultDetail(root.name)
+      // 非闸门悬停：只更新提示词，不改选中描边（避免整坝被描成选中）
+      hoveredObject = root
+      if (holo) applyGateSelectionVisuals()
+      const detail =
+        root.name === '上游水面'
+          ? formatUpstreamWaterDetail()
+          : (root.userData.detail as string) || getBimDefaultDetail(root.name)
       const displayName = getBimDisplayName(root.name)
       tooltip.value = { name: displayName, detail, x: e.clientX - rect.left + 14, y: e.clientY - rect.top - 10, visible: true }
       emit('device-hover', { name: displayName, detail })
-      containerRef.value.style.cursor = 'pointer'
+      containerRef.value.style.cursor = 'default'
       return
     }
   }
@@ -1595,7 +1703,7 @@ onUnmounted(() => {
       <div class="three-scene__scan-sweep" />
     </div>
     <div v-if="visualMode === 'twin' || visualMode === 'panorama'" class="three-scene__title-tag">
-      <div class="three-scene__title-ring" aria-hidden="true" />
+      <div class="three-scene__title-mark" aria-hidden="true" />
       <div>
         <strong>向家坝大坝</strong>
         <em>向家坝水电站 BIM 工程构件</em>
@@ -1609,14 +1717,6 @@ onUnmounted(() => {
       </div>
     </div>
     <div
-      v-show="waterLevelScreenLabel.visible"
-      class="three-scene__level-label"
-      :style="{ left: waterLevelScreenLabel.x + 'px', top: waterLevelScreenLabel.y + 'px', '--level-color': waterLevelScreenLabel.color }"
-    >
-      <span class="three-scene__level-label-dot" />
-      {{ waterLevelScreenLabel.text }}
-    </div>
-    <div
       v-show="selectedGateScreenLabel.visible && (visualMode === 'twin' || visualMode === 'panorama')"
       class="three-scene__gate-detail"
       :style="{
@@ -1627,7 +1727,7 @@ onUnmounted(() => {
     >
       <strong>{{ selectedGateScreenLabel.name }}</strong>
       <span>开度 <b>{{ selectedGateScreenLabel.opening.toFixed(1) }}%</b></span>
-      <span>泄流 <b>{{ selectedGateScreenLabel.flow }} m³/s</b></span>
+      <span>单孔泄流 <b>{{ selectedGateScreenLabel.flow }} m³/s</b></span>
     </div>
     <div
       v-for="(pl, idx) in pierScreenLabels"
@@ -1795,20 +1895,13 @@ onUnmounted(() => {
     }
   }
 
-  &__title-ring {
+  &__title-mark {
     flex-shrink: 0;
-    width: 28px;
-    height: 28px;
-    border: 2px solid rgba(64, 200, 255, 0.35);
-    border-top-color: #40c8ff;
-    border-radius: 50%;
-    animation: ring-spin 3s linear infinite;
-    box-shadow: 0 0 12px rgba(64, 200, 255, 0.35);
-  }
-
-  @keyframes ring-spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: #1890ff;
+    box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.2);
   }
 
   &__geo-tag {
@@ -1932,42 +2025,6 @@ onUnmounted(() => {
       box-shadow: 0 4px 14px rgba(24, 144, 255, 0.45);
       transform: translate(-50%, -100%) scale(1.08);
     }
-  }
-
-  &__level-label {
-    position: absolute;
-    z-index: 9;
-    transform: translate(-100%, -50%);
-    margin-left: -10px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
-    font-size: 11px;
-    font-weight: 700;
-    font-family: 'SF Mono', 'Consolas', monospace;
-    color: var(--level-color, #1890ff);
-    background: rgba(255, 255, 255, 0.94);
-    border: 1px solid color-mix(in srgb, var(--level-color, #1890ff) 45%, transparent);
-    border-radius: 6px;
-    pointer-events: none;
-    white-space: nowrap;
-    box-shadow: 0 2px 12px color-mix(in srgb, var(--level-color, #1890ff) 25%, transparent);
-    animation: level-pulse 2.5s ease-in-out infinite;
-  }
-
-  &__level-label-dot {
-    flex-shrink: 0;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--level-color, #1890ff);
-    box-shadow: 0 0 8px var(--level-color, #1890ff);
-  }
-
-  @keyframes level-pulse {
-    0%, 100% { opacity: 0.92; }
-    50% { opacity: 1; }
   }
 
   &--panorama &__pier-label {

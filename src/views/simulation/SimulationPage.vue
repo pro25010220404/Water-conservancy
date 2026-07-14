@@ -22,7 +22,7 @@ import type {
   SimulationScenarioItem, SimulationProgressPayload, SimulationScenarioPayload,
 } from '@/types/simulation'
 import { XIANGJIABA_HYDRO, getLevelStatus, levelGaugePercent, clampUpstreamLevel } from '@/constants/xiangjiaba'
-import { estimateSpillwayDischarge } from '@/utils/xiangjiabaTelemetry'
+import { estimateGateBayDischarge } from '@/utils/xiangjiabaTelemetry'
 import {
   SIMULATION_SCENE_OPTIONS, SIMULATION_SCENE_MAP, getScenePreset,
   SIMULATION_STATUS_MAP, SPEED_OPTIONS, DEFAULT_TRAINING_CONFIG,
@@ -124,6 +124,10 @@ function setGateOpeningAt(index: number, opening: number) {
     i === index ? safeOpening(opening) : g,
   )
   syncAggregateFromGates()
+  simStatus.value = {
+    ...simStatus.value,
+    currentOpening: Math.round(gateOpening.value),
+  }
   if (gateSyncTimer) clearTimeout(gateSyncTimer)
   gateSyncTimer = setTimeout(() => {
     const id = activeSimulationId.value
@@ -137,6 +141,10 @@ watch(gateOpening, (v) => {
   if (opening !== v) gateOpening.value = opening
   if (gateLocalEdit.value) return
   syncGatesFromAggregate(opening)
+  simStatus.value = {
+    ...simStatus.value,
+    currentOpening: Math.round(opening),
+  }
   if (gateSyncTimer) clearTimeout(gateSyncTimer)
   gateSyncTimer = setTimeout(() => {
     const id = activeSimulationId.value
@@ -198,11 +206,21 @@ const selectedGateOpening = computed(() =>
 const selectedGateFlow = computed(() => {
   if (selectedGateIndex.value < 0) return 0
   return Math.round(
-    estimateSpillwayDischarge(displayWaterLevel.value, gateOpenings.value[selectedGateIndex.value]),
+    estimateGateBayDischarge(displayWaterLevel.value, gateOpenings.value[selectedGateIndex.value], GATE_COUNT),
   )
 })
 const gateFlowAt = (index: number) =>
-  Math.round(estimateSpillwayDischarge(displayWaterLevel.value, gateOpenings.value[index] ?? 0))
+  Math.round(estimateGateBayDischarge(displayWaterLevel.value, gateOpenings.value[index] ?? 0, GATE_COUNT))
+
+/** 五孔合计泄流，便于与入库流量对照 */
+const totalOutflowRate = computed(() =>
+  Math.round(
+    displayGateOpenings.value.reduce(
+      (sum, o) => sum + estimateGateBayDischarge(displayWaterLevel.value, o, GATE_COUNT),
+      0,
+    ),
+  ),
+)
 
 const clampedWaterLevel = computed(() => clampUpstreamLevel(displayWaterLevel.value))
 const sceneWaterLevel = computed(() => clampedWaterLevel.value)
@@ -243,6 +261,9 @@ const elapsedLabel = computed(() => {
 })
 const statusInfo = computed(() => SIMULATION_STATUS_MAP[simStatus.value.status])
 const sceneLabel = computed(() => SIMULATION_SCENE_MAP[simScene.value]?.label ?? '')
+const speedLabel = computed(
+  () => SPEED_OPTIONS.find((s) => s.value === simSpeed.value)?.label ?? `${simSpeed.value}x`,
+)
 const simActive = computed(() =>
   simStatus.value.status === 'running'
   || simStatus.value.status === 'paused'
@@ -263,6 +284,12 @@ const panoramaRef = ref<InstanceType<typeof DamPanoramaModal> | null>(null)
 
 function openPanorama() {
   if (viewMode.value === '3d') panoramaVisible.value = true
+}
+
+/** 打开全景仿真控制面板 */
+function handleOpenSimModal() {
+  viewMode.value = '3d'
+  panoramaVisible.value = true
 }
 
 // ── 9. 方法函数 ──
@@ -634,6 +661,7 @@ onMounted(() => {
   applyScenePreset(simScene.value)
   gateOpening.value = 100
   syncGatesFromAggregate(100)
+  simStatus.value = { ...simStatus.value, currentOpening: 100 }
   fetchScenarios()
   fetchSim()
   fetchModels()
@@ -769,14 +797,43 @@ onUnmounted(() => {
             />
           </div>
 
-          <div class="sim-actions-bar">
+          <div class="sim-toolbar">
+            <div class="sim-toolbar__view">
+              <button
+                type="button"
+                class="sim-toolbar__btn"
+                :class="{ 'is-active': viewMode === '2d' }"
+                @click="viewMode = '2d'"
+              >
+                2D 剖面
+              </button>
+              <button
+                type="button"
+                class="sim-toolbar__btn"
+                :class="{ 'is-active': viewMode === '3d' }"
+                @click="viewMode = '3d'"
+              >
+                3D 场景
+              </button>
+            </div>
+            <span class="sim-toolbar__sep" />
+            <div class="sim-toolbar__field sim-toolbar__field--readonly" title="点击「打开控制」修改场景与倍速">
+              <span>场景</span>
+              <span class="sim-toolbar__value">{{ sceneLabel }}</span>
+            </div>
+            <div class="sim-toolbar__field sim-toolbar__field--readonly" title="点击「打开控制」修改场景与倍速">
+              <span>倍速</span>
+              <span class="sim-toolbar__value">{{ speedLabel }}</span>
+            </div>
+            <span class="sim-toolbar__spacer" />
             <button
               type="button"
-              class="sim-actions-bar__btn"
-              :disabled="!canStart"
-              @click="handleStartSim"
+              class="sim-toolbar__status"
+              :style="{ color: statusInfo?.color }"
+              @click="handleOpenSimModal"
             >
-              开始仿真
+              仿真 {{ elapsedLabel }} · {{ statusInfo?.label }}
+              <small>打开控制</small>
             </button>
           </div>
         </main>
@@ -797,11 +854,15 @@ onUnmounted(() => {
               >
                 <span>{{ n }} 号表孔</span>
                 <b>{{ perGateOpening(n - 1).toFixed(1) }}%</b>
-                <em v-if="selectedGateIndex === n - 1">泄流 {{ gateFlowAt(n - 1) }} m³/s</em>
+                <em v-if="selectedGateIndex === n - 1">单孔 {{ gateFlowAt(n - 1) }} m³/s</em>
               </li>
             </ul>
             <p class="twin-gate-summary">
-              {{ selectedGateIndex >= 0 ? `${selectedGateIndex + 1} 号闸门已选中 · 点击闸面可切换` : '5 孔默认全开 · 点击闸面查看细节' }}
+              {{
+                selectedGateIndex >= 0
+                  ? `${selectedGateIndex + 1} 号闸门已选中 · 单孔约 ${gateFlowAt(selectedGateIndex)} m³/s · 五孔合计约 ${totalOutflowRate} m³/s`
+                  : `5 孔默认全开 · 合计泄流约 ${totalOutflowRate} m³/s · 点击闸面查看细节`
+              }}
             </p>
             <div v-if="selectedGateIndex >= 0" class="twin-gate-slider">
               <label>{{ selectedGateIndex + 1 }} 号表孔开度 <b>{{ perGateOpening(selectedGateIndex).toFixed(0) }}%</b></label>

@@ -1,11 +1,11 @@
 // ============================================================
 // 向家坝水电站 — 真实水文特征值（公开资料）
 // ============================================================
-import { GATE_SILL_Y, LINTEL_BOTTOM_Y } from '@/utils/gateKinematics'
+import { GATE_SILL_Y } from '@/utils/gateKinematics'
 
-/** 3D 场景 — 上游水面映射区间（泄洪闸正面可视高度，非坝顶） */
-export const UPSTREAM_SCENE_Y_MIN = GATE_SILL_Y + 2.5
-export const UPSTREAM_SCENE_Y_MAX = LINTEL_BOTTOM_Y - 1.5
+/** 3D 场景 — 上游水面映射区间（闸口中上部，仍低于门楣/坝顶） */
+export const UPSTREAM_SCENE_Y_MIN = GATE_SILL_Y + 1.6
+export const UPSTREAM_SCENE_Y_MAX = GATE_SILL_Y + 9.2
 
 /** 向家坝水电站关键高程与流量特征（单位：m / m³/s） */
 export const XIANGJIABA_HYDRO = {

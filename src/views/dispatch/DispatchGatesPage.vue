@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  ElButton, ElSlider, ElInputNumber, ElMessage, ElMessageBox, ElTag, ElDialog, ElTooltip,
+  ElButton, ElSlider, ElInputNumber, ElMessage, ElMessageBox, ElTag, ElDialog, ElTooltip, ElSwitch,
 } from 'element-plus'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import DamSectionDiagram from './components/DamSectionDiagram.vue'
@@ -152,9 +152,37 @@ async function pollGates() {
 
 function selectGate(id: number) { selectedGateId.value = id }
 
+/** 目标开度 > 0 视为「开」，否则「关」 */
+function isGateCommandOpen(g: GateNodeControl) {
+  return g.targetOpening > 0
+}
+
+/** 当前实际开度是否开启（展示用） */
+function isGateActuallyOpen(g: GateNodeControl) {
+  return g.currentOpening > 0
+}
+
 function setSelectedGateTarget(opening: number) {
   if (!selectedGate.value) return
   store.setGateTarget(selectedGate.value.id, opening)
+}
+
+/** 单孔开/关：开→100%，关→0%（写入目标开度，需执行/提交后生效） */
+function setGateOpenClose(gateId: number, open: boolean) {
+  if (!canManualControl.value) {
+    ElMessage.warning('请先切换手动模式')
+    return
+  }
+  const g = gates.value.find((x) => x.id === gateId)
+  if (!g || !isGateOnline(g.status)) {
+    ElMessage.info('该节点离线或不可控')
+    return
+  }
+  store.setGateTarget(gateId, open ? OPENING_MAX : OPENING_MIN)
+}
+
+function onGateOpenSwitch(gateId: number, open: boolean | string | number) {
+  setGateOpenClose(gateId, Boolean(open))
 }
 
 function onSliderChange(val: number | number[]) {
@@ -373,6 +401,14 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
               <span class="gate-item__name">{{ g.name }}</span>
               <ElTag v-if="g.status === 'executing'" type="warning" size="small">执行中</ElTag>
               <ElTag v-else-if="!isGateOnline(g.status)" type="info" size="small">离线</ElTag>
+              <ElTag
+                v-else
+                size="small"
+                :type="isGateActuallyOpen(g) ? 'success' : 'info'"
+                effect="plain"
+              >
+                {{ isGateActuallyOpen(g) ? '开' : '关' }}
+              </ElTag>
               <span class="gate-item__flow">{{ fmtNum(g.flowRate, 1) }} m³/s</span>
             </div>
             <div class="gate-item__track">
@@ -386,6 +422,17 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
             <div class="gate-item__nums">
               <span>{{ g.currentOpening }}%</span>
               <span v-if="g.targetOpening !== g.currentOpening" class="gate-item__tgt">→ {{ g.targetOpening }}%</span>
+              <div class="gate-item__switch" @click.stop>
+                <span class="gate-item__switch-label">{{ isGateCommandOpen(g) ? '开' : '关' }}</span>
+                <ElSwitch
+                  :model-value="isGateCommandOpen(g)"
+                  :disabled="!canManualControl || !isGateOnline(g.status) || submitting"
+                  inline-prompt
+                  active-text="开"
+                  inactive-text="关"
+                  @change="(v) => onGateOpenSwitch(g.id, v)"
+                />
+              </div>
             </div>
           </div>
         </template>
@@ -393,6 +440,41 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 
       <GlassPanel3D v-if="selectedGate" fill :title="`${selectedGate.name}`" class="gates-panel gates-panel--detail">
         <template #extra><span class="detail-code">{{ selectedGate.code }}</span></template>
+
+        <div class="detail-open-close">
+          <div class="detail-open-close__info">
+            <span class="detail-label">节点启闭</span>
+            <strong :class="isGateActuallyOpen(displaySelectedGate ?? selectedGate) ? 'is-open' : 'is-closed'">
+              当前 {{ isGateActuallyOpen(displaySelectedGate ?? selectedGate) ? '开启' : '关闭' }}
+              <em>（{{ (displaySelectedGate ?? selectedGate).currentOpening }}%）</em>
+            </strong>
+          </div>
+          <div class="detail-open-close__ctrl">
+            <ElButton
+              :disabled="!canManualControl || !isGateOnline(selectedGate.status) || submitting"
+              @click="setGateOpenClose(selectedGate.id, false)"
+            >
+              关闸 (0%)
+            </ElButton>
+            <ElSwitch
+              :model-value="isGateCommandOpen(selectedGate)"
+              :disabled="!canManualControl || !isGateOnline(selectedGate.status) || submitting"
+              inline-prompt
+              active-text="开"
+              inactive-text="关"
+              size="large"
+              @change="(v) => onGateOpenSwitch(selectedGate.id, v)"
+            />
+            <ElButton
+              type="primary"
+              :disabled="!canManualControl || !isGateOnline(selectedGate.status) || submitting"
+              @click="setGateOpenClose(selectedGate.id, true)"
+            >
+              开闸 (100%)
+            </ElButton>
+          </div>
+          <p class="detail-open-close__hint">切换后写入目标开度，需「执行本孔」或顶部「提交变更」后正式下发。</p>
+        </div>
 
         <div class="detail-opening">
           <div class="detail-opening__block" :class="{ 'detail-opening__block--sim': simActive }">
@@ -908,6 +990,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 
   &__nums {
     display: flex;
+    align-items: center;
     gap: 10px;
     font-size: 15px;
     font-family: monospace;
@@ -916,6 +999,67 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
   }
 
   &__tgt { color: #ea580c; font-weight: 600; }
+
+  &__switch {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__switch-label {
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #64748b;
+    min-width: 1.2em;
+  }
+}
+
+.detail-open-close {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f0f7ff 100%);
+  border: 1px solid #e2e8f0;
+
+  &__info {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+
+    strong {
+      font-size: 15px;
+      &.is-open { color: #16a34a; }
+      &.is-closed { color: #64748b; }
+      em {
+        font-style: normal;
+        font-weight: 500;
+        font-size: 13px;
+        color: #94a3b8;
+        margin-left: 4px;
+      }
+    }
+  }
+
+  &__ctrl {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  &__hint {
+    margin: 0;
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
 }
 
 // ── 详情 ──
