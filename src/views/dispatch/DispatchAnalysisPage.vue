@@ -18,6 +18,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import GateActionsPanel from './components/GateActionsPanel.vue'
 import EmergencyStopPanel from './components/EmergencyStopPanel.vue'
+import DecisionDetailDialog from './components/DecisionDetailDialog.vue'
 import { XIANGJIABA_HYDRO } from '@/constants/xiangjiaba'
 import {
   getConfidenceColor, FACTOR_DIRECTION_MAP,
@@ -629,183 +630,12 @@ onUnmounted(() => {
       <EmergencyStopPanel />
     </GlassPanel3D>
 
-    <!-- 决策详情弹窗 §3.4 -->
-    <ElDialog
+    <DecisionDetailDialog
       v-model="decisionDialogVisible"
-      title="调度决策详情"
-      width="1200px"
-      top="3vh"
-      class="decision-detail-dialog"
-      destroy-on-close
-    >
-      <template v-if="decision">
-        <div class="detail-block">
-          <h4>推荐动作与预期效果</h4>
-          <p class="detail-summary">
-            开度 <strong>{{ decision.recommended_opening }}%</strong>（当前 {{ decision.current_opening }}%）· {{ expectedEffect }}
-          </p>
-        </div>
-        <div class="detail-block">
-          <h4>影响因素</h4>
-          <ElTable :data="decision.factors" border stripe class="detail-table">
-            <ElTableColumn prop="name" label="名称" width="180" />
-            <ElTableColumn prop="value" label="当前值" min-width="160" />
-            <ElTableColumn label="方向" width="90" align="center">
-              <template #default="{ row }">
-                <span class="factor-dir" :style="{ color: FACTOR_DIRECTION_MAP[row.direction]?.color }">{{ FACTOR_DIRECTION_MAP[row.direction]?.icon }}</span>
-              </template>
-            </ElTableColumn>
-            <ElTableColumn label="权重" width="100" align="right">
-              <template #default="{ row }">{{ (row.weight * 100).toFixed(0) }}%</template>
-            </ElTableColumn>
-          </ElTable>
-        </div>
-        <div class="detail-block">
-          <h4>方案对比</h4>
-          <ElTable :data="decision.alternatives" border stripe class="detail-table" :row-class-name="({ row }) => row.recommended ? 'row-rec' : ''">
-            <ElTableColumn prop="id" label="方案" width="120" />
-            <ElTableColumn prop="opening" label="目标开度(%)" width="130" align="right" />
-            <ElTableColumn prop="expectedLevel" label="预期水位(m)" width="140" align="right" />
-            <ElTableColumn prop="power" label="发电量(kW)" width="130" align="right" />
-            <ElTableColumn prop="safetyScore" label="安全评分" width="110" align="right" />
-            <ElTableColumn prop="totalScore" label="综合得分" width="110" align="right" />
-            <ElTableColumn label="推荐" width="90" align="center">
-              <template #default="{ row }">{{ row.recommended ? '是' : '—' }}</template>
-            </ElTableColumn>
-          </ElTable>
-        </div>
-        <div class="detail-block detail-conf">
-          <h4>置信度</h4>
-          <ElProgress :percentage="confidenceValue" :color="confidenceColor" :stroke-width="20" />
-          <p v-if="confidenceValue < 60" class="conf-warn">建议人工复核后再执行</p>
-          <p class="detail-meta">trace: {{ decision.trace_id }} · 决策时间 {{ formatTime(decision.decision_time) }}</p>
-        </div>
-
-        <!-- 本次推理指标 — 三维评判体系 -->
-        <div v-if="physicsValidation" class="detail-block inference-metrics">
-          <h4>本次推理指标</h4>
-          <ElCollapse v-model="metricsCollapse">
-            <ElCollapseItem title="预测准确性（LSTM 这一步的表现）" name="prediction">
-              <dl class="metric-dl">
-                <div class="metric-dl__row">
-                  <dt>物理校验</dt>
-                  <dd :class="{ 'is-abnormal': (physicsValidation.physics_correction_steps ?? 0) > 0 }">
-                    {{ physicsCheckLabel(physicsValidation) }}
-                  </dd>
-                </div>
-                <div class="metric-dl__row">
-                  <dt>物理偏差</dt>
-                  <dd :class="{ 'is-abnormal': physicsValidation.physics_violation_m > 0.5 }">
-                    {{ physicsViolationLabel(physicsValidation) }}
-                  </dd>
-                </div>
-                <div class="metric-dl__row">
-                  <dt>趋势方向</dt>
-                  <dd :class="{ 'is-abnormal': physicsValidation.trend_direction === 'mismatch' }">
-                    {{ trendLabel(physicsValidation) }}
-                  </dd>
-                </div>
-                <div class="metric-dl__row">
-                  <dt>贡献</dt>
-                  <dd :class="contributionClass(physicsValidation.contribution.prediction)">
-                    {{ formatContribution(physicsValidation.contribution.prediction) }}（Prediction_Score）
-                  </dd>
-                </div>
-              </dl>
-            </ElCollapseItem>
-
-            <ElCollapseItem title="决策可靠性（DQN + 安全层这一步的表现）" name="decision">
-              <dl class="metric-dl">
-                <div class="metric-dl__row">
-                  <dt>安全约束</dt>
-                  <dd :class="{ 'is-abnormal': physicsValidation.safety_overridden }">
-                    {{ physicsValidation.safety_overridden
-                      ? `✗ 覆盖 · ${physicsValidation.safety_override_reason || '安全规则一票否决'}`
-                      : '✓ 通过' }}
-                  </dd>
-                </div>
-                <div class="metric-dl__row">
-                  <dt>决策等级</dt>
-                  <dd :class="{ 'is-abnormal': ['L1_MANUAL', 'OVERRIDE'].includes(physicsValidation.decision_level) }">
-                    {{ DECISION_LEVEL_MAP[physicsValidation.decision_level] ?? physicsValidation.decision_level }}
-                  </dd>
-                </div>
-                <div class="metric-dl__row">
-                  <dt>影子风险</dt>
-                  <dd>
-                    <span :style="{ color: RISK_LEVEL_MAP[physicsValidation.risk_level]?.color }">
-                      {{ physicsValidation.risk_level }}
-                    </span>
-                    · p={{ physicsValidation.risk_probability.toFixed(2) }}
-                  </dd>
-                </div>
-                <div class="metric-dl__row">
-                  <dt>指令平滑</dt>
-                  <dd :class="{ 'is-abnormal': physicsValidation.command_smoothed }">
-                    {{ physicsValidation.command_smoothed
-                      ? `✗ 过滤 · ${physicsValidation.smooth_reason || '变化率超限'}`
-                      : '✓ 通过' }}
-                  </dd>
-                </div>
-                <div class="metric-dl__row">
-                  <dt>互锁约束</dt>
-                  <dd :class="{ 'is-abnormal': physicsValidation.interlock?.triggered }">
-                    {{ interlockLabel(physicsValidation) }}
-                  </dd>
-                </div>
-                <div class="metric-dl__row">
-                  <dt>贡献</dt>
-                  <dd :class="contributionClass(physicsValidation.contribution.decision)">
-                    {{ formatContribution(physicsValidation.contribution.decision) }}（Decision_Score）
-                  </dd>
-                </div>
-              </dl>
-            </ElCollapseItem>
-
-            <ElCollapseItem title="物理合规性（设备 + 物理边界这一步的表现）" name="compliance">
-              <dl class="metric-dl">
-                <div class="metric-dl__row">
-                  <dt>水量平衡偏差</dt>
-                  <dd :class="{ 'is-abnormal': physicsValidation.physics_violation_m > 0.5 }">
-                    {{ physicsValidation.physics_violation_m.toFixed(2) }}m
-                  </dd>
-                </div>
-                <div class="metric-dl__row">
-                  <dt>闸门限位</dt>
-                  <dd :class="{ 'is-abnormal': physicsValidation.gate_limit_touched }">
-                    {{ physicsValidation.gate_limit_touched ? '✗ 已触碰限位' : '✓ 未触碰' }}
-                  </dd>
-                </div>
-                <div class="metric-dl__row">
-                  <dt>变化率超限</dt>
-                  <dd :class="{ 'is-abnormal': physicsValidation.rate_exceeded }">
-                    {{ physicsValidation.rate_exceeded ? '✗ 变化率超限' : '✓ 未超限' }}
-                  </dd>
-                </div>
-                <div class="metric-dl__row">
-                  <dt>贡献</dt>
-                  <dd :class="contributionClass(physicsValidation.contribution.compliance)">
-                    {{ formatContribution(physicsValidation.contribution.compliance) }}（Compliance_Score）
-                  </dd>
-                </div>
-              </dl>
-            </ElCollapseItem>
-          </ElCollapse>
-
-          <div class="inference-overall" :class="overallContributionMeta(physicsValidation).cls">
-            <span class="inference-overall__icon">{{ overallContributionMeta(physicsValidation).icon }}</span>
-            <span>
-              本次综合贡献 {{ formatContribution(physicsValidation.contribution.overall) }} ·
-              {{ overallContributionMeta(physicsValidation).text }}
-            </span>
-          </div>
-        </div>
-      </template>
-      <template #footer>
-        <ElButton size="large" @click="decisionDialogVisible = false">关闭</ElButton>
-        <ElButton size="large" type="primary" @click="router.push('/dispatch/control')">前往运行控制执行 →</ElButton>
-      </template>
-    </ElDialog>
+      :decision="decision"
+      footer-mode="analysis"
+      @go-control="router.push('/dispatch/control')"
+    />
 
     <ElDialog v-model="traceVisible" title="指令全链路追踪" width="640px">
       <div v-loading="traceLoading">

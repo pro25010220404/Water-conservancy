@@ -6,9 +6,9 @@ import {
 } from 'element-plus'
 import { View, CircleClose } from '@element-plus/icons-vue'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
+import DecisionDetailDialog from './components/DecisionDetailDialog.vue'
 import { storeToRefs } from 'pinia'
 import { useDispatchStore } from '@/stores/dispatch'
-import { useUserStore } from '@/stores/user'
 import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
 import { useOperationLog } from '@/composables/useOperationLog'
 import {
@@ -18,7 +18,6 @@ import {
 
 const router = useRouter()
 const store = useDispatchStore()
-const userStore = useUserStore()
 const simStore = useVirtualSimulationStore()
 const { active: simActive, derived: simDerived } = storeToRefs(simStore)
 const { record: recordLog } = useOperationLog()
@@ -27,6 +26,20 @@ const {
   status, decision, targetOpening, userModifiedTarget, canManualControl,
   aggregateOpening, outflowRate, pendingChanges,
 } = storeToRefs(store)
+
+const decisionDetailVisible = ref(false)
+
+function openDecisionDetail() {
+  if (!decision.value) {
+    ElMessage.info('暂无调度建议详情')
+    return
+  }
+  decisionDetailVisible.value = true
+}
+
+function goDecisionAnalysis() {
+  router.push('/dispatch/analysis')
+}
 
 /** 虚拟仿真激活时，叠加仿真数据到显示值 */
 const displayUpstreamLevel = computed(() =>
@@ -45,17 +58,26 @@ const displayGateOpening = computed(() =>
   simActive.value ? simDerived.value.aggregateOpening : aggregateOpening.value,
 )
 
-const levelDialogVisible = ref(false)
-const pendingLevel = ref<1 | 2 | 3>(2)
 const ignoreVisible = ref(false)
 const ignoreReason = ref('')
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
-const canModifyLevel = computed(() => {
-  const roles = userStore.userInfo?.roles ?? []
-  return roles.includes('admin') || roles.includes('algorithm_engineer')
-})
+const currentAutoLevel = computed(() => Number(status.value.autoLevel) as 1 | 2 | 3)
+
+async function onLevelCardClick(lv: 1 | 2 | 3) {
+  if (currentAutoLevel.value === lv) {
+    ElMessage.info(`当前已是 ${AUTO_LEVEL_MAP[lv].label}`)
+    return
+  }
+  try {
+    await store.putAutoLevel(lv)
+    recordLog('调度决策', '变更权限', AUTO_LEVEL_MAP[lv].label, 1)
+    ElMessage.success(`已切换为 ${AUTO_LEVEL_MAP[lv].label}`)
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '切换失败')
+  }
+}
 
 const executingTarget = computed(() => status.value.executingTarget)
 
@@ -177,9 +199,20 @@ async function handleCancelExecute() {
 }
 
 function applyRecommendation() {
-  if (!decision.value || !canManualControl.value) return
-  targetOpening.value = decision.value.recommended_opening
-  userModifiedTarget.value = false
+  if (!decision.value) {
+    ElMessage.info('暂无调度建议')
+    return
+  }
+  const next = decision.value.recommended_opening
+  // 采用开度写入目标；自动模式也要有反馈，避免“点了没反应”
+  targetOpening.value = next
+  userModifiedTarget.value = true
+  decisionDetailVisible.value = false
+  if (!canManualControl.value) {
+    ElMessage.warning(`已写入目标开度 ${next}%：当前非手动/L1，请先切换手动模式后再执行`)
+    return
+  }
+  ElMessage.success(`已采用建议开度 ${next}%`)
 }
 
 async function handleIgnore() {
@@ -193,21 +226,6 @@ async function handleIgnore() {
   ElMessage.info('已忽略本次建议')
   ignoreVisible.value = false
   ignoreReason.value = ''
-}
-
-async function submitLevel() {
-  try {
-    await ElMessageBox.confirm(
-      `确认切换自动执行权限为 ${AUTO_LEVEL_MAP[pendingLevel.value].label}？`,
-      '二次确认',
-      { type: 'warning' },
-    )
-    await store.putAutoLevel(pendingLevel.value)
-    recordLog('调度决策', '变更权限', AUTO_LEVEL_MAP[pendingLevel.value].label, 1)
-    levelDialogVisible.value = false
-    ElMessage.success('权限等级已更新')
-    await refresh()
-  } catch { /* cancel */ }
 }
 
 onMounted(async () => {
@@ -356,7 +374,7 @@ onUnmounted(() => {
           <ElProgress :percentage="confidenceValue" :color="confidenceColor" :stroke-width="8" :show-text="false" />
         </div>
         <div class="decision-btns">
-          <ElButton type="primary" :icon="View" @click="router.push({ path: '/dispatch/analysis', query: { openDetail: '1' } })">查看详情</ElButton>
+          <ElButton type="primary" native-type="button" :icon="View" @click.stop.prevent="openDecisionDetail">查看详情</ElButton>
           <ElButton
             :icon="CircleClose"
             :disabled="!canIgnoreSuggestion || status.isExecuting"
@@ -369,41 +387,35 @@ onUnmounted(() => {
       </GlassPanel3D>
     </div>
 
-    <!-- 权限：横向三卡 -->
+    <!-- 权限：横向三卡（点击即切换） -->
     <GlassPanel3D title="三级自动执行权限" class="ctrl-panel">
       <div class="level-row">
         <div
           v-for="lv in AUTO_LEVEL_OPTIONS"
           :key="lv.value"
           class="level-card"
-          :class="{ active: status.autoLevel === lv.value, disabled: !canModifyLevel }"
+          :class="{ active: currentAutoLevel === lv.value }"
           :style="{ '--lv-color': lv.color }"
-          @click="canModifyLevel && status.autoLevel !== lv.value && (pendingLevel = lv.value as 1|2|3, levelDialogVisible = true)"
+          role="button"
+          tabindex="0"
+          @click="onLevelCardClick(lv.value as 1|2|3)"
+          @keydown.enter.prevent="onLevelCardClick(lv.value as 1|2|3)"
         >
           <strong>{{ lv.label }}</strong>
           <p>{{ lv.description }}</p>
         </div>
       </div>
-      <p v-if="!canModifyLevel" class="readonly-tip">仅管理员/算法工程师可修改</p>
+      <p class="readonly-tip">点击卡片即可切换权限（当前：{{ AUTO_LEVEL_MAP[currentAutoLevel]?.label }}）</p>
     </GlassPanel3D>
 
     <GlassPanel3D title="快捷入口" class="ctrl-panel ctrl-panel--links">
       <div class="quick-links">
         <ElButton type="primary" @click="router.push('/dispatch/gates')">节点级精确控制</ElButton>
-        <ElButton @click="router.push('/dispatch/analysis')">决策分析 / LSTM 预测</ElButton>
+        <ElButton @click="goDecisionAnalysis">决策分析 / LSTM 预测</ElButton>
       </div>
     </GlassPanel3D>
 
-    <ElDialog v-model="levelDialogVisible" title="变更自动执行权限" width="480px">
-      <p>确认切换为：<strong>{{ AUTO_LEVEL_MAP[pendingLevel]?.label }}</strong></p>
-      <p class="sub">{{ AUTO_LEVEL_MAP[pendingLevel]?.description }}</p>
-      <template #footer>
-        <ElButton @click="levelDialogVisible = false">取消</ElButton>
-        <ElButton type="primary" @click="submitLevel">确认</ElButton>
-      </template>
-    </ElDialog>
-
-    <ElDialog v-model="ignoreVisible" title="忽略建议" width="420px">
+    <ElDialog v-model="ignoreVisible" title="忽略建议" width="420px" append-to-body>
       <ElFormItem label="原因（必填）" required>
         <ElInput v-model="ignoreReason" type="textarea" :rows="3" placeholder="请填写忽略原因" />
       </ElFormItem>
@@ -412,6 +424,13 @@ onUnmounted(() => {
         <ElButton type="warning" @click="handleIgnore">确认忽略</ElButton>
       </template>
     </ElDialog>
+
+    <DecisionDetailDialog
+      v-model="decisionDetailVisible"
+      :decision="decision"
+      footer-mode="control"
+      @apply="applyRecommendation"
+    />
   </div>
 </template>
 
@@ -805,12 +824,7 @@ onUnmounted(() => {
     box-shadow: inset 3px 0 0 var(--lv-color, #1890ff);
   }
 
-  &.disabled {
-    cursor: default;
-    opacity: 0.85;
-  }
-
-  &:not(.disabled):not(.active):hover {
+  &:not(.active):hover {
     border-color: #cbd5e1;
     background: #fff;
   }
@@ -837,3 +851,4 @@ onUnmounted(() => {
 
 :deep(.el-slider__bar) { background: #1890ff; }
 </style>
+
