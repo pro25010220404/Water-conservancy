@@ -42,6 +42,7 @@ import {
   type BackendEmergencyStopItem,
 } from './dispatchAdapter'
 import { mockApi } from './mockStore'
+import type { GateBatchExecuteItem, GateExecuteCommandResult } from '@/types/gateControl'
 
 const V1_PREFIX = import.meta.env.VITE_API_V1_PREFIX ?? '/v1'
 const DISPATCH_BASE = `${V1_PREFIX}/dispatch`
@@ -208,6 +209,85 @@ export function postExecute(targetOpening: number, decisionId?: number) {
   )
 }
 
+/** 单孔执行 — POST /v1/dispatch/gate-execute（回包仅 data.command_id） */
+export function postGateExecute(equipmentId: number, targetOpening: number) {
+  return withMockFallback(
+    async () => {
+      const res = await http.post<
+        ApiResponse<
+          | { command_id: string }
+          | GateExecuteCommandResult
+          | { commands: GateExecuteCommandResult[] }
+        >
+      >(`${DISPATCH_BASE}/gate-execute`, {
+        reservoir_id: DEFAULT_RESERVOIR_ID,
+        equipment_id: equipmentId,
+        target_opening: targetOpening,
+      })
+      const body = unwrap(res)
+      if (!body?.data) throw new Error('gate-execute failed')
+      const data = body.data as Record<string, unknown>
+      let commandId = ''
+      if (typeof data.command_id === 'string') {
+        commandId = data.command_id
+      } else if (Array.isArray(data.commands) && data.commands[0]?.command_id) {
+        commandId = String(data.commands[0].command_id)
+      }
+      if (!commandId) throw new Error('gate-execute failed')
+      return {
+        ...body,
+        data: {
+          equipment_id: equipmentId,
+          target_opening: targetOpening,
+          command_id: commandId,
+        },
+      }
+    },
+    async () => ({
+      code: 0,
+      msg: 'ok',
+      success: true,
+      trace_id: 'mock-gate-execute',
+      data: {
+        equipment_id: equipmentId,
+        target_opening: targetOpening,
+        command_id: `GATE-MOCK-${Date.now()}`,
+      },
+    }),
+  )
+}
+
+/** 批量执行 — POST /v1/dispatch/gate-execute/batch */
+export function postGateExecuteBatch(items: GateBatchExecuteItem[]) {
+  return withMockFallback(
+    async () => {
+      const res = await http.post<ApiResponse<{ commands: GateExecuteCommandResult[] }>>(
+        `${DISPATCH_BASE}/gate-execute/batch`,
+        {
+          reservoir_id: DEFAULT_RESERVOIR_ID,
+          items,
+        },
+      )
+      const body = unwrap(res)
+      if (!body?.data?.commands?.length) throw new Error('gate-execute/batch failed')
+      return body
+    },
+    async () => ({
+      code: 0,
+      msg: 'ok',
+      success: true,
+      trace_id: 'mock-gate-batch',
+      data: {
+        commands: items.map((it, i) => ({
+          equipment_id: it.equipment_id,
+          target_opening: it.target_opening,
+          command_id: `GATE-MOCK-${Date.now()}-${i}`,
+        })),
+      },
+    }),
+  )
+}
+
 export function postCancelExecute(commandId?: string) {
   return withMockFallback(
     async () => {
@@ -234,10 +314,20 @@ export function postIgnoreDecision() {
   )
 }
 
+/** 切换调度模式 — PUT /v1/dispatch/mode */
 export function putDispatchMode(mode: 'auto' | 'manual') {
   return withMockFallback(
     async () => {
-      throw new Error('mode not on api')
+      const res = await http.put<
+        ApiResponse<{ reservoir_id: number; mode: 'auto' | 'manual' }>
+      >(`${DISPATCH_BASE}/mode`, {
+        reservoir_id: DEFAULT_RESERVOIR_ID,
+        mode,
+      })
+      const body = unwrap(res)
+      if (!body?.data?.mode) throw new Error('mode switch failed')
+      localStorage.setItem('dispatch_mode', body.data.mode)
+      return body
     },
     () => mockApi.changeMode({ mode }),
   )

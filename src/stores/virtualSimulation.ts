@@ -24,11 +24,13 @@ export const useVirtualSimulationStore = defineStore('virtualSimulation', () => 
   })
 
   const upstreamLevel = ref(baseline.value.upstreamLevel)
+  const downstreamLevel = ref(baseline.value.downstreamLevel)
   const rainfall = ref(0)
 
   const derived = computed(() =>
     computeSimulationDerived({
       upstreamLevel: upstreamLevel.value,
+      downstreamLevel: downstreamLevel.value,
       rainfall: rainfall.value,
       baseline: baseline.value,
     }),
@@ -36,14 +38,21 @@ export const useVirtualSimulationStore = defineStore('virtualSimulation', () => 
 
   function initBaselineFromKpi(kpi: RealtimeKpi) {
     if (active.value) return
+    // 若接口上下游反挂，按常用向家坝量级纠正，避免剖面水头差为负
+    let up = kpi.upstreamLevel
+    let down = kpi.downstreamLevel
+    if (down > up) {
+      ;[up, down] = [down, up]
+    }
     baseline.value = {
-      upstreamLevel: kpi.upstreamLevel,
-      downstreamLevel: kpi.downstreamLevel,
+      upstreamLevel: up,
+      downstreamLevel: down,
       inflowRate: kpi.inflowRate,
       outflowRate: kpi.outflowRate,
-      gateOpening: kpi.gateOpening,
+      gateOpening: Math.max(kpi.gateOpening, 5),
     }
-    upstreamLevel.value = kpi.upstreamLevel
+    upstreamLevel.value = up
+    downstreamLevel.value = down
   }
 
   function applySimulation() {
@@ -53,6 +62,7 @@ export const useVirtualSimulationStore = defineStore('virtualSimulation', () => 
   function resetSimulation() {
     active.value = false
     upstreamLevel.value = baseline.value.upstreamLevel
+    downstreamLevel.value = baseline.value.downstreamLevel
     rainfall.value = 0
   }
 
@@ -97,6 +107,7 @@ export const useVirtualSimulationStore = defineStore('virtualSimulation', () => 
     locked,
     baseline,
     upstreamLevel,
+    downstreamLevel,
     rainfall,
     derived,
     initBaselineFromKpi,

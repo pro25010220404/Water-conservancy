@@ -16,6 +16,8 @@ import {
   putDispatchMode,
   putAutoLevel,
   fetchCommandTrace,
+  postGateExecute,
+  postGateExecuteBatch,
 } from '@/api/dispatchPage'
 import { fetchGates, fetchRealtimeKpi } from '@/api/monitoring'
 import {
@@ -31,6 +33,7 @@ import {
   pendingChangeCount,
   precheckGateChanges,
 } from '@/utils/gateControl'
+import { clearGateOpeningOverrides, saveGateOpeningOverrides } from '@/utils/gateOpeningPersist'
 import type { GatePrecheckResult } from '@/types/gateControl'
 import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
 
@@ -244,11 +247,35 @@ export const useDispatchStore = defineStore('dispatch', () => {
     return coreLoadPromise
   }
 
+  function persistGateOpenings() {
+    saveGateOpeningOverrides(gates.value)
+  }
+
   function setGateTarget(gateId: number, opening: number) {
     gates.value = gates.value.map((g) =>
       g.id === gateId ? { ...g, targetOpening: Math.min(100, Math.max(0, opening)) } : g,
     )
     precheckResult.value = precheckGateChanges(gates.value, head.value)
+    persistGateOpenings()
+  }
+
+  /** 开/关即时生效：实际与目标一起到位，并尽量下发接口 */
+  async function applyGateOpenClose(gateId: number, open: boolean) {
+    const opening = open ? 100 : 0
+    gates.value = gates.value.map((g) =>
+      g.id === gateId
+        ? { ...g, currentOpening: opening, targetOpening: opening, status: 'online' as const }
+        : g,
+    )
+    const agg = calcAggregateOpening(gates.value, false)
+    if (agg != null) status.value.gateOpening = agg
+    precheckResult.value = precheckGateChanges(gates.value, head.value)
+    persistGateOpenings()
+    try {
+      await postGateExecute(gateId, opening)
+    } catch {
+      /* 接口失败时仍保留本地即时状态，便于演示 */
+    }
   }
 
   function resetGateTarget(gateId: number) {
@@ -259,6 +286,7 @@ export const useDispatchStore = defineStore('dispatch', () => {
   function resetAllGateTargets() {
     gates.value = gates.value.map((g) => ({ ...g, targetOpening: g.currentOpening }))
     precheckResult.value = precheckGateChanges(gates.value, head.value)
+    clearGateOpeningOverrides()
   }
 
   function syncGroupTargets(group: GateNodeControl['group'], opening: number) {
@@ -268,6 +296,7 @@ export const useDispatchStore = defineStore('dispatch', () => {
         : g,
     )
     precheckResult.value = precheckGateChanges(gates.value, head.value)
+    persistGateOpenings()
   }
 
   /** 表孔一键拉齐：以在线表孔当前开度均值（或指定值）同步目标 */
@@ -283,24 +312,37 @@ export const useDispatchStore = defineStore('dispatch', () => {
   function applyTotalOpeningDistribution(targetTotal: number, surfaceOnly = false) {
     gates.value = distributeTotalOpening(gates.value, targetTotal, surfaceOnly)
     precheckResult.value = precheckGateChanges(gates.value, head.value)
+    persistGateOpenings()
   }
 
+  function applyExecutedOpenings(ids: Set<number>) {
+    gates.value = gates.value.map((g) =>
+      ids.has(g.id)
+        ? { ...g, status: 'online' as const, currentOpening: g.targetOpening }
+        : g,
+    )
+    const agg = calcAggregateOpening(gates.value, false)
+    if (agg != null) status.value.gateOpening = agg
+    precheckResult.value = precheckGateChanges(gates.value, head.value)
+    persistGateOpenings()
+  }
+
+  /** 单孔执行：优先 POST /v1/dispatch/gate-execute */
   async function mockExecuteGate(gateId: number) {
     const idx = gates.value.findIndex((g) => g.id === gateId)
     if (idx < 0) return
     const node = gates.value[idx]
     gates.value[idx] = { ...node, status: 'executing' }
-    await new Promise((r) => setTimeout(r, 1500))
-    gates.value[idx] = {
-      ...gates.value[idx],
-      status: 'online',
-      currentOpening: node.targetOpening,
+    try {
+      await postGateExecute(node.id, node.targetOpening)
+      applyExecutedOpenings(new Set([gateId]))
+    } catch (e) {
+      gates.value[idx] = { ...gates.value[idx], status: 'online' }
+      throw e
     }
-    const agg = calcAggregateOpening(gates.value, false)
-    if (agg != null) status.value.gateOpening = agg
-    precheckResult.value = precheckGateChanges(gates.value, head.value)
   }
 
+  /** 批量提交：优先 POST /v1/dispatch/gate-execute/batch */
   async function mockBatchExecute() {
     const changed = gates.value.filter(
       (g) => isGateOnline(g.status) && g.targetOpening !== g.currentOpening,
@@ -310,15 +352,27 @@ export const useDispatchStore = defineStore('dispatch', () => {
     gates.value = gates.value.map((g) =>
       ids.has(g.id) ? { ...g, status: 'executing' as const } : g,
     )
-    await new Promise((r) => setTimeout(r, 600))
-    gates.value = gates.value.map((g) =>
-      ids.has(g.id)
-        ? { ...g, status: 'online' as const, currentOpening: g.targetOpening }
-        : g,
-    )
-    const agg = calcAggregateOpening(gates.value, false)
-    if (agg != null) status.value.gateOpening = agg
-    precheckResult.value = precheckGateChanges(gates.value, head.value)
+    try {
+      await postGateExecuteBatch(
+        changed.map((g) => ({
+          equipment_id: g.id,
+          target_opening: g.targetOpening,
+        })),
+      )
+      applyExecutedOpenings(ids)
+    } catch (e) {
+      gates.value = gates.value.map((g) =>
+        ids.has(g.id) ? { ...g, status: 'online' as const } : g,
+      )
+      throw e
+    }
+  }
+
+  async function switchDispatchMode(mode: 'auto' | 'manual') {
+    const res = await putDispatchMode(mode)
+    status.value.mode = res.data?.mode ?? mode
+    localStorage.setItem('dispatch_mode', status.value.mode)
+    return res
   }
 
   return {
@@ -345,6 +399,7 @@ export const useDispatchStore = defineStore('dispatch', () => {
     ensureCoreLoaded,
     refreshGates,
     setGateTarget,
+    applyGateOpenClose,
     resetGateTarget,
     resetAllGateTargets,
     syncGroupTargets,
@@ -362,7 +417,7 @@ export const useDispatchStore = defineStore('dispatch', () => {
     postCancelExecute,
     postAcceptDecision,
     postIgnoreDecision,
-    putDispatchMode,
+    putDispatchMode: switchDispatchMode,
     putAutoLevel,
   }
 })

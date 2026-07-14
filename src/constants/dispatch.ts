@@ -75,6 +75,9 @@ export const IN_PROGRESS_COMMAND_STATUSES = [
 
 export const PENDING_COMMAND_STORAGE_KEY = 'dispatch_pending_command'
 
+/** 节点控制手动开度（含待提交目标）浏览器持久化，后端暂无逐孔写入接口 */
+export const GATE_OPENING_STORAGE_KEY = 'dispatch_gate_openings_v2'
+
 // ---------- 执行结果 ----------
 export const DISPATCH_RESULT_MAP: Record<string, DictOption> = {
   success: { label: '成功', value: 'success', color: '#22c55e' },

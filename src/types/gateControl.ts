@@ -50,3 +50,10 @@ export interface GateBatchExecuteItem {
   equipment_id: number
   target_opening: number
 }
+
+/** POST /v1/dispatch/gate-execute 与 /gate-execute/batch 返回的指令项 */
+export interface GateExecuteCommandResult {
+  equipment_id: number
+  target_opening: number
+  command_id: string
+}
