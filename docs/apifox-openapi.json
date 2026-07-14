@@ -7,7 +7,7 @@
   },
   "servers": [
     { "url": "http://47.108.169.152:8089", "description": "后端部署(8089)" },
-    { "url": "http://47.108.169.152:4088", "description": "生产前端(4088)" },
+    { "url": "http://47.108.169.152:8089", "description": "后端部署(8089)" },
     { "url": "http://m42aa5c9.natappfree.cc", "description": "natapp内网隧道" },
     { "url": "http://localhost:8000", "description": "本机后端" }
   ],

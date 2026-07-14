@@ -189,7 +189,7 @@ async function putSimPaths<T>(paths: string[], data?: unknown): Promise<ApiRespo
   throw lastErr ?? new Error('request failed')
 }
 
-/** 结果/报告接口：优先 v1（生产 4088），再试无 v1 */
+/** 结果/报告接口：优先 v1（生产 8089），再试无 v1 */
 async function getSimulationResultApi(simulationId: string) {
   return getSimPaths<SimulationResultData>(
     simPaths(`/${simulationId}/result`),
