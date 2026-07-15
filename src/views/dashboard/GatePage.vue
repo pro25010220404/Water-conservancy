@@ -4,23 +4,22 @@ import { storeToRefs } from 'pinia'
 import { fetchGates, fetchGateActionLogs, fetchRealtimeKpi } from '@/api/monitoring'
 import { formatActionSource, formatGateControlMode } from '@/constants/dispatch'
 import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
-import { scaleGateOpening } from '@/utils/virtualSimulationEngine'
 
 const simStore = useVirtualSimulationStore()
-const { active: simActive, derived: simDerived } = storeToRefs(simStore)
+const { active: simActive, derived: simDerived, jitterTick } = storeToRefs(simStore)
 
 const gates = ref<{ id: number; name: string; v: number; mode: string }[]>([])
 const logs = ref<{ time: string; gate: string; action: string; actual: string; type: string; dur: string; by: string }[]>([])
 const upstreamLevel = ref(378.5)
 const downstreamLevel = ref(269.2)
 
-/** 仿真激活时叠加开度，与节点控制同一套联动 */
+/** 仿真激活时叠加开度（含随机微动），与节点控制同一套联动 */
 const displayGates = computed(() => {
+  void jitterTick.value
   if (!simActive.value) return gates.value
-  const scale = simDerived.value.gateScale
   return gates.value.map((g) => ({
     ...g,
-    v: scaleGateOpening(g.v, scale),
+    v: simStore.overlayGateOpening(g.id, g.v),
   }))
 })
 

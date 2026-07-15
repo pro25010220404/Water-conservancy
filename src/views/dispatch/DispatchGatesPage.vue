@@ -37,10 +37,11 @@ const {
   precheckResult,
 } = storeToRefs(store)
 
-/** 虚拟仿真激活时，叠加仿真数据 */
-const displayGates = computed(() =>
-  simActive.value ? simStore.overlayGates(gates.value) : gates.value,
-)
+/** 虚拟仿真激活时，叠加仿真数据（含开度随机微动） */
+const displayGates = computed(() => {
+  void simDerived.value.aggregateOpening
+  return simActive.value ? simStore.overlayGates(gates.value) : gates.value
+})
 const displayUpstreamLevel = computed(() =>
   simActive.value ? simDerived.value.upstreamLevel : status.value.upstreamLevel,
 )

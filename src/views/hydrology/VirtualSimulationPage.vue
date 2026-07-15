@@ -20,9 +20,10 @@ const { gates, selectedGateId, status, canManualControl } = storeToRefs(dispatch
 
 const aggregateOpening = computed(() => derived.value.aggregateOpening)
 
-const displayGates = computed(() =>
-  active.value ? simStore.overlayGates(gates.value) : gates.value,
-)
+const displayGates = computed(() => {
+  void derived.value.aggregateOpening
+  return active.value ? simStore.overlayGates(gates.value) : gates.value
+})
 
 const waterTrendLabel = computed(() => {
   if (derived.value.waterTrend === 'up') return '趋升'
