@@ -27,6 +27,14 @@ export const useProfileStore = defineStore('profile', () => {
 
   function setUserInfo(info: ProfileInfo) {
     userInfo.value = info
+    // 只在 avatar 是完整可用 URL（签名地址/data URL）时才同步到 avatarUrl，
+    // 避免用后端返回的裸 OSS 路径（oss-cn-...）覆盖掉上传时存的签名 URL
+    if (
+      info.avatar &&
+      (info.avatar.startsWith('http://') || info.avatar.startsWith('https://') || info.avatar.startsWith('data:'))
+    ) {
+      avatarUrl.value = info.avatar
+    }
   }
 
   function setOperationLogs(logs: OperationLog[], total: number) {

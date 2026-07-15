@@ -8,6 +8,7 @@ import { ElCard, ElAvatar, ElTag, ElButton, ElMessageBox } from 'element-plus'
 import { useUserStore, ROLE_LABEL_MAP } from '@/stores/user'
 import { useProfileStore } from '@/stores/profile'
 import { getMyProfile } from '@/api/profile'
+import { fixAvatarUrl } from '@/utils'
 import EditProfileDialog from './EditProfileDialog.vue'
 
 const router = useRouter()
@@ -47,13 +48,11 @@ const currentAvatarUrl = ref('')
 
 function loadAvatar() {
   const avatarCacheKey = `profile_avatar_${userStore.userInfo?.id ?? '0'}`
-  let raw = profileStore.avatarUrl || localStorage.getItem(avatarCacheKey) || ''
-  // 修复后端返回的不完整 OSS URL：缺 https:// 和 bucket 名
-  if (raw && !raw.startsWith('data:') && !raw.startsWith('http')) {
-    if (raw.startsWith('oss-')) raw = 'https://fmy-base.' + raw
-    else raw = 'https://' + raw
-  }
-  currentAvatarUrl.value = raw
+  const raw = profileStore.avatarUrl
+    || profileStore.userInfo?.avatar
+    || localStorage.getItem(avatarCacheKey)
+    || ''
+  currentAvatarUrl.value = fixAvatarUrl(raw)
 }
 
 // 初始化
@@ -61,12 +60,7 @@ loadAvatar()
 
 // 监听 EditProfileDialog 保存事件
 window.addEventListener('avatar-updated', ((e: CustomEvent) => {
-  let raw = e.detail || ''
-  if (raw && !raw.startsWith('data:') && !raw.startsWith('http')) {
-    if (raw.startsWith('oss-')) raw = 'https://fmy-base.' + raw
-    else raw = 'https://' + raw
-  }
-  currentAvatarUrl.value = raw
+  currentAvatarUrl.value = fixAvatarUrl(e.detail || '')
 }) as EventListener)
 
 /** 初始化资料 — 后端优先，失败则用 userStore + profileStore 本地数据 */
@@ -106,6 +100,7 @@ async function initProfile() {
               }
             }
           }
+          loadAvatar()  // 后端数据写入后刷新头像显示
           return
         }
       } catch {
@@ -128,6 +123,7 @@ async function initProfile() {
     } else if (userStore.userInfo?.phone) {
       profileStore.userInfo.phone = userStore.userInfo.phone
     }
+    loadAvatar()  // 本地兜底数据写入后刷新头像
   } finally {
     loading.value = false
   }

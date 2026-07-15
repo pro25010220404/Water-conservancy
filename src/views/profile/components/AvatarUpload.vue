@@ -7,6 +7,7 @@ import { ElAvatar, ElUpload, ElProgress, ElMessage } from 'element-plus'
 import type { UploadFile, UploadRawFile, UploadRequestOptions } from 'element-plus'
 import { uploadAvatar } from '@/api/profile'
 import { AVATAR_MAX_SIZE, AVATAR_ACCEPT } from '@/constants/profile'
+import { fixAvatarUrl } from '@/utils'
 
 // ── Props & Emits ──
 
@@ -23,14 +24,6 @@ const emit = defineEmits<{
 const previewUrl = ref<string>(props.currentAvatar || '')
 const uploading = ref(false)
 const uploadProgress = ref(0)
-
-// ── 辅助 ──
-
-function fixAvatarUrl(url: string) {
-  if (!url || url.startsWith('data:') || url.startsWith('http')) return url
-  if (url.startsWith('oss-')) return 'https://fmy-base.' + url
-  return 'https://' + url
-}
 
 // ── 外部同步 ──
 
