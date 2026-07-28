@@ -45,7 +45,6 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
   '/settings/weights': ['admin', 'manager'],
   '/settings/models': ['admin', 'manager', 'algorithm_engineer'],
   '/settings/users': ['admin', 'manager'],
-  '/settings/role-pages': ['admin'],
 
   // ── 物理防护 — 管理员 + 站长 ──
   '/settings/physics-guard': ['admin', 'manager'],
@@ -119,7 +118,6 @@ export const MENU_ITEMS: MenuItem[] = [
       { path: '/settings/physics-guard', title: '物理防护配置', icon: 'Setting' },
       { path: '/settings/gate-interlock', title: '闸门互锁规则', icon: 'Setting' },
       { path: '/settings/users', title: '用户管理', icon: 'Setting' },
-      { path: '/settings/role-pages', title: '角色页面权限', icon: 'Setting' },
     ],
   },
   { path: '/profile', title: '个人中心', icon: 'User' },
