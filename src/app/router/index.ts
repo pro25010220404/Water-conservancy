@@ -285,10 +285,28 @@ router.beforeEach((to, _from, next) => {
 
   const allowedRoles = ROUTE_ROLES[to.path]
   if (allowedRoles && isLoggedIn && userStore.userInfo?.roles.length) {
-    const hasAccess = allowedRoles.some((role) => userStore.userInfo!.roles.includes(role))
+    // 系统管理员硬保证：始终拥有所有页面权限
+    const isAdmin = userStore.userInfo.roles.includes('admin')
+    // 优先使用后端配置的 permissions 列表，回退到硬编码 ROUTE_ROLES
+    const perms = userStore.userInfo.permissions
+    let hasAccess: boolean
+    if (isAdmin) {
+      hasAccess = true
+    } else if (perms && perms.length > 0) {
+      hasAccess = perms.includes(to.path)
+    } else {
+      hasAccess = allowedRoles.some((role) => userStore.userInfo.roles.includes(role))
+    }
     if (!hasAccess) {
       ElMessage.warning('您暂无该页面访问权限')
-      next({ path: '/dashboard/overview' })
+      // 防止无限重定向：回退到个人中心（所有角色均可访问）
+      if (to.path === '/profile') {
+        // 连个人中心都进不去 → 登出
+        userStore.logout()
+        next({ name: 'Login' })
+      } else {
+        next({ path: '/profile' })
+      }
       return
     }
   }

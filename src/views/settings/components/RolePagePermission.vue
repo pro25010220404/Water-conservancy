@@ -17,7 +17,7 @@ import {
 } from 'element-plus'
 import { Refresh, Check, Close } from '@element-plus/icons-vue'
 import { type UserRole } from '@/constants/roles'
-import { ROLE_LABEL_MAP } from '@/stores/user'
+import { ROLE_LABEL_MAP, useUserStore, saveCachedRolePages } from '@/stores/user'
 import {
   getRolePagePermissions,
   saveRolePagePermissions,
@@ -25,8 +25,8 @@ import {
   type BackendRolePage,
 } from '@/api/settings'
 
-// ── 角色列表（前端英文码） ──
-const ALL_ROLES: UserRole[] = ['admin', 'manager', 'dispatcher', 'operator', 'algorithm_engineer']
+// ── 角色列表（可编辑的角色，不含系统管理员 — admin 硬编码拥有所有页面权限） ──
+const ALL_ROLES: UserRole[] = ['manager', 'dispatcher', 'operator', 'algorithm_engineer']
 
 // ── 中文角色名 → UserRole 映射（与 user.ts ROLE_CODE_MAP 保持一致） ──
 const CN_TO_ROLE: Record<string, UserRole> = {
@@ -242,6 +242,20 @@ async function savePermissions() {
       originalPerms[entry.pageId] = new Set(editingPerms[entry.pageId])
     }
 
+    // 将当前权限配置写入 localStorage 缓存，供非管理员用户登录时读取
+    const cachedPages: BackendRolePage[] = pageEntries.value.map((entry) => ({
+      pageId: entry.pageId,
+      pageName: entry.pageName,
+      module: entry.module,
+      path: entry.path,
+      authorizedRoleNames: [...(editingPerms[entry.pageId] ?? [])].map(roleToChineseName),
+    }))
+    saveCachedRolePages(cachedPages)
+
+    // 通知 userStore 刷新当前用户的页面权限（使变更即时生效）
+    const userStore = useUserStore()
+    await userStore.fetchAndSyncPagePermissions()
+
     ElMessage.success('角色页面权限已保存，用户的页面访问权限将立即更新')
   } catch (err: any) {
     ElMessage.error(err.message || '保存失败，请重试')
@@ -278,6 +292,8 @@ async function resetToDefault() {
       path: p.path,
     }))
     initPermsFromPages(pages)
+    // 同步更新 localStorage 缓存
+    saveCachedRolePages(pages)
     ElMessage.success('已重置为系统默认权限配置')
   } catch (err: any) {
     ElMessage.error(err.message || '重置失败，请重试')
