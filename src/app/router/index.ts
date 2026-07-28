@@ -173,6 +173,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '用户管理', settingsTab: 'users' },
       },
       {
+        path: 'settings/role-pages',
+        name: 'SettingsRolePages',
+        component: () => import('@/views/settings/SettingsPage.vue'),
+        meta: { title: '角色页面权限', settingsTab: 'role-pages' },
+      },
+      {
         path: 'settings/physics-guard',
         name: 'SettingsPhysicsGuard',
         component: () => import('@/views/settings/SettingsPage.vue'),

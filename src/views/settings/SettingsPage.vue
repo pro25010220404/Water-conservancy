@@ -31,6 +31,7 @@ import ModelMetricsPanel from './components/ModelMetricsPanel.vue'
 import PhysicsGuardPanel from './components/PhysicsGuardPanel.vue'
 import PhysicsGuardHistoryPanel from './components/PhysicsGuardHistoryPanel.vue'
 import GateInterlockPanel from './components/GateInterlockPanel.vue'
+import RolePagePermission from './components/RolePagePermission.vue'
 import { FORM_RULES } from '@/constants/validation'
 import { useOperationLog } from '@/composables/useOperationLog'
 import { useUserStore } from '@/stores/user'
@@ -76,6 +77,7 @@ const SETTINGS_TAB_NAMES = [
   'physics-guard-history',
   'gate-interlock',
   'users',
+  'role-pages',
 ] as const
 
 // ── 5. 响应式数据 ──
@@ -1097,6 +1099,7 @@ function syncTabFromRoute() {
     '/settings/physics-guard': 'physics-guard',
     '/settings/physics-guard-history': 'physics-guard-history',
     '/settings/gate-interlock': 'gate-interlock',
+    '/settings/role-pages': 'role-pages',
     '/settings/ai/metrics': 'ai-metrics',
     '/settings/ai/compare': 'ai-metrics',
   }
@@ -1660,6 +1663,11 @@ onMounted(() => {
           </ElButton>
         </template>
       </ElDialog>
+    </template>
+
+    <!-- ═══ Tab8: 角色页面权限 ═══ -->
+    <template v-if="activeTab === 'role-pages'">
+      <RolePagePermission />
     </template>
 
     <!-- 兜底：activeTab 异常时显示 -->
