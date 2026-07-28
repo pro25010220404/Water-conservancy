@@ -328,3 +328,43 @@ export function unlockUser(id: number, data?: UnlockUserParams) {
 export function deleteUser(id: number) {
   return http.delete<ApiResponse<null>>(`${V1}/settings/users/${id}`)
 }
+
+// ════════════════════════════════════════════════════════════
+// Tab8: 角色页面权限 §8.5
+// ════════════════════════════════════════════════════════════
+
+/** 后端返回的页面条目 */
+export interface BackendRolePage {
+  pageId: string
+  pageName: string
+  module: string
+  path: string | null
+  authorizedRoleNames: string[] // 中文角色名
+}
+
+/** GET 响应 data */
+export interface RolePagePermissionsData {
+  allRoles: string[] // 中文角色名
+  pages: BackendRolePage[]
+}
+
+/** 获取角色页面权限配置 */
+export function getRolePagePermissions() {
+  return http.get<ApiResponse<RolePagePermissionsData>>(`${V1}/settings/role-permissions`)
+}
+
+/** 保存角色页面权限配置的请求格式 */
+export interface SaveRolePagePermissionItem {
+  pageId: string
+  roleNames: string[] // 中文角色名
+}
+
+/** 保存角色页面权限配置（批量更新） */
+export function saveRolePagePermissions(data: { permissions: SaveRolePagePermissionItem[] }) {
+  return http.post<ApiResponse<null>>(`${V1}/settings/role-permissions/save`, data)
+}
+
+/** 重置角色页面权限为默认配置 */
+export function resetRolePagePermissions() {
+  return http.post<ApiResponse<RolePagePermissionsData>>(`${V1}/settings/role-permissions/reset`)
+}
