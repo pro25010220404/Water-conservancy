@@ -483,7 +483,7 @@ onMounted(() => {
         </ElTableColumn>
 
         <!-- 统计列 -->
-        <ElTableColumn label="授权角色数" width="110" align="center" fixed="right">
+        <ElTableColumn label="可编辑角色数" width="120" align="center" fixed="right">
           <template #default="scope">
             <ElTag
               :type="roleCountForPage(scope.row.pageId) >= 4 ? 'success' : roleCountForPage(scope.row.pageId) >= 2 ? 'warning' : 'danger'"
