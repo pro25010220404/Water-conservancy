@@ -317,8 +317,16 @@ async function resetToSaved() {
 }
 
 // ── 统计某个页面有权限的角色数 ──
+// 只统计 ALL_ROLES 内的可编辑角色，避免把 admin（系统管理员，硬编码拥有全部权限）
+// 计入分子，导致与表格可见列（4 个复选框）及分母 ALL_ROLES.length 对不上。
 function roleCountForPage(pageId: string): number {
-  return editingPerms[pageId]?.size ?? 0
+  const perms = editingPerms[pageId]
+  if (!perms) return 0
+  let count = 0
+  for (const role of ALL_ROLES) {
+    if (perms.has(role)) count++
+  }
+  return count
 }
 
 // ── 用于表格的扁平列表（带模块分组标识） ──
