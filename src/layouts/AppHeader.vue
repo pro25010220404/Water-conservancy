@@ -20,7 +20,7 @@ import {
 import { ElMessage } from 'element-plus'
 import { APP_TITLE } from '@/constants'
 import GlobalEmergencyStop from '@/components/GlobalEmergencyStop.vue'
-import { getWeatherCurrent, getWeatherHourly, getWeatherDaily } from '@/api/weather'
+import { getWeather } from '@/api/weather'
 import type { WeatherCurrent, WeatherHourlyItem, WeatherDailyItem } from '@/types/weather'
 
 defineProps<{
@@ -64,20 +64,13 @@ async function openWeatherDialog() {
   weatherVisible.value = true
   weatherLoading.value = true
   try {
-    const [curRes, hourRes, dayRes] = await Promise.all([
-      getWeatherCurrent().catch(() => null),
-      getWeatherHourly().catch(() => null),
-      getWeatherDaily().catch(() => null),
-    ])
+    const res = await getWeather()
 
-    if (curRes?.data?.code === 0 && curRes.data.data) {
-      weatherCurrent.value = curRes.data.data
-    }
-    if (hourRes?.data?.code === 0 && hourRes.data.data) {
-      weatherHourly.value = hourRes.data.data.list ?? []
-    }
-    if (dayRes?.data?.code === 0 && dayRes.data.data) {
-      weatherDaily.value = dayRes.data.data.list ?? []
+    if (res.data?.code === 0 && res.data.data) {
+      const { current, hourly, daily } = res.data.data
+      weatherCurrent.value = current ?? null
+      weatherHourly.value = hourly ?? []
+      weatherDaily.value = daily ?? []
     }
 
     if (!weatherCurrent.value && !weatherHourly.value.length && !weatherDaily.value.length) {

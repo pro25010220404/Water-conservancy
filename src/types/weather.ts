@@ -46,14 +46,6 @@ export interface WeatherHourlyItem {
   source: string
 }
 
-/** 小时天气 GET /v1/weather/hourly */
-export interface WeatherHourly {
-  /** 逐小时预报列表 */
-  list: WeatherHourlyItem[]
-  /** 预报数据条数 */
-  count: number
-}
-
 /** 每日天气数据点 */
 export interface WeatherDailyItem {
   /** 预报日期 */
@@ -74,10 +66,12 @@ export interface WeatherDailyItem {
   source: string
 }
 
-/** 逐日预报 GET /v1/weather/daily */
-export interface WeatherDaily {
+/** 天气总接口 GET /v1/weather — 实时 + 逐小时 + 逐日 汇总 */
+export interface WeatherBundle {
+  /** 实时天气 */
+  current: WeatherCurrent
+  /** 逐小时预报列表 */
+  hourly: WeatherHourlyItem[]
   /** 逐日预报列表 */
-  list: WeatherDailyItem[]
-  /** 预报数据条数 */
-  count: number
+  daily: WeatherDailyItem[]
 }
