@@ -115,6 +115,18 @@ async function doQuery() {
     ])
     dataA.value = a
     dataB.value = b
+    // 任一时段无数据：给出提示，且不进入对比展示
+    if (!a.length || !b.length) {
+      const missing = !a.length && !b.length
+        ? '时段 A 与时段 B'
+        : !a.length
+          ? '时段 A'
+          : '时段 B'
+      timeError.value = `${missing}没有查询到数据，请调整起止时间后重试`
+      compareMode.value = false
+      queried.value = false
+      return
+    }
     compareMode.value = true
     queried.value = true
   } catch {
@@ -152,7 +164,11 @@ const chartOpt = computed(() => {
     tooltip: { trigger: 'axis' },
     legend: { data: [`时段A ${metricLabel.value}`, `时段B ${metricLabel.value}`], top: 0 },
     grid: { left: 60, right: 40, top: 40, bottom: 60 },
-    xAxis: { type: 'category', data: allLabels, axisLabel: { interval: 5 } },
+    xAxis: {
+      type: 'category',
+      data: allLabels,
+      axisLabel: { interval: 'auto', hideOverlap: true },
+    },
     yAxis: { type: 'value', name: `${metricLabel.value}(${metricUnit.value})` },
     dataZoom: [{ type: 'slider', bottom: 0, height: 22 }],
     series: [
