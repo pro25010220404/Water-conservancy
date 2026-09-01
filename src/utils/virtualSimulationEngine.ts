@@ -39,10 +39,10 @@ export function computeSimulationDerived(input: SimulationInput): SimulationDeri
 
   const downstreamLevel =
     input.downstreamLevel != null
-      ? +Math.max(80, Math.min(280, input.downstreamLevel)).toFixed(2)
+      ? +Math.max(250, Math.min(295, input.downstreamLevel)).toFixed(2)
       : +Math.max(
           baseline.downstreamLevel - 5,
-          Math.min(280, baseline.downstreamLevel + upDelta * 0.12),
+          Math.min(295, baseline.downstreamLevel + upDelta * 0.12),
         ).toFixed(2)
 
   // 正常工况上游应高于下游；若数据反挂，仍保证水头≥1 以免计算崩溃
@@ -86,14 +86,4 @@ export function scaleGateOpening(opening: number, scale: number): number {
 
 export function clampOpening(opening: number): number {
   return Math.min(100, Math.max(0, +opening.toFixed(1)))
-}
-
-/**
- * 仿真生效后闸门开度伪随机微动（同 tick + id 可复现，便于 Vue 计算属性稳定）
- * @param rangePct 相对基础开度的振幅（百分点），默认 ±5
- */
-export function openingJitter(gateId: number, tick: number, rangePct = 5): number {
-  const x = Math.sin(tick * 12.9898 + gateId * 78.233) * 43758.5453
-  const unit = x - Math.floor(x)
-  return (unit - 0.5) * 2 * rangePct
 }

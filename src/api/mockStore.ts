@@ -33,6 +33,8 @@ import type {
   TrainingTask,
 } from '@/types/simulation'
 import { XIANGJIABA_HYDRO } from '@/constants/xiangjiaba'
+import { getScenePreset } from '@/constants/simulation'
+import { faultReviewToSimulationParams } from './simulationAdapter'
 import {
   createInitialTelemetry,
   stepHydrology,
@@ -1575,8 +1577,30 @@ export const mockApi = {
     })
     return delay(ok(null))
   },
-  uploadModel() {
-    return delay(ok(models[0]))
+  uploadModel(formData?: FormData) {
+    let fileName = 'imported_model.pt'
+    let modelType: AiModel['type'] = 'LSTM'
+    if (formData) {
+      const file = formData.get('file')
+      if (file instanceof File) fileName = file.name
+      const typeField = String(formData.get('type') ?? '')
+      if (typeField === 'DQN' || typeField === 'LSTM') modelType = typeField
+      else if (/dqn/i.test(fileName)) modelType = 'DQN'
+    }
+    const nextId = models.reduce((max, m) => Math.max(max, m.id), 0) + 1
+    const imported: AiModel = {
+      id: nextId,
+      type: modelType,
+      version: `v${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
+      filePath: `/models/${fileName}`,
+      status: 'validating',
+      metrics: null,
+      remark: `本地导入 · ${fileName}`,
+      createdAt: nowIso(0),
+      activatedAt: null,
+    }
+    models.unshift(imported)
+    return delay(ok(imported))
   },
 
   startTraining() {
@@ -1639,8 +1663,13 @@ export const mockApi = {
     }
     return delay(ok(null))
   },
-  importToSimulation() {
-    return delay(ok(simParams))
+  importToSimulation(id: number) {
+    const review = reviews.find((r) => r.id === id)
+    if (review) {
+      return delay(ok(faultReviewToSimulationParams(review)))
+    }
+    const preset = getScenePreset(simParams.scene)
+    return delay(ok({ ...simParams, gateOpening: preset.gateOpening }))
   },
   getSimulationRuns() {
     return delay(

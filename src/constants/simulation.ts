@@ -7,12 +7,21 @@ import type { SimulationScene } from '@/types/simulation'
 import { XIANGJIABA_HYDRO } from '@/constants/xiangjiaba'
 
 // ---------- 仿真场景 ----------
+/** 场景库预设（原「自定义」）在界面上的统一名称 */
+export const SCENARIO_LIBRARY_LABEL = '我的仿真场景库'
+
+/** 与系统配置「模型版本管理」页统一的名称 */
+export const MODEL_REGISTRY_LABEL = '模型版本管理'
+
 export const SIMULATION_SCENE_MAP: Record<string, { label: string; description: string }> = {
   normal: { label: '正常工况', description: '标准运行条件，水位/流量处于正常区间' },
   flood: { label: '洪水入库', description: '模拟暴雨后水位快速上涨场景' },
   dry: { label: '枯水期', description: '低水位条件下的发电调度' },
   rainstorm: { label: '持续暴雨', description: '连续强降雨导致的极端来水场景' },
-  custom: { label: '自定义', description: '手动设定初始参数' },
+  custom: {
+    label: SCENARIO_LIBRARY_LABEL,
+    description: `从左侧${SCENARIO_LIBRARY_LABEL}选择工况并加载参数`,
+  },
 }
 
 /** 各预设场景初始参数 — 基于向家坝公开水文特征 */
@@ -52,12 +61,29 @@ export const SIMULATION_SCENE_PRESETS: Record<
   },
 }
 
+export const SIMULATION_LEVEL_MIN = 370
+
+export function clampSimulationLevel(level: number): number {
+  const max = XIANGJIABA_HYDRO.crestElevation - 0.25
+  return Math.max(SIMULATION_LEVEL_MIN, Math.min(max, level))
+}
+
 export function getScenePreset(scene: SimulationScene) {
   return { ...SIMULATION_SCENE_PRESETS[scene] }
 }
 
+/** 界面展示名（custom 统一为场景库名称，避免再出现「自定义」） */
+export function getSimulationSceneLabel(scene: string): string {
+  if (scene === 'custom') return SCENARIO_LIBRARY_LABEL
+  return SIMULATION_SCENE_MAP[scene]?.label ?? scene
+}
+
 export const SIMULATION_SCENE_OPTIONS = Object.entries(SIMULATION_SCENE_MAP).map(
-  ([value, item]) => ({ ...item, value }),
+  ([value, item]) => ({
+    value,
+    label: getSimulationSceneLabel(value),
+    description: item.description,
+  }),
 )
 
 // ---------- 仿真状态 ----------

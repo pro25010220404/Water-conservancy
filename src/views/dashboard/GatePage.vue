@@ -6,16 +6,15 @@ import { formatActionSource, formatGateControlMode } from '@/constants/dispatch'
 import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
 
 const simStore = useVirtualSimulationStore()
-const { active: simActive, derived: simDerived, jitterTick } = storeToRefs(simStore)
+const { active: simActive, derived: simDerived } = storeToRefs(simStore)
 
 const gates = ref<{ id: number; name: string; v: number; mode: string }[]>([])
 const logs = ref<{ time: string; gate: string; action: string; actual: string; type: string; dur: string; by: string }[]>([])
 const upstreamLevel = ref(378.5)
 const downstreamLevel = ref(269.2)
 
-/** 仿真激活时叠加开度（含随机微动），与节点控制同一套联动 */
+/** 仿真激活时叠加开度（静态工况，与节点控制同一套联动） */
 const displayGates = computed(() => {
-  void jitterTick.value
   if (!simActive.value) return gates.value
   return gates.value.map((g) => ({
     ...g,

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 // ── 1. 外部依赖导入 ──
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   ElMessage, ElMessageBox, ElDialog, ElForm, ElFormItem, ElInput,
-  ElSlider, ElInputNumber, ElSelect, ElOption, ElTag,
+  ElSlider, ElInputNumber, ElSelect, ElOption, ElTag, ElUpload, ElButton,
 } from 'element-plus'
+import { Upload } from '@element-plus/icons-vue'
 import GlassPanel3D from '@/components/cockpit/GlassPanel3D.vue'
 import ThreeDamScene from '@/components/cockpit/ThreeDamScene.vue'
 import TwinDamSchematic2D from '@/components/cockpit/TwinDamSchematic2D.vue'
@@ -12,8 +14,6 @@ import DamPanoramaModal from '@/components/cockpit/DamPanoramaModal.vue'
 import { useSmoothNumber } from '@/composables/useSmoothNumber'
 import { useSimulationStream, mapProgressToRealtime } from '@/composables/useSimulationStream'
 import { useUserStore } from '@/stores/user'
-import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
-import { storeToRefs } from 'pinia'
 import SimulationTabPanel from './components/SimulationTabPanel.vue'
 import ScenarioListPanel from './components/ScenarioListPanel.vue'
 import type {
@@ -21,27 +21,38 @@ import type {
   SimulationRealtimeData, AiModel, SimulationReport, FaultReview,
   SimulationScenarioItem, SimulationProgressPayload, SimulationScenarioPayload,
 } from '@/types/simulation'
-import { XIANGJIABA_HYDRO, getLevelStatus, levelGaugePercent, clampUpstreamLevel } from '@/constants/xiangjiaba'
+import { XIANGJIABA_HYDRO, getLevelStatus, levelGaugePercent } from '@/constants/xiangjiaba'
 import { estimateGateBayDischarge } from '@/utils/xiangjiabaTelemetry'
 import {
   SIMULATION_SCENE_OPTIONS, SIMULATION_SCENE_MAP, getScenePreset,
   SIMULATION_STATUS_MAP, SPEED_OPTIONS, DEFAULT_TRAINING_CONFIG,
-  SIMULATION_TABS,
+  SIMULATION_TABS, SCENARIO_LIBRARY_LABEL, MODEL_REGISTRY_LABEL,
+  getSimulationSceneLabel,
+  clampSimulationLevel,
+  SIMULATION_LEVEL_MIN,
   type SimulationTab,
 } from '@/constants/simulation'
 import {
   startSimulation, pauseSimulation, resumeSimulation, resetSimulation, getSimulationStatus,
   setSimulationGateOpening,
-  getModelList, activateModel, uploadModel, startTraining, generateReport, getReportList, downloadReport,
-  getFaultReviewList, importToSimulation, getPhysicsGuardSummary,
+  getModelList, activateModel, startTraining, generateReport, getReportList, downloadReport,
+  getRegistryModelList, importModelFromRegistry, uploadModel,
+  getFaultReviewList, getFaultReviewDetail, importToSimulation, getPhysicsGuardSummary,
   getSimulationScenarios, createSimulationScenario, updateSimulationScenario, deleteSimulationScenario,
+  ensureScenarioActive,
   resolveScenarioId, getSimulationResult, applyResultToRealtime,
+  SIMULATION_USE_MOCK,
+  rememberScenarioSimulation,
+  clearScenarioRunningTask,
 } from '@/api/simulation'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
+import type { ModelInfo } from '@/shared/types'
+import { MODEL_STATUS_MAP as REGISTRY_STATUS_MAP, MODEL_TYPE_MAP } from '@/constants/settings'
+import { isSimulationAlreadyRunningError, isSimulationDraftScenarioError, isApiBusinessError, isAuthError } from '@/utils/apiError'
+import { scenarioToSimulationParams, faultReviewToSimulationParams } from '@/api/simulationAdapter'
 
 const userStore = useUserStore()
-const virtualSimStore = useVirtualSimulationStore()
-const { active: virtualSimActive, derived: virtualSimDerived } = storeToRefs(virtualSimStore)
+const router = useRouter()
 const { connected: wsConnected, connect: connectSimStream, disconnect: disconnectSimStream } =
   useSimulationStream()
 
@@ -66,6 +77,8 @@ function persistDeletedScenarioIds(ids: Set<number>) {
 const activeTab = ref<SimulationTab>('control')
 const scenarios = ref<SimulationScenarioItem[]>([])
 const scenarioLoading = ref(false)
+/** 场景库当前选中项（与「我的仿真场景库」预设联动） */
+const selectedScenarioId = ref<number | null>(null)
 /** 已成功删除的场景 ID（含 sessionStorage，防止刷新后又出现） */
 const deletedScenarioIds = loadDeletedScenarioIds()
 const scenarioDialogVisible = ref(false)
@@ -83,6 +96,7 @@ const SCENARIO_TYPE_OPTIONS = [
   { value: 'fault', label: '故障复盘' },
 ]
 const activeSimulationId = ref<string | null>(null)
+const startingSim = ref(false)
 const simStatus = ref<SimulationRealtimeData>({
   status: 'idle', elapsedSec: 0,
   currentLevel: XIANGJIABA_HYDRO.normalPoolLevel,
@@ -91,10 +105,10 @@ const simStatus = ref<SimulationRealtimeData>({
   historyLevels: [], historyFlows: [],
 })
 const simParams = reactive<SimulationParams>({
-  scene: 'normal',
-  ...getScenePreset('normal'),
+  scene: 'custom',
+  ...getScenePreset('custom'),
 })
-const simScene = ref<SimulationScene>('normal')
+const simScene = ref<SimulationScene>('custom')
 const GATE_COUNT = 5
 const simSpeed = ref<SimulationSpeed>(1)
 const gateOpening = ref(100)
@@ -124,10 +138,7 @@ function setGateOpeningAt(index: number, opening: number) {
     i === index ? safeOpening(opening) : g,
   )
   syncAggregateFromGates()
-  simStatus.value = {
-    ...simStatus.value,
-    currentOpening: Math.round(gateOpening.value),
-  }
+  applyInteractiveControl({ opening: gateOpening.value })
   if (gateSyncTimer) clearTimeout(gateSyncTimer)
   gateSyncTimer = setTimeout(() => {
     const id = activeSimulationId.value
@@ -141,10 +152,7 @@ watch(gateOpening, (v) => {
   if (opening !== v) gateOpening.value = opening
   if (gateLocalEdit.value) return
   syncGatesFromAggregate(opening)
-  simStatus.value = {
-    ...simStatus.value,
-    currentOpening: Math.round(opening),
-  }
+  applyInteractiveControl({ opening })
   if (gateSyncTimer) clearTimeout(gateSyncTimer)
   gateSyncTimer = setTimeout(() => {
     const id = activeSimulationId.value
@@ -163,43 +171,80 @@ watch(() => simStatus.value.status, (status, prev) => {
 
 watch(wsConnected, (open) => {
   if (open) stopPoll()
-  else if (simStatus.value.status === 'running' && !pollTimer) startPoll()
+  else if (
+    activeSimulationId.value
+    && simStatus.value.status === 'running'
+    && !pollTimer
+  ) {
+    startPoll()
+  }
 })
 
 const models = ref<AiModel[]>([])
+const registryModels = ref<ModelInfo[]>([])
+const modelRegistryVisible = ref(false)
+const registryLoading = ref(false)
+const registryKeyword = ref('')
+const registryUploadRef = ref<InstanceType<typeof ElUpload> | null>(null)
+const registryUploading = ref(false)
+const registryUploadProgress = ref(0)
 const reports = ref<SimulationReport[]>([])
 const reviews = ref<FaultReview[]>([])
 const modelLoading = ref(false)
+const modelUploading = ref(false)
 const reportLoading = ref(false)
 const reviewLoading = ref(false)
+const reviewLoadError = ref<string | null>(null)
 const physicsGuard = ref<PhysicsGuardSummary | null>(null)
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let simAnimTimer: ReturnType<typeof setInterval> | null = null
+/** 用户拖滑块时标记，避免 watch 回写冲突 */
+let lastUserControlAt = 0
+const userControlActive = ref(false)
+
+function isUserControllingTelemetry() {
+  return userControlActive.value || Date.now() - lastUserControlAt < 800
+}
+
+function isSimSessionActive() {
+  const s = simStatus.value.status
+  return s === 'running' || s === 'paused'
+}
+
+function estimateInteractiveDownstream(upstreamLevel: number): number {
+  const tailBase = XIANGJIABA_HYDRO.downstreamNormalLevel
+  const delta = (upstreamLevel - XIANGJIABA_HYDRO.normalPoolLevel) * 0.1
+  return +Math.max(tailBase - 0.35, Math.min(tailBase + 1.2, tailBase + delta)).toFixed(2)
+}
+
+function onControlActive(active: boolean) {
+  userControlActive.value = active
+  if (active) lastUserControlAt = Date.now()
+}
+
+/** 用户手动调过滑块后，禁止静默场景加载覆盖 */
+const userAdjustedParams = ref(false)
+
+function ringPctToDeg(pct: number) {
+  return `${Math.min(359.94, Math.max(0, pct) * 3.6)}deg`
+}
+
+/** 每次启动/重置递增，丢弃过期的 poll / WS 回调 */
+let simRunToken = 0
 
 // ── 6. Computed ──
-const waterLevel = computed(() => simStatus.value.currentLevel)
-const downstreamLevel = computed(() => simStatus.value.currentDownstreamLevel)
-const flowRate = computed(() => simStatus.value.currentFlow)
+const sliderWaterLevel = ref<number>(XIANGJIABA_HYDRO.normalPoolLevel)
+const sliderRainfall = ref(0)
 
-/** 虚拟仿真生效时，3D/2D 孪生视图跟随全局仿真参数（静态展示 + 联动） */
-const displayWaterLevel = computed(() =>
-  virtualSimActive.value ? virtualSimDerived.value.upstreamLevel : waterLevel.value,
+/** 左侧 P2、3D、弹窗 KPI 统一读 simStatus */
+const displayWaterLevel = computed(() => simStatus.value.currentLevel)
+const displayDownstreamLevel = computed(() => simStatus.value.currentDownstreamLevel)
+const displayFlowRate = computed(() => simStatus.value.currentFlow)
+const displayGateOpening = computed(() =>
+  safeOpening(gateOpening.value, simStatus.value.currentOpening),
 )
-const displayDownstreamLevel = computed(() =>
-  virtualSimActive.value ? virtualSimDerived.value.downstreamLevel : downstreamLevel.value,
-)
-const displayFlowRate = computed(() =>
-  virtualSimActive.value ? virtualSimDerived.value.inflowRate : flowRate.value,
-)
-const displayGateOpening = computed(() => {
-  const raw = virtualSimActive.value ? virtualSimDerived.value.aggregateOpening : gateOpening.value
-  return safeOpening(raw, simStatus.value.currentOpening)
-})
-const displayGateOpenings = computed(() =>
-  virtualSimActive.value
-    ? Array.from({ length: GATE_COUNT }, () => displayGateOpening.value)
-    : gateOpenings.value.map((v) => safeOpening(v)),
-)
+const displayGateOpenings = computed(() => gateOpenings.value.map((v) => safeOpening(v)))
 const selectedGateOpening = computed(() =>
   selectedGateIndex.value >= 0 ? safeOpening(gateOpenings.value[selectedGateIndex.value]) : 0,
 )
@@ -222,22 +267,157 @@ const totalOutflowRate = computed(() =>
   ),
 )
 
-const clampedWaterLevel = computed(() => clampUpstreamLevel(displayWaterLevel.value))
+const clampedWaterLevel = computed(() => clampSimulationLevel(displayWaterLevel.value))
 const sceneWaterLevel = computed(() => clampedWaterLevel.value)
 const smoothWaterLevel = useSmoothNumber(clampedWaterLevel, 800)
-const sliderWaterLevel = ref<number>(XIANGJIABA_HYDRO.normalPoolLevel)
-const sliderRainfall = ref(0)
 
-watch(clampedWaterLevel, (v) => {
-  sliderWaterLevel.value = v
-}, { immediate: true })
+function applyInteractiveControl(opts?: { level?: number; rainfall?: number; opening?: number }) {
+  lastUserControlAt = Date.now()
+  userAdjustedParams.value = true
+  if (opts?.rainfall != null) sliderRainfall.value = opts.rainfall
+  if (opts?.opening != null) gateOpening.value = safeOpening(opts.opening)
 
-const sceneFlowRate = computed(() =>
-  Math.round(displayFlowRate.value + sliderRainfall.value * 12),
+  const level = clampSimulationLevel(
+    opts?.level ?? sliderWaterLevel.value ?? simStatus.value.currentLevel,
+  )
+  sliderWaterLevel.value = level
+  simParams.initialLevel = level
+  const flow = Math.round(simParams.inflowRate + sliderRainfall.value * 12)
+  const opening = Math.round(safeOpening(opts?.opening ?? gateOpening.value))
+
+  simStatus.value = {
+    ...simStatus.value,
+    currentLevel: level,
+    currentFlow: flow,
+    currentOpening: opening,
+    currentDownstreamLevel: estimateInteractiveDownstream(level),
+  }
+}
+function stopSimAnimation() {
+  if (simAnimTimer) {
+    clearInterval(simAnimTimer)
+    simAnimTimer = null
+  }
+}
+
+function pushTelemetryHistory(level: number, flow: number, elapsedSec: number) {
+  const historyLevels = [...simStatus.value.historyLevels, { time: elapsedSec, value: level }]
+  const historyFlows = [...simStatus.value.historyFlows, { time: elapsedSec, value: flow }]
+  if (historyLevels.length > 180) historyLevels.shift()
+  if (historyFlows.length > 180) historyFlows.shift()
+  return { historyLevels, historyFlows }
+}
+
+function resolveElapsedSecFromBackend(data: SimulationRealtimeData): number {
+  const backend = Math.max(0, data.elapsedSec ?? 0)
+  const local = simStatus.value.elapsedSec
+  if (simStatus.value.status === 'paused') return local
+  if (data.status === 'finished') return Math.max(local, backend)
+  if (isSimSessionActive() || simStatus.value.status === 'running') {
+    return Math.max(local, backend)
+  }
+  return backend
+}
+
+function applySimTelemetry(data: SimulationRealtimeData, fromBackend = false) {
+  if (fromBackend) {
+    const level = simStatus.value.currentLevel
+    const flow = simStatus.value.currentFlow
+    const opening = Math.round(safeOpening(gateOpening.value, simStatus.value.currentOpening))
+    const downstream = simStatus.value.currentDownstreamLevel
+    const elapsedSec = resolveElapsedSecFromBackend(data)
+    let status = data.status
+    if (
+      simStatus.value.status === 'running'
+      && status === 'idle'
+      && elapsedSec === simStatus.value.elapsedSec
+    ) {
+      status = 'running'
+    }
+    let historyLevels = simStatus.value.historyLevels
+    let historyFlows = simStatus.value.historyFlows
+    if (elapsedSec > simStatus.value.elapsedSec) {
+      historyLevels = [...historyLevels, { time: elapsedSec, value: level }]
+      historyFlows = [...historyFlows, { time: elapsedSec, value: flow }]
+      if (historyLevels.length > 180) historyLevels.shift()
+      if (historyFlows.length > 180) historyFlows.shift()
+    }
+    simStatus.value = {
+      ...data,
+      status,
+      elapsedSec,
+      currentLevel: level,
+      currentFlow: flow,
+      currentOpening: opening,
+      currentDownstreamLevel: downstream,
+      historyLevels,
+      historyFlows,
+    }
+    return
+  }
+  simStatus.value = data
+  if (!isUserControllingTelemetry() && !isSimSessionActive() && !userAdjustedParams.value) {
+    sliderWaterLevel.value = clampSimulationLevel(data.currentLevel)
+  }
+}
+
+function startSimAnimation() {
+  stopSimAnimation()
+  simAnimTimer = setInterval(() => {
+    if (simStatus.value.status !== 'running') return
+
+    const elapsedSec = simStatus.value.elapsedSec + simSpeed.value
+    if (elapsedSec >= durationSec.value) {
+      simStatus.value = {
+        ...simStatus.value,
+        status: 'finished',
+        elapsedSec: durationSec.value,
+      }
+      stopSimAnimation()
+      return
+    }
+
+    const { historyLevels, historyFlows } = pushTelemetryHistory(
+      simStatus.value.currentLevel,
+      simStatus.value.currentFlow,
+      elapsedSec,
+    )
+    simStatus.value = {
+      ...simStatus.value,
+      elapsedSec,
+      historyLevels,
+      historyFlows,
+    }
+  }, 1000)
+}
+
+watch(
+  () => simStatus.value.currentLevel,
+  (level) => {
+    if (!isUserControllingTelemetry() && !isSimSessionActive() && !userAdjustedParams.value) {
+      sliderWaterLevel.value = clampSimulationLevel(level)
+    }
+  },
 )
+
+watch(
+  () => simStatus.value.status,
+  (status) => {
+    if (status === 'running') startSimAnimation()
+    else stopSimAnimation()
+  },
+)
+
 const smoothDownstreamLevel = useSmoothNumber(displayDownstreamLevel, 800)
 const levelStatus = computed(() => getLevelStatus(displayWaterLevel.value))
 const gaugePct = computed(() => levelGaugePercent(displayWaterLevel.value))
+/** 入库流量环形占比（以当前工况入库流量为参考上限） */
+const flowGaugePct = computed(() => {
+  const refMax = Math.max(3500, simParams.inflowRate * 1.35, displayFlowRate.value * 1.1)
+  return Math.max(0, Math.min(100, (displayFlowRate.value / refMax) * 100))
+})
+/** 闸门开度环形占比（0–100%），与数字一致 */
+const gateGaugePct = computed(() => displayGateOpening.value)
 const levelHistoryBars = computed(() => {
   const hist = simStatus.value.historyLevels.slice(-12)
   if (hist.length === 0) {
@@ -260,7 +440,15 @@ const elapsedLabel = computed(() => {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 })
 const statusInfo = computed(() => SIMULATION_STATUS_MAP[simStatus.value.status])
-const sceneLabel = computed(() => SIMULATION_SCENE_MAP[simScene.value]?.label ?? '')
+const selectedScenario = computed(() =>
+  scenarios.value.find((s) => s.id === selectedScenarioId.value) ?? null,
+)
+const sceneLabel = computed(() => {
+  if (simScene.value === 'custom' && selectedScenario.value) {
+    return `${SCENARIO_LIBRARY_LABEL} · ${selectedScenario.value.name}`
+  }
+  return SIMULATION_SCENE_MAP[simScene.value]?.label ?? ''
+})
 const speedLabel = computed(
   () => SPEED_OPTIONS.find((s) => s.value === simSpeed.value)?.label ?? `${simSpeed.value}x`,
 )
@@ -320,6 +508,21 @@ async function fetchScenarios() {
       const tb = b.created_at ? Date.parse(b.created_at) : 0
       return tb - ta
     })
+    if (scenarios.value.length) {
+      const picked =
+        (selectedScenarioId.value
+          ? scenarios.value.find((s) => s.id === selectedScenarioId.value)
+          : null) ?? scenarios.value[0]
+      const canAutoLoad =
+        (simStatus.value.status === 'idle' || simStatus.value.status === 'finished')
+        && !userAdjustedParams.value
+      if (canAutoLoad) {
+        applyScenario(picked, { silent: true })
+      } else if (picked) {
+        selectedScenarioId.value = picked.id
+        simScene.value = 'custom'
+      }
+    }
   } catch {
     scenarios.value = []
   } finally {
@@ -343,8 +546,17 @@ function resetScenarioForm(item?: SimulationScenarioItem) {
     scenarioForm.description = ''
     scenarioForm.duration = simParams.durationMin * 60
     scenarioForm.speed = simSpeed.value
-    scenarioForm.status = 'draft'
+    scenarioForm.status = 'active'
   }
+}
+
+function patchScenarioInList(item: SimulationScenarioItem) {
+  scenarios.value = scenarios.value.map((s) => (s.id === item.id ? item : s))
+}
+
+async function activateScenarioIfNeeded(scenarioId: number) {
+  const activated = await ensureScenarioActive(scenarioId, scenarios.value)
+  if (activated) patchScenarioInList(activated)
 }
 
 function openCreateScenario() {
@@ -367,6 +579,7 @@ async function submitScenarioForm() {
       await updateSimulationScenario(scenarioEditingId.value, scenarioForm)
       ElMessage.success('场景已更新')
     } else {
+      scenarioForm.status = 'active'
       const res = await createSimulationScenario(scenarioForm)
       const created = res.data
       scenarios.value = [created, ...scenarios.value.filter((s) => s.id !== created.id)]
@@ -391,6 +604,12 @@ async function handleDeleteScenario(item: SimulationScenarioItem) {
     deletedScenarioIds.add(item.id)
     persistDeletedScenarioIds(deletedScenarioIds)
     scenarios.value = scenarios.value.filter((s) => s.id !== item.id)
+    if (selectedScenarioId.value === item.id) {
+      selectedScenarioId.value = null
+      if (simScene.value === 'custom' && scenarios.value.length) {
+        applyScenario(scenarios.value[0], { silent: true })
+      }
+    }
     ElMessage.success(`已删除「${item.name}」(#${item.id})`)
   } catch (err) {
     const msg = err instanceof Error ? err.message : '删除失败'
@@ -403,12 +622,11 @@ async function handleDeleteScenario(item: SimulationScenarioItem) {
 }
 
 function onSimProgress(payload: SimulationProgressPayload) {
-  simStatus.value = mapProgressToRealtime(simStatus.value, payload, durationSec.value)
-  if (!gateLocalEdit.value && payload.metrics?.gate_opening != null) {
-    const opening = safeOpening(payload.metrics.gate_opening, gateOpening.value)
-    gateOpening.value = opening
-    syncGatesFromAggregate(opening)
-  }
+  if (!activeSimulationId.value) return
+  applySimTelemetry(
+    mapProgressToRealtime(simStatus.value, payload, durationSec.value),
+    true,
+  )
   if (simStatus.value.status === 'finished' && activeSimulationId.value) {
     void loadSimulationResult(activeSimulationId.value)
   }
@@ -418,7 +636,7 @@ async function loadSimulationResult(simulationId: string) {
   try {
     const res = await getSimulationResult(simulationId)
     if (res.data.points?.length) {
-      simStatus.value = applyResultToRealtime(res.data.points, durationSec.value)
+      applySimTelemetry(applyResultToRealtime(res.data.points, durationSec.value), true)
     }
   } catch {
     /* 结果接口未就绪时保留 WS 最后状态 */
@@ -429,13 +647,10 @@ async function fetchSim() {
   try {
     const id = activeSimulationId.value
     if (!id) return
+    const token = simRunToken
     const data = (await getSimulationStatus(id)).data
-    simStatus.value = data
-    if (!gateLocalEdit.value) {
-      const opening = safeOpening(data.currentOpening, gateOpening.value)
-      gateOpening.value = opening
-      syncGatesFromAggregate(opening)
-    }
+    if (token !== simRunToken || activeSimulationId.value !== id) return
+    applySimTelemetry(data, true)
   } catch { /* */ }
 }
 async function fetchModels() {
@@ -453,8 +668,25 @@ async function fetchPhysicsGuard() {
 }
 async function fetchReviews() {
   reviewLoading.value = true
-  try { reviews.value = (await getFaultReviewList({ pageNum: 1, pageSize: 10 })).data.list } catch { reviews.value = [] }
-  finally { reviewLoading.value = false }
+  reviewLoadError.value = null
+  try {
+    reviews.value = (await getFaultReviewList({ pageNum: 1, pageSize: 10 })).data.list
+  } catch (err) {
+    reviews.value = []
+    if (isAuthError(err)) {
+      reviewLoadError.value = '登录已过期，请重新登录后再查看故障复盘'
+      ElMessage.warning(reviewLoadError.value)
+    } else {
+      const msg = isApiBusinessError(err)
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : '加载故障复盘失败'
+      reviewLoadError.value = msg
+    }
+  } finally {
+    reviewLoading.value = false
+  }
 }
 
 function onTabChange(tab: SimulationTab) {
@@ -464,6 +696,48 @@ function onTabChange(tab: SimulationTab) {
   else if (tab === 'review') fetchReviews()
 }
 
+function applyScenario(item: SimulationScenarioItem, opts?: { silent?: boolean; force?: boolean }) {
+  selectedScenarioId.value = item.id
+  simScene.value = 'custom'
+  const params = scenarioToSimulationParams(item)
+  simParams.scene = 'custom'
+  simParams.inflowRate = params.inflowRate
+  simParams.durationMin = params.durationMin
+
+  const simActive = isSimSessionActive()
+  if ((simActive || userAdjustedParams.value) && opts?.silent && !opts?.force) {
+    return
+  }
+
+  simParams.initialLevel = params.initialLevel
+  if (item.speed && [1, 2, 5, 10].includes(item.speed)) {
+    simSpeed.value = item.speed as SimulationSpeed
+  }
+  const opening = safeOpening(params.gateOpening ?? getScenePreset('custom').gateOpening)
+  gateOpening.value = opening
+  syncGatesFromAggregate(opening)
+  sliderWaterLevel.value = params.initialLevel
+  applyInteractiveControl({
+    level: params.initialLevel,
+    opening,
+  })
+  userAdjustedParams.value = false
+  if (simStatus.value.status === 'idle' || simStatus.value.status === 'finished') {
+    simStatus.value = {
+      ...simStatus.value,
+      historyLevels: [{ time: 0, value: params.initialLevel }],
+      historyFlows: [{ time: 0, value: params.inflowRate }],
+    }
+  }
+  if (!opts?.silent) {
+    ElMessage.success(`已联动${SCENARIO_LIBRARY_LABEL} · ${item.name}`)
+  }
+}
+
+function onSelectScenario(item: SimulationScenarioItem) {
+  applyScenario(item)
+}
+
 function applyScenePreset(scene: SimulationScene) {
   const preset = getScenePreset(scene)
   simParams.scene = scene
@@ -471,6 +745,7 @@ function applyScenePreset(scene: SimulationScene) {
   simParams.inflowRate = preset.inflowRate
   simParams.durationMin = preset.durationMin
   if (simStatus.value.status === 'idle' || simStatus.value.status === 'finished') {
+    sliderWaterLevel.value = preset.initialLevel
     gateOpening.value = preset.gateOpening
     syncGatesFromAggregate(preset.gateOpening)
     simStatus.value = {
@@ -504,53 +779,128 @@ watch(() => panoramaVisible.value, (open) => {
 
 function onSceneChange(scene: SimulationScene) {
   simScene.value = scene
+  if (scene === 'custom') {
+    const picked =
+      scenarios.value.find((s) => s.id === selectedScenarioId.value) ?? scenarios.value[0]
+    if (picked) {
+      applyScenario(picked, { silent: true })
+      return
+    }
+  }
+  selectedScenarioId.value = null
   applyScenePreset(scene)
 }
 
+async function applyStartResult(
+  data: { simulation_id: string; ws_endpoint?: string },
+  scenarioId: number,
+) {
+  simRunToken++
+  activeSimulationId.value = data.simulation_id
+  rememberScenarioSimulation(scenarioId, data.simulation_id)
+  simStatus.value = {
+    ...simStatus.value,
+    status: 'running',
+    elapsedSec: 0,
+    currentLevel: clampSimulationLevel(sliderWaterLevel.value),
+    currentDownstreamLevel: estimateInteractiveDownstream(clampSimulationLevel(sliderWaterLevel.value)),
+    currentFlow: Math.round(simParams.inflowRate + sliderRainfall.value * 12),
+    currentOpening: safeOpening(gateOpening.value),
+    historyLevels: [{ time: 0, value: clampSimulationLevel(sliderWaterLevel.value) }],
+    historyFlows: [{ time: 0, value: Math.round(simParams.inflowRate + sliderRainfall.value * 12) }],
+  }
+  stopPoll()
+  startSimAnimation()
+
+  const token = userStore.token || localStorage.getItem('token') || ''
+  if (data.ws_endpoint || token) {
+    await connectSimStream({
+      simulationId: data.simulation_id,
+      wsEndpoint: data.ws_endpoint,
+      token,
+      onProgress: onSimProgress,
+      onError: () => startPoll(),
+    })
+  }
+  if (!wsConnected.value) {
+    startPoll()
+  }
+}
+
 async function handleStartSim() {
-  if (!canStart.value) return
+  if (!canStart.value || startingSim.value) return
+  if (simScene.value === 'custom' && !selectedScenarioId.value) {
+    ElMessage.warning(`请先在左侧${SCENARIO_LIBRARY_LABEL}选择场景`)
+    return
+  }
+  if (!scenarios.value.length) {
+    ElMessage.warning('场景库为空，请刷新或新建场景后再启动')
+    return
+  }
+  startingSim.value = true
   try {
-    const { scenarioId, modelId } = resolveScenarioId(simScene.value, scenarios.value)
-    const res = await startSimulation({
+    if (!models.value.length) await fetchModels()
+    simParams.initialLevel = clampSimulationLevel(sliderWaterLevel.value)
+    const { scenarioId, modelId } = resolveScenarioId(
+      simScene.value,
+      scenarios.value,
+      selectedScenarioId.value,
+      models.value,
+    )
+    await activateScenarioIfNeeded(scenarioId)
+
+    const startPayload = {
       ...simParams,
       scene: simScene.value,
       speed: simSpeed.value,
       gateOpening: gateOpening.value,
       scenarioId,
       modelId,
-    })
-    const data = res.data
-    activeSimulationId.value = data.simulation_id
-    simStatus.value = {
-      ...simStatus.value,
-      status: 'running',
-      elapsedSec: 0,
-      currentLevel: simParams.initialLevel,
-      currentDownstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
-      currentFlow: simParams.inflowRate,
-      currentOpening: safeOpening(gateOpening.value),
-      historyLevels: [{ time: 0, value: simParams.initialLevel }],
-      historyFlows: [{ time: 0, value: simParams.inflowRate }],
     }
+
+    const runStart = async () => {
+      const res = await startSimulation(startPayload)
+      await applyStartResult(res.data, scenarioId)
+      if (res.data.simulation_id.startsWith('MOCK-') && SIMULATION_USE_MOCK) {
+        ElMessage.success(`仿真已启动（本地模式）· ${sceneLabel.value} · ${simSpeed.value}x 倍速`)
+      } else {
+        ElMessage.success(`仿真已启动 · ${sceneLabel.value} · ${simSpeed.value}x 倍速`)
+      }
+    }
+
     stopPoll()
+    stopSimAnimation()
+    disconnectSimStream()
+    activeSimulationId.value = null
 
-    const token = userStore.token || localStorage.getItem('token') || ''
-    if (data.ws_endpoint || token) {
-      await connectSimStream({
-        simulationId: data.simulation_id,
-        wsEndpoint: data.ws_endpoint,
-        token,
-        onProgress: onSimProgress,
-        onError: () => startPoll(),
-      })
-    }
-    if (!wsConnected.value) {
-      startPoll()
-    }
+    await clearScenarioRunningTask(scenarioId, { activeSimulationId: null })
 
-    ElMessage.success(`仿真已启动 · ${sceneLabel.value} · ${simSpeed.value}x 倍速`)
-  } catch {
-    ElMessage.error('启动失败')
+    let lastErr: unknown
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await runStart()
+        lastErr = null
+        break
+      } catch (err) {
+        lastErr = err
+        if (isSimulationDraftScenarioError(err)) {
+          await activateScenarioIfNeeded(scenarioId)
+          continue
+        }
+        if (!isSimulationAlreadyRunningError(err)) throw err
+        await clearScenarioRunningTask(scenarioId, {
+          err,
+          activeSimulationId: activeSimulationId.value,
+        })
+        activeSimulationId.value = null
+      }
+    }
+    if (lastErr) throw lastErr
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '启动失败'
+    ElMessage.error(msg || '启动失败，请确认场景与模型已在后端配置')
+  } finally {
+    startingSim.value = false
   }
 }
 
@@ -571,21 +921,81 @@ async function handlePauseSim() {
   }
 }
 
-async function handleResetSim() {
-  try {
-    disconnectSimStream()
-    const id = activeSimulationId.value
-    if (id) await resetSimulation(id)
-    activeSimulationId.value = null
-    selectedGateIndex.value = -1
-    applyScenePreset(simScene.value)
-    await fetchSim()
-    startPoll()
-    mainSceneRef.value?.resetView()
-    ElMessage.success('仿真已重置')
-  } catch {
-    ElMessage.error('重置失败')
+function resetLocalSimState() {
+  simRunToken++
+  userAdjustedParams.value = false
+  stopPoll()
+  stopSimAnimation()
+  activeSimulationId.value = null
+  selectedGateIndex.value = -1
+  sliderRainfall.value = 0
+  disconnectSimStream()
+
+  const preset = getScenePreset(simScene.value)
+  if (simScene.value === 'custom' && selectedScenarioId.value) {
+    const item = scenarios.value.find((s) => s.id === selectedScenarioId.value)
+    if (item) {
+      const params = scenarioToSimulationParams(item)
+      simParams.scene = 'custom'
+      simParams.initialLevel = params.initialLevel
+      simParams.inflowRate = params.inflowRate
+      simParams.durationMin = params.durationMin
+      const opening = safeOpening(params.gateOpening ?? preset.gateOpening)
+      gateOpening.value = opening
+      syncGatesFromAggregate(opening)
+      sliderWaterLevel.value = params.initialLevel
+      simStatus.value = {
+        status: 'idle',
+        elapsedSec: 0,
+        currentLevel: params.initialLevel,
+        currentDownstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
+        currentFlow: params.inflowRate,
+        currentOpening: opening,
+        historyLevels: [],
+        historyFlows: [],
+      }
+      return
+    }
   }
+
+  simParams.scene = simScene.value
+  simParams.initialLevel = preset.initialLevel
+  simParams.inflowRate = preset.inflowRate
+  simParams.durationMin = preset.durationMin
+  gateOpening.value = preset.gateOpening
+  syncGatesFromAggregate(preset.gateOpening)
+  sliderWaterLevel.value = preset.initialLevel
+  simStatus.value = {
+    status: 'idle',
+    elapsedSec: 0,
+    currentLevel: preset.initialLevel,
+    currentDownstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
+    currentFlow: preset.inflowRate,
+    currentOpening: preset.gateOpening,
+    historyLevels: [],
+    historyFlows: [],
+  }
+}
+
+async function handleResetSim() {
+  const { scenarioId } = resolveScenarioId(
+    simScene.value,
+    scenarios.value,
+    selectedScenarioId.value,
+    models.value,
+  )
+  try {
+    await clearScenarioRunningTask(scenarioId, {
+      activeSimulationId: activeSimulationId.value,
+    })
+  } catch {
+    /* 本地仍重置 */
+  }
+
+  resetLocalSimState()
+  mainSceneRef.value?.resetView()
+  panoramaRef.value?.resizeScene()
+  ElMessage.success('仿真已重置')
 }
 
 async function handleActivateModel(id: number) {
@@ -596,13 +1006,117 @@ async function handleActivateModel(id: number) {
     fetchModels()
   } catch { /* */ }
 }
-async function handleUploadModel() {
-  try {
-    await uploadModel(new FormData())
-    ElMessage.success('模型导入成功')
-    fetchModels()
-  } catch { ElMessage.error('导入失败') }
+async function openModelRegistryDialog() {
+  modelRegistryVisible.value = true
+  registryKeyword.value = ''
+  await fetchRegistryModels()
 }
+
+async function fetchRegistryModels() {
+  registryLoading.value = true
+  try {
+    registryModels.value = (await getRegistryModelList(registryKeyword.value.trim() || undefined)).data
+  } catch {
+    registryModels.value = []
+    ElMessage.warning(`${MODEL_REGISTRY_LABEL}列表为空，请先上传模型`)
+  } finally {
+    registryLoading.value = false
+  }
+}
+
+async function handleRegistryUpload(opts: { file: File }) {
+  const formData = new FormData()
+  formData.append('file', opts.file)
+  formData.append('name', opts.file.name.replace(/\.[^.]+$/, ''))
+  formData.append('version', `v${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`)
+  formData.append('type', 'general')
+
+  registryUploading.value = true
+  registryUploadProgress.value = 0
+  const timer = setInterval(() => {
+    if (registryUploadProgress.value < 90) registryUploadProgress.value += 10
+  }, 200)
+
+  try {
+    const res = await uploadModel(formData)
+    clearInterval(timer)
+    registryUploadProgress.value = 100
+    ElMessage.success(`「${opts.file.name}」已上传至${MODEL_REGISTRY_LABEL}`)
+    registryUploadRef.value?.clearFiles()
+    await fetchRegistryModels()
+    if (res.data?.id) {
+      await handleImportFromRegistry(res.data.id)
+    }
+  } catch (err) {
+    clearInterval(timer)
+    registryUploadProgress.value = 0
+    const msg = isApiBusinessError(err)
+      ? err.message
+      : err instanceof Error
+        ? err.message
+        : '上传失败'
+    ElMessage.error(msg)
+  } finally {
+    registryUploading.value = false
+  }
+}
+
+function openModelVersionManagementPage() {
+  modelRegistryVisible.value = false
+  void router.push('/settings/models')
+}
+
+async function handleImportFromRegistry(id: number) {
+  const picked = registryModels.value.find((m) => m.id === id)
+  modelUploading.value = true
+  try {
+    const res = await importModelFromRegistry(id)
+    const ai = res.data
+    const idx = models.value.findIndex((m) => m.id === ai.id)
+    if (idx >= 0) {
+      models.value = models.value.map((m, i) => (i === idx ? ai : m))
+    } else {
+      models.value = [ai, ...models.value]
+    }
+    modelRegistryVisible.value = false
+    activeTab.value = 'model'
+    if (res.msg.includes('激活未成功')) {
+      ElMessage.warning(res.msg)
+    } else {
+      ElMessage.success(
+        res.msg ||
+          `已从模型版本管理导入「${picked?.name ?? ai.type} ${ai.version}」`,
+      )
+    }
+    try {
+      await fetchModels()
+    } catch {
+      /* 刷新列表失败不影响导入结果 */
+    }
+  } catch (err) {
+    const msg = isApiBusinessError(err)
+      ? err.message
+      : err instanceof Error
+        ? err.message
+        : '导入失败'
+    if (/模型文件不存在|\.pth|权重文件/.test(msg)) {
+      ElMessage.warning({ message: msg, duration: 8000, showClose: true })
+    } else {
+      ElMessage.error(msg || '导入失败')
+    }
+  } finally {
+    modelUploading.value = false
+  }
+}
+
+function registryTypeLabel(type: string) {
+  return MODEL_TYPE_MAP[type] ?? type
+}
+
+function registryStatusLabel(status: string) {
+  return REGISTRY_STATUS_MAP[status] ?? status
+}
+
 async function handleTrainModel(modelId: number) {
   try {
     await startTraining({ modelId, ...DEFAULT_TRAINING_CONFIG })
@@ -611,23 +1125,38 @@ async function handleTrainModel(modelId: number) {
 }
 async function handleGenerateReport() {
   const id = activeSimulationId.value
-  if (!id) {
-    ElMessage.warning('请先完成一次仿真')
+  const hasSimData =
+    simStatus.value.elapsedSec > 0 ||
+    simStatus.value.historyLevels.length > 0 ||
+    simStatus.value.status === 'running' ||
+    simStatus.value.status === 'paused' ||
+    simStatus.value.status === 'finished'
+
+  if (!id || !hasSimData) {
+    ElMessage.warning('请先点击底部「打开控制」启动仿真，运行后再生成报告')
     return
   }
+
   reportLoading.value = true
   try {
     const res = await generateReport(id, {
       scene: simScene.value,
       params: { ...simParams, scene: simScene.value },
       operatorName: userStore.userInfo?.nickname ?? userStore.userInfo?.username ?? '当前用户',
+      simStatus: {
+        ...simStatus.value,
+        historyLevels: [...simStatus.value.historyLevels],
+        historyFlows: [...simStatus.value.historyFlows],
+      },
+      gateOpening: gateOpening.value,
     })
-    ElMessage.success(res.data.filePath ? '报告已生成，可下载 PDF' : '报告已生成')
+    reports.value = [res.data, ...reports.value.filter((r) => r.id !== res.data.id)]
+    ElMessage.success('报告已生成，可在下方列表下载')
     await fetchReports()
     activeTab.value = 'report'
   } catch (err) {
     const msg = err instanceof Error ? err.message : '生成失败'
-    ElMessage.error(msg || '生成失败，请确认已登录且仿真已完成')
+    ElMessage.error(msg || '生成失败，请确认已完成仿真')
   } finally {
     reportLoading.value = false
   }
@@ -639,7 +1168,7 @@ async function handleDownloadReport(id: number) {
     const report = reports.value.find((r) => r.id === id)
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `方案评估报告_${report?.scene ?? 'sim'}_${id}.pdf`
+    a.download = `方案评估报告_${report?.scene ?? 'sim'}_${id}.txt`
     a.click()
     URL.revokeObjectURL(a.href)
   } catch (err) {
@@ -647,31 +1176,107 @@ async function handleDownloadReport(id: number) {
     ElMessage.error(msg)
   }
 }
+function applyImportedSimulationParams(
+  params: SimulationParams & { gateOpening?: number },
+  label?: string,
+  backendMsg?: string,
+) {
+  simScene.value = params.scene
+  Object.assign(simParams, params)
+  const opening = safeOpening(
+    params.gateOpening ?? getScenePreset(params.scene).gateOpening,
+  )
+  gateOpening.value = opening
+  syncGatesFromAggregate(opening)
+  sliderWaterLevel.value = params.initialLevel
+
+  simStatus.value = {
+    ...simStatus.value,
+    status: 'idle',
+    elapsedSec: 0,
+    currentLevel: params.initialLevel,
+    currentDownstreamLevel: XIANGJIABA_HYDRO.downstreamNormalLevel,
+    currentFlow: params.inflowRate,
+    currentOpening: opening,
+    historyLevels: [{ time: 0, value: params.initialLevel }],
+    historyFlows: [{ time: 0, value: params.inflowRate }],
+  }
+
+  activeTab.value = 'control'
+  viewMode.value = '3d'
+  const sceneName = SIMULATION_SCENE_MAP[params.scene]?.label ?? params.scene
+  ElMessage.success(
+    backendMsg ??
+      (label
+        ? `已导入「${label}」· ${sceneName} · 水位 ${params.initialLevel} m · 开度 ${opening}%`
+        : `已导入仿真参数 · ${sceneName}`),
+  )
+}
+
 async function handleImportToSim(id: number) {
+  const review = reviews.value.find((r) => r.id === id)
+  if (simStatus.value.status === 'running' || simStatus.value.status === 'paused') {
+    disconnectSimStream()
+    stopPoll()
+    const simId = activeSimulationId.value
+    if (simId) {
+      try {
+        await resetSimulation(simId)
+      } catch {
+        /* mock 重置失败不阻断导入 */
+      }
+    }
+    activeSimulationId.value = null
+    selectedGateIndex.value = -1
+  }
   try {
     const res = await importToSimulation(id)
-    Object.assign(simParams, res.data)
-    activeTab.value = 'control'
-    ElMessage.success('已导入仿真参数')
-  } catch { /* */ }
+    applyImportedSimulationParams(res.data, review?.faultType, res.msg || undefined)
+  } catch (err) {
+    if (isAuthError(err)) {
+      ElMessage.warning('登录已过期，请重新登录后再导入仿真')
+      return
+    }
+    // 后端 import-incident 400 时，仍用故障详情驱动前端参数，避免界面无反应
+    try {
+      const detail = review ?? (await getFaultReviewDetail(id)).data
+      if (detail) {
+        applyImportedSimulationParams(faultReviewToSimulationParams(detail), detail.faultType)
+        ElMessage.warning(
+          isApiBusinessError(err)
+            ? `后端导入未成功（${err.message}），已按故障记录应用本地仿真参数`
+            : '后端导入未成功，已按故障记录应用本地仿真参数',
+        )
+        return
+      }
+    } catch {
+      /* 详情也失败则走下方统一报错 */
+    }
+    const msg = isApiBusinessError(err)
+      ? err.message
+      : err instanceof Error
+        ? err.message
+        : '导入失败'
+    ElMessage.error(msg || '导入失败，请确认后端已配置故障记录')
+  }
 }
 
 // ── 8. 生命周期 ──
 onMounted(() => {
-  applyScenePreset(simScene.value)
   gateOpening.value = 100
   syncGatesFromAggregate(100)
   simStatus.value = { ...simStatus.value, currentOpening: 100 }
-  fetchScenarios()
+  applyInteractiveControl()
+  void fetchScenarios()
   fetchSim()
   fetchModels()
   fetchReports()
   fetchReviews()
   fetchPhysicsGuard()
-  startPoll()
 })
 onUnmounted(() => {
   stopPoll()
+  stopSimAnimation()
   disconnectSimStream()
   if (gateSyncTimer) clearTimeout(gateSyncTimer)
 })
@@ -679,31 +1284,36 @@ onUnmounted(() => {
 
 <template>
   <div class="sim-page sim-page--twin sim-page--sky">
-      <div v-if="virtualSimActive" class="sim-vsim-banner">
-        <ElTag type="success">虚拟仿真联动</ElTag>
-        <span>水位 {{ displayWaterLevel.toFixed(1) }} m · 开度 {{ displayGateOpening.toFixed(1) }}% · 入库 {{ displayFlowRate }} m³/s</span>
-      </div>
       <div class="sim-page__grid">
         <!-- 左栏：水情 + 曲线 + 场景库 -->
         <aside class="sim-page__col sim-page__col--left">
           <GlassPanel3D title="水情实时统计" compact class="twin-kpi-panel">
             <div class="twin-kpi-row">
               <div class="twin-kpi">
-                <div class="twin-kpi__ring" :style="{ '--pct': gaugePct + '%', '--c': levelStatus.color }">
+                <div
+                  class="twin-kpi__ring"
+                  :style="{ '--ring-deg': ringPctToDeg(gaugePct), '--c': levelStatus.color }"
+                >
                   <b>{{ displayWaterLevel.toFixed(2) }}</b>
                   <small>m</small>
                 </div>
                 <span>上游水位</span>
               </div>
               <div class="twin-kpi">
-                <div class="twin-kpi__ring twin-kpi__ring--flow">
+                <div
+                  class="twin-kpi__ring twin-kpi__ring--flow"
+                  :style="{ '--ring-deg': ringPctToDeg(flowGaugePct), '--c': '#1890ff' }"
+                >
                   <b>{{ displayFlowRate }}</b>
                   <small>m³/s</small>
                 </div>
                 <span>入库流量</span>
               </div>
               <div class="twin-kpi">
-                <div class="twin-kpi__ring twin-kpi__ring--gate">
+                <div
+                  class="twin-kpi__ring twin-kpi__ring--gate"
+                  :style="{ '--ring-deg': ringPctToDeg(gateGaugePct), '--c': '#22c55e' }"
+                >
                   <b>{{ displayGateOpening.toFixed(1) }}</b>
                   <small>%</small>
                 </div>
@@ -732,14 +1342,17 @@ onUnmounted(() => {
             </div>
           </GlassPanel3D>
 
-          <GlassPanel3D title="仿真场景库" compact fill class="twin-scenario-panel">
+          <GlassPanel3D :title="SCENARIO_LIBRARY_LABEL" compact fill class="twin-scenario-panel">
             <ScenarioListPanel
               :scenarios="scenarios"
               :loading="scenarioLoading"
+              :selected-id="selectedScenarioId"
+              :linked="simScene === 'custom'"
               @refresh="fetchScenarios"
               @create="openCreateScenario"
               @edit="openEditScenario"
               @delete="handleDeleteScenario"
+              @select="onSelectScenario"
             />
           </GlassPanel3D>
         </aside>
@@ -788,7 +1401,7 @@ onUnmounted(() => {
               :downstream-level="displayDownstreamLevel"
               :gate-opening="displayGateOpening"
               :gate-openings="displayGateOpenings"
-              :flow-rate="sceneFlowRate"
+              :flow-rate="displayFlowRate"
               :rainfall="sliderRainfall"
               :sim-scene="simScene"
               :sim-running="simActive"
@@ -911,17 +1524,20 @@ onUnmounted(() => {
                   :reports="reports"
                   :reviews="reviews"
                   :model-loading="modelLoading"
+                  :model-uploading="modelUploading"
                   :report-loading="reportLoading"
                   :review-loading="reviewLoading"
+                  :review-error="reviewLoadError"
                   compact
                   hide-tabs
                   @tab-change="onTabChange"
                   @activate="handleActivateModel"
-                  @upload="handleUploadModel"
+                  @open-model-registry="openModelRegistryDialog"
                   @train="handleTrainModel"
                   @generate="handleGenerateReport"
                   @download-report="handleDownloadReport"
                   @import-review="handleImportToSim"
+                  @refresh-reviews="fetchReviews"
                 />
               </div>
             </div>
@@ -932,11 +1548,11 @@ onUnmounted(() => {
       <DamPanoramaModal
         ref="panoramaRef"
         :visible="panoramaVisible"
-        :water-level="sliderWaterLevel"
-        :downstream-level="smoothDownstreamLevel"
+        :water-level="displayWaterLevel"
+        :downstream-level="displayDownstreamLevel"
         :gate-opening="displayGateOpening"
         :gate-openings="displayGateOpenings"
-        :flow-rate="sceneFlowRate"
+        :flow-rate="displayFlowRate"
         :rainfall="sliderRainfall"
         :sim-scene="simScene"
         :sim-speed="simSpeed"
@@ -952,6 +1568,8 @@ onUnmounted(() => {
         :selected-gate-index="selectedGateIndex"
         :selected-gate-opening="selectedGateOpening"
         :selected-gate-flow="selectedGateFlow"
+        :scenarios="scenarios"
+        :selected-scenario-id="selectedScenarioId"
         @close="panoramaVisible = false"
         @start="handleStartSim"
         @pause="handlePauseSim"
@@ -960,20 +1578,45 @@ onUnmounted(() => {
         @update:sim-speed="simSpeed = $event"
         @update:gate-opening="gateOpening = $event"
         @update:gate-opening-at="setGateOpeningAt"
-        @update:water-level="sliderWaterLevel = clampUpstreamLevel($event)"
-        @update:rainfall="sliderRainfall = $event"
+        @update:water-level="(v) => applyInteractiveControl({ level: v })"
+        @update:rainfall="(v) => applyInteractiveControl({ rainfall: v })"
+        @control-active="onControlActive"
+        @select-scenario="onSelectScenario"
         @gate-select="onGateSelect"
       />
 
       <ElDialog v-model="showParams" title="仿真参数" width="440px" destroy-on-close>
         <div class="param-panel__status">
           <ElTag size="small" :color="statusInfo?.color">{{ statusInfo?.label }}</ElTag>
-          <span>{{ SIMULATION_SCENE_MAP[simScene]?.label }}</span>
+          <span>{{ getSimulationSceneLabel(simScene) }}</span>
         </div>
         <ElForm label-position="top" class="param-form">
-          <ElFormItem label="预设场景" class="param-form__full">
+          <ElFormItem label="仿真场景" class="param-form__full">
             <ElSelect :model-value="simScene" @change="onSceneChange($event as SimulationScene)">
-              <ElOption v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :label="s.label" :value="s.value" />
+              <ElOption
+                v-for="s in SIMULATION_SCENE_OPTIONS"
+                :key="s.value"
+                :label="getSimulationSceneLabel(s.value)"
+                :value="s.value"
+              />
+            </ElSelect>
+          </ElFormItem>
+          <ElFormItem v-if="simScene === 'custom'" :label="SCENARIO_LIBRARY_LABEL" class="param-form__full">
+            <ElSelect
+              :model-value="selectedScenarioId"
+              placeholder="请选择场景"
+              style="width: 100%"
+              @change="(id: number) => {
+                const item = scenarios.find((s) => s.id === id)
+                if (item) onSelectScenario(item)
+              }"
+            >
+              <ElOption
+                v-for="s in scenarios"
+                :key="s.id"
+                :label="`#${s.id} · ${s.name}`"
+                :value="s.id"
+              />
             </ElSelect>
           </ElFormItem>
           <ElFormItem label="初始水位 (m)">
@@ -1039,12 +1682,137 @@ onUnmounted(() => {
           <ElButton type="primary" @click="submitScenarioForm">保存</ElButton>
         </template>
       </ElDialog>
+
+      <ElDialog
+        v-model="modelRegistryVisible"
+        :title="MODEL_REGISTRY_LABEL"
+        width="600px"
+        destroy-on-close
+      >
+        <div class="sim-registry-toolbar">
+          <ElInput
+            v-model="registryKeyword"
+            placeholder="搜索模型名称..."
+            clearable
+            @keyup.enter="fetchRegistryModels"
+          />
+          <ElButton :loading="registryLoading" @click="fetchRegistryModels">刷新</ElButton>
+          <ElUpload
+            ref="registryUploadRef"
+            :http-request="handleRegistryUpload"
+            :limit="1"
+            accept=".pt,.pth,.onnx,.h5,.pb,.zip"
+            :show-file-list="false"
+            :on-exceed="() => ElMessage.warning('仅允许上传一个文件')"
+          >
+            <ElButton type="primary" :icon="Upload" :loading="registryUploading">
+              {{ registryUploading ? `上传中 ${registryUploadProgress}%` : '上传模型' }}
+            </ElButton>
+          </ElUpload>
+        </div>
+        <p class="sim-registry-tip">
+          与「系统配置 → {{ MODEL_REGISTRY_LABEL }}」共用同一上传接口；支持 .pt / .pth / .onnx / .h5 / .pb / .zip，单文件 ≤ 500MB
+        </p>
+        <ElEmpty
+          v-if="!registryModels.length && !registryLoading"
+          :description="`暂无模型，请先上传或前往${MODEL_REGISTRY_LABEL}页面上传`"
+        />
+        <ul v-else class="sim-registry-list">
+          <li v-for="m in registryModels" :key="m.id" class="sim-registry-list__item">
+            <div class="sim-registry-list__main">
+              <strong>{{ m.name }}</strong>
+              <span>{{ registryTypeLabel(m.type) }} · {{ m.version }}</span>
+            </div>
+            <div class="sim-registry-list__meta">
+              {{ registryStatusLabel(m.status) }}
+              <template v-if="m.health_grade"> · 健康 {{ m.health_grade }}</template>
+            </div>
+            <ElButton
+              type="primary"
+              size="small"
+              :loading="modelUploading"
+              :disabled="m.status === 'deprecated'"
+              @click="handleImportFromRegistry(m.id)"
+            >
+              {{ m.status === 'active' ? '已激活 · 选用' : '导入并激活' }}
+            </ElButton>
+          </li>
+        </ul>
+        <template #footer>
+          <ElButton link type="primary" @click="openModelVersionManagementPage">
+            前往{{ MODEL_REGISTRY_LABEL }}完整页面
+          </ElButton>
+        </template>
+      </ElDialog>
     </div>
 </template>
 
 <style scoped lang="scss">
 @use '@/assets/styles/text-mixins.scss' as *;
 @use '@/assets/styles/cockpit.scss' as *;
+
+.sim-registry-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+
+  .el-input {
+    flex: 1;
+    min-width: 160px;
+  }
+}
+
+.sim-registry-tip {
+  margin: 0 0 12px;
+  font-size: $cockpit-font-sm;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.sim-registry-search {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sim-registry-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 360px;
+  overflow-y: auto;
+
+  &__item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 12px;
+    align-items: center;
+    padding: 10px 8px;
+    border-bottom: 1px solid rgba(24, 144, 255, 0.1);
+  }
+
+  &__main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    strong { color: #1e4976; font-size: $cockpit-font-base; }
+    span { color: #64748b; font-size: $cockpit-font-sm; }
+  }
+
+  &__meta {
+    grid-column: 1;
+    font-size: $cockpit-font-sm;
+    color: #94a3b8;
+  }
+
+  &__item > .el-button {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
 
 .sim-vsim-banner {
   display: flex;
@@ -1779,7 +2547,13 @@ onUnmounted(() => {
     height: 68px;
     margin: 0 auto 6px;
     border-radius: 50%;
-    background: conic-gradient(var(--c, #1890ff) var(--pct), #e2e8f0 0);
+    background: conic-gradient(
+      from -90deg,
+      var(--c, #1890ff) 0deg,
+      var(--c, #1890ff) var(--ring-deg, 0deg),
+      #e2e8f0 var(--ring-deg, 0deg),
+      #e2e8f0 360deg
+    );
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1801,12 +2575,8 @@ onUnmounted(() => {
     b { font-size: $cockpit-font-md; color: #1e4976; font-weight: 700; }
     small { font-size: $cockpit-font-sm; color: #64748b; }
 
-    &--flow {
-      background: conic-gradient(#1890ff 65%, #e2e8f0 0);
-    }
-    &--gate {
-      background: conic-gradient(#22c55e 45%, #e2e8f0 0);
-    }
+    &--flow { --c: #1890ff; }
+    &--gate { --c: #22c55e; }
   }
 
   &:hover &__ring {

@@ -5,6 +5,9 @@ import type { SimulationScenarioItem } from '@/types/simulation'
 defineProps<{
   scenarios: SimulationScenarioItem[]
   loading?: boolean
+  selectedId?: number | null
+  /** 当前是否处于场景库联动模式 */
+  linked?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -12,6 +15,7 @@ const emit = defineEmits<{
   create: []
   edit: [item: SimulationScenarioItem]
   delete: [item: SimulationScenarioItem]
+  select: [item: SimulationScenarioItem]
 }>()
 
 const TYPE_MAP: Record<string, string> = {
@@ -41,7 +45,16 @@ function formatDuration(sec?: number) {
     </div>
     <ElEmpty v-if="!scenarios.length && !loading" description="暂无场景，请新建" />
     <ul v-else class="scenario-panel__list">
-      <li v-for="item in scenarios" :key="item.id" class="scenario-panel__item">
+      <li
+        v-for="item in scenarios"
+        :key="item.id"
+        class="scenario-panel__item"
+        :class="{ 'scenario-panel__item--active': linked && selectedId === item.id }"
+        role="button"
+        tabindex="0"
+        @click="emit('select', item)"
+        @keydown.enter="emit('select', item)"
+      >
         <div class="scenario-panel__head">
           <strong>{{ item.name }}</strong>
         </div>
@@ -122,6 +135,26 @@ function formatDuration(sec?: number) {
     border: 1px solid #e2e8f0;
     border-radius: 6px;
     background: #f8fafc;
+    cursor: pointer;
+    transition:
+      border-color 0.2s ease,
+      background 0.2s ease,
+      box-shadow 0.2s ease;
+
+    &:hover {
+      border-color: rgba(24, 144, 255, 0.35);
+      background: #f0f7ff;
+    }
+
+    &--active {
+      border-color: rgba(24, 144, 255, 0.55);
+      background: linear-gradient(180deg, rgba(24, 144, 255, 0.12), rgba(24, 144, 255, 0.04));
+      box-shadow: 0 2px 8px rgba(24, 144, 255, 0.12);
+
+      .scenario-panel__head strong {
+        color: #1890ff;
+      }
+    }
   }
 
   &__head {

@@ -7,7 +7,19 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios'
 import { ElMessage } from 'element-plus'
-import { ApiBusinessError } from '@/utils/apiError'
+import { ApiBusinessError, isAuthBusinessCode } from '@/utils/apiError'
+
+function clearSessionAndRedirectToLogin() {
+  localStorage.removeItem('token')
+  localStorage.removeItem('userInfo')
+  localStorage.removeItem('tokenExpireTime')
+  sessionStorage.removeItem('token')
+  sessionStorage.removeItem('userInfo')
+  const loginPath = '/login'
+  if (window.location.pathname !== loginPath) {
+    window.location.href = loginPath + '?redirect=' + encodeURIComponent(window.location.pathname)
+  }
+}
 
 const http: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -39,11 +51,13 @@ http.interceptors.response.use(
     const data = response.data
     // 业务级错误（仅当 data 是 JSON 对象时处理）
     if (data && typeof data === 'object' && data.code !== undefined && data.code !== 0) {
-      // 认证类错误：只 reject，不删 token（删 token 会导致误登出）
-      if (data.code >= 20001 && data.code <= 20008) {
+      // 认证类错误：清除会话并跳转登录
+      if (isAuthBusinessCode(Number(data.code))) {
         if (import.meta.env.DEV) {
           console.warn('[API] 业务认证错误 (code=' + data.code + '): ' + data.msg)
         }
+        const isLoginRequest = response.config?.url?.includes('/auth/login')
+        if (!isLoginRequest) clearSessionAndRedirectToLogin()
         return Promise.reject(new ApiBusinessError(data.code, data.msg || '认证失败', data.data))
       }
       // 权限类业务错误：弹 toast 提醒用户（调用方可能未处理）
@@ -70,6 +84,16 @@ http.interceptors.response.use(
     } else {
       const status = error.response.status
       const body = error.response.data
+      const isLoginUrl = error.config?.url?.includes('/auth/login')
+      const bodyCode = body && typeof body === 'object' && body.code !== undefined
+        ? Number(body.code)
+        : null
+      const authFailed = status === 401 || (bodyCode != null && isAuthBusinessCode(bodyCode))
+
+      if (authFailed && !isLoginUrl) {
+        clearSessionAndRedirectToLogin()
+      }
+
       if (body && typeof body === 'object' && body.code !== undefined) {
         return Promise.reject(
           new ApiBusinessError(
@@ -79,21 +103,7 @@ http.interceptors.response.use(
           ),
         )
       }
-      // 401 → token 无效/过期，清除并跳转登录
-      if (status === 401) {
-        const isLoginUrl = error.config?.url?.includes('/auth/login')
-        if (!isLoginUrl) {
-          localStorage.removeItem('token')
-          localStorage.removeItem('userInfo')
-          localStorage.removeItem('tokenExpireTime')
-          sessionStorage.removeItem('token')
-          sessionStorage.removeItem('userInfo')
-          const loginPath = '/login'
-          if (window.location.pathname !== loginPath) {
-            window.location.href = loginPath + '?redirect=' + encodeURIComponent(window.location.pathname)
-          }
-        }
-      } else if ((error.config as any)?.silent === true) {
+      if ((error.config as any)?.silent === true) {
         // silent 标记：明确声明了兜底方案的请求，不弹 toast
         if (import.meta.env.DEV) {
           console.warn(`[API] ${status}（silent）:`, error.config?.url)
