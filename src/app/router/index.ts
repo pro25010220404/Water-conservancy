@@ -154,12 +154,15 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/settings/SettingsPage.vue'),
         meta: { title: '告警阈值配置', settingsTab: 'thresholds' },
       },
+      // 多目标权重配置页面已隐藏（后续可能恢复，先注释掉）
+      /*
       {
         path: 'settings/weights',
         name: 'SettingsWeights',
         component: () => import('@/views/settings/SettingsPage.vue'),
         meta: { title: '多目标权重配置', settingsTab: 'weights' },
       },
+      */
       {
         path: 'settings/models',
         name: 'SettingsModels',

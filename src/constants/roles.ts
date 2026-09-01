@@ -42,7 +42,7 @@ export const ROUTE_ROLES: Record<string, UserRole[]> = {
 
   // ── 基础运维配置 — 管理员 + 站长 ──
   '/settings/thresholds': ['admin', 'manager'],
-  '/settings/weights': ['admin', 'manager'],
+  // '/settings/weights': ['admin', 'manager'], // 多目标权重配置页面已隐藏
   '/settings/models': ['admin', 'manager', 'algorithm_engineer'],
   '/settings/users': ['admin', 'manager'],
   '/settings/role-pages': ['admin'],
@@ -115,7 +115,7 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: 'Setting',
     children: [
       { path: '/settings/thresholds', title: '告警阈值配置', icon: 'Setting' },
-      { path: '/settings/weights', title: '多目标权重配置', icon: 'Setting' },
+      // { path: '/settings/weights', title: '多目标权重配置', icon: 'Setting' }, // 已隐藏
       { path: '/settings/physics-guard', title: '物理防护配置', icon: 'Setting' },
       { path: '/settings/gate-interlock', title: '闸门互锁规则', icon: 'Setting' },
       { path: '/settings/users', title: '用户管理', icon: 'Setting' },

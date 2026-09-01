@@ -7,7 +7,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ElCard,
+  // ElCard, // 多目标权重配置页面已隐藏
   ElTable,
   ElTableColumn,
   ElInputNumber,
@@ -21,12 +21,12 @@ import {
   ElInput,
   ElSelect,
   ElOption,
-  ElSlider,
+  // ElSlider, // 多目标权重配置页面已隐藏
   ElUpload,
   ElMessage,
   ElMessageBox,
 } from 'element-plus'
-import { Plus, Upload, Search, Refresh, Warning, Download } from '@element-plus/icons-vue'
+import { Plus, Upload, Search, Refresh, /* Warning, */ Download } from '@element-plus/icons-vue'
 import ModelMetricsPanel from './components/ModelMetricsPanel.vue'
 import PhysicsGuardPanel from './components/PhysicsGuardPanel.vue'
 import PhysicsGuardHistoryPanel from './components/PhysicsGuardHistoryPanel.vue'
@@ -39,8 +39,8 @@ import {
   fetchThresholdList,
   toThresholdUpdatePayload,
   updateThreshold,
-  getWeights,
-  updateWeights,
+  /* getWeights, */
+  /* updateWeights, */
   getModels,
   activateModel,
   rollbackModel,
@@ -55,7 +55,7 @@ import {
   deleteUser,
   deleteModel,
 } from '@/api/settings'
-import type { ThresholdRule, WeightConfig, ModelInfo, SystemUser } from '@/shared/types'
+import type { ThresholdRule, /* WeightConfig, */ ModelInfo, SystemUser } from '@/shared/types'
 import {
   getUserStatusMeta,
   isUserLoginLocked,
@@ -70,7 +70,7 @@ const userStore = useUserStore()
 
 const SETTINGS_TAB_NAMES = [
   'thresholds',
-  'weights',
+  // 'weights', // 多目标权重配置页面已隐藏
   'models',
   'ai-metrics',
   'physics-guard',
@@ -83,14 +83,15 @@ const SETTINGS_TAB_NAMES = [
 // ── 5. 响应式数据 ──
 const activeTab = ref('thresholds')
 const saveLoadingTab1 = ref(false)
-const saveLoadingTab2 = ref(false)
+// const saveLoadingTab2 = ref(false) // 多目标权重配置页面已隐藏
 
 // Tab1: 阈值
 const thresholds = ref<ThresholdRule[]>([])
 const thresholdsLoading = ref(false)
 const thresholdsEditing = ref<Record<number, ThresholdRule>>({})
 
-// Tab2: 权重
+// Tab2: 权重（多目标权重配置页面已隐藏，代码保留待后续恢复）
+/*
 const weights = ref<WeightConfig | null>(null)
 const weightForm = ref({ power_weight: 0.4, safety_weight: 0.35, ecology_weight: 0.25 })
 const weightLoading = ref(false)
@@ -106,6 +107,7 @@ type Preset = (typeof presetOptions)[number]
 function applyPreset(p: Preset) {
   weightForm.value = { power_weight: p.power, safety_weight: p.safety, ecology_weight: p.ecology }
 }
+*/
 
 // 模型状态映射
 const modelTypeMap: Record<string, string> = {
@@ -263,7 +265,8 @@ async function exportUsers() {
   }
 }
 
-// ── 6. Computed (权重合计) ──
+// ── 6. Computed (权重合计)（多目标权重配置页面已隐藏）──
+/*
 const weightSum = computed(
   () =>
     +(
@@ -296,6 +299,7 @@ function onSliderChange(changed: string) {
     }
   })
 }
+*/
 
 // ── 模型上传 ──
 const uploadRef = ref()
@@ -401,6 +405,8 @@ const MOCK_THRESHOLDS: ThresholdRule[] = [
     enabled: 0,
   },
 ]
+// MOCK_WEIGHTS（多目标权重配置页面已隐藏，代码保留待后续恢复）
+/*
 const MOCK_WEIGHTS: WeightConfig = {
   id: 1,
   version: 'v2.1.0',
@@ -412,6 +418,7 @@ const MOCK_WEIGHTS: WeightConfig = {
   is_preset: 1,
   updated_at: '2026-07-03 09:00:00',
 }
+*/
 const MOCK_MODELS: ModelInfo[] = [
   {
     id: 1,
@@ -707,7 +714,8 @@ async function saveThreshold(id: number) {
   }
 }
 
-// -- Tab2 §8.2 多目标权重 --
+// -- Tab2 §8.2 多目标权重（多目标权重配置页面已隐藏，代码保留待后续恢复）--
+/*
 async function fetchWeights() {
   weightLoading.value = true
   try {
@@ -724,7 +732,7 @@ async function fetchWeights() {
       return
     }
   } catch {
-    /* API 不可用，降级 Mock */
+    // API 不可用，降级 Mock
   }
   weights.value = MOCK_WEIGHTS
   weightForm.value = {
@@ -768,6 +776,7 @@ async function saveWeights() {
     saveLoadingTab2.value = false
   }
 }
+*/
 
 // -- Tab3: 模型操作 --
 async function fetchModels() {
@@ -1093,7 +1102,7 @@ function syncTabFromRoute() {
   // 优先使用路由路径，其次使用 meta.settingsTab
   const pathTabMap: Record<string, string> = {
     '/settings/thresholds': 'thresholds',
-    '/settings/weights': 'weights',
+    // '/settings/weights': 'weights', // 多目标权重配置页面已隐藏
     '/settings/models': 'models',
     '/settings/users': 'users',
     '/settings/physics-guard': 'physics-guard',
@@ -1118,7 +1127,7 @@ function syncTabFromRoute() {
 // ── 按需懒加载：每个 Tab 只加载自己的数据 ──
 const TAB_FETCHERS: Record<string, () => void> = {
   thresholds: fetchThresholds,
-  weights: fetchWeights,
+  // weights: fetchWeights, // 多目标权重配置页面已隐藏
   models: fetchModels,
   users: fetchUsers,
 }
@@ -1271,7 +1280,8 @@ onMounted(() => {
       </ElTable>
     </template>
 
-    <!-- ═══ Tab2: 多目标权重 ═══ -->
+    <!-- ═══ Tab2: 多目标权重 ═══（已隐藏，恢复时删除本注释包裹）-->
+    <!--
     <template v-if="activeTab === 'weights'">
       <ElCard v-loading="weightLoading" class="settings-page__weight-card" shadow="never">
         <div class="weight-section">
@@ -1349,6 +1359,7 @@ onMounted(() => {
         </div>
       </ElCard>
     </template>
+    -->
 
     <!-- ═══ Tab3: 模型管理 ═══ -->
     <template v-if="activeTab === 'models'">
