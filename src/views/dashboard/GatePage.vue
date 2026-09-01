@@ -4,7 +4,6 @@ import { storeToRefs } from 'pinia'
 import { fetchGates, fetchGateActionLogs, fetchRealtimeKpi } from '@/api/monitoring'
 import { formatActionSource, formatGateControlMode } from '@/constants/dispatch'
 import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
-import { scaleGateOpening } from '@/utils/virtualSimulationEngine'
 
 const simStore = useVirtualSimulationStore()
 const { active: simActive, derived: simDerived } = storeToRefs(simStore)
@@ -14,13 +13,12 @@ const logs = ref<{ time: string; gate: string; action: string; actual: string; t
 const upstreamLevel = ref(378.5)
 const downstreamLevel = ref(269.2)
 
-/** 仿真激活时叠加开度，与节点控制同一套联动 */
+/** 仿真激活时叠加开度（静态工况，与节点控制同一套联动） */
 const displayGates = computed(() => {
   if (!simActive.value) return gates.value
-  const scale = simDerived.value.gateScale
   return gates.value.map((g) => ({
     ...g,
-    v: scaleGateOpening(g.v, scale),
+    v: simStore.overlayGateOpening(g.id, g.v),
   }))
 })
 

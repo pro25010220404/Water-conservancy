@@ -10,6 +10,7 @@ import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
 import { useDispatchStore } from '@/stores/dispatch'
 import { storeToRefs } from 'pinia'
 import { isGateOnline } from '@/utils/gateControl'
+import { fetchRealtimeKpi } from '@/api/monitoring'
 
 const router = useRouter()
 const simStore = useVirtualSimulationStore()
@@ -20,9 +21,10 @@ const { gates, selectedGateId, status, canManualControl } = storeToRefs(dispatch
 
 const aggregateOpening = computed(() => derived.value.aggregateOpening)
 
-const displayGates = computed(() =>
-  active.value ? simStore.overlayGates(gates.value) : gates.value,
-)
+const displayGates = computed(() => {
+  void derived.value.aggregateOpening
+  return active.value ? simStore.overlayGates(gates.value) : gates.value
+})
 
 const waterTrendLabel = computed(() => {
   if (derived.value.waterTrend === 'up') return '趋升'
@@ -31,9 +33,9 @@ const waterTrendLabel = computed(() => {
 })
 
 const PRESETS = [
-  { key: 'normal', label: '常水位', up: 175.7, down: 121.0, rain: 0 },
-  { key: 'flood', label: '汛限偏高', up: 185.0, down: 125.0, rain: 35 },
-  { key: 'dry', label: '枯水偏低', up: 165.0, down: 118.0, rain: 0 },
+  { key: 'normal', label: '正常蓄水', up: 380.0, down: 278.4, rain: 0 },
+  { key: 'flood', label: '汛限偏高', up: 381.5, down: 280.0, rain: 35 },
+  { key: 'dry', label: '接近死水位', up: 374.5, down: 276.0, rain: 0 },
 ] as const
 
 async function refreshPreview() {
@@ -99,6 +101,12 @@ watch([upstreamLevel, downstreamLevel, rainfall], () => {
 
 onMounted(async () => {
   await dispatchStore.refreshCore()
+  try {
+    const kpi = await fetchRealtimeKpi(1)
+    simStore.initBaselineFromKpi(kpi)
+  } catch {
+    /* 无 KPI 时沿用向家坝默认基准 */
+  }
   if (!selectedGateId.value && gates.value.length) {
     selectedGateId.value =
       gates.value.find((g) => isGateOnline(g.status))?.id ?? gates.value[0].id
@@ -111,7 +119,7 @@ onMounted(async () => {
     <div class="vsim-guide">
       <div class="vsim-guide__main">
         <strong>虚拟仿真</strong>
-        <span>手动调参预览（非 AI 训练）。调节上下游水位/降雨 → 预览联动 → 应用后同步至节点控制、数字孪生、监控大屏。</span>
+        <span>手动调参预览（非 AI 训练）。调节上下游水位/降雨 → 预览联动 → 应用后同步至节点控制、监控大屏（数字孪生页保持独立）。</span>
       </div>
       <div class="vsim-guide__tags">
         <ElTag v-if="active" type="success" size="large">仿真生效中</ElTag>
@@ -164,8 +172,8 @@ onMounted(async () => {
           </div>
           <ElSlider
             v-model="upstreamLevel"
-            :min="110"
-            :max="200"
+            :min="370"
+            :max="383.5"
             :step="0.1"
             :disabled="locked"
             show-input
@@ -180,8 +188,8 @@ onMounted(async () => {
           </div>
           <ElSlider
             v-model="downstreamLevel"
-            :min="80"
-            :max="180"
+            :min="260"
+            :max="290"
             :step="0.1"
             :disabled="locked"
             show-input
