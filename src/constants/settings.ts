@@ -73,7 +73,7 @@ export const USER_ROLE_OPTIONS = [
 // ---------- 系统设置 — Tab 与路由映射 ----------
 export const SETTINGS_TAB_ROUTES = {
   thresholds: '/settings/thresholds',
-  weights: '/settings/weights',
+  // weights: '/settings/weights', // 多目标权重配置页面已隐藏
   models: '/settings/models',
   users: '/settings/users',
   'physics-guard': '/settings/physics-guard',
