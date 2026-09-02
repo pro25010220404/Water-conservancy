@@ -1,4 +1,4 @@
-// 泄洪闸叶启闭 — 3D 场景与泄流计算共用
+// 泄洪阀叶启闭 — 3D 场景与泄流计算共用
 export const GATE_SILL_Y = 4.5
 export const LINTEL_BOTTOM_Y = 15.5
 export const GATE_LEAF_BASE_Y = 6
@@ -42,6 +42,6 @@ export function applyGateLeafTransform(
   const t = gateLeafTransform(openRatio, baseY, baseScaleY)
   object.position.y = t.positionY
   object.scale.y = t.scaleY
-  // 全开时仍保持可见（缩成门楣细条），便于点选/描边，避免“孔空了却显示闸门”
+  // 全开时仍保持可见（缩成门楣细条），便于点选/描边，避免“孔空了却显示阀门”
   if ('visible' in object) object.visible = true
 }

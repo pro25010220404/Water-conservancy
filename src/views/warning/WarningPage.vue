@@ -254,7 +254,7 @@ onUnmounted(() => {
                 <span>上游水位</span><strong>{{ row.snapshot.upstreamLevel }} m</strong>
                 <span>下游水位</span><strong>{{ row.snapshot.downstreamLevel }} m</strong>
                 <span>流量</span><strong>{{ row.snapshot.flowRate }} m³/s</strong>
-                <span>闸门开度</span><strong>{{ row.snapshot.gateOpening }}%</strong>
+                <span>阀门开度</span><strong>{{ row.snapshot.gateOpening }}%</strong>
                 <span>快照时间</span><strong class="mono">{{ formatTime(row.snapshot.recordedAt) }}</strong>
               </div>
             </template>

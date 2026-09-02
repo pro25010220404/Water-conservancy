@@ -298,7 +298,7 @@ function onGoControl() {
                 </dd>
               </div>
               <div class="metric-dl__row">
-                <dt>闸门限位</dt>
+                <dt>阀门限位</dt>
                 <dd :class="{ 'is-abnormal': physicsValidation.gate_limit_touched }">
                   {{ physicsValidation.gate_limit_touched ? '✗ 已触碰限位' : '✓ 未触碰' }}
                 </dd>

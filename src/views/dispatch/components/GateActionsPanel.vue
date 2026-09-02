@@ -45,7 +45,7 @@ onMounted(load)
     <ElTable v-loading="loading" :data="list" stripe border class="gate-actions-panel__table">
       <ElTableColumn prop="acted_at" label="动作时间" min-width="180" />
       <ElTableColumn label="设备" min-width="90">
-        <template #default="{ row }">{{ (row as GateAction).equipment_id }}#闸</template>
+        <template #default="{ row }">{{ (row as GateAction).equipment_id }}#阀</template>
       </ElTableColumn>
       <ElTableColumn label="开度变化" min-width="170">
         <template #default="{ row }">

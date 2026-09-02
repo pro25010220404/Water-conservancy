@@ -36,7 +36,7 @@ export interface PhysicsGuardConfig {
   fusion_l3_risk: number
   fusion_l2_confidence: number
   fusion_l2_risk: number
-  // 闸门参数
+  // 阀门参数
   gate_max_discharge: number[]
 }
 

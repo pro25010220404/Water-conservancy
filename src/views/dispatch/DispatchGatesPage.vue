@@ -37,10 +37,11 @@ const {
   precheckResult,
 } = storeToRefs(store)
 
-/** 虚拟仿真激活时，叠加仿真数据 */
-const displayGates = computed(() =>
-  simActive.value ? simStore.overlayGates(gates.value) : gates.value,
-)
+/** 虚拟仿真激活时，叠加仿真数据（静态工况） */
+const displayGates = computed(() => {
+  void simDerived.value.aggregateOpening
+  return simActive.value ? simStore.overlayGates(gates.value) : gates.value
+})
 const displayUpstreamLevel = computed(() =>
   simActive.value ? simDerived.value.upstreamLevel : status.value.upstreamLevel,
 )
@@ -404,7 +405,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 
     <!-- 下方：左列表 + 右详情 -->
     <div class="gates-body">
-      <GlassPanel3D title="闸门节点" fill class="gates-panel gates-panel--list">
+      <GlassPanel3D title="阀门节点" fill class="gates-panel gates-panel--list">
         <template v-for="(list, group) in groupedGates" :key="group">
           <div class="gate-group-label">{{ groupLabels[group as GateGroup] }}</div>
           <div

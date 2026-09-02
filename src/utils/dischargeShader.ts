@@ -10,7 +10,7 @@ import {
 
 export { GATE_SILL_Y, LINTEL_BOTTOM_Y }
 export const DISCHARGE_X = 6.2
-/** 闸门开孔满宽（与 bay 宽 3.2 对齐，略外扩铺满） */
+/** 阀门开孔满宽（与 bay 宽 3.2 对齐，略外扩铺满） */
 export const GATE_OPENING_WIDTH = 2.85
 
 export interface DischargeMetrics {
@@ -119,7 +119,7 @@ export function gateOutletY(openRatio: number) {
 }
 
 /**
- * 泄流水幕：顶端贴闸叶下沿（泄流口），底端接到下游水面，禁止截断后悬空。
+ * 泄流水幕：顶端贴阀叶下沿（泄流口），底端接到下游水面，禁止截断后悬空。
  */
 export function computeDischargeMetrics(
   openRatio: number,
@@ -129,7 +129,7 @@ export function computeDischargeMetrics(
   const r = Math.min(1, Math.max(0, openRatio))
   if (r < 0.02) return { ...INVISIBLE, opening: r }
 
-  // 泄流口 = 闸叶下沿（全开时贴近门楣）
+  // 泄流口 = 阀叶下沿（全开时贴近门楣）
   let topY = leafBottomY ?? gateOutletY(r)
   topY = Math.min(Math.max(topY, GATE_SILL_Y + 0.6), LINTEL_BOTTOM_Y - 0.12)
 

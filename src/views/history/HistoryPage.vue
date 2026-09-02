@@ -45,7 +45,7 @@ const metricOptions = [
   { value: 'downstreamLevel', label: '下游水位', unit: 'm', color: '#06b6d4' },
   { value: 'inflowRate', label: '入库流量', unit: 'm³/s', color: '#8b5cf6' },
   { value: 'outflowRate', label: '出库流量', unit: 'm³/s', color: '#22c55e' },
-  { value: 'gateOpening', label: '闸门开度', unit: '%', color: '#f59e0b' },
+  { value: 'gateOpening', label: '阀门开度', unit: '%', color: '#f59e0b' },
   { value: 'powerOutput', label: '发电功率', unit: 'MW', color: '#ef4444' },
 ]
 const granularityOptions = [
@@ -81,8 +81,8 @@ function generateMock() {
     })
   }
   arr[20].event = { type: 'alarm', label: '水位超预警', color: '#ef4444' }
-  arr[45].event = { type: 'dispatch', label: '闸门调度', color: '#3b82f6' }
-  arr[70].event = { type: 'gate', label: '3#闸门动作', color: '#f59e0b' }
+  arr[45].event = { type: 'dispatch', label: '阀门调度', color: '#3b82f6' }
+  arr[70].event = { type: 'gate', label: '3#阀门动作', color: '#f59e0b' }
   allData.value = arr
 }
 
@@ -370,7 +370,7 @@ tableData.value = [...allData.value]
               >
             </div>
             <div class="rep__item">
-              <span>闸门开度</span
+              <span>阀门开度</span
               ><b
                 >最大 {{ reportData.gateOpening.max }}% / 最小 {{ reportData.gateOpening.min }}% /
                 平均 {{ reportData.gateOpening.avg }}%</b

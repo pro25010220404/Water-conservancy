@@ -49,7 +49,7 @@ export const METRIC_LABEL_MAP: Record<string, string> = {
   downstream_level: '下游水位',
   inflow_rate: '入库流量',
   outflow_rate: '出库流量',
-  gate_opening: '闸门开度',
+  gate_opening: '阀门开度',
   power_output: '发电功率',
 }
 

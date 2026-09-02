@@ -46,7 +46,7 @@ const now = computed(() => {
 智慧水利数字孪生驾驶舱
 </h1>
       <p class="cockpit-header__subtitle">
-向家坝水电站闸门智能调度系统
+向家坝水电站阀门智能调度系统
 </p>
     </div>
     <nav class="cockpit-header__nav">

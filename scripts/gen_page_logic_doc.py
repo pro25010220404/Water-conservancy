@@ -83,7 +83,7 @@ def main():
 
     h(doc, '0.2 全局规则', 2)
     tbl(doc, ['规则', '说明'], [
-        ['手动模式', 'mode=manual 或 autoLevel=1 才能调闸；否则节点控制全禁用'],
+        ['手动模式', 'mode=manual 或 autoLevel=1 才能调阀；否则节点控制全禁用'],
         ['opening vs target', 'opening=设备当前开度；target=用户待下发；两者不等=待提交'],
         ['离线孔', 'status=offline 不可调不可执行（11# 12# 底孔默认离线）'],
         ['开度范围', '0–100%，步长 1%'],
@@ -115,7 +115,7 @@ def main():
         ['一键应用仿真', '无', 'active=true；全站 overlay 仿真 KPI', '无（前端标记）'],
         ['节点控制', '无', '跳 /dispatch/gates', '—'],
         ['数字孪生', '无', '跳 /simulation', '—'],
-        ['去节点控制调闸', 'manual 或 L1', '否则跳运行控制', '✓ 读 mode（现 Mock）'],
+        ['去节点控制调阀', 'manual 或 L1', '否则跳运行控制', '✓ 读 mode（现 Mock）'],
         ['坝体点孔', '无', '选中 gateId', '✓ GET gates'],
     ])
 
@@ -135,7 +135,7 @@ def main():
 
     # ═══════════════════════════════════════
     h(doc, '2. 节点控制页')
-    p(doc, '布局：顶操作栏 | 坝体剖面 | 左闸门列表 | 右孔详情 | 底待提交表')
+    p(doc, '布局：顶操作栏 | 坝体剖面 | 左阀门列表 | 右孔详情 | 底待提交表')
 
     h(doc, '2.1 按钮逻辑 + 规则 + 接口', 2)
     tbl(doc, ['按钮', '规则（前置）', '点击后逻辑', '接口'], [
@@ -201,7 +201,7 @@ def main():
         ['暂停', 'running', '暂停', '✓ POST /v1/simulation/{id}/pause'],
         ['继续', 'paused', '恢复', '✓ POST /v1/simulation/{id}/resume'],
         ['重置', 'running/paused', '重置', '✓ POST /v1/simulation/{id}/reset'],
-        ['调闸门开度', 'running', '400ms 防抖提交', '✓ PUT /v1/simulation/{id}/gate'],
+        ['调阀门开度', 'running', '400ms 防抖提交', '✓ PUT /v1/simulation/{id}/gate'],
         ['新建场景', '无', '创建', '✓ POST /v1/simulation/scenarios'],
         ['刷新', '无', '拉列表', '✓ GET /v1/simulation/scenarios'],
         ['编辑/删除场景', '删除时 usage_count=0', 'CRUD', '✓ PUT/DELETE .../scenarios/{id}'],

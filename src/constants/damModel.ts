@@ -15,9 +15,9 @@ export const DAM_MODEL_URL = `/models/xiangjiaba-dam.glb?v=${DAM_MODEL_VERSION}`
 export const DAM_MODEL_ROTATION_Y = 0
 
 /**
- * 闸门网格命名规则（GLB 内节点名需匹配，便于开度动画绑定）
- * - gateLeaf_0 … gateLeaf_N  闸门叶（沿 Y 轴抬升）
- * - N号闸门                  闸室组（hover 交互）
+ * 阀门网格命名规则（GLB 内节点名需匹配，便于开度动画绑定）
+ * - gateLeaf_0 … gateLeaf_N  阀门叶（沿 Y 轴抬升）
+ * - N号阀门                  阀室组（hover 交互）
  */
 export const DAM_GATE_NAME_PREFIX = 'gateLeaf_'
 export const DAM_GATE_COUNT = 5
@@ -35,5 +35,5 @@ export const DAM_MODEL_OFFSET = { x: 0, y: 0, z: 0 } as const
  * - Sketchfab 搜索 "hydroelectric dam" + Downloadable + CC 许可
  * - Poly Haven https://polyhaven.com/models
  * - Meshy CC0 dam 标签 https://www.meshy.ai/tags/dam
- * 替换后请在 Blender 中为闸门叶命名为 gateLeaf_0 … gateLeaf_4
+ * 替换后请在 Blender 中为阀门叶命名为 gateLeaf_0 … gateLeaf_4
  */

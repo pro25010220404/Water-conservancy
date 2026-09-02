@@ -44,7 +44,7 @@ interface ActionRow { field: string; type: string; threshold: number }
 const TRIGGER_FIELDS = [
   { label: '溢洪道开度', value: 'spillway_opening' },
   { label: '泄洪洞开度', value: 'tunnel_opening' },
-  { label: '发电闸开度', value: 'intake_opening' },
+  { label: '发电阀开度', value: 'intake_opening' },
   { label: '总开度', value: 'total_opening' },
   { label: '上游水位', value: 'upstream_level' },
   { label: '下游水位', value: 'downstream_level' },
@@ -69,8 +69,8 @@ const ACTION_TYPES = [
 ]
 
 const ACTION_FIELDS = [
-  { label: '发电闸上限', value: 'intake_max' },
-  { label: '发电闸开度', value: 'intake_opening' },
+  { label: '发电阀上限', value: 'intake_max' },
+  { label: '发电阀开度', value: 'intake_opening' },
   { label: '泄洪洞开度', value: 'tunnel_opening' },
   { label: '溢洪道开度', value: 'spillway_opening' },
   { label: '总开度', value: 'total_opening' },

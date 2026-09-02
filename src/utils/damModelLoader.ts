@@ -1,5 +1,5 @@
 // ============================================================
-// 大坝 GLB 加载器 — 保持原始坐标，PBR 烘焙，闸门开度绑定
+// 大坝 GLB 加载器 — 保持原始坐标，PBR 烘焙，阀门开度绑定
 // ============================================================
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
@@ -71,7 +71,7 @@ function collectHoverables(root: THREE.Object3D): THREE.Object3D[] {
     if (!obj.name || obj.name === '坝顶') return
     if (
       obj.name.includes('坝') ||
-      obj.name.includes('闸门') ||
+      obj.name.includes('阀门') ||
       obj.name.includes('厂房') ||
       obj.name.startsWith(DAM_GATE_NAME_PREFIX) ||
       obj.name.startsWith('pier_')
@@ -159,7 +159,7 @@ export function loadDamModel(
         root.renderOrder = 1
 
         enhanceMaterials(root, envMap)
-        // 混元 GLB 保留导出材质；程序化 pier/闸门才重烘焙 PBR
+        // 混元 GLB 保留导出材质；程序化 pier/阀门才重烘焙 PBR
         const gateLeaves = collectGateLeaves(root)
         if (gateLeaves.length === 0) {
           enhanceGltfDamVisibility(root, envMap)
@@ -226,7 +226,7 @@ export function applyTwinLightBackgroundMaterials(root: THREE.Object3D) {
       const isGateLeaf =
         obj.name.startsWith(DAM_GATE_NAME_PREFIX) || /^gateLeaf_\d+$/.test(obj.name)
       const isPier = obj.name.startsWith('pier_')
-      const isGateSteel = obj.name.includes('闸门') && !isGateLeaf
+      const isGateSteel = obj.name.includes('阀门') && !isGateLeaf
 
       if (isGateLeaf) {
         m.color.setHex(0x4a5568)
@@ -287,7 +287,7 @@ export function collectDamMeshes(root: THREE.Object3D): THREE.Object3D[] {
   return meshes
 }
 
-/** 为坝体全部网格烘焙 PBR（含 pier / 闸墩 / 坝体） */
+/** 为坝体全部网格烘焙 PBR（含 pier / 阀墩 / 坝体） */
 export function rebakeDamPBR(root: THREE.Object3D, envMap?: THREE.Texture | null) {
   const concreteTex = createConcreteTextures(1024)
   const metalTex = createMetalTextures(1024)
@@ -298,7 +298,7 @@ export function rebakeDamPBR(root: THREE.Object3D, envMap?: THREE.Texture | null
 
     const isSteel =
       obj.name.startsWith(DAM_GATE_NAME_PREFIX) ||
-      obj.name.includes('闸门') ||
+      obj.name.includes('阀门') ||
       obj.name.startsWith('pier_')
 
     if (isSteel) {
@@ -366,7 +366,7 @@ export function getTwinCinematicCamera(root: THREE.Object3D, heroCenter: THREE.V
   }
 }
 
-/** 仿真运行 — 近景聚焦坝体与闸门区域 */
+/** 仿真运行 — 近景聚焦坝体与阀门区域 */
 export function getSimulationFocusCamera(root: THREE.Object3D, heroCenter: THREE.Vector3) {
   const box = new THREE.Box3().setFromObject(root)
   const size = box.getSize(new THREE.Vector3())
@@ -415,7 +415,7 @@ export function applyPanoramaConcreteMaterial(root: THREE.Object3D, envMap?: THR
     if (!(obj instanceof THREE.Mesh)) return
     if (obj.name.startsWith('phWindow_')) return
     const isPier = obj.name.startsWith('pier_')
-    const isGate = obj.name.startsWith(DAM_GATE_NAME_PREFIX) || obj.name.includes('闸门')
+    const isGate = obj.name.startsWith(DAM_GATE_NAME_PREFIX) || obj.name.includes('阀门')
     if (isGate) {
       obj.material = new THREE.MeshStandardMaterial({
         color: 0x6a7580,

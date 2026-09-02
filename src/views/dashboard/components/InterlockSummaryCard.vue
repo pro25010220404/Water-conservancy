@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // ============================================================
-// 闸门互锁摘要卡片 (D-99 / D-100 / D-102)
+// 阀门互锁摘要卡片 (D-99 / D-100 / D-102)
 // 综合概览右侧栏 — 触发计数 + 最近规则 + 快捷入口
 // ============================================================
 import { computed, onMounted, ref } from 'vue'
@@ -59,7 +59,7 @@ onMounted(async () => {
   <div class="il-card">
     <!-- 标题 -->
     <div class="il-card__header">
-      <h2 class="il-card__title">闸门互锁</h2>
+      <h2 class="il-card__title">阀门互锁</h2>
     </div>
 
     <!-- D-99: 触发计数徽章 -->

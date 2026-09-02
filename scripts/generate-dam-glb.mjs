@@ -1,5 +1,5 @@
 /**
- * 导出向家坝大坝 GLB（含 gateLeaf_0…4 命名，供 GLTFLoader 闸门动画绑定）
+ * 导出向家坝大坝 GLB（含 gateLeaf_0…4 命名，供 GLTFLoader 阀门动画绑定）
  * 运行: npm run generate:dam
  */
 import * as THREE from 'three'
@@ -64,7 +64,7 @@ function buildDamScene() {
     if (i < pierZs.length - 1) {
       const midZ = (z + pierZs[i + 1]) / 2
       const bay = new THREE.Group()
-      bay.name = `${i + 1}号闸门`
+      bay.name = `${i + 1}号阀门`
 
       const frame = new THREE.Mesh(new THREE.BoxGeometry(0.55, 11, 3.2, 1, 8, 3), steel)
       frame.position.set(6.2, 10, midZ)
@@ -120,7 +120,7 @@ exporter.parse(
   (buffer) => {
     fs.writeFileSync(outFile, Buffer.from(buffer))
     console.log(`✓ 已导出 ${outFile} (${(buffer.byteLength / 1024).toFixed(1)} KB)`)
-    console.log('  闸门节点: gateLeaf_0 … gateLeaf_4')
+    console.log('  阀门节点: gateLeaf_0 … gateLeaf_4')
     console.log('  替换素材: 下载 glb 覆盖此文件，保持 gateLeaf_* 命名即可')
   },
   (err) => {

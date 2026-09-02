@@ -1,4 +1,4 @@
-# 水利综合管理系统
+# 水电站阀门智能调度系统
 
 > 本项目为水利业务管理前后端协同开发系统
 > 技术栈：前端 Vue 3 + Vite + TypeScript + Element Plus + Pinia | 后端 Laravel

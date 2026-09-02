@@ -150,7 +150,7 @@ export interface DispatchRecord {
   snapshot?: DispatchRecordSnapshot
 }
 
-// ---------- 闸门动作历史（§4.6）----------
+// ---------- 阀门动作历史（§4.6）----------
 export interface GateAction {
   id: number
   equipment_id: number

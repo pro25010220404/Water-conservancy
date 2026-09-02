@@ -4,9 +4,13 @@ import ThreeDamScene from '@/components/cockpit/ThreeDamScene.vue'
 import {
   SIMULATION_SCENE_OPTIONS,
   SIMULATION_SCENE_MAP,
+  SCENARIO_LIBRARY_LABEL,
+  getSimulationSceneLabel,
+  clampSimulationLevel,
+  SIMULATION_LEVEL_MIN,
   SPEED_OPTIONS,
 } from '@/constants/simulation'
-import type { SimulationScene, SimulationSpeed, SimulationRealtimeData } from '@/types/simulation'
+import type { SimulationScene, SimulationSpeed, SimulationRealtimeData, SimulationScenarioItem } from '@/types/simulation'
 
 const props = defineProps<{
   visible: boolean
@@ -29,6 +33,8 @@ const props = defineProps<{
   selectedGateIndex?: number
   selectedGateOpening?: number
   selectedGateFlow?: number
+  scenarios?: SimulationScenarioItem[]
+  selectedScenarioId?: number | null
   /** 调度方案预览 — 仅展示 3D，隐藏仿真控制 */
   preview?: boolean
   previewPlanName?: string
@@ -47,6 +53,8 @@ const emit = defineEmits<{
   'update:gate-opening-at': [index: number, opening: number]
   'update:water-level': [level: number]
   'update:rainfall': [mm: number]
+  'control-active': [active: boolean]
+  'select-scenario': [item: SimulationScenarioItem]
   'gate-select': [index: number]
 }>()
 
@@ -56,6 +64,7 @@ function safeNum(v: number, fallback = 0) {
 
 const safeGateOpening = computed(() => safeNum(props.gateOpening, 100))
 const safeWaterLevel = computed(() => safeNum(props.waterLevel, 380))
+const clampedModalWaterLevel = computed(() => clampSimulationLevel(safeWaterLevel.value))
 const safeDownstreamLevel = computed(() => safeNum(props.downstreamLevel, 277))
 const safeFlowRate = computed(() => safeNum(props.flowRate, 1911))
 const safeGateOpenings = computed(() =>
@@ -69,8 +78,17 @@ const activeGateOpening = computed(() => safeNum(props.selectedGateOpening ?? 0,
 const activeGateFlow = computed(() => safeNum(props.selectedGateFlow ?? 0, 0))
 const safeRainfall = computed(() => safeNum(props.rainfall ?? 0, 0))
 
+function onSliderPointer(active: boolean) {
+  emit('control-active', active)
+}
+
 const sceneRef = ref<InstanceType<typeof ThreeDamScene> | null>(null)
 const sceneInfo = computed(() => SIMULATION_SCENE_MAP[props.simScene])
+const isScenarioLibrary = computed(() => props.simScene === 'custom')
+const scenarioOptions = computed(() => props.scenarios ?? [])
+const selectedScenarioName = computed(() =>
+  scenarioOptions.value.find((s) => s.id === props.selectedScenarioId)?.name ?? '',
+)
 const simActive = computed(
   () =>
     props.simStatus.status === 'running' ||
@@ -132,7 +150,7 @@ defineExpose({
             <template v-if="preview">
               <div class="sim-modal__scene-brief">
                 <h3>{{ previewPlanName || '当前方案' }}</h3>
-                <p>基于 AI 调度方案预览闸门开度与上下游水位效果</p>
+                <p>基于 AI 调度方案预览阀门开度与上下游水位效果</p>
               </div>
 
               <div class="sim-modal__kpis">
@@ -167,12 +185,18 @@ defineExpose({
 
             <template v-else>
               <div class="sim-modal__scene-brief">
-                <h3>{{ sceneInfo?.label }}</h3>
-                <p>{{ sceneInfo?.description }}</p>
+                <h3>{{ isScenarioLibrary && selectedScenarioName ? selectedScenarioName : sceneInfo?.label }}</h3>
+                <p>
+                  {{
+                    isScenarioLibrary
+                      ? `从${SCENARIO_LIBRARY_LABEL}加载的工况参数，可在左侧列表切换场景`
+                      : sceneInfo?.description
+                  }}
+                </p>
               </div>
 
               <div class="sim-modal__field">
-                <label>预设场景</label>
+                <label>仿真场景</label>
                 <select
                   class="sim-modal__select"
                   :value="simScene"
@@ -185,7 +209,28 @@ defineExpose({
                   "
                 >
                   <option v-for="s in SIMULATION_SCENE_OPTIONS" :key="s.value" :value="s.value">
-                    {{ s.label }}
+                    {{ getSimulationSceneLabel(s.value) }}
+                  </option>
+                </select>
+              </div>
+
+              <div v-if="isScenarioLibrary" class="sim-modal__field">
+                <label>{{ SCENARIO_LIBRARY_LABEL }}</label>
+                <select
+                  class="sim-modal__select"
+                  :value="selectedScenarioId ?? ''"
+                  :disabled="!canStart || !scenarioOptions.length"
+                  @change="
+                    (e) => {
+                      const id = Number((e.target as HTMLSelectElement).value)
+                      const item = scenarioOptions.find((s) => s.id === id)
+                      if (item) emit('select-scenario', item)
+                    }
+                  "
+                >
+                  <option v-if="!scenarioOptions.length" value="" disabled>暂无场景，请先在左侧新建</option>
+                  <option v-for="s in scenarioOptions" :key="s.id" :value="s.id">
+                    #{{ s.id }} · {{ s.name }}
                   </option>
                 </select>
               </div>
@@ -210,14 +255,17 @@ defineExpose({
               </div>
 
               <div class="sim-modal__field">
-                <label>上游水位 <strong>{{ safeWaterLevel.toFixed(2) }} m</strong></label>
+                <label>上游水位 <strong>{{ clampedModalWaterLevel.toFixed(2) }} m</strong></label>
                 <input
                   type="range"
                   class="sim-modal__slider"
-                  min="374"
-                  max="382"
+                  :min="SIMULATION_LEVEL_MIN"
+                  max="383.75"
                   step="0.1"
-                  :value="safeWaterLevel"
+                  :value="clampedModalWaterLevel"
+                  @pointerdown="onSliderPointer(true)"
+                  @pointerup="onSliderPointer(false)"
+                  @pointercancel="onSliderPointer(false)"
                   @input="emit('update:water-level', Number(($event.target as HTMLInputElement).value))"
                 />
               </div>
@@ -231,6 +279,9 @@ defineExpose({
                   max="80"
                   step="1"
                   :value="safeRainfall"
+                  @pointerdown="onSliderPointer(true)"
+                  @pointerup="onSliderPointer(false)"
+                  @pointercancel="onSliderPointer(false)"
                   @input="emit('update:rainfall', Number(($event.target as HTMLInputElement).value))"
                 />
               </div>
@@ -257,6 +308,9 @@ defineExpose({
                       max="100"
                       step="1"
                       :value="activeGateOpening"
+                      @pointerdown="onSliderPointer(true)"
+                      @pointerup="onSliderPointer(false)"
+                      @pointercancel="onSliderPointer(false)"
                       @input="
                         emit(
                           'update:gate-opening-at',
@@ -266,7 +320,7 @@ defineExpose({
                       "
                     />
                   </div>
-                  <p class="sim-modal__hint">宽幅水幕随开度变化；0% 完全隐藏泄流。近全开时选中框会转到闸墩。</p>
+                  <p class="sim-modal__hint">宽幅水幕随开度变化；0% 完全隐藏泄流。近全开时选中框会转到阀墩。</p>
                 </div>
                 <div v-else key="gate-avg" class="sim-modal__field">
                   <label>平均开度 {{ safeGateOpening }}%</label>
@@ -277,11 +331,14 @@ defineExpose({
                     max="100"
                     step="1"
                     :value="safeGateOpening"
+                    @pointerdown="onSliderPointer(true)"
+                    @pointerup="onSliderPointer(false)"
+                    @pointercancel="onSliderPointer(false)"
                     @input="
                       emit('update:gateOpening', Number(($event.target as HTMLInputElement).value))
                     "
                   />
-                  <p class="sim-modal__hint">点击右侧 3D 闸门，可单独调节每一孔开度与泄流量</p>
+                  <p class="sim-modal__hint">点击右侧 3D 阀门，可单独调节每一孔开度与泄流量</p>
                 </div>
               </Transition>
 
@@ -320,7 +377,7 @@ defineExpose({
                 <div class="sim-modal__kpi">
                   <small>上游水位</small>
                   <strong :style="{ color: levelStatusColor }"
-                    >{{ safeWaterLevel.toFixed(2) }} m</strong
+                    >{{ clampedModalWaterLevel.toFixed(2) }} m</strong
                   >
                   <em>{{ levelStatusLabel }}</em>
                 </div>
@@ -333,7 +390,7 @@ defineExpose({
                   <strong>{{ safeFlowRate }} m³/s</strong>
                 </div>
                 <div class="sim-modal__kpi">
-                  <small>闸门开度</small>
+                  <small>阀门开度</small>
                   <strong>{{ safeGateOpening }}%</strong>
                 </div>
               </div>
@@ -513,6 +570,11 @@ defineExpose({
   &__slider {
     width: 100%;
     accent-color: #1890ff;
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
   }
 
   &__actions {

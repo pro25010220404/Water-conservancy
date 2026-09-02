@@ -1,6 +1,6 @@
 // ============================================================
 // 告警管理 — 常量字典
-// 依据：《水电站闸门智能调度系统-详细需求报告》§2.9
+// 依据：《水电站阀门智能调度系统-详细需求报告》§2.9
 // ============================================================
 import type { DictOption } from '@/shared/types'
 
@@ -42,7 +42,7 @@ export const ALARM_STATUS_OPTIONS: DictOption[] = Object.values(ALARM_STATUS_MAP
 
 // ---------- 设备类型 ----------
 export const ALARM_DEVICE_TYPE_MAP: Record<string, DictOption> = {
-  gate: { label: '闸门', value: 'gate' },
+  gate: { label: '阀门', value: 'gate' },
   hydro: { label: '水文站', value: 'hydro' },
   sensor: { label: '传感器', value: 'sensor' },
 }

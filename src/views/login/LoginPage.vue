@@ -220,7 +220,7 @@ class="login-bg" :class="{ 'login-bg--fallback': !webglSupported }" tabindex="-1
             {{ APP_TITLE }}
           </h1>
           <p class="login-form__brand-desc">
-            基于深度强化学习与数字孪生的<br >水电站闸门智能调度平台
+            基于深度强化学习与数字孪生的<br >水电站阀门智能调度平台
           </p>
           <p class="login-form__greeting">
             {{ greeting }}

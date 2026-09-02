@@ -9,6 +9,8 @@ import {
   MODEL_STATUS_MAP,
   REVIEW_STATUS_MAP,
   SIMULATION_TABS,
+  MODEL_REGISTRY_LABEL,
+  getSimulationSceneLabel,
   type SimulationTab,
 } from '@/constants/simulation'
 import type {
@@ -29,8 +31,10 @@ const props = defineProps<{
   reports: SimulationReport[]
   reviews: FaultReview[]
   modelLoading?: boolean
+  modelUploading?: boolean
   reportLoading?: boolean
   reviewLoading?: boolean
+  reviewError?: string | null
   compact?: boolean
   /** 顶部导航已展示 Tab 时隐藏面板内重复 Tab 栏 */
   hideTabs?: boolean
@@ -39,11 +43,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   'tab-change': [tab: SimulationTab]
   activate: [id: number]
-  upload: []
+  'open-model-registry': []
   train: [modelId: number]
   generate: []
   'download-report': [id: number]
   'import-review': [id: number]
+  'refresh-reviews': []
 }>()
 
 const tabTitle = computed(
@@ -159,11 +164,13 @@ function formatDuration(sec: number) {
       </template>
 
       <template v-else-if="activeTab === 'model'">
-        <div class="panel-actions">
-          <ElButton type="primary" @click="emit('upload')">导入模型</ElButton>
+        <div class="panel-actions panel-actions--model">
+          <ElButton type="primary" :loading="modelUploading" @click="emit('open-model-registry')">
+            {{ MODEL_REGISTRY_LABEL }}
+          </ElButton>
         </div>
-        <p class="hint-text">支持 LSTM / DQN 模型导入与在线训练，健康等级来自三维评判体系。</p>
-        <ElEmpty v-if="!filteredModels.length && !modelLoading" description="暂无模型，请先导入" />
+        <p class="hint-text">请先在{{ MODEL_REGISTRY_LABEL }}上传模型，再选用并激活用于仿真。</p>
+        <ElEmpty v-if="!filteredModels.length && !modelLoading" :description="`暂无模型，请打开${MODEL_REGISTRY_LABEL}上传`" />
         <ul v-else class="entity-list">
           <li v-for="m in filteredModels" :key="m.id" class="entity-list__item">
             <div class="entity-list__main">
@@ -207,28 +214,32 @@ function formatDuration(sec: number) {
         <div class="panel-actions">
           <ElButton type="primary" :loading="reportLoading" @click="emit('generate')">生成方案评估报告</ElButton>
         </div>
-        <p class="hint-text">请先完成仿真，再基于真实结果生成报告（数据来自后端接口）。</p>
+        <p class="hint-text">先启动仿真并运行一段时间，再基于当前仿真结果生成本地评估报告（可下载 .txt）。</p>
         <ElEmpty v-if="!filteredReports.length && !reportLoading" description="暂无方案评估报告" />
         <ul v-else class="entity-list">
           <li v-for="r in filteredReports" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
-              <strong>{{ SIMULATION_SCENE_MAP[r.scene]?.label ?? r.scene }}</strong>
+              <strong>{{ getSimulationSceneLabel(r.scene) }}</strong>
               <span class="entity-list__tag">最高 {{ r.summary.maxLevel.toFixed(2) }} m</span>
             </div>
             <div class="entity-list__meta">{{ r.createdAt }} · {{ r.operatorName }}</div>
             <p class="entity-list__desc">{{ r.content }}</p>
-            <div v-if="r.filePath" class="entity-list__actions">
-              <ElButton link type="primary" @click="emit('download-report', r.id)">下载 PDF</ElButton>
+            <div class="entity-list__actions">
+              <ElButton link type="primary" @click="emit('download-report', r.id)">下载报告</ElButton>
             </div>
           </li>
         </ul>
       </template>
 
       <template v-else>
-        <p class="hint-text">关联历史告警事件，复盘根因并一键导入仿真参数复现。</p>
+        <div class="panel-actions">
+          <ElButton size="small" :loading="reviewLoading" @click="emit('refresh-reviews')">刷新列表</ElButton>
+        </div>
+        <p class="hint-text">关联历史告警事件，复盘根因并一键导入仿真参数复现（数据来自后端 simulation_incidents）。</p>
+        <p v-if="reviewError" class="hint-text hint-text--warn">{{ reviewError }}</p>
         <ElEmpty
           v-if="!filteredReviews.length && !reviewLoading"
-          description="暂无历史故障复盘记录"
+          :description="reviewError ? '无法加载故障复盘' : '暂无历史故障复盘记录'"
         />
         <ul v-else class="entity-list">
           <li v-for="r in filteredReviews" :key="r.id" class="entity-list__item">
@@ -301,11 +312,13 @@ function formatDuration(sec: number) {
       </template>
 
       <template v-else-if="activeTab === 'model'">
-        <div class="panel-actions">
-          <ElButton type="primary" @click="emit('upload')">导入模型</ElButton>
+        <div class="panel-actions panel-actions--model">
+          <ElButton type="primary" :loading="modelUploading" @click="emit('open-model-registry')">
+            {{ MODEL_REGISTRY_LABEL }}
+          </ElButton>
         </div>
-        <p class="hint-text">支持 LSTM / DQN 模型导入与在线训练，健康等级来自三维评判体系。</p>
-        <ElEmpty v-if="!filteredModels.length && !modelLoading" description="暂无模型，请先导入" />
+        <p class="hint-text">请先在{{ MODEL_REGISTRY_LABEL }}上传模型，再选用并激活用于仿真。</p>
+        <ElEmpty v-if="!filteredModels.length && !modelLoading" :description="`暂无模型，请打开${MODEL_REGISTRY_LABEL}上传`" />
         <ul v-else class="entity-list">
           <li v-for="m in filteredModels" :key="m.id" class="entity-list__item">
             <div class="entity-list__main">
@@ -349,28 +362,32 @@ function formatDuration(sec: number) {
         <div class="panel-actions">
           <ElButton type="primary" :loading="reportLoading" @click="emit('generate')">生成方案评估报告</ElButton>
         </div>
-        <p class="hint-text">请先完成仿真，再基于真实结果生成报告（数据来自后端接口）。</p>
+        <p class="hint-text">先启动仿真并运行一段时间，再基于当前仿真结果生成本地评估报告（可下载 .txt）。</p>
         <ElEmpty v-if="!filteredReports.length && !reportLoading" description="暂无方案评估报告" />
         <ul v-else class="entity-list">
           <li v-for="r in filteredReports" :key="r.id" class="entity-list__item">
             <div class="entity-list__main">
-              <strong>{{ SIMULATION_SCENE_MAP[r.scene]?.label ?? r.scene }}</strong>
+              <strong>{{ getSimulationSceneLabel(r.scene) }}</strong>
               <span class="entity-list__tag">最高 {{ r.summary.maxLevel.toFixed(2) }} m</span>
             </div>
             <div class="entity-list__meta">{{ r.createdAt }} · {{ r.operatorName }}</div>
             <p class="entity-list__desc">{{ r.content }}</p>
-            <div v-if="r.filePath" class="entity-list__actions">
-              <ElButton link type="primary" @click="emit('download-report', r.id)">下载 PDF</ElButton>
+            <div class="entity-list__actions">
+              <ElButton link type="primary" @click="emit('download-report', r.id)">下载报告</ElButton>
             </div>
           </li>
         </ul>
       </template>
 
       <template v-else>
-        <p class="hint-text">关联历史告警事件，复盘根因并一键导入仿真参数复现。</p>
+        <div class="panel-actions">
+          <ElButton size="small" :loading="reviewLoading" @click="emit('refresh-reviews')">刷新列表</ElButton>
+        </div>
+        <p class="hint-text">关联历史告警事件，复盘根因并一键导入仿真参数复现（数据来自后端 simulation_incidents）。</p>
+        <p v-if="reviewError" class="hint-text hint-text--warn">{{ reviewError }}</p>
         <ElEmpty
           v-if="!filteredReviews.length && !reviewLoading"
-          description="暂无历史故障复盘记录"
+          :description="reviewError ? '无法加载故障复盘' : '暂无历史故障复盘记录'"
         />
         <ul v-else class="entity-list">
           <li v-for="r in filteredReviews" :key="r.id" class="entity-list__item">
@@ -548,6 +565,11 @@ function formatDuration(sec: number) {
   color: $cockpit-text-dim;
   line-height: 1.5;
   word-break: break-word;
+
+  &--warn {
+    color: #d97706;
+    margin-top: 8px;
+  }
 }
 
 .panel-actions {

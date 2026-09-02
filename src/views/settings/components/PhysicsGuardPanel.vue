@@ -390,12 +390,12 @@ onMounted(async () => {
             /></ElFormItem>
           </div>
         </ElCollapseItem>
-        <ElCollapseItem title="闸门最大泄量" name="gate">
+        <ElCollapseItem title="阀门最大泄量" name="gate">
           <div class="form-grid">
             <ElFormItem
               v-for="(_, idx) in form.gate_max_discharge"
               :key="idx"
-              :label="`${idx + 1}号闸`"
+              :label="`${idx + 1}号阀`"
             >
               <ElInputNumber :disabled="!editing"
                 v-model="form.gate_max_discharge[idx]"

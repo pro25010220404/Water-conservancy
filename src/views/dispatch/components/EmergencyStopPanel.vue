@@ -22,7 +22,7 @@ async function handleRecover(row: EmergencyStopLog) {
   try {
     await ElMessageBox.confirm(
       `确认恢复自动模式？将解除急停锁定（日志 #${row.id}）。`,
-      '恢复闸门自动模式',
+      '恢复阀门自动模式',
       { type: 'warning' },
     )
     await postRecoverStop(row.id)

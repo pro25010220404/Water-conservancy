@@ -4,7 +4,6 @@ import { storeToRefs } from 'pinia'
 import { fetchGates, fetchGateActionLogs, fetchRealtimeKpi } from '@/api/monitoring'
 import { formatActionSource, formatGateControlMode } from '@/constants/dispatch'
 import { useVirtualSimulationStore } from '@/stores/virtualSimulation'
-import { scaleGateOpening } from '@/utils/virtualSimulationEngine'
 
 const simStore = useVirtualSimulationStore()
 const { active: simActive, derived: simDerived } = storeToRefs(simStore)
@@ -14,13 +13,12 @@ const logs = ref<{ time: string; gate: string; action: string; actual: string; t
 const upstreamLevel = ref(378.5)
 const downstreamLevel = ref(269.2)
 
-/** 仿真激活时叠加开度，与节点控制同一套联动 */
+/** 仿真激活时叠加开度（静态工况，与节点控制同一套联动） */
 const displayGates = computed(() => {
   if (!simActive.value) return gates.value
-  const scale = simDerived.value.gateScale
   return gates.value.map((g) => ({
     ...g,
-    v: scaleGateOpening(g.v, scale),
+    v: simStore.overlayGateOpening(g.id, g.v),
   }))
 })
 
@@ -56,7 +54,7 @@ async function loadData() {
       dur: `${(a.duration_ms / 1000).toFixed(0)}s`,
       by: formatActionSource(a.action_source),
     }))
-  } catch { /* 闸门/操作日志接口暂不可用 */ }
+  } catch { /* 阀门/操作日志接口暂不可用 */ }
 }
 onMounted(() => {
   loadData()
@@ -74,7 +72,7 @@ onUnmounted(() => clearInterval(t))
     <!-- KPI + 标题 -->
     <div class="kpis">
       <div class="kpi">
-        <span class="kpi__dot" style="background: #3b82f6" /><span class="kpi__l">闸门总数</span
+        <span class="kpi__dot" style="background: #3b82f6" /><span class="kpi__l">阀门总数</span
         ><span class="kpi__v">{{ displayGates.length }}<small> 扇</small></span>
       </div>
       <div class="kpi" :class="{ 'kpi--sim': simActive }">
@@ -96,12 +94,12 @@ onUnmounted(() => clearInterval(t))
       </div>
     </div>
 
-    <!-- 主区域：示意大坝剖面 + 闸门状态表 -->
+    <!-- 主区域：示意大坝剖面 + 阀门状态表 -->
     <div class="main">
       <!-- 左侧：大坝剖面示意 -->
       <div class="diagram">
         <div class="diagram__title">
-          闸门开度示意
+          阀门开度示意
           <em v-if="simActive" class="diagram__sim-tag">仿真</em>
         </div>
         <div class="diagram__scene">
@@ -109,7 +107,7 @@ onUnmounted(() => clearInterval(t))
           <div class="diagram__pool diagram__pool--up">
             <span>上游 {{ displayUpstream.toFixed(1) }}m</span>
           </div>
-          <!-- 坝体 + 闸门：表孔8扇 + 中孔底孔4扇分两排 -->
+          <!-- 坝体 + 阀门：表孔8扇 + 中孔底孔4扇分两排 -->
           <div class="diagram__dam">
             <div class="diagram__dam-inner">
               <div class="diagram__slots">
@@ -135,7 +133,7 @@ onUnmounted(() => clearInterval(t))
           </div>
         </div>
         <div class="diagram__legend">
-          <span><span class="leg-dot" style="background: #64748b" /> 闸门叶片</span>
+          <span><span class="leg-dot" style="background: #64748b" /> 阀门叶片</span>
           <span><span class="leg-dot" style="background: #3b82f6" /> 过流区</span>
           <span><span class="leg-dot" style="background: #22c55e" /> 正常</span>
         </div>
@@ -143,7 +141,7 @@ onUnmounted(() => clearInterval(t))
 
       <!-- 右侧：状态表格 + 操作日志 -->
       <div class="panel">
-        <div class="panel__title">闸门状态</div>
+        <div class="panel__title">阀门状态</div>
         <table class="table">
           <thead>
             <tr>

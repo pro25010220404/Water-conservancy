@@ -275,7 +275,7 @@ function seedLogs() {
       time: '2026-07-02 16:45:30',
       module: '调度决策',
       type: '执行',
-      description: '手动下发闸门开度 35%',
+      description: '手动下发阀门开度 35%',
       result: 1,
     },
     {

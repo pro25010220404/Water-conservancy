@@ -266,7 +266,7 @@ onUnmounted(() => {
         <strong class="ctrl-kpi__value">{{ displayOutflowRate }}<em>m³/s</em></strong>
       </div>
       <div class="ctrl-kpi" :class="{ 'ctrl-kpi--sim': simActive }">
-        <span class="ctrl-kpi__label">闸门总开度</span>
+        <span class="ctrl-kpi__label">阀门总开度</span>
         <strong class="ctrl-kpi__value">{{ displayGateOpening.toFixed(1) }}<em>%</em></strong>
       </div>
     </div>
@@ -356,7 +356,7 @@ onUnmounted(() => {
         <div class="decision-hero">
           <span class="lbl">推荐动作</span>
           <p class="action-val">
-            闸门开至
+            阀门开至
             <strong
               class="action-val__opening"
               :class="{ clickable: canManualControl }"

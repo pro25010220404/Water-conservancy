@@ -64,7 +64,7 @@ border size="small">
           <span class="device-realtime-data__unit"> %</span>
         </ElDescriptionsItem>
         <ElDescriptionsItem label="单位"> %（开度百分比） </ElDescriptionsItem>
-        <ElDescriptionsItem label="闸门开度"> {{ monitoring.gate_opening }}% </ElDescriptionsItem>
+        <ElDescriptionsItem label="阀门开度"> {{ monitoring.gate_opening }}% </ElDescriptionsItem>
         <ElDescriptionsItem label="当前位置"> {{ monitoring.gate_opening }}% </ElDescriptionsItem>
         <ElDescriptionsItem label="目标值"> {{ monitoring.power_output }} kW </ElDescriptionsItem>
         <ElDescriptionsItem label="最近刷新时间">

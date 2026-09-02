@@ -38,7 +38,7 @@ function generateMockHistory(): ConfigHistoryItem[] {
       version: 'v2.4.0',
       changed_by: '李工',
       changed_at: '2026-06-28 09:15:00',
-      description: '更新生态流量最小值至20m³/s，调整闸门最大泄流量',
+      description: '更新生态流量最小值至20m³/s，调整阀门最大泄流量',
       config_snapshot: {} as unknown as any,
     },
     {

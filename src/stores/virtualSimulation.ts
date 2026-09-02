@@ -6,6 +6,7 @@ import { computed, ref } from 'vue'
 import type { RealtimeKpi } from '@/types/monitoring'
 import type { GateNodeControl } from '@/types/gateControl'
 import {
+  clampOpening,
   computeSimulationDerived,
   scaleGateOpening,
   type SimulationBaseline,
@@ -16,17 +17,19 @@ export const useVirtualSimulationStore = defineStore('virtualSimulation', () => 
   const locked = ref(false)
 
   const baseline = ref<SimulationBaseline>({
-    upstreamLevel: 175.7,
-    downstreamLevel: 121.0,
-    inflowRate: 1920,
-    outflowRate: 302,
-    gateOpening: 47,
+    // 向家坝量级默认值（与数字孪生实时工况一致，避免启用后跳到错误水位）
+    upstreamLevel: 380.0,
+    downstreamLevel: 278.4,
+    inflowRate: 1850,
+    outflowRate: 1850,
+    gateOpening: 45,
   })
 
   const upstreamLevel = ref(baseline.value.upstreamLevel)
   const downstreamLevel = ref(baseline.value.downstreamLevel)
   const rainfall = ref(0)
 
+  /** 应用后按工况静态计算，不再随机微动 */
   const derived = computed(() =>
     computeSimulationDerived({
       upstreamLevel: upstreamLevel.value,
@@ -70,6 +73,12 @@ export const useVirtualSimulationStore = defineStore('virtualSimulation', () => 
     locked.value = !locked.value
   }
 
+  /** 单孔开度：工况缩放后固定显示 */
+  function overlayGateOpening(_gateId: number, opening: number): number {
+    if (!active.value) return opening
+    return clampOpening(scaleGateOpening(opening, derived.value.gateScale))
+  }
+
   /** 将仿真结果叠加到 KPI */
   function overlayKpi(kpi: RealtimeKpi): RealtimeKpi {
     if (!active.value) return kpi
@@ -84,15 +93,16 @@ export const useVirtualSimulationStore = defineStore('virtualSimulation', () => 
     }
   }
 
-  /** 将仿真结果叠加到闸门节点 */
+  /** 将仿真结果叠加到阀门节点 */
   function overlayGates(gates: GateNodeControl[]): GateNodeControl[] {
     if (!active.value) return gates
     const scale = derived.value.gateScale
     return gates.map((g) => {
-      const cur = scaleGateOpening(g.currentOpening, scale)
-      const tgt = scaleGateOpening(g.targetOpening, scale)
+      const cur = clampOpening(scaleGateOpening(g.currentOpening, scale))
+      const tgt = clampOpening(scaleGateOpening(g.targetOpening, scale))
       const head = Math.max(0, derived.value.upstreamLevel - derived.value.downstreamLevel)
-      const flowFactor = head / Math.max(1, baseline.value.upstreamLevel - baseline.value.downstreamLevel)
+      const flowFactor =
+        head / Math.max(1, baseline.value.upstreamLevel - baseline.value.downstreamLevel)
       return {
         ...g,
         currentOpening: cur,
@@ -114,6 +124,7 @@ export const useVirtualSimulationStore = defineStore('virtualSimulation', () => 
     applySimulation,
     resetSimulation,
     toggleLock,
+    overlayGateOpening,
     overlayKpi,
     overlayGates,
   }

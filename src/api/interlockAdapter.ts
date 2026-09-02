@@ -1,4 +1,4 @@
-// 闸门互锁 — 后端响应 → 前端展示结构
+// 阀门互锁 — 后端响应 → 前端展示结构
 import type { GateInterlockRule, GateInterlockLog } from '@/types/gateai'
 import type { InterlockRule } from '@/stores/gateInterlock'
 
@@ -71,7 +71,7 @@ function formatRatio(value: unknown): string {
 
 const TRIGGER_KEY_LABEL: Record<string, string> = {
   spillway_opening_gt: '溢洪道开度 >',
-  two_gates_increase_gt: '任两闸同增 >',
+  two_gates_increase_gt: '任两阀同增 >',
   opening_diff_gt: '开度差 >',
   total_opening_lt: '总开度 <',
 }
@@ -82,10 +82,10 @@ const ACTION_TYPE_LABEL: Record<string, string> = {
 }
 
 const ACTION_KEY_LABEL: Record<string, string> = {
-  intake_max: '发电闸上限',
+  intake_max: '发电阀上限',
   max_diff: '最大开度差',
   min_total: '最小总开度',
-  third_gate_lock: '第三闸锁定',
+  third_gate_lock: '第三阀锁定',
 }
 
 export function formatInterlockTriggerLabel(conditions: unknown): string {
@@ -107,7 +107,7 @@ export function formatInterlockActionLabel(action: unknown): string {
   for (const [key, value] of Object.entries(obj)) {
     if (key === 'action') continue
     if (key === 'third_gate_lock') {
-      if (value) parts.push('第三闸锁定')
+      if (value) parts.push('第三阀锁定')
       continue
     }
     const label = ACTION_KEY_LABEL[key] ?? key

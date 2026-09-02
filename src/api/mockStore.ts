@@ -33,6 +33,8 @@ import type {
   TrainingTask,
 } from '@/types/simulation'
 import { XIANGJIABA_HYDRO } from '@/constants/xiangjiaba'
+import { getScenePreset } from '@/constants/simulation'
+import { faultReviewToSimulationParams } from './simulationAdapter'
 import {
   createInitialTelemetry,
   stepHydrology,
@@ -180,7 +182,7 @@ const decisionBase: DecisionDetail = {
     { name: '当前水位', value: '380.65 m', direction: 'up', weight: 0.22 },
     { name: 'LSTM预测水位', value: '381.10 m', direction: 'up', weight: 0.25 },
     { name: '实时流量', value: '1920 m³/s', direction: 'up', weight: 0.18 },
-    { name: '闸门开度', value: '45%', direction: 'neutral', weight: 0.12 },
+    { name: '阀门开度', value: '45%', direction: 'neutral', weight: 0.12 },
     { name: '防洪安全约束', value: '0.85 m', direction: 'down', weight: 0.13 },
     { name: '生态流量要求', value: '达标', direction: 'neutral', weight: 0.1 },
   ],
@@ -709,7 +711,7 @@ const models: AiModel[] = [
     filePath: '/models/dqn_v231.pt',
     status: 'active',
     metrics: { mae: 0.035, accuracy: 91.8, overallScore: 0.82, healthGrade: 'A' },
-    remark: '闸门调度决策模型',
+    remark: '阀门调度决策模型',
     createdAt: nowIso(21600),
     activatedAt: nowIso(720),
   },
@@ -734,7 +736,7 @@ const reports: SimulationReport[] = [
     params: { scene: 'flood', initialLevel: 380.2, inflowRate: 3500, durationMin: 120 },
     summary: { maxLevel: 381.8, minLevel: 380.2, totalDischarge: 125000, estimatedPower: 28500 },
     content:
-      '洪水场景下闸门逐步加大开度，最高水位381.8m，未突破汛限。建议汛前预泄方案可提前30min启动。',
+      '洪水场景下阀门逐步加大开度，最高水位381.8m，未突破汛限。建议汛前预泄方案可提前30min启动。',
     filePath: '/reports/r001.pdf',
     createdAt: nowIso(2880),
     operatorName: '王算法',
@@ -768,7 +770,7 @@ const reviews: FaultReview[] = [
     id: 1,
     alarmId: 1001,
     faultType: '高水位超限',
-    impactScope: '上游库区、1-3号闸门',
+    impactScope: '上游库区、1-3号阀门',
     reviewed: false,
     status: 'pending',
     createdAt: nowIso(1440),
@@ -792,7 +794,7 @@ const reviews: FaultReview[] = [
     createdAt: nowIso(4320),
     timeline: [
       { time: '14:20:00', event: '生态流量低于阈值，触发一般告警' },
-      { time: '14:25:30', event: '调整3号闸门开度' },
+      { time: '14:25:30', event: '调整3号阀门开度' },
       { time: '14:35:00', event: '生态流量恢复达标' },
     ],
     conclusion: {
@@ -806,16 +808,16 @@ const reviews: FaultReview[] = [
   {
     id: 3,
     alarmId: 1006,
-    faultType: '闸门执行失败',
-    impactScope: '1号表孔闸门、泄洪通道',
+    faultType: '阀门执行失败',
+    impactScope: '1号表孔阀门、泄洪通道',
     reviewed: false,
     status: 'pending',
     createdAt: nowIso(480),
     timeline: [
-      { time: '08:05:12', event: '1号闸门开度指令下发失败' },
+      { time: '08:05:12', event: '1号阀门开度指令下发失败' },
       { time: '08:05:57', event: '持续超限42s，触发紧急告警' },
       { time: '08:06:20', event: '现场人员检查液压系统' },
-      { time: '08:12:00', event: '切换备用执行器，闸门恢复正常' },
+      { time: '08:12:00', event: '切换备用执行器，阀门恢复正常' },
     ],
     conclusion: null,
   },
@@ -921,7 +923,7 @@ function todayStartMs() {
   return d.getTime()
 }
 
-// ---------- 闸门动作历史（含互锁标记）----------
+// ---------- 阀门动作历史（含互锁标记）----------
 const gateActions: GateAction[] = [
   {
     id: 1,
@@ -1300,7 +1302,7 @@ export const mockApi = {
     return delay(ok({ stop_log_id: Date.now(), command_id: `estop-${Date.now()}` }))
   },
 
-  /** 全局急停 — 调度 + 仿真联动，闸门归零 */
+  /** 全局急停 — 调度 + 仿真联动，阀门归零 */
   globalEmergencyStop() {
     dispatchStatus.isExecuting = false
     dispatchStatus.executingTarget = null
@@ -1541,7 +1543,7 @@ export const mockApi = {
     return delay(ok(null))
   },
 
-  /** 调节闸门开度 — 实时影响泄流量与水位 */
+  /** 调节阀门开度 — 实时影响泄流量与水位 */
   setGateOpening(opening: number) {
     const v = Math.max(0, Math.min(100, Math.round(opening)))
     stationLive.gateOpening = v
@@ -1575,8 +1577,30 @@ export const mockApi = {
     })
     return delay(ok(null))
   },
-  uploadModel() {
-    return delay(ok(models[0]))
+  uploadModel(formData?: FormData) {
+    let fileName = 'imported_model.pt'
+    let modelType: AiModel['type'] = 'LSTM'
+    if (formData) {
+      const file = formData.get('file')
+      if (file instanceof File) fileName = file.name
+      const typeField = String(formData.get('type') ?? '')
+      if (typeField === 'DQN' || typeField === 'LSTM') modelType = typeField
+      else if (/dqn/i.test(fileName)) modelType = 'DQN'
+    }
+    const nextId = models.reduce((max, m) => Math.max(max, m.id), 0) + 1
+    const imported: AiModel = {
+      id: nextId,
+      type: modelType,
+      version: `v${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
+      filePath: `/models/${fileName}`,
+      status: 'validating',
+      metrics: null,
+      remark: `本地导入 · ${fileName}`,
+      createdAt: nowIso(0),
+      activatedAt: null,
+    }
+    models.unshift(imported)
+    return delay(ok(imported))
   },
 
   startTraining() {
@@ -1639,8 +1663,13 @@ export const mockApi = {
     }
     return delay(ok(null))
   },
-  importToSimulation() {
-    return delay(ok(simParams))
+  importToSimulation(id: number) {
+    const review = reviews.find((r) => r.id === id)
+    if (review) {
+      return delay(ok(faultReviewToSimulationParams(review)))
+    }
+    const preset = getScenePreset(simParams.scene)
+    return delay(ok({ ...simParams, gateOpening: preset.gateOpening }))
   },
   getSimulationRuns() {
     return delay(
