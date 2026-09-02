@@ -1,10 +1,10 @@
 // ============================================================
 // 调度决策 — 常量字典
-// 依据：《水电站闸门智能调度系统-详细需求报告》第三章
+// 依据：《水电站阀门智能调度系统-详细需求报告》第三章
 // ============================================================
 import type { DictOption } from '@/shared/types'
 
-// ---------- 闸门动作来源 ----------
+// ---------- 阀门动作来源 ----------
 export const ACTION_SOURCE_MAP: Record<string, string> = {
   dqn_auto: 'DQN 自动',
   manual: '手动操作',
@@ -12,7 +12,7 @@ export const ACTION_SOURCE_MAP: Record<string, string> = {
   physics_corrected: '物理修正',
 }
 
-// ---------- 闸门控制模式（监控大屏闸门检测） ----------
+// ---------- 阀门控制模式（监控大屏阀门检测） ----------
 export const GATE_CONTROL_MODE_MAP: Record<string, string> = {
   auto: '自动',
   manual: '手动',
@@ -22,7 +22,7 @@ export const GATE_CONTROL_MODE_MAP: Record<string, string> = {
   'AI-DQN': 'AI 自动',
 }
 
-/** 闸门控制模式 → 中文 */
+/** 阀门控制模式 → 中文 */
 export function formatGateControlMode(mode?: string | null): string {
   if (!mode) return '-'
   return GATE_CONTROL_MODE_MAP[mode] ?? GATE_CONTROL_MODE_MAP[mode.toLowerCase()] ?? mode

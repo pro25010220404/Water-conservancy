@@ -416,7 +416,7 @@ const flowGaugePct = computed(() => {
   const refMax = Math.max(3500, simParams.inflowRate * 1.35, displayFlowRate.value * 1.1)
   return Math.max(0, Math.min(100, (displayFlowRate.value / refMax) * 100))
 })
-/** 闸门开度环形占比（0–100%），与数字一致 */
+/** 阀门开度环形占比（0–100%），与数字一致 */
 const gateGaugePct = computed(() => displayGateOpening.value)
 const levelHistoryBars = computed(() => {
   const hist = simStatus.value.historyLevels.slice(-12)
@@ -1317,7 +1317,7 @@ onUnmounted(() => {
                   <b>{{ displayGateOpening.toFixed(1) }}</b>
                   <small>%</small>
                 </div>
-                <span>闸门开度</span>
+                <span>阀门开度</span>
               </div>
             </div>
             <ul class="twin-ref-list">
@@ -1451,9 +1451,9 @@ onUnmounted(() => {
           </div>
         </main>
 
-        <!-- 右栏：闸门监测 + 功能面板 -->
+        <!-- 右栏：阀门监测 + 功能面板 -->
         <aside class="sim-page__col sim-page__col--right">
-          <GlassPanel3D title="泄洪闸门监测" compact class="twin-gate-panel">
+          <GlassPanel3D title="泄洪阀门监测" compact class="twin-gate-panel">
             <ul class="twin-gate-grid">
               <li
                 v-for="n in 5"
@@ -1473,8 +1473,8 @@ onUnmounted(() => {
             <p class="twin-gate-summary">
               {{
                 selectedGateIndex >= 0
-                  ? `${selectedGateIndex + 1} 号闸门已选中 · 单孔约 ${gateFlowAt(selectedGateIndex)} m³/s · 五孔合计约 ${totalOutflowRate} m³/s`
-                  : `5 孔默认全开 · 合计泄流约 ${totalOutflowRate} m³/s · 点击闸面查看细节`
+                  ? `${selectedGateIndex + 1} 号阀门已选中 · 单孔约 ${gateFlowAt(selectedGateIndex)} m³/s · 五孔合计约 ${totalOutflowRate} m³/s`
+                  : `5 孔默认全开 · 合计泄流约 ${totalOutflowRate} m³/s · 点击阀面查看细节`
               }}
             </p>
             <div v-if="selectedGateIndex >= 0" class="twin-gate-slider">
@@ -1633,7 +1633,7 @@ onUnmounted(() => {
               <ElOption v-for="s in SPEED_OPTIONS" :key="s.value" :label="s.label" :value="s.value" />
             </ElSelect>
           </ElFormItem>
-          <ElFormItem label="闸门开度 (%)" class="param-form__full">
+          <ElFormItem label="阀门开度 (%)" class="param-form__full">
             <ElSlider
               v-model="gateOpening"
               :min="0"

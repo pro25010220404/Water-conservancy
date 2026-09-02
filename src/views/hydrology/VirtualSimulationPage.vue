@@ -455,9 +455,14 @@ onMounted(async () => {
   }
 
   &__row {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+
+    :deep(.el-button) {
+      width: 100%;
+      margin: 0;
+    }
   }
 }
 

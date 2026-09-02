@@ -7,7 +7,7 @@
 export const OPERATION_MODULES: Record<string, string> = {
   equipment: '设备管理',
   settings: '系统设置',
-  control: '闸门控制',
+  control: '阀门控制',
   dispatch: '调度决策',
   alarm: '告警处理',
   profile: '个人中心',

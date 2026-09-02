@@ -180,7 +180,7 @@ export async function fetchDashboardAlarms(): Promise<DashboardAlarm[]> {
   return delay([...DEFAULT_ALARMS])
 }
 
-// ── 闸门列表 ──
+// ── 阀门列表 ──
 
 function gateNum(code: string, id: number): number {
   const m = code.match(/(\d+)/)
@@ -395,7 +395,7 @@ export async function fetchSecurityAlarmList(): Promise<SecurityAlarmRaw[]> {
   })(), 3000, mock)
 }
 
-// ── 闸门动作日志 ──
+// ── 阀门动作日志 ──
 export async function fetchGateActionLogs(): Promise<GateActionRaw[]> {
   try { const res = await getGateActions(); if (res.data?.code === 0 && res.data.data?.list) return res.data.data.list } catch { /* mock */ }
   return delay([

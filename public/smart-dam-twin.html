@@ -42,11 +42,11 @@ const SENSOR_DEFS = [
   {id:'s02',name:'上游水位计 #2',x:-18,y:0,z:-8,type:'hydrology',baseVal:379.8,unit:'m',range:[374,384]},
   {id:'s03',name:'下游水位计',x:28,y:1,z:2,type:'hydrology',baseVal:278.5,unit:'m',range:[277,280]},
   {id:'s04',name:'入库流量计',x:-24,y:2,z:12,type:'flow',baseVal:1850,unit:'m³/s',range:[500,5000]},
-  {id:'s05',name:'1号闸门开度',x:6.2,y:16,z:-15.75,type:'gate',baseVal:45,unit:'%',range:[0,100]},
-  {id:'s06',name:'2号闸门开度',x:6.2,y:16,z:-8.75,type:'gate',baseVal:42,unit:'%',range:[0,100]},
-  {id:'s07',name:'3号闸门开度',x:6.2,y:16,z:-1.75,type:'gate',baseVal:48,unit:'%',range:[0,100]},
-  {id:'s08',name:'4号闸门开度',x:6.2,y:16,z:5.25,type:'gate',baseVal:44,unit:'%',range:[0,100]},
-  {id:'s09',name:'5号闸门开度',x:6.2,y:16,z:12.25,type:'gate',baseVal:46,unit:'%',range:[0,100]},
+  {id:'s05',name:'1号阀门开度',x:6.2,y:16,z:-15.75,type:'gate',baseVal:45,unit:'%',range:[0,100]},
+  {id:'s06',name:'2号阀门开度',x:6.2,y:16,z:-8.75,type:'gate',baseVal:42,unit:'%',range:[0,100]},
+  {id:'s07',name:'3号阀门开度',x:6.2,y:16,z:-1.75,type:'gate',baseVal:48,unit:'%',range:[0,100]},
+  {id:'s08',name:'4号阀门开度',x:6.2,y:16,z:5.25,type:'gate',baseVal:44,unit:'%',range:[0,100]},
+  {id:'s09',name:'5号阀门开度',x:6.2,y:16,z:12.25,type:'gate',baseVal:46,unit:'%',range:[0,100]},
   {id:'s10',name:'坝体应力监测',x:-2,y:15,z:0,type:'structural',baseVal:12.5,unit:'MPa',range:[8,25]},
   {id:'s11',name:'坝体位移监测',x:2,y:10,z:-10,type:'structural',baseVal:1.2,unit:'mm',range:[0.5,5]},
   {id:'s12',name:'库区渗流计',x:-10,y:2,z:15,type:'structural',baseVal:0.08,unit:'L/s',range:[0.02,0.5]},
@@ -238,7 +238,7 @@ pierZs.forEach((z,i)=>{
   damGroup.add(pier);
   if(i<pierZs.length-1){
     const midZ=(z+pierZs[i+1])/2;
-    const bay=new THREE.Group(); bay.name=(i+1)+'号闸门';
+    const bay=new THREE.Group(); bay.name=(i+1)+'号阀门';
     const frame=new THREE.Mesh(new THREE.BoxGeometry(0.6,9,3.1),steelMat);
     frame.position.set(6.6,9,midZ); frame.castShadow=true; bay.add(frame);
     const gate=new THREE.Mesh(new THREE.BoxGeometry(0.45,8,2.7),steelMat);
@@ -453,7 +453,7 @@ webglCanvas.addEventListener('click',(e)=>{
       obj=obj.parent;
     }
     const name=hits[0].object.name;
-    if(name&&(name.includes('坝')||name.includes('闸门')||name.includes('厂房')||name.startsWith('pier_'))){
+    if(name&&(name.includes('坝')||name.includes('阀门')||name.includes('厂房')||name.startsWith('pier_'))){
       popupData={name:name,detail:'向家坝水电站 BIM 构件 | 金沙江流域 | 坝顶高程 '+XIANGJIABA.crestElevation+'m',x:Math.min(px,webglCanvas.width-320),y:Math.min(py,webglCanvas.height-200),color:'#00d4ff'};
     }
   }else{popupData=null;}

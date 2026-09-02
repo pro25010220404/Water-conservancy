@@ -72,7 +72,7 @@ export const PHYSICS_GUARD_SECTIONS = [
   },
   {
     key: 'gate',
-    label: '闸门参数',
+    label: '阀门参数',
     fields: [
       {
         key: 'gate_max_discharge_0',
@@ -88,7 +88,7 @@ export const PHYSICS_GUARD_SECTIONS = [
       },
       {
         key: 'gate_max_discharge_2',
-        label: '发电闸最大泄流量 (m³/s)',
+        label: '发电阀最大泄流量 (m³/s)',
         defaultValue: 250,
         unit: 'm³/s',
       },

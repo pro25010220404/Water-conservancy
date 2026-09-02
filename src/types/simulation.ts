@@ -1,6 +1,6 @@
 // ============================================================
 // 数字孪生 — TypeScript 类型定义
-// 依据：《水电站闸门智能调度系统-详细需求报告》第四章
+// 依据：《水电站阀门智能调度系统-详细需求报告》第四章
 // ============================================================
 
 // ---------- 仿真场景 ----------
@@ -29,7 +29,7 @@ export interface SimulationParams {
   durationMin: number // 仿真时长 min
 }
 
-/** 启动仿真时的完整载荷（含倍速、闸门开度） */
+/** 启动仿真时的完整载荷（含倍速、阀门开度） */
 export interface SimulationStartPayload extends SimulationParams {
   speed?: SimulationSpeed
   gateOpening?: number

@@ -27,7 +27,7 @@ function generateMockRules(): InterlockRule[] {
       id: 1,
       code: 'spillway_intake_mutex',
       name: '泄洪-发电互斥',
-      description: '溢洪道开度 > 80% 时，发电引水闸 ≤ 50%',
+      description: '溢洪道开度 > 80% 时，发电引水阀 ≤ 50%',
       scope: 'global',
       reservoir_id: null,
       priority: 1,
@@ -41,7 +41,7 @@ function generateMockRules(): InterlockRule[] {
       id: 2,
       code: 'downstream_impact_protect',
       name: '下游冲击保护',
-      description: '任两闸门同时增开 > 30%，第三个闸门禁止同向动作',
+      description: '任两阀门同时增开 > 30%，第三个阀门禁止同向动作',
       scope: 'global',
       reservoir_id: null,
       priority: 2,
@@ -69,7 +69,7 @@ function generateMockRules(): InterlockRule[] {
       id: 4,
       code: 'min_discharge_guarantee',
       name: '最小下泄保障',
-      description: '三闸门总开度 < 5% 时禁止再关',
+      description: '三阀门总开度 < 5% 时禁止再关',
       scope: 'reservoir',
       reservoir_id: 1,
       reservoir_name: '示范水库',
@@ -254,7 +254,7 @@ onMounted(() => {
   <div class="gate-interlock-page">
     <div class="page-header">
       <h2 class="page-title">
-闸门互锁规则
+阀门互锁规则
 </h2>
       <div class="header-actions">
         <ElSelect

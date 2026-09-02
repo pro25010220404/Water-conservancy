@@ -150,7 +150,7 @@ defineExpose({
             <template v-if="preview">
               <div class="sim-modal__scene-brief">
                 <h3>{{ previewPlanName || '当前方案' }}</h3>
-                <p>基于 AI 调度方案预览闸门开度与上下游水位效果</p>
+                <p>基于 AI 调度方案预览阀门开度与上下游水位效果</p>
               </div>
 
               <div class="sim-modal__kpis">
@@ -320,7 +320,7 @@ defineExpose({
                       "
                     />
                   </div>
-                  <p class="sim-modal__hint">宽幅水幕随开度变化；0% 完全隐藏泄流。近全开时选中框会转到闸墩。</p>
+                  <p class="sim-modal__hint">宽幅水幕随开度变化；0% 完全隐藏泄流。近全开时选中框会转到阀墩。</p>
                 </div>
                 <div v-else key="gate-avg" class="sim-modal__field">
                   <label>平均开度 {{ safeGateOpening }}%</label>
@@ -338,7 +338,7 @@ defineExpose({
                       emit('update:gateOpening', Number(($event.target as HTMLInputElement).value))
                     "
                   />
-                  <p class="sim-modal__hint">点击右侧 3D 闸门，可单独调节每一孔开度与泄流量</p>
+                  <p class="sim-modal__hint">点击右侧 3D 阀门，可单独调节每一孔开度与泄流量</p>
                 </div>
               </Transition>
 
@@ -390,7 +390,7 @@ defineExpose({
                   <strong>{{ safeFlowRate }} m³/s</strong>
                 </div>
                 <div class="sim-modal__kpi">
-                  <small>闸门开度</small>
+                  <small>阀门开度</small>
                   <strong>{{ safeGateOpening }}%</strong>
                 </div>
               </div>

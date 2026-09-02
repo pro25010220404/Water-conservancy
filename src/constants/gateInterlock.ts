@@ -1,5 +1,5 @@
 // ============================================================
-// 闸门互锁规则 — 字典常量
+// 阀门互锁规则 — 字典常量
 // 按需求文档 5.8 / 8.4 节定义
 // ============================================================
 
@@ -8,17 +8,17 @@ export const DEFAULT_INTERLOCK_RULES = [
   {
     code: 'spillway_intake_mutex',
     name: '泄洪-发电互斥',
-    description: '溢洪道开度 > 80% 时，发电引水闸 ≤ 50%',
+    description: '溢洪道开度 > 80% 时，发电引水阀 ≤ 50%',
     trigger: '溢洪道 > 80%',
-    action: '发电闸 ≤ 50%',
+    action: '发电阀 ≤ 50%',
     priority: 1,
   },
   {
     code: 'downstream_impact_protect',
     name: '下游冲击保护',
-    description: '任两闸门同时增开 > 30%，第三个闸门禁止同向动作',
-    trigger: '两闸门同时增开 > 30%',
-    action: '第三闸门禁止同向',
+    description: '任两阀门同时增开 > 30%，第三个阀门禁止同向动作',
+    trigger: '两阀门同时增开 > 30%',
+    action: '第三阀门禁止同向',
     priority: 2,
   },
   {
@@ -32,7 +32,7 @@ export const DEFAULT_INTERLOCK_RULES = [
   {
     code: 'min_discharge_guarantee',
     name: '最小下泄保障',
-    description: '三闸门总开度 < 5% 时禁止再关',
+    description: '三阀门总开度 < 5% 时禁止再关',
     trigger: '总开度 < 5%',
     action: '禁止再关',
     priority: 4,
@@ -59,7 +59,7 @@ export const CONDITION_OPERATORS = [
 export const CONDITION_FIELDS = [
   { label: '溢洪道开度', value: 'spillway_opening' },
   { label: '泄洪洞开度', value: 'tunnel_opening' },
-  { label: '发电闸开度', value: 'intake_opening' },
+  { label: '发电阀开度', value: 'intake_opening' },
   { label: '总开度', value: 'total_opening' },
   { label: '上游水位', value: 'upstream_level' },
   { label: '下游水位', value: 'downstream_level' },

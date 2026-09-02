@@ -55,7 +55,7 @@ const reportData = computed(() => {
             <b>最大 {{ reportData.powerOutput.max }}MW / 最小 {{ reportData.powerOutput.min }}MW / 平均 {{ reportData.powerOutput.avg }}MW</b>
           </div>
           <div class="srm__item">
-            <span>闸门开度</span>
+            <span>阀门开度</span>
             <b>最大 {{ reportData.gateOpening.max }}% / 最小 {{ reportData.gateOpening.min }}% / 平均 {{ reportData.gateOpening.avg }}%</b>
           </div>
         </div>

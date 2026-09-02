@@ -287,7 +287,7 @@ const MOCK_EQUIPMENT: Equipment[] = [
   },
   {
     id: 14,
-    name: '亚克力闸门板 ×2',
+    name: '亚克力阀门板 ×2',
     code: 'GAT-001',
     type: 'actuator',
     reservoir_id: 1,
@@ -736,7 +736,7 @@ watch([typeFilter, statusFilter, reservoirFilter], onFilterChange)
                 <ElDescriptionsItem label="出库流量">
                   {{ detail.latest_monitoring.outflow_rate }} m³/s
                 </ElDescriptionsItem>
-                <ElDescriptionsItem label="闸门开度">
+                <ElDescriptionsItem label="阀门开度">
                   {{ detail.latest_monitoring.gate_opening }}%
                 </ElDescriptionsItem>
                 <ElDescriptionsItem label="发电功率">

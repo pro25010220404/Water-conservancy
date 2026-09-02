@@ -162,7 +162,7 @@ function parseNum(val: unknown, fallback = 0): number {
 
 function inferDeviceType(type: string, equipmentName?: string): AlarmDeviceType {
   const t = type.toLowerCase()
-  if (t === 'gate' || equipmentName?.includes('闸门')) return 'gate'
+  if (t === 'gate' || equipmentName?.includes('阀门')) return 'gate'
   if (t === 'water_level' || t === 'flow' || equipmentName?.includes('水文') || equipmentName?.includes('水位')) {
     return 'hydro'
   }

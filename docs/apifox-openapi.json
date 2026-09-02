@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "水电站闸门智能调度系统 API",
+    "title": "水电站阀门智能调度系统 API",
     "version": "v2.4",
-    "description": "告警管理 / 调度决策 / 水库管理 / 边缘节点管理 / 数字孪生 / 边缘端上报 / 边缘端配置下发 / 闸门互锁"
+    "description": "告警管理 / 调度决策 / 水库管理 / 边缘节点管理 / 数字孪生 / 边缘端上报 / 边缘端配置下发 / 阀门互锁"
   },
   "servers": [
     { "url": "http://47.108.169.152:8089", "description": "后端部署(8089)" },
@@ -142,7 +142,7 @@
     { "name": "数字孪生", "description": "§9 数字孪生模块 — LX 负责" },
     { "name": "边缘端上报", "description": "§11 边缘端数据上报接口 — LX 负责" },
     { "name": "边缘端配置下发", "description": "§12 物理配置 + §8.3.6 模型下发 — 边缘端配置管理" },
-    { "name": "闸门互锁", "description": "§13 闸门互锁规则模块 — Wjc 负责" }
+    { "name": "阀门互锁", "description": "§13 阀门互锁规则模块 — Wjc 负责" }
   ],
   "paths": {
     "/api/v1/alarms": {
@@ -283,7 +283,7 @@
                 "properties": {
                   "reservoir_id": { "type": "integer" },
                   "decision_id": { "type": "integer", "description": "关联AI决策ID，纯手动则不传" },
-                  "target_opening": { "type": "number", "description": "目标闸门开度(%)" },
+                  "target_opening": { "type": "number", "description": "目标阀门开度(%)" },
                   "operate_note": { "type": "string" }
                 }
               }
@@ -307,7 +307,7 @@
     "/api/v1/dispatch/gate-actions": {
       "get": {
         "tags": ["调度决策"],
-        "summary": "§4.6 闸门动作历史",
+        "summary": "§4.6 阀门动作历史",
         "parameters": [
           { "name": "page", "in": "query", "schema": { "type": "integer" } },
           { "name": "page_size", "in": "query", "schema": { "type": "integer" } },
@@ -344,7 +344,7 @@
     "/api/v1/dispatch/stop-recover/{id}": {
       "put": {
         "tags": ["调度决策"],
-        "summary": "§4.8 恢复闸门自动模式",
+        "summary": "§4.8 恢复阀门自动模式",
         "description": "更新 emergency_stops.recover_time，解除急停锁定",
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
@@ -754,8 +754,8 @@
     "/api/simulation/gate": {
       "put": {
         "tags": ["数字孪生"],
-        "summary": "仿真中调节闸门开度（补充接口）",
-        "description": "仿真运行中手动调整闸门开度。需求来源：项目汇报§图6 开度滑块控制",
+        "summary": "仿真中调节阀门开度（补充接口）",
+        "description": "仿真运行中手动调整阀门开度。需求来源：项目汇报§图6 开度滑块控制",
         "requestBody": {
           "content": {
             "application/json": {
@@ -763,7 +763,7 @@
                 "type": "object",
                 "required": ["gate_opening"],
                 "properties": {
-                  "gate_opening": { "type": "integer", "minimum": 0, "maximum": 100, "description": "闸门开度(%)" }
+                  "gate_opening": { "type": "integer", "minimum": 0, "maximum": 100, "description": "阀门开度(%)" }
                 }
               }
             }
@@ -1140,7 +1140,7 @@
     },
     "/api/v1/settings/gate-interlock/rules": {
       "get": {
-        "tags": ["闸门互锁"],
+        "tags": ["阀门互锁"],
         "summary": "§13.1 互锁规则列表",
         "description": "返回全局默认 + 指定水库专属规则，按 priority 排序",
         "parameters": [
@@ -1151,7 +1151,7 @@
     },
     "/api/v1/settings/gate-interlock/rules/{id}": {
       "put": {
-        "tags": ["闸门互锁"],
+        "tags": ["阀门互锁"],
         "summary": "§13.2 更新互锁规则",
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
@@ -1178,7 +1178,7 @@
     },
     "/api/v1/settings/gate-interlock/rules/{id}/toggle": {
       "post": {
-        "tags": ["闸门互锁"],
+        "tags": ["阀门互锁"],
         "summary": "§13.3 启用/禁用规则",
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
@@ -1201,7 +1201,7 @@
     },
     "/api/v1/settings/gate-interlock/logs": {
       "get": {
-        "tags": ["闸门互锁"],
+        "tags": ["阀门互锁"],
         "summary": "§13.4 互锁触发日志",
         "description": "查询互锁规则触发历史，支持按水库/规则/时间筛选",
         "parameters": [
@@ -1217,7 +1217,7 @@
     },
     "/api/v1/settings/gate-interlock/stats": {
       "get": {
-        "tags": ["闸门互锁"],
+        "tags": ["阀门互锁"],
         "summary": "§13.5 互锁触发统计",
         "parameters": [
           { "name": "reservoir_id", "in": "query", "schema": { "type": "integer" } },

@@ -1,6 +1,6 @@
 // ============================================================
 // 向家坝水电站 — 简化水文实时演算（Mock / 后端未就绪前）
-// 依据：入库流量、闸门开度 → 库区水位、尾水位变化
+// 依据：入库流量、阀门开度 → 库区水位、尾水位变化
 // ============================================================
 import { XIANGJIABA_HYDRO } from '@/constants/xiangjiaba'
 
@@ -24,7 +24,7 @@ export function estimatePlantFullDischarge(upstreamLevel: number): number {
 
 /**
  * 整站泄流 (m³/s)
- * @param gateOpeningPct 综合/平均闸门开度 0–100
+ * @param gateOpeningPct 综合/平均阀门开度 0–100
  */
 export function estimateSpillwayDischarge(upstreamLevel: number, gateOpeningPct: number): number {
   const opening = Math.max(0, Math.min(100, gateOpeningPct)) / 100

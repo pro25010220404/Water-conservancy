@@ -405,7 +405,7 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 
     <!-- 下方：左列表 + 右详情 -->
     <div class="gates-body">
-      <GlassPanel3D title="闸门节点" fill class="gates-panel gates-panel--list">
+      <GlassPanel3D title="阀门节点" fill class="gates-panel gates-panel--list">
         <template v-for="(list, group) in groupedGates" :key="group">
           <div class="gate-group-label">{{ groupLabels[group as GateGroup] }}</div>
           <div

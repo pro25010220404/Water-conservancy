@@ -13,7 +13,7 @@ const { record: recordLog } = useOperationLog()
 async function handleClick() {
   try {
     await ElMessageBox.confirm(
-      '确认立即紧急停止？所有闸门执行将中断，开度归零，运行中的仿真将暂停。',
+      '确认立即紧急停止？所有阀门执行将中断，开度归零，运行中的仿真将暂停。',
       '全局紧急停止',
       { type: 'error', confirmButtonText: '确认急停', cancelButtonText: '取消' },
     )

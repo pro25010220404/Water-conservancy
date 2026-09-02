@@ -40,7 +40,7 @@ const routes: RouteRecordRaw[] = [
         path: 'dashboard/gate',
         name: 'Gate',
         component: () => import('@/views/dashboard/GatePage.vue'),
-        meta: { title: '闸门检测' },
+        meta: { title: '阀门检测' },
       },
       {
         path: 'dashboard/power',
@@ -133,7 +133,7 @@ const routes: RouteRecordRaw[] = [
         name: 'Simulation',
         component: () => import('@/views/simulation/SimulationPage.vue'),
         meta: {
-          title: '智慧水利数字孪生驾驶舱 - 向家坝水电站闸门智能调度系统',
+          title: '智慧水利数字孪生驾驶舱 - 向家坝水电站阀门智能调度系统',
           shortTitle: '数字孪生',
         },
       },
@@ -215,7 +215,7 @@ const routes: RouteRecordRaw[] = [
         path: 'settings/gate-interlock',
         name: 'SettingsGateInterlock',
         component: () => import('@/views/settings/gateai/GateInterlockPage.vue'),
-        meta: { title: '闸门互锁规则配置' },
+        meta: { title: '阀门互锁规则配置' },
       },
       {
         path: 'settings/gate-interlock/logs',

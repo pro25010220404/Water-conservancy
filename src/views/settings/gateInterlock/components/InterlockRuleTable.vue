@@ -31,7 +31,7 @@ function getFieldLabel(field: string): string {
   const map: Record<string, string> = {
     spillway_opening: '溢洪道',
     tunnel_opening: '泄洪洞',
-    intake_opening: '发电闸',
+    intake_opening: '发电阀',
     total_opening: '总开度',
     upstream_level: '上游水位',
     downstream_level: '下游水位',

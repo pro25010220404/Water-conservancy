@@ -89,7 +89,7 @@ const sections = computed(() => {
     },
     {
       id: 'gate',
-      title: '闸门检测',
+      title: '阀门检测',
       path: '/dashboard/gate',
       preview: [
         { l: '平均开度', v: `${d.gateOpening.toFixed(1)} %` },
@@ -141,7 +141,7 @@ const sections = computed(() => {
   ]
 })
 
-// D-101: 闸门互锁约束状态（从 API 轮询）
+// D-101: 阀门互锁约束状态（从 API 轮询）
 const gateInterlocked = ref(false)
 const interlockRuleName = ref('')
 const alarms = ref<DashboardAlarm[]>([
@@ -199,13 +199,13 @@ async function refreshAlarms() {
         ><b style="color: #3b82f6">{{ fmt(kpi.powerOutput, 0) }}<small>MW</small></b>
       </div>
       <div class="kpi" :class="{ 'kpi--sim': simActive }">
-        <span>闸门开度</span
+        <span>阀门开度</span
         ><b
           >{{ fmt(kpi.gateOpening, 1) }}<small>%</small
           ><span
             v-if="gateInterlocked"
             class="kpi__interlock"
-            :title="'该闸门受互锁规则约束：' + interlockRuleName"
+            :title="'该阀门受互锁规则约束：' + interlockRuleName"
             >🔗</span
           ></b
         >

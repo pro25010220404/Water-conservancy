@@ -109,7 +109,7 @@ def main():
 
     # ===== 页面2 =====
     h(doc, '2. 节点控制页（/dispatch/gates）')
-    p(doc, '这是后端工作量最大的页：读闸门列表 + 执行开度变更 + 互锁校验。')
+    p(doc, '这是后端工作量最大的页：读阀门列表 + 执行开度变更 + 互锁校验。')
 
     h(doc, '2.1 已对接 / 在用的接口', 2)
     table(doc, ['方法', '路径', '频率', '说明'], [
@@ -118,7 +118,7 @@ def main():
         ['GET', '/api/v1/dispatch/decisions?page=1&page_size=50&reservoir_id=1', '进页', '拼 DispatchStatus'],
         ['GET', '/api/v1/dispatch/decisions/{id}', '进页', '决策详情'],
         ['POST', '/api/v1/dispatch/execute', '运行控制页', '聚合总开度执行，见 2.4'],
-        ['GET', '/api/v1/dispatch/gate-actions', '可选', '闸门动作历史'],
+        ['GET', '/api/v1/dispatch/gate-actions', '可选', '阀门动作历史'],
     ])
 
     h(doc, '2.2 GET /monitoring/gates 响应字段（单条）', 2)
@@ -133,7 +133,7 @@ def main():
   "flow_rate": 98,           // 单孔流量 m³/s
   "last_action_at": "14:32"
 }''')
-    p(doc, '闸门分组（前端 inferGateGroup，后端也可直接返回 group）：')
+    p(doc, '阀门分组（前端 inferGateGroup，后端也可直接返回 group）：')
     table(doc, ['code 编号', '分组'], [
         ['GATE-001 ~ GATE-008', 'surface 表孔'],
         ['GATE-009 ~ GATE-010', 'mid 中孔'],
@@ -218,7 +218,7 @@ def main():
         ['POST', '/api/v1/simulation/{id}/pause', '暂停'],
         ['POST', '/api/v1/simulation/{id}/resume', '继续'],
         ['POST', '/api/v1/simulation/{id}/reset', '重置'],
-        ['PUT', '/api/v1/simulation/{id}/gate', '调闸门开度 body: { gate_opening: 0-100 }'],
+        ['PUT', '/api/v1/simulation/{id}/gate', '调阀门开度 body: { gate_opening: 0-100 }'],
         ['GET', '/api/v1/simulation/{id}/result?aggregation=raw', '仿真结果'],
         ['POST', '/api/v1/simulation/{id}/report', '生成报告 body: report_type/format/include_charts'],
     ])
@@ -277,7 +277,7 @@ def main():
         ['src/utils/gateControl.ts', '互锁预检算法'],
         ['src/utils/virtualSimulationEngine.ts', '虚拟仿真计算公式'],
         ['src/types/dispatch.ts', '调度类型定义'],
-        ['src/types/gateControl.ts', '闸门/互锁类型'],
+        ['src/types/gateControl.ts', '阀门/互锁类型'],
     ])
 
     h(doc, '6. 联调检查清单')

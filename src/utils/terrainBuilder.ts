@@ -171,7 +171,7 @@ function addPier(
   m.position.set(x, y, z)
   if (name) {
     m.name = name
-    m.userData.detail = '混凝土闸墩 · 分隔泄洪孔 · 承力结构'
+    m.userData.detail = '混凝土阀墩 · 分隔泄洪孔 · 承力结构'
   }
   m.castShadow = true
   m.receiveShadow = true
@@ -211,17 +211,17 @@ export function buildDamBody(envMap?: THREE.Texture | null): THREE.Group {
   body.receiveShadow = true
   group.add(body)
 
-  // 泄洪闸墩立柱（参考第二张图多组垂直结构）
+  // 泄洪阀墩立柱（参考第二张图多组垂直结构）
   const pierZs = [-18, -10.5, -3, 4.5, 12, 19.5]
   pierZs.forEach((z, i) => {
     const pierName = i < 5 ? `pier_${i + 1}` : undefined
     addPier(group, accentMat, 5.5, 14, z, 2.2, 26, 3.8, pierName)
     if (i < pierZs.length - 1) {
       const midZ = (z + pierZs[i + 1]) / 2
-      const bayName = `${i + 1}号闸门`
+      const bayName = `${i + 1}号阀门`
       const bay = new THREE.Group()
       bay.name = bayName
-      bay.userData.detail = '钢制泄洪闸 · 液压启闭 · 开度联动'
+      bay.userData.detail = '钢制泄洪阀 · 液压启闭 · 开度联动'
 
       const frame = new THREE.Mesh(new THREE.BoxGeometry(0.55, 11, 3.2, 1, 8, 3), steelMat.clone())
       frame.position.set(6.2, 10, midZ)

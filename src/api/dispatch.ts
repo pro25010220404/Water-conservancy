@@ -63,7 +63,7 @@ export function cancelCommand(command_id: string, operate_note?: string) {
   )
 }
 
-// ── §4.6 闸门动作历史 ──
+// ── §4.6 阀门动作历史 ──
 export function getGateActions(params: {
   page?: number
   page_size?: number

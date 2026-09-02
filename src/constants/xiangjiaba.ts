@@ -3,7 +3,7 @@
 // ============================================================
 import { GATE_SILL_Y } from '@/utils/gateKinematics'
 
-/** 3D 场景 — 上游水面映射区间（闸口中上部，仍低于门楣/坝顶） */
+/** 3D 场景 — 上游水面映射区间（阀口中上部，仍低于门楣/坝顶） */
 export const UPSTREAM_SCENE_Y_MIN = GATE_SILL_Y + 1.6
 export const UPSTREAM_SCENE_Y_MAX = GATE_SILL_Y + 9.2
 
@@ -44,7 +44,7 @@ export function clampUpstreamLevel(level: number): number {
   return Math.max(min, Math.min(max, level))
 }
 
-/** 将实际上游水位 (m) 映射到 3D 场景水面高度（对齐闸孔正面，不贴坝顶） */
+/** 将实际上游水位 (m) 映射到 3D 场景水面高度（对齐阀孔正面，不贴坝顶） */
 export function upstreamLevelToSceneY(level: number): number {
   const clamped = clampUpstreamLevel(level)
   const { deadLevel, crestElevation } = XIANGJIABA_HYDRO

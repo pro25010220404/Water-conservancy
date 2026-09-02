@@ -137,7 +137,7 @@ const metricLabelMap: Record<string, string> = {
   downstream_level: '下游水位',
   inflow_rate: '入库流量',
   outflow_rate: '出库流量',
-  gate_opening: '闸门开度',
+  gate_opening: '阀门开度',
   power_output: '发电功率',
 }
 
@@ -1518,7 +1518,7 @@ onMounted(() => {
       </div>
     </template>
 
-    <!-- ═══ Tab6: 闸门互锁 ═══ -->
+    <!-- ═══ Tab6: 阀门互锁 ═══ -->
     <template v-if="activeTab === 'gate-interlock'">
       <div class="gateai-tab-content">
         <GateInterlockPanel />

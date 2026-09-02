@@ -1,5 +1,5 @@
 // ============================================================
-// 闸门节点控制 — 聚合 / 分配 / 互锁预校验
+// 阀门节点控制 — 聚合 / 分配 / 互锁预校验
 // ============================================================
 import type {
   GateGroup,
@@ -233,7 +233,7 @@ function consolidateViolations(list: GatePrecheckViolation[]): GatePrecheckViola
   return out
 }
 
-/** 将预检结果标注到各闸门节点，供坝体图/列表直接展示 */
+/** 将预检结果标注到各阀门节点，供坝体图/列表直接展示 */
 export function annotateGatesWithInterlock(
   gates: GateNodeControl[],
   violations: GatePrecheckViolation[],

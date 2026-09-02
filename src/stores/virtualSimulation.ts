@@ -93,7 +93,7 @@ export const useVirtualSimulationStore = defineStore('virtualSimulation', () => 
     }
   }
 
-  /** 将仿真结果叠加到闸门节点 */
+  /** 将仿真结果叠加到阀门节点 */
   function overlayGates(gates: GateNodeControl[]): GateNodeControl[] {
     if (!active.value) return gates
     const scale = derived.value.gateScale

@@ -201,7 +201,7 @@ export const useDispatchStore = defineStore('dispatch', () => {
         const [gateList, kpiRaw] = await Promise.all([fetchGates(1), fetchRealtimeKpi(1)])
         simStore.initBaselineFromKpi(kpiRaw)
         const kpi = simStore.overlayKpi(kpiRaw)
-        // 闸门列表存接口原值；仿真缩放/抖动仅在展示层 overlay，避免重复叠加
+        // 阀门列表存接口原值；仿真缩放/抖动仅在展示层 overlay，避免重复叠加
         gates.value = gateList.map(buildGateNode)
         if (hadPending) {
           gates.value = gates.value.map((g) => ({
