@@ -28,7 +28,7 @@ const metricOptions = [
   { value: 'downstreamLevel', label: '下游水位', unit: 'm', color: '#06b6d4' },
   { value: 'inflowRate', label: '入库流量', unit: 'm³/s', color: '#8b5cf6' },
   { value: 'outflowRate', label: '出库流量', unit: 'm³/s', color: '#22c55e' },
-  { value: 'gateOpening', label: '闸门开度', unit: '%', color: '#f59e0b' },
+  { value: 'gateOpening', label: '阀门开度', unit: '%', color: '#f59e0b' },
   { value: 'powerOutput', label: '发电功率', unit: 'MW', color: '#ef4444' },
 ]
 const selectedMetric = ref('upstreamLevel')

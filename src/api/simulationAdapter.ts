@@ -554,7 +554,7 @@ export function faultReviewToSimulationParams(
     const preset = getScenePreset('rainstorm')
     return { ...preset, scene: 'rainstorm', gateOpening: preset.gateOpening }
   }
-  if (/闸门|执行失败|泄洪|表孔|底孔/.test(text)) {
+  if (/阀门|执行失败|泄洪|表孔|底孔/.test(text)) {
     const preset = getScenePreset('normal')
     return {
       ...preset,

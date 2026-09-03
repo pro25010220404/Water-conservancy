@@ -3,7 +3,7 @@
 ## 当前模型
 
 - **文件**: `xiangjiaba-dam.glb`（**程序化实体大坝**，`npm run generate:dam`）
-- **特性**: 5 组闸门 `gateLeaf_0…4` 可开度动画，与水面/泄洪粒子对齐
+- **特性**: 5 组阀门 `gateLeaf_0…4` 可开度动画，与水面/泄洪粒子对齐
 - **混元备份**: `hunyuan-raw.glb`（待 Blender 精修后可替换）
 - **回退备份**: `xiangjiaba-dam.glb.bak`（与当前程序化模型相同）
 
@@ -20,7 +20,7 @@
    - [Meshy — dam CC0](https://www.meshy.ai/tags/dam)
    - [Poly Haven Models](https://polyhaven.com/models)
 
-2. 在 **Blender** 中打开，检查/重命名闸门叶为 `gateLeaf_0` … `gateLeaf_N`
+2. 在 **Blender** 中打开，检查/重命名阀门叶为 `gateLeaf_0` … `gateLeaf_N`
 
 3. 重命名为 `xiangjiaba-dam.glb` 覆盖本目录文件
 

@@ -154,9 +154,9 @@ export function useVoiceAssistant() {
       speak('已打开水情监测')
       return
     }
-    if (t.includes('闸门') || t.includes('泄洪') || t.includes('开度')) {
+    if (t.includes('阀门') || t.includes('泄洪') || t.includes('开度')) {
       router.push('/dashboard/gate')
-      speak('已打开闸门检测')
+      speak('已打开阀门检测')
       return
     }
     if (t.includes('发电') || t.includes('机组') || t.includes('功率') || t.includes('出力')) {
@@ -191,13 +191,13 @@ export function useVoiceAssistant() {
       return
     }
 
-    // 闸门控制
+    // 阀门控制
     if (t.includes('全开') || t.includes('全部打开')) {
-      speak('闸门全开指令已执行')
+      speak('阀门全开指令已执行')
       return
     }
     if (t.includes('全关') || t.includes('全部关闭')) {
-      speak('闸门全关指令已执行')
+      speak('阀门全关指令已执行')
       return
     }
 
@@ -224,7 +224,7 @@ export function useVoiceAssistant() {
 
     // 帮助
     if (t.includes('帮助') || t.includes('功能') || t.includes('能做什么')) {
-      speak('可以说：打开水情监测、查看闸门、发电功率、安防监控、闸门全开、静音')
+      speak('可以说：打开水情监测、查看阀门、发电功率、安防监控、阀门全开、静音')
       return
     }
 

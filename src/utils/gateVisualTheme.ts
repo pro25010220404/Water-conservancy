@@ -1,11 +1,11 @@
-// 数字孪生 — 闸墩 / 闸叶 / 泄流视觉主题
+// 数字孪生 — 阀墩 / 阀叶 / 泄流视觉主题
 import * as THREE from 'three'
 
 export const PIER_COLOR = 0x2a323c
 export const DAM_BODY_COLOR = 0x343d48
 export const GATE_FRAME_COLOR = 0x3d4652
 
-/** 闸墩坝体：哑光深炭灰 */
+/** 阀墩坝体：哑光深炭灰 */
 export const PIER_MAT = {
   color: PIER_COLOR,
   metalness: 0.22,
@@ -31,7 +31,7 @@ export interface GateLeafVisual {
 }
 
 /**
- * 闸叶颜色：关=钢灰 → 开=略亮钢灰（不使用绿色）
+ * 阀叶颜色：关=钢灰 → 开=略亮钢灰（不使用绿色）
  * 选中态由蓝色描边单独表达，避免工况色与选中色打架
  */
 export function gateLeafVisualForOpening(openRatio: number): GateLeafVisual {

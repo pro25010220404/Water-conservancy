@@ -49,7 +49,7 @@ const props = withDefaults(defineProps<{
   visualMode?: 'default' | 'twin' | 'panorama'
   /** 仿真运行中 — 触发镜头近景聚焦 */
   simRunning?: boolean
-  /** 当前选中的闸门索引 0-4，-1 表示未选中 */
+  /** 当前选中的阀门索引 0-4，-1 表示未选中 */
   selectedGateIndex?: number
   /** 降雨量 mm/h — 影响水雾强度与入库流量联动 */
   rainfall?: number
@@ -443,7 +443,7 @@ async function mountDamModel() {
     collectGateLeafMeshes(damInstance.root)
     buildGateBayPickers()
     collectAnimCaches(damInstance.root)
-    // 泄流挂到坝体下，随模型缩放/偏移，并与各闸叶对齐
+    // 泄流挂到坝体下，随模型缩放/偏移，并与各阀叶对齐
     if (dischargeGroup && damGroup) {
       scene?.remove(dischargeGroup)
       damGroup.add(dischargeGroup)
@@ -776,7 +776,7 @@ function buildGateBayPickers() {
   gateBayGroup = new THREE.Group()
   gateBayGroup.name = 'gateBayPickers'
   // 拾取盒：visible=true + opacity=0（material.visible=false / object.visible=false 会被 Raycaster 跳过）
-  // 全开时闸叶 retracted 不可见，必须靠这些盒子点选
+  // 全开时阀叶 retracted 不可见，必须靠这些盒子点选
   const bayZs = [-14.25, -6.75, 0.75, 8.25, 16.0]
   const geo = new THREE.BoxGeometry(5.5, 13, 4.2)
   const mat = new THREE.MeshBasicMaterial({
@@ -791,7 +791,7 @@ function buildGateBayPickers() {
     const picker = new THREE.Mesh(geo, mat)
     picker.name = `gateBay_${i}`
     picker.visible = true
-    // 略靠下游侧，优先拦住穿过表孔的射线；Z 尽量对齐实际闸叶
+    // 略靠下游侧，优先拦住穿过表孔的射线；Z 尽量对齐实际阀叶
     let z = bayZs[i]
     const leaf = damGroup.getObjectByName(`gateLeaf_${i}`)
     if (leaf) {
@@ -908,9 +908,9 @@ function applyGateSelectionVisuals() {
   applyGateOpeningVisuals()
 
   if (outlinePass && holo) {
-    // 描整孔闸室（含门槽/门楣），避免全开时只描一侧闸墩造成“号位对不上”
+    // 描整孔阀室（含门槽/门楣），避免全开时只描一侧阀墩造成“号位对不上”
     if (sel >= 0 && sel < 5) {
-      const bay = damGroup?.getObjectByName(`${sel + 1}号闸门`)
+      const bay = damGroup?.getObjectByName(`${sel + 1}号阀门`)
       const ratio = ratios[sel] ?? 0
       if (bay) {
         outlinePass.selectedObjects = [bay]
@@ -950,7 +950,7 @@ function updateGateScreenLabels(dt = 0.016) {
   const w = containerRef.value.clientWidth
   const h = containerRef.value.clientHeight
   const v = new THREE.Vector3()
-  const bay = damGroup?.getObjectByName(`${sel + 1}号闸门`)
+  const bay = damGroup?.getObjectByName(`${sel + 1}号阀门`)
   const obj = bay ?? gateLeafObjects[sel]
   if (!obj) {
     selectedGateScreenLabel.value.visible = false
@@ -960,7 +960,7 @@ function updateGateScreenLabels(dt = 0.016) {
   const flow = Math.round(estimateGateBayDischarge(safeNum(props.waterLevel, 380), opening))
 
   obj.getWorldPosition(v)
-  // 锚在孔口中部，避免全开闸叶收到门楣后标签飞到坝顶
+  // 锚在孔口中部，避免全开阀叶收到门楣后标签飞到坝顶
   v.y = Math.min(Math.max(v.y, 10), 14)
   v.project(camera!)
 
@@ -979,7 +979,7 @@ function updateGateScreenLabels(dt = 0.016) {
     visible: gateLabelSmooth.alpha > 0.04,
     x: gateLabelSmooth.x,
     y: gateLabelSmooth.y,
-    name: `${sel + 1}号闸门`,
+    name: `${sel + 1}号阀门`,
     opening: gateLabelSmooth.opening,
     flow: Math.round(gateLabelSmooth.flow),
     alpha: gateLabelSmooth.alpha,
@@ -1038,7 +1038,7 @@ function buildDischargeJets() {
   syncDischargeJetsToLeaves()
 }
 
-/** 泄流水幕跟实际闸叶 X/Z 对齐，避免硬编码孔位与模型错位 */
+/** 泄流水幕跟实际阀叶 X/Z 对齐，避免硬编码孔位与模型错位 */
 function syncDischargeJetsToLeaves() {
   if (!dischargeGroup || !dischargeJetParts.length) return
   const parent = dischargeGroup.parent
@@ -1049,7 +1049,7 @@ function syncDischargeJetsToLeaves() {
     if (leaf && parent) {
       const world = leaf.getWorldPosition(new THREE.Vector3())
       parent.worldToLocal(world)
-      // layout 里水流在局部 X=DISCHARGE_X，用 jet 位移补偿到闸叶正面
+      // layout 里水流在局部 X=DISCHARGE_X，用 jet 位移补偿到阀叶正面
       jet.position.set(world.x - DISCHARGE_X, 0, world.z)
     } else {
       jet.position.set(0, 0, bayZs[i] ?? 0)
@@ -1085,7 +1085,7 @@ function tickDischargeSmooth(dt: number) {
 
   dischargeGroup.children.forEach((jetGroup, i) => {
     const ratio = gateRatios[i] ?? gateRatios[0] ?? 0
-    // 用运动学高度，避免 Box3 在闸叶收起时算出超出门楣的落点
+    // 用运动学高度，避免 Box3 在阀叶收起时算出超出门楣的落点
     const leafBottom = Math.min(gateLeafBottomY(ratio), LINTEL_BOTTOM_Y - 0.35)
     const target = computeDischargeMetrics(ratio, dsY, leafBottom)
 
@@ -1163,7 +1163,7 @@ function focusGateView(index: number) {
   gatePos.y += 1.5
 
   const camPreset = props.visualMode === 'panorama' ? PANORAMA_CAMERA : TWIN_CAMERA
-  // 仅轻微偏向选中闸门，保持与默认远景相近的观察距离
+  // 仅轻微偏向选中阀门，保持与默认远景相近的观察距离
   const blend = props.visualMode === 'panorama' ? 0.12 : 0.18
   const toTarget = camPreset.target.clone().lerp(gatePos, blend)
   const toPos = camPreset.pos.clone().lerp(
@@ -1412,7 +1412,7 @@ function findNamedRoot(obj: THREE.Object3D): THREE.Object3D | null {
       }
     }
     if (cur.name && cur.name !== '坝顶' && (
-      cur.name.includes('坝') || cur.name.includes('闸门') || cur.name.includes('站')
+      cur.name.includes('坝') || cur.name.includes('阀门') || cur.name.includes('站')
       || cur.name.includes('厂房') || cur.name.includes('水面')
     )) {
       return cur
@@ -1430,7 +1430,7 @@ function getOutlineTarget(root: THREE.Object3D): THREE.Object3D {
 function resolveGateFromHits(hits: THREE.Intersection[]): number | null {
   if (!hits.length) return null
 
-  // 射线常先擦过闸墩侧壁或坝体孔口，再打到拾取盒/闸叶；只要整条射线上有闸门就选中
+  // 射线常先擦过阀墩侧壁或坝体孔口，再打到拾取盒/阀叶；只要整条射线上有阀门就选中
   for (const hit of hits) {
     let cur: THREE.Object3D | null = hit.object
     while (cur) {
@@ -1462,7 +1462,7 @@ function onClick(e: MouseEvent) {
       return
     }
   }
-  // 点到闸墩 / 坝体 / 空白：取消闸门选中，避免误以为坝体就是闸门
+  // 点到阀墩 / 坝体 / 空白：取消阀门选中，避免误以为坝体就是阀门
   emit('gate-select', -1)
 }
 
@@ -1479,7 +1479,7 @@ function onMouseMove(e: MouseEvent) {
     const holo = props.visualMode === 'twin' || props.visualMode === 'panorama'
     if (gateIdx != null && gateIdx >= 0 && gateIdx < 5) {
       if (holo && outlinePass) {
-        const bay = damGroup?.getObjectByName(`${gateIdx + 1}号闸门`)
+        const bay = damGroup?.getObjectByName(`${gateIdx + 1}号阀门`)
         const ratios = getGateOpenRatios()
         const target =
           bay
@@ -1504,7 +1504,7 @@ function onMouseMove(e: MouseEvent) {
 
     const root = findNamedRoot(hits[0].object)
     if (root?.name) {
-      // 非闸门悬停：只更新提示词，不改选中描边（避免整坝被描成选中）
+      // 非阀门悬停：只更新提示词，不改选中描边（避免整坝被描成选中）
       hoveredObject = root
       if (holo) applyGateSelectionVisuals()
       const detail =
@@ -1662,7 +1662,7 @@ onUnmounted(() => {
         <strong>{{ flowRate }} m³/s</strong>
       </div>
       <div class="three-scene__data-row">
-        <span>闸门开度</span>
+        <span>阀门开度</span>
         <strong>{{ gateOpening }}%</strong>
       </div>
       <div class="three-scene__gauge">

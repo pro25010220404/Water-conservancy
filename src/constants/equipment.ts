@@ -79,7 +79,7 @@ export const HARDWARE_MODEL_MAP: Record<string, string> = {
   level_sensor_upstream: '超声波液位计（上游）',
   level_sensor_downstream: '超声波液位计（下游）',
   flow_sensor: '超声波流量计',
-  actuator: '电动推杆（闸门驱动）',
+  actuator: '电动推杆（阀门驱动）',
   plc_s7200: 'PLC S7-200 SMART SR20',
   plc_analog: 'PLC 模拟量输入模块 EM AE04',
   edge_gateway: 'Jetson Orin Nano + 触摸屏',
@@ -90,7 +90,7 @@ export const HARDWARE_MODEL_MAP: Record<string, string> = {
   step_down: '24V转12V降压模块',
   quick_connector: 'DN15不锈钢快速接头',
   silicone_hose: '透明硅胶软管',
-  gate_board: '透明亚克力闸门板',
+  gate_board: '透明亚克力阀门板',
 }
 
 // ---------- 心跳配置 ----------

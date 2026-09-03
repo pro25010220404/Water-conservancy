@@ -661,7 +661,7 @@ export async function clonePhysicsGuardConfig(fromId: number, toId: number, _ver
   })
 }
 
-// ═══ 闸门互锁 ═══
+// ═══ 阀门互锁 ═══
 export async function fetchInterlockRules(reservoirId: number): Promise<GateInterlockRule[]> {
   try {
     const [rulesRes, statsRes] = await Promise.all([

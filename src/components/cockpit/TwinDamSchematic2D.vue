@@ -347,7 +347,7 @@ const shimmerOffset = computed(() => (wavePhase.value * 120) % 40)
         向家坝大坝
       </text>
 
-      <!-- 闸门 -->
+      <!-- 阀门 -->
       <g v-for="g in gates" :key="g.idx">
         <rect
           :x="g.x"

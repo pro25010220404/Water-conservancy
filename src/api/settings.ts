@@ -255,7 +255,7 @@ export function clonePhysicsGuard(data: {
 }
 
 // ════════════════════════════════════════════════════════════
-// Tab6: 闸门互锁规则（前端扩展，后端文档暂未定义）
+// Tab6: 阀门互锁规则（前端扩展，后端文档暂未定义）
 // ════════════════════════════════════════════════════════════
 
 export function getInterlockRules(params: { reservoir_id: number }) {

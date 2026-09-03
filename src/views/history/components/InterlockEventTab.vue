@@ -62,11 +62,11 @@ function mapLogToEvent(log: GateInterlockLog): InterlockEvent {
     modifiedGate,
     decisionId: log.decision_id ?? null,
     actionDetail: {
-      trigger: log.reason ?? '闸门开度变化触发',
+      trigger: log.reason ?? '阀门开度变化触发',
       constraint: log.rule_name ?? '互锁约束',
       change:
         changedIndex >= 0 && before.length > 0
-          ? `闸门${changedIndex + 1} ${before[changedIndex]}% → ${after[changedIndex]}%`
+          ? `阀门${changedIndex + 1} ${before[changedIndex]}% → ${after[changedIndex]}%`
           : log.reason ?? '—',
     },
   }
@@ -159,7 +159,7 @@ function barWidth(value: number) {
             <th>水库</th>
             <th>规则名称</th>
             <th>水位快照</th>
-            <th>闸门开度变化</th>
+            <th>阀门开度变化</th>
             <th>关联调度</th>
             <th>操作</th>
           </tr>

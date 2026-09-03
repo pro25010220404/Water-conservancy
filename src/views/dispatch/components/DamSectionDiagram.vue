@@ -157,7 +157,7 @@ function selectGate(id: number) {
         </button>
       </div>
 
-      <!-- 底栏：闸门编号 + pill，与上游/下游底对齐 -->
+      <!-- 底栏：阀门编号 + pill，与上游/下游底对齐 -->
       <div class="dam-foot dam-foot--left">
         <div v-show="detailPanel === 'up'" class="dam-detail-strip">
           <div class="dam-detail-strip__item">

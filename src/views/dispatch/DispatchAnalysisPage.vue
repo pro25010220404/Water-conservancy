@@ -489,7 +489,7 @@ onUnmounted(() => {
       <div class="decision-summary">
         <div class="decision-action">
           <span class="lbl">推荐动作</span>
-          <p class="action-val">闸门开至 <strong>{{ decision.recommended_opening }}%</strong> <em>{{ openingDirection }}</em></p>
+          <p class="action-val">阀门开至 <strong>{{ decision.recommended_opening }}%</strong> <em>{{ openingDirection }}</em></p>
           <span class="lbl">预期效果</span>
           <p class="effect-val">{{ expectedEffect }}</p>
         </div>
@@ -622,7 +622,7 @@ onUnmounted(() => {
       </div>
     </GlassPanel3D>
 
-    <GlassPanel3D title="闸门动作历史" class="panel-gate-actions">
+    <GlassPanel3D title="阀门动作历史" class="panel-gate-actions">
       <GateActionsPanel />
     </GlassPanel3D>
 

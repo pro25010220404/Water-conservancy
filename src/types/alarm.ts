@@ -1,6 +1,6 @@
 // ============================================================
 // 告警管理 — TypeScript 类型定义
-// 依据：《水电站闸门智能调度系统-详细需求报告》第二章
+// 依据：《水电站阀门智能调度系统-详细需求报告》第二章
 // ============================================================
 
 // ---------- 告警级别 ----------
@@ -69,7 +69,7 @@ export interface AlarmSnapshot {
   upstreamLevel: number // 上游水位 (m)
   downstreamLevel: number // 下游水位 (m)
   flowRate: number // 流量 (m³/s)
-  gateOpening: number // 闸门开度 (%)
+  gateOpening: number // 阀门开度 (%)
   recordedAt: string // 快照时间
 }
 

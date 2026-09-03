@@ -51,7 +51,7 @@ const FIELD_LABELS: Partial<Record<keyof PhysicsGuardConfig, string>> = {
   fusion_l3_risk: 'L3风险概率',
   fusion_l2_confidence: 'L2置信度',
   fusion_l2_risk: 'L2风险概率',
-  gate_max_discharge: '闸门最大泄量',
+  gate_max_discharge: '阀门最大泄量',
 }
 
 function defaultConfig(reservoirId: number): PhysicsGuardConfig {
@@ -112,7 +112,7 @@ const physicsHistory: PhysicsGuardHistoryItem[] = [
     config_version: '1.0.1',
     changed_at: nowStr(2880),
     changed_by_name: '李运维',
-    description: '枯水期保水：死区 2% → 3%，减少老旧闸门微动',
+    description: '枯水期保水：死区 2% → 3%，减少老旧阀门微动',
     is_active: false,
     changes: [{ field: 'deadband_percent', label: '死区百分比', before: '2%', after: '3%' }],
   },
@@ -137,11 +137,11 @@ let interlockRules: GateInterlockRule[] = [
     reservoir_id: null,
     rule_code: 'spillway_intake_mutex',
     rule_name: '泄洪-发电互斥',
-    description: '溢洪道大开时限制发电闸开度',
+    description: '溢洪道大开时限制发电阀开度',
     enabled: true,
     priority: 1,
     trigger_label: '溢洪道 > 80%',
-    action_label: '发电闸 ≤ 50%',
+    action_label: '发电阀 ≤ 50%',
     trigger_count_7d: 12,
   },
   {
@@ -149,11 +149,11 @@ let interlockRules: GateInterlockRule[] = [
     reservoir_id: null,
     rule_code: 'downstream_impact_protect',
     rule_name: '下游冲击保护',
-    description: '两闸同向大增时锁第三闸',
+    description: '两阀同向大增时锁第三阀',
     enabled: true,
     priority: 2,
-    trigger_label: '任两闸同增 > 30%',
-    action_label: '第三闸禁止同向',
+    trigger_label: '任两阀同增 > 30%',
+    action_label: '第三阀禁止同向',
     trigger_count_7d: 5,
   },
   {
@@ -188,8 +188,8 @@ let interlockRules: GateInterlockRule[] = [
     description: '城区段更保守阈值 20%',
     enabled: true,
     priority: 2,
-    trigger_label: '任闸增开 > 20%',
-    action_label: '锁第三闸',
+    trigger_label: '任阀增开 > 20%',
+    action_label: '锁第三阀',
     trigger_count_7d: 8,
   },
 ]
@@ -208,7 +208,7 @@ let interlockLogs: GateInterlockLog[] = [
     openings_before: [85, 60, 30],
     openings_after: [85, 50, 30],
     changed_gates: [1],
-    reason: '溢洪道85%>80%，发电闸 60%→50%',
+    reason: '溢洪道85%>80%，发电阀 60%→50%',
   },
   {
     id: 2,
@@ -238,7 +238,7 @@ let interlockLogs: GateInterlockLog[] = [
     openings_before: [55, 48, 40],
     openings_after: [55, 48, 40],
     changed_gates: [],
-    reason: '1、2号闸同增35%，3号闸禁止同向',
+    reason: '1、2号阀同增35%，3号阀禁止同向',
   },
 ]
 
