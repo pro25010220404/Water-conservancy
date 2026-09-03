@@ -200,6 +200,33 @@ export async function pollAlarmPush(): Promise<ApiResponse<AlarmPushMessage | nu
   return mockApi.pollAlarmPush()
 }
 
+/**
+ * 轮询真实后端，取最新一条未处理告警（用于全局新告警通知）。
+ * 只走真实接口，后端不可用 / 无数据时返回 null（不 fallback mock）。
+ */
+export async function pollLatestUnhandledAlarm(): Promise<{
+  alarm: AlarmRecord
+  pendingCount: number
+} | null> {
+  try {
+    const res = await http.get<ApiResponse<BackendAlarmListData>>(ALARMS_BASE, {
+      params: { page: 1, page_size: 20, status: 'unhandled' },
+    })
+    const body = unwrap(res)
+    const list = body?.data?.list
+    if (!list?.length) return null
+    // 后端排序未保证，前端按 id 降序取最新一条
+    const latest = list.map(mapBackendAlarm).sort((a, b) => b.id - a.id)[0]
+    return {
+      alarm: latest,
+      pendingCount:
+        body.data.pending_count ?? body.data.unhandled_count ?? body.data.total ?? 0,
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function getPhysicsGuardSummary(): Promise<ApiResponse<PhysicsGuardSummary>> {
   try {
     const res = await http.get<ApiResponse<BackendPhysicsGuardRaw>>(

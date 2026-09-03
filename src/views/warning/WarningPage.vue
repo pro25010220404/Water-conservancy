@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ElSelect, ElOption, ElInput, ElButton, ElPagination,
@@ -14,16 +14,14 @@ import {
   ALARM_LEVEL_MAP, ALARM_TYPE_MAP, ALARM_STATUS_MAP,
   ALARM_LEVEL_OPTIONS, ALARM_TYPE_OPTIONS, ALARM_STATUS_OPTIONS,
   TIME_RANGE_OPTIONS, getAlarmActions, REMARK_MIN_LENGTH, REMARK_MAX_LENGTH,
-  DEFAULT_EXCEED_WINDOW_SEC, WS_ALARM_CHANNEL,
+  DEFAULT_EXCEED_WINDOW_SEC,
 } from '@/constants/alarm'
-import type { AlarmRecord, AlarmFilterParams, AlarmExceedLog, AlarmPushMessage } from '@/types/alarm'
+import type { AlarmRecord, AlarmFilterParams, AlarmExceedLog } from '@/types/alarm'
 import type { PhysicsGuardSummary } from '@/types/dispatch'
-import { getAlarmList, getAlarmDetail, confirmAlarm, handleAlarm, getAlarmExceedLogs, pollAlarmPush, getPhysicsGuardSummary } from '@/api/warning'
-import { useAlarmNotify, pendingAlarmCount } from '@/composables/useAlarmNotify'
-import { useWebSocket } from '@/composables/useWebSocket'
+import { getAlarmList, getAlarmDetail, confirmAlarm, handleAlarm, getAlarmExceedLogs, getPhysicsGuardSummary } from '@/api/warning'
+import { alarmRefreshTick, pendingAlarmCount } from '@/composables/useAlarmNotify'
 import { useAlarmDetailDisplay } from '@/composables/useAlarmDetailDisplay'
 
-const { handlePushMessage } = useAlarmNotify()
 const router = useRouter()
 const { config: alarmDisplay, setShowConfirmedBy, setShowHandledBy } = useAlarmDetailDisplay()
 
@@ -51,28 +49,8 @@ const exceedLogs = ref<AlarmExceedLog[]>([])
 const exceedLoading = ref(false)
 const exceedDialogVisible = ref(false)
 
-let pushTimer: ReturnType<typeof setInterval> | null = null
-
-const { connect: connectAlarmWs, disconnect: disconnectAlarmWs } = useWebSocket(WS_ALARM_CHANNEL, {
-  reconnectMaxAttempts: 3,
-  onMessage: (data) => {
-    const msg = data as AlarmPushMessage
-    if (msg?.type === 'alarm_new') {
-      handlePushMessage(msg)
-      fetchList()
-    }
-  },
-})
-
-async function pollAlarmUpdates() {
-  try {
-    const res = await pollAlarmPush()
-    if (res?.data) {
-      handlePushMessage(res.data)
-      await fetchList()
-    }
-  } catch { /* mock/offline */ }
-}
+// 全局告警信号 → 刷新列表（告警监听已提升至 MainLayout 全局轮询）
+watch(alarmRefreshTick, () => fetchList())
 
 async function fetchExceedLogs() {
   exceedLoading.value = true
@@ -185,12 +163,6 @@ async function openDetail(row: AlarmRecord) {
 
 onMounted(() => {
   fetchList()
-  connectAlarmWs()
-  pushTimer = setInterval(pollAlarmUpdates, 45000)
-})
-onUnmounted(() => {
-  if (pushTimer) clearInterval(pushTimer)
-  disconnectAlarmWs()
 })
 </script>
 

@@ -1,5 +1,5 @@
 /** 系统名称 */
-export const APP_TITLE = '水电阀门调度系统'
+export const APP_TITLE = '水电阀门智能调度系统'
 
 /** 用户角色 */
 export type UserRole = 'operator' | 'dispatcher' | 'manager' | 'admin' | 'algorithm_engineer'

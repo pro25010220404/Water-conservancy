@@ -2,11 +2,13 @@
 // ============================================================
 // 主布局 — 顶栏（Logo + 页眉一体）+ 侧边栏 + 内容区
 // ============================================================
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElContainer, ElAside, ElMain } from 'element-plus'
 import AppHeader from './AppHeader.vue'
 import AppSidebar from './AppSidebar.vue'
+import { pollLatestUnhandledAlarm } from '@/api/warning'
+import { handlePushMessage } from '@/composables/useAlarmNotify'
 import { APP_TITLE } from '@/constants'
 import logoUrl from '@/assets/images/logo.png'
 const route = useRoute()
@@ -18,6 +20,30 @@ const isFlushPage = computed(() => route.path.startsWith('/simulation'))
 const isWhitePage = computed(() =>
   route.path.startsWith('/warning') || route.path.startsWith('/dispatch'),
 )
+
+// ── 全局告警通知：轮询真实后端，检测最新未处理告警并弹窗 ──
+let alarmTimer: ReturnType<typeof setInterval> | null = null
+let lastAlarmId = 0
+async function pollAlarm() {
+  try {
+    const latest = await pollLatestUnhandledAlarm()
+    if (!latest) return
+    // 仅在新告警（id 递增）时弹窗，避免重复提示
+    if (latest.alarm.id > lastAlarmId) {
+      lastAlarmId = latest.alarm.id
+      handlePushMessage({ type: 'alarm_new', data: latest.alarm, pendingCount: latest.pendingCount })
+    }
+  } catch {
+    /* 静默 */
+  }
+}
+onMounted(() => {
+  pollAlarm()
+  alarmTimer = setInterval(pollAlarm, 15000)
+})
+onUnmounted(() => {
+  if (alarmTimer) clearInterval(alarmTimer)
+})
 </script>
 
 <template>
